@@ -1,4 +1,4 @@
-import nasa.nccs.cdapi.kernels.{BlockingExecutionResult, ErrorExecutionResult}
+import nasa.nccs.cdapi.kernels.{BlockingExecutionResult, ErrorExecutionResult, ExecutionResult, XmlExecutionResult}
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.engine.CDS2ExecutionManager
 import nasa.nccs.esgf.process.TaskRequest
@@ -51,11 +51,30 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
     "operation" -> List(Map("unparsed" -> s"( v0, $op_args )")))
 
-  def execute( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): CDFloatArray = {
+  def getMetaDataInputs(test_dataset: String, varName: String) = Map( "variable" -> List(Map("uri" -> test_dataset, "name" -> varName ) ) )
+
+  def computeResult( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): ExecutionResult = {
     val request = TaskRequest( kernel_name, data_inputs )
     cds2ExecutionManager.blockingExecute (request, run_args).results (0) match {
-      case result: BlockingExecutionResult => result.result_tensor
+      case result: BlockingExecutionResult => result
+      case xmlresult: XmlExecutionResult => xmlresult
       case err: ErrorExecutionResult => fail ( err.fatal() )
+      case x => fail ( "Unexpected response, got " + x.toString )
     }
   }
+
+  def computeArray( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): CDFloatArray =
+    computeResult( kernel_name, data_inputs ) match {
+      case result: BlockingExecutionResult => result.result_tensor
+      case x => fail ( "Expecting Float Array response, got " + x.toString )
+    }
+
+  def computeXmlNode( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): xml.Node =
+    computeResult( kernel_name, data_inputs ) match {
+      case result: XmlExecutionResult => result.responseXml
+      case x => fail ( "Expecting xml response, got " + x.toString )
+    }
+
+  def computeValue( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): Float = computeArray( kernel_name, data_inputs ).getData(0)
+
 }
