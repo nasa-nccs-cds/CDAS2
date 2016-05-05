@@ -3,28 +3,42 @@ import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.engine.CDS2ExecutionManager
 import nasa.nccs.esgf.process.TaskRequest
 import org.scalatest._
+import ucar.nc2.dataset.NetcdfDataset
 
 class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Float, val lon_value : Float ) extends FunSuite with Matchers {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val eps = 0.0005
-  val merra_data = getClass.getResource("/data/MERRA_TEST_DATA.ta.nc").toString
+  val eps = 0.0002
+  val merra_data = getClass.getResource("/data/MERRA_TEST_DATA_ta.nc").toString
   val const_data = getClass.getResource("/data/ConstantTestData.ta.nc").toString
   val run_args = Map("async" -> "false")
 
+  def readVerificationData( fileResourcePath: String, varName: String ): Option[CDFloatArray] = {
+    try {
+      val url = getClass.getResource( fileResourcePath ).toString
+      val ncDataset: NetcdfDataset = NetcdfDataset.openDataset(url)
+      val ncVariable = ncDataset.findVariable(varName)
+      Some( CDFloatArray.factory(ncVariable.read(), Float.NaN) )
+    } catch {
+      case err: Exception =>
+        println( "Error Reading VerificationData: " + err.getMessage )
+        None
+    }
+  }
+
   def maxScaledDiff(array0: CDFloatArray, array1: CDFloatArray): Float = {
     var max_diff = 0f
-    var std = 0.0
+    var magsum = 0.0
     var count = 0
     val length = Math.min(array0.getSize, array1.getSize)
     for (index <- (0 until length); val0 = array0.getFlatValue(index); if val0 != array0.getInvalid; val1 = array1.getFlatValue(index); if val1 != array1.getInvalid; diff = Math.abs(val0 - val1)) {
       if (diff > max_diff) {
         max_diff = diff
       }
-      std = std + val0 * val0
+      magsum = magsum + Math.abs(val0)
       count = count + 1
     }
-    std = Math.sqrt(std) / count
-    max_diff / std.toFloat
+    val mag = magsum / count
+    max_diff / mag.toFloat
   }
 
   def getSpatialDataInputs(test_dataset: String, op_args: String) = Map(
