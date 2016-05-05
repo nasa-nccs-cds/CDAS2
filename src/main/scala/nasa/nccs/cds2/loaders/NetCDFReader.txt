@@ -1,0 +1,101 @@
+package nasa.nccs.cds2.loaders
+
+import nasa.nccs.cds2.cdm
+import nasa.nccs.cds2.utilities.NetCDFUtils
+import nasa.nccs.esgf.process.DomainAxis
+import org.slf4j.{LoggerFactory, Logger}
+import ucar.nc2
+import ucar.nc2.{ NetcdfFile, Variable }
+import ucar.nc2.dataset.NetcdfDataset
+import ucar.ma2
+import scala.collection.mutable
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+import org.nd4j.linalg.api.ndarray.INDArray
+import org.nd4j.linalg.factory.Nd4j
+
+/**
+  * Utility functions to create a multi-dimensional array from a NetCDF,
+  * most importantly from some URI.
+  */
+object NetCDFReader {
+
+  // Class logger
+  val logger = LoggerFactory.getLogger("NetCDFReader")
+
+  def readArraySubset( varName: String, collection : Collection,  roi: List[DomainAxis] ): INDArray = {
+    val t0 = System.nanoTime
+    val ncDataset: NetcdfDataset = NetCDFUtils.loadNetCDFDataSet( collection.getUrl( varName ) )
+    val coordSystems = ncDataset.getCoordinateSystems
+    val coordAxes = ncDataset.getCoordinateAxes
+    val ncVariable = ncDataset.findVariable(varName)
+    if (ncVariable == null) throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
+    val cdsVar = cdm.CDSVariable( ncDataset, ncVariable )
+    val subsetted_ranges = getSubset( ncVariable, collection, roi )
+    val array = ncVariable.read( subsetted_ranges.asJava )
+    val ndArray: INDArray = NetCDFUtils.getNDArray( array )
+    val t1 = System.nanoTime
+    logger.info( " Variable = " + cdsVar.toString )
+    logger.info( "Read %s subset: %s, shape = %s, size = %d, time = %.4f s".format( varName, subsetted_ranges.toString, array.getShape.toList.toString, array.getSize, (t1-t0)/1.0E9 ) )
+    ndArray
+  }
+
+  def getSubset( ncVariable: Variable, collection : Collection, roi: List[DomainAxis] ): List[ma2.Range] = {
+    val shape: mutable.ArrayBuffer[ma2.Range] = ncVariable.getRanges.to[mutable.ArrayBuffer]
+    for( axis <- roi ) {
+      val dim_index_opt: Option[Int] = collection.axes match {
+        case None =>  NetCDFUtils.getDimensionIndex( ncVariable, axis.name )
+        case Some( axisNames ) =>
+          axisNames( axis.dimension ) match {
+            case Some(dimension) => Some( ncVariable.findDimensionIndex( dimension ) )
+            case None => None
+          }
+      }
+      dim_index_opt match {
+        case Some(dim_index) => shape.update( dim_index, new ma2.Range( axis.start, axis.end, 1 ) )
+        case None => None
+      }
+    }
+    shape.toList
+  }
+
+  /**
+    * Gets just the variable names of a NetCDF at some URI.
+    */
+  def loadNetCDFVar(uri: String): List[String] = {
+    val netcdfFile = NetCDFUtils.loadNetCDFDataSet(uri)
+    val vars = netcdfFile.getVariables
+    /** We have to be mutable here because vars is a Java list which has no map function. */
+    var list: List[String] = List()
+    for (i <- 0 until vars.size) {
+      val k = vars.get(i).getShortName
+      list ++= List(k)
+    }
+    list
+  }
+
+  def loadNetCDFFile(name: String, file: Array[Byte]): NetcdfDataset = {
+    new NetcdfDataset(NetcdfFile.openInMemory(name, file))
+  }
+}
+
+object testNetCDF extends App {
+  import ucar.ma2._
+  val url = "http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/mon/atmos/ta.ncml"
+  val varName = "ta"
+  val dset : NetcdfDataset = NetCDFUtils.loadNetCDFDataSet(url)
+  val ncVariable = dset.findVariable(varName)
+  if (ncVariable == null) throw new IllegalStateException( s"Variable $varName was not loaded" )
+  println( ncVariable.getNameAndDimensions )
+  val shape: Section = new Section( ncVariable.getShapeAsSection )
+  println( "Full Shape: " + shape.toString + " is Immutable: " + shape.isImmutable )
+  val levelRange = new Range( 10, 10 )
+  val latRange = new Range( 30, 30 )
+  val lonRange = new Range( 100, 100 )
+  shape.setRange( 1, levelRange )
+  shape.setRange( 2, latRange )
+  shape.setRange( 3, lonRange )
+  val data_array = ncVariable.read( shape )
+  println( "Subsetted Shape: " + shape.toString + ", Array Size: " + data_array.getSize )
+}
+

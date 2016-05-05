@@ -1,0 +1,110 @@
+package nasa.nccs.cds2.utilities
+
+import org.nd4j.linalg.api.ndarray.INDArray
+import org.slf4j.Logger
+import ucar.ma2
+import ucar.nc2.{Variable, NetcdfFile}
+import ucar.nc2.dataset.NetcdfDataset
+import scala.collection.mutable
+import scala.language.implicitConversions
+
+/**
+  * Utilities to read a NetCDF by URL or from HDFS.
+  *
+  * Note that we use -9999.0 instead of NaN to indicate missing values.
+  */
+object NetCDFUtils {
+
+  // Class logger
+  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
+
+  def getArrayShape( array: ucar.ma2.Array ): List[Int] = {
+    var shape = mutable.ListBuffer[Int]()
+    for (ival <- array.getShape) shape += ival
+    shape.toList
+  }
+
+  def getNDArray( array: ucar.ma2.Array ): INDArray = {
+    import org.nd4j.linalg.factory.Nd4j
+    val t0 = System.nanoTime
+    val result = array.getElementType.toString match {
+      case "float" =>
+        val java_array = array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]]
+        Nd4j.create( java_array, array.getShape )
+      case "int" =>
+        val java_array = array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]]
+        Nd4j.create( java_array, array.getShape )
+      case "double" =>
+        val java_array = array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]]
+        Nd4j.create( java_array, array.getShape )
+    }
+    val t1 = System.nanoTime
+    logger.info( "Converted java array to INDArray, shape = %s, time = %.2f ms".format( getArrayShape(array).toString, (t1-t0)/1e6 ) )
+    result
+  }
+
+  def getDimensionIndex( ncVariable: Variable, cds_dim_name: String ): Option[Int] = {
+    val dimension_names: List[String] = ncVariable.getDimensionsString.split(' ').map( _.toLowerCase).toList
+    val dimension_name_opt: Option[String] = cds_dim_name match {
+      case "lon" => dimension_names.find( ( name: String ) => name.startsWith("lon") || name.startsWith("x") )
+      case "lat" => dimension_names.find( ( name: String ) => name.startsWith("lat") || name.startsWith("y") )
+      case "lev" => dimension_names.find( ( name: String ) => name.startsWith("lev") || name.startsWith("plev") || name.startsWith("z") )
+      case "time" => dimension_names.find( ( name: String ) => name.startsWith("t") )
+    }
+    dimension_name_opt match {
+      case Some(dimension_name) => ncVariable.findDimensionIndex(dimension_name) match { case -1 => None; case x  => Some(x) }
+      case _ => throw new Exception("Can't locate dimension $cds_dim_name in variable " + ncVariable.getNameAndDimensions(true) )
+    }
+  }
+  /**
+    * Loads a NetCDF Dataset from a URL.
+    */
+
+//  /**
+//    * Loads a NetCDF Dataset from HDFS.
+//    *
+//    * @param dfsUri HDFS URI(eg. hdfs://master:9000/)
+//    * @param location File path on HDFS
+//    * @param bufferSize The size of the buffer to be used
+//    */
+//  def loadDFSNetCDFDataSet(dfsUri: String, location: String, bufferSize: Int): NetcdfDataset = {
+//    import org.dia.HDFSRandomAccessFile
+//    NetcdfDataset.setUseNaNs(false)
+//    try {
+//      val raf = new HDFSRandomAccessFile(dfsUri, location, bufferSize)
+//      new NetcdfDataset(NetcdfFile.open(raf, location, null, null))
+//    } catch {
+//      case e: java.io.IOException =>
+//        logger.error("Couldn't open dataset %s%s".format(dfsUri, location))
+//        null
+//      case ex: Exception =>
+//        logger.error("Something went wrong while reading %s%s".format(dfsUri, location))
+//        null
+//    }
+//  }
+
+  /**
+    * Gets the size of a dimension of a NetCDF file.
+    */
+  def getDimensionSize(netcdfFile: NetcdfDataset, rowDim: String): Int = {
+    var dimSize = -1
+    val it = netcdfFile.getDimensions.iterator()
+    while (it.hasNext) {
+      val d = it.next()
+      if (d.getShortName.equals(rowDim))
+        dimSize = d.getLength
+    }
+    if (dimSize < 0)
+      throw new IllegalStateException("Dimension does not exist!!!")
+    dimSize
+  }
+
+  def printDimensionSizes(netcdfFile: NetcdfDataset): Unit = {
+    val it = netcdfFile.getDimensions.iterator()
+    while (it.hasNext) {
+      val d = it.next()
+      println( "Dim " + d.getShortName + ": size = " + d.getLength )
+    }
+  }
+
+}
