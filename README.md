@@ -14,28 +14,24 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
 
     1) Checkout the CDS2 sources:
 
-        >> git clone https://github.com/nasa-nccs-cds/CDS2.git 
+        >> git clone https://github.com/nasa-nccs-cds/CDAS2.git 
 
-    2) Build and run the application:
+    2) Build the application:
 
-        >> cd CDS2
-        >> sbt run
+        >> cd CDAS2
+        >> sbt publish-local
 
      3) Access demos:
 
-        Designed to be deployed with the BDWPS framework (https://github.com/nasa-nccs-cds/BDWPS)
+        Designed to be deployed with the CDWPS framework (https://github.com/nasa-nccs-cds/CDWPS)
 
 
 ####  Code development:
 
     1) Install IntelliJ IDEA CE from https://www.jetbrains.com/idea/download/ with Scala plugin enabled.
     
-    2) Start IDEA and import the CDS2 Project from Version Control (github) using the address https://github.com/nasa-nccs-cds/CDS2.git.
+    2) Start IDEA and import the CDAS2 Project from Version Control (github) using the address https://github.com/nasa-nccs-cds/CDAS2.git.
     
-
-####  Project Configuration:
-
-    1) Logging: Edit src/main/resources/logback.xml
     
 
     
