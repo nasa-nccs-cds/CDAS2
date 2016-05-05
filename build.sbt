@@ -1,6 +1,6 @@
 val kernelPackages = settingKey[ Seq[String] ]("A list of user-defined Kernel packages")
 
-name := "CDS2"
+name := "CDAS2"
 
 version := "1.0-SNAPSHOT"
 
