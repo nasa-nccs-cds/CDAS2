@@ -43,11 +43,6 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
   }
 
   test("Anomaly") {
-//    val nco_verified_result: CDFloatArray = new CDFloatArray(Array(0.6760559f, 0.5856628f, 0.4512024f, 0.5209656f, 1.066315f, 0.1989441f, -0.6871643f, 0.06848145f, -0.1704102f,
-//      0.1161804f, 0.03579712f, -0.3323059f, -0.1329041f, -0.1487122f, 0.2772827f, 0.6795349f, 0.2750549f, 0.03399658f, -0.3172913f, -0.4205627f, -0.1195068f, -0.1895447f, -0.4619446f, -0.5777283f, -0.7316284f,
-//      -0.03231812f, 0.2253723f, 0.5026245f, 0.0675354f, -0.3049927f, -0.4801941f, -0.2523499f, -0.3554993f, -0.04412842f, -0.1112976f, 0.04769897f, -0.1624451f, -0.005828857f), Float.MaxValue)
-    //    val nco_verified_result: CDFloatArray = new CDFloatArray( Array( 0.3386536f, 0.2482605f, 0.1138f, 0.1835632f, 0.7289124f, -0.1384583f, -1.024567f, -0.2689209f, -0.5078125f, -0.2212219f, -0.3016052f, -0.6697083f, -0.4703064f, -0.4861145f, -0.06011963f, 0.3421326f,
-    //      -0.06234741f, -0.3034058f, -0.6546936f, -0.7579651f, -0.4569092f, -0.526947f, -0.7993469f, -0.9151306f, -1.069031f, -0.3697205f, -0.11203f, 0.1652222f, -0.2698669f ), Float.MaxValue )
     readVerificationData( "/data/ta_anomaly_0_0.nc", "ta" ) match {
       case Some( nco_verified_result ) =>
         val dataInputs = getTemporalDataInputs(merra_data, "axes: t")
@@ -57,7 +52,6 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
         assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Anomaly")
       case None => fail( "Error reading verification data")
     }
-
   }
 
   test("Spatial Average") {
