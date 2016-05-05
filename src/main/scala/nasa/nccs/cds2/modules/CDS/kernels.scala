@@ -138,39 +138,29 @@ class CDS extends KernelModule with KernelTools {
       else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), mean_val_masked )
     }
   }
+
   class subset extends Kernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
-    override val description = "Average over Input Fragment"
+    override val description = "Subset of Input Fragment"
 
     def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput  =  inputVars( operationCx, requestCx, serverCx ).head
-      val optargs: Map[String,String] =  operationCx.getConfiguration
-      val axisSpecs = inputVar.axisIndices
+      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
+      val input_array: CDFloatArray = inputVar.dataFragment.data
       val async = requestCx.config("async", "false").toBoolean
-      val axes = axisSpecs.getAxes
-      val t0 = System.nanoTime
-      def input_uids = requestCx.getDataSources.keySet
-      assert( input_uids.size == 1, "Wrong number of arguments to 'subset': %d ".format(input_uids.size) )
-      val result: PartitionedFragment = optargs.get("domain") match {
-        case None => inputVar.dataFragment
-        case Some(domain_id) => serverCx.getSubset( requestCx.getInputSpec(input_uids.head).data, requestCx.getDomain(domain_id) )
-      }
-      val t1 = System.nanoTime
-      logger.info("Subset: time = %.4f s, result = %s".format( (t1-t0)/1.0E9, result.toString ) )
       val variable = serverCx.getVariable( inputVar.getSpec )
-      val section = inputVar.getSpec.getSubSection(result.fragmentSpec.roi)
+      val section = inputVar.getSpec.roi
       if(async) {
-        new AsyncExecutionResult( saveResult( result.data, requestCx, serverCx, variable.getGridSpec(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
+        new AsyncExecutionResult( saveResult( input_array, requestCx, serverCx, variable.getGridSpec(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
       }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), result.data )
+      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), input_array )
     }
   }
 
   class metadata extends Kernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
-    override val description = "Average over Input Fragment"
+    override val description = "Displays Metadata for available data collections and masks"
 
     def execute(operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext): ExecutionResult = {
       import nasa.nccs.cds2.loaders.Collections

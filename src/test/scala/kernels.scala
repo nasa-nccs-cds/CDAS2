@@ -54,6 +54,18 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
     }
   }
 
+  test("Subset") {
+    readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
+      case Some( nco_verified_result ) =>
+        val dataInputs = getTemporalDataInputs(merra_data, "axes: t")
+        val result_values = execute("CDS.subset", dataInputs)
+        val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
+        println("Test Result: (%s)\n NCO Result: (%s)\n Max_scaled_diff: %f".format(result_values.toString(), nco_verified_result.toString(), max_scaled_diff))
+        assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Subset")
+      case None => fail( "Error reading verification data")
+    }
+  }
+
   test("Spatial Average") {
     val nco_verified_result = 270.092
     val dataInputs = getSpatialDataInputs(merra_data, "axes: xy, weights: ")
