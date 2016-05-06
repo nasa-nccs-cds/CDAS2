@@ -27,7 +27,7 @@ class CDS extends KernelModule with KernelTools {
       val t10 = System.nanoTime
       val max_val_masked: CDFloatArray = input_array.max( axes.toArray )
       val t11 = System.nanoTime
-      logger.info("Mean_val_masked, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, max_val_masked.toString ) )
+      logger.info("Max_val_masked, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, max_val_masked.toString ) )
       val variable = serverCx.getVariable( inputVar.getSpec )
       val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
       if(async) {
@@ -182,10 +182,10 @@ class CDS extends KernelModule with KernelTools {
     }
   }
 
-  class bin extends Kernel {
+  class aggregate extends Kernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
-    override val description = "Binning over Input Fragment"
+    override val description = "Aggregate data into bins using specified reduce function"
 
     def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
       val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
