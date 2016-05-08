@@ -25,6 +25,17 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     }
   }
 
+  def computeCycle( tsdata: CDFloatArray, cycle_period: Int ): CDFloatArray = {
+    val values: CDFloatArray = new CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )
+    val counts: CDFloatArray = new CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )
+    for (index <- (0 until tsdata.getSize); val0 = tsdata.getFlatValue(index) ) {
+      val bin_index = index % cycle_period
+      values.setFlatValue(bin_index, values.getFlatValue(bin_index) + val0 )
+      counts.setFlatValue(bin_index, counts.getFlatValue(bin_index) + 1f )
+    }
+    values / counts
+  }
+
   def maxScaledDiff(array0: CDFloatArray, array1: CDFloatArray): Float = {
     var max_diff = 0f
     var magsum = 0.0
@@ -55,7 +66,7 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
 
   def computeResult( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): ExecutionResult = {
     val request = TaskRequest( kernel_name, data_inputs )
-    cds2ExecutionManager.blockingExecute (request, run_args).results (0) match {
+    cds2ExecutionManager.blockingExecute (request, run_args).results.head match {
       case result: BlockingExecutionResult => result
       case xmlresult: XmlExecutionResult => xmlresult
       case err: ErrorExecutionResult => fail ( err.fatal() )
