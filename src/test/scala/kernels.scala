@@ -90,7 +90,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
   test("Yearly Cycle") {
     readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
       case Some( nco_subsetted_timeseries ) =>
-        val dataInputs = getTemporalDataInputs(merra_data, "axes: t, bins: t|month|ave|year\"")
+        val dataInputs = getTemporalDataInputs(merra_data, "axes: t, bins: t|month|ave|year")
         val result_values = computeArray("CDS.aggregate", dataInputs)
         val nco_verified_result = computeCycle( nco_subsetted_timeseries, 12 )
         val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
@@ -100,6 +100,18 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
     }
   }
 
+  test("Yearly Ave") {
+    readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
+      case Some( nco_subsetted_timeseries ) =>
+        val dataInputs = getTemporalDataInputs(merra_data, "axes: t, bins: t|year|ave")
+        val result_values = computeArray("CDS.aggregate", dataInputs)
+        val nco_verified_result = computeSeriesAverage( nco_subsetted_timeseries, 12 )
+        val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
+        println("Test Result: (%s)\n NCO Result: (%s)\n Max_scaled_diff: %f".format(result_values.toString(), nco_verified_result.toString(), max_scaled_diff))
+        assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Yearly Ave")
+      case None => fail( "Error reading verification data")
+    }
+  }
 
   test("Spatial Average Constant") {
     val nco_verified_result = 1.0
