@@ -146,14 +146,19 @@ class CDS extends KernelModule with KernelTools {
 
     def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
       val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
-      val input_array: CDFloatArray = inputVar.dataFragment.data
+      val optargs: Map[String, String] = operationCx.getConfiguration
+      val resultFragment = optargs.get("domain") match {
+        case None => inputVar.dataFragment
+        case Some( domainId ) =>
+          serverCx.getSubset( inputVar.dataFragment.fragmentSpec,  requestCx.getDomain( domainId ) )
+      }
       val async = requestCx.config("async", "false").toBoolean
       val variable = serverCx.getVariable( inputVar.getSpec )
-      val section = inputVar.getSpec.roi
+      val section = resultFragment.fragmentSpec.roi
       if(async) {
-        new AsyncExecutionResult( saveResult( input_array, requestCx, serverCx, variable.getGridSpec(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
+        new AsyncExecutionResult( saveResult( resultFragment.data, requestCx, serverCx, variable.getGridSpec(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
       }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), input_array )
+      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), resultFragment.data )
     }
   }
 
