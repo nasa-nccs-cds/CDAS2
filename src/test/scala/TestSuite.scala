@@ -37,10 +37,10 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
   }
 
   def computeSeriesAverage( tsdata: CDFloatArray, ave_period: Int ): CDFloatArray = {
-    val npts = tsdata.getSize / ave_period
+    val npts = tsdata.getSize / ave_period + 1
     val values: CDFloatArray = new CDFloatArray( Array(npts), Array.fill[Float](npts)(0f), Float.NaN )
     val counts: CDFloatArray = new CDFloatArray( Array(npts), Array.fill[Float](npts)(0f), Float.NaN )
-    for (index <- (0 until npts); val0 = tsdata.getFlatValue(index); if tsdata.valid(val0) ) {
+    for (index <- (0 until tsdata.getSize); val0 = tsdata.getFlatValue(index); if tsdata.valid(val0) ) {
       val bin_index = index / ave_period
       values.setFlatValue(bin_index, values.getFlatValue(bin_index) + val0 )
       counts.setFlatValue(bin_index, counts.getFlatValue(bin_index) + 1f )
