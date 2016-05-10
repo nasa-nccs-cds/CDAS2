@@ -565,6 +565,23 @@ object execAnomalyTest extends App {
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )
 }
 
+object execAnomalyTest2 extends App {
+  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+  val run_args = Map( "async" -> "false" )
+  val request = SampleTaskRequests.getAnomalyArrayTest
+  val printer = new scala.xml.PrettyPrinter(200, 3)
+
+//  val cache_request = SampleTaskRequests.getCacheRequest
+//  cds2ExecutionManager.blockingExecute(cache_request, run_args)
+
+  val final_result0 = cds2ExecutionManager.blockingExecute(request, run_args)
+  println( ">>>> Final Result0: " + printer.format(final_result0.toXml) )
+
+  val final_result1 = cds2ExecutionManager.blockingExecute(request, run_args)
+  println( ">>>> Final Result1: " + printer.format(final_result1.toXml) )
+
+}
+
 object execCreateVRequest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
   val run_args = Map( "async" -> "false" )
