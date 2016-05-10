@@ -8,7 +8,7 @@ import ucar.nc2.dataset.NetcdfDataset
 class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Float, val lon_value : Float ) extends FunSuite with Matchers {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
   val eps = 0.0002
-  val merra_data = getClass.getResource("/data/merra_test_data_ta.nc").toString
+  val merra_data = getClass.getResource("/data/merra_test_data.ta.nc").toString
   val const_data = getClass.getResource("/data/constant_test_data.ta.nc").toString
   val run_args = Map("async" -> "false")
 
