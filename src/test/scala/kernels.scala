@@ -50,13 +50,27 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
     }
   }
 
-  test("Subset") {
+  test("Subset(d0)") {
     readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
       case Some( nco_verified_result ) =>
-        val dataInputs = getTemporalDataInputs(merra_data, "axes: t")
+        val dataInputs = getTemporalDataInputs(merra_data, "")
         val result_values = computeArray("CDS.subset", dataInputs)
         val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
         println("Test Result: (%s)\n NCO Result: (%s)\n Max_scaled_diff: %f".format(result_values.toString(), nco_verified_result.toString(), max_scaled_diff))
+        assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Subset")
+      case None => fail( "Error reading verification data")
+    }
+  }
+
+  test("Subset(d0) with secondary domain (d1)") {
+    readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
+      case Some( nco_verified_result ) =>
+        val time_index = 3
+        val verified_result_array = nco_verified_result.section( Array(time_index,0,0,0), Array(1,1,1,1) )
+        val dataInputs = getTemporalDataInputs(merra_data, "domain: d1", time_index)
+        val result_values = computeArray("CDS.subset", dataInputs)
+        val max_scaled_diff = maxScaledDiff(result_values,verified_result_array)
+        println("Test Result: (%s)\n NCO Result: (%s)\n Max_scaled_diff: %f".format(result_values.toString(), verified_result_array.toString(), max_scaled_diff))
         assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Subset")
       case None => fail( "Error reading verification data")
     }

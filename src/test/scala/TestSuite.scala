@@ -53,7 +53,9 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     var magsum = 0.0
     var count = 0
     val length = Math.min(array0.getSize, array1.getSize)
-    for (index <- (0 until length); val0 = array0.getFlatValue(index); if val0 != array0.getInvalid; val1 = array1.getFlatValue(index); if val1 != array1.getInvalid; diff = Math.abs(val0 - val1)) {
+    val a0 = array0.getSectionData
+    val a1 = array1.getSectionData
+    for (index <- (0 until length); val0 = a0(index); if val0 != array0.getInvalid; val1 = a1(index); if val1 != array1.getInvalid; diff = Math.abs(val0 - val1)) {
       if (diff > max_diff) {
         max_diff = diff
       }
@@ -69,8 +71,9 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
     "operation" -> List(Map("unparsed" -> s"( v0, $op_args )")))
 
-  def getTemporalDataInputs(test_dataset: String, op_args: String) = Map(
-    "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> lat_value, "end" -> lat_value, "system" -> "value"), "lon" -> Map("start" -> lon_value, "end" -> lon_value, "system" -> "values"))),
+  def getTemporalDataInputs(test_dataset: String, op_args: String, d1_time_index: Int = time_index ) = Map(
+    "domain" -> List(Map("name" -> "d1", "time" -> Map("start" -> d1_time_index, "end" -> d1_time_index, "system" -> "indices")
+    ), Map("name" -> "d0", "lat" -> Map("start" -> lat_value, "end" -> lat_value, "system" -> "value"), "lon" -> Map("start" -> lon_value, "end" -> lon_value, "system" -> "values"))),
     "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
     "operation" -> List(Map("unparsed" -> s"( v0, $op_args )")))
 
