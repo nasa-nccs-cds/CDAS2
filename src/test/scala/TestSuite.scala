@@ -101,6 +101,6 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
       case x => fail ( "Expecting xml response, got " + x.toString )
     }
 
-  def computeValue( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): Float = computeArray( kernel_name, data_inputs ).getData(0)
+  def computeValue( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): Float = computeArray( kernel_name, data_inputs ).getValue(0)
 
 }

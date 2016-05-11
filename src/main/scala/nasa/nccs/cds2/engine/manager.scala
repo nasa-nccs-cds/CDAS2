@@ -358,6 +358,7 @@ object SampleTaskRequests {
       "operation" -> List(Map("unparsed" -> "( v0, axes: t, bins: t|month|ave|year )")))
     TaskRequest( "CDS.bin", dataInputs )
   }
+
   def getCreateVRequest: TaskRequest = {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
@@ -365,6 +366,14 @@ object SampleTaskRequests {
       "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
       "operation" -> List(Map("unparsed" -> "CDS.anomaly( v0, axes: t ),CDS.aggregate( v0, axes: t, bins: t|month|ave|year ),CDS.subset( v0, domain:d1 )" )) )
     TaskRequest( "CDS.workflow", dataInputs )
+  }
+
+  def getYearlyCycleRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+      "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
+      "operation" -> List(Map("unparsed" -> "( v0, axes: t, bins: t|month|ave|year )" )) )
+    TaskRequest( "CDS.aggregate", dataInputs )
   }
 
   def getSubsetRequest: TaskRequest = {
@@ -589,6 +598,16 @@ object execCreateVRequest extends App {
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+}
+
+object execYearlyCycleRequest extends App {
+  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+  val run_args = Map( "async" -> "false" )
+  val request = SampleTaskRequests.getYearlyCycleRequest
+  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
+  val result_xml = final_result.toXml
+  val printer = new scala.xml.PrettyPrinter(200, 3)
+  println( ">>>> Final Result: " + printer.format(result_xml) )
 }
 
 object execSubsetRequest extends App {
