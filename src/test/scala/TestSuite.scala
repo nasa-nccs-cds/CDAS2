@@ -30,8 +30,8 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     val counts: CDFloatArray = new CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )
     for (index <- (0 until tsdata.getSize); val0 = tsdata.getFlatValue(index); if tsdata.valid(val0) ) {
       val bin_index = index % cycle_period
-      values.setFlatValue(bin_index, values.getFlatValue(bin_index) + val0 )
-      counts.setFlatValue(bin_index, counts.getFlatValue(bin_index) + 1f )
+      values.augment( Array(bin_index), val0 )
+      counts.augment( Array(bin_index),  1f )
     }
     values / counts
   }
@@ -42,8 +42,8 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     val counts: CDFloatArray = new CDFloatArray( Array(npts), Array.fill[Float](npts)(0f), Float.NaN )
     for (index <- (0 until tsdata.getSize); val0 = tsdata.getFlatValue(index); if tsdata.valid(val0) ) {
       val bin_index = index / ave_period
-      values.setFlatValue(bin_index, values.getFlatValue(bin_index) + val0 )
-      counts.setFlatValue(bin_index, counts.getFlatValue(bin_index) + 1f )
+      values.augment( Array(bin_index), val0 )
+      counts.augment( Array(bin_index), 1f )
     }
     values / counts
   }
@@ -101,6 +101,6 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
       case x => fail ( "Expecting xml response, got " + x.toString )
     }
 
-  def computeValue( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): Float = computeArray( kernel_name, data_inputs ).getValue(0)
+  def computeValue( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): Float = computeArray( kernel_name, data_inputs ).getFlatValue(0)
 
 }

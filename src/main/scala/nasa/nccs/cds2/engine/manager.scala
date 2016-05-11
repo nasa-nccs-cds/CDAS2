@@ -368,11 +368,31 @@ object SampleTaskRequests {
     TaskRequest( "CDS.workflow", dataInputs )
   }
 
+  def getCacheInWorkflowRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(   Map("name" -> "d0",  "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
+                          Map("name" -> "d1",  "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"),
+                                               "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"),
+                                               "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")) ),
+      "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0"),
+                          Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v1", "domain" -> "d1") ),
+      "operation" -> List(Map("unparsed" -> "util.cache( v0 ), CDS.anomaly( v1, axes: t )" )) )
+    TaskRequest( "CDS.workflow", dataInputs )
+  }
+
   def getYearlyCycleRequest: TaskRequest = {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
       "operation" -> List(Map("unparsed" -> "( v0, axes: t, bins: t|month|ave|year )" )) )
+    TaskRequest( "CDS.aggregate", dataInputs )
+  }
+
+  def getYearlyMeansRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+      "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
+      "operation" -> List(Map("unparsed" -> "( v0, axes: t, bins: t|year|ave )" )) )
     TaskRequest( "CDS.aggregate", dataInputs )
   }
 
@@ -600,10 +620,29 @@ object execCreateVRequest extends App {
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )
 }
 
+object execCacheInWorkflowRequest extends App {
+  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+  val run_args = Map( "async" -> "false" )
+  val request = SampleTaskRequests.getCacheInWorkflowRequest
+  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
+  val printer = new scala.xml.PrettyPrinter(200, 3)
+  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+}
+
 object execYearlyCycleRequest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
   val run_args = Map( "async" -> "false" )
   val request = SampleTaskRequests.getYearlyCycleRequest
+  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
+  val result_xml = final_result.toXml
+  val printer = new scala.xml.PrettyPrinter(200, 3)
+  println( ">>>> Final Result: " + printer.format(result_xml) )
+}
+
+object execYearlyMeansRequest extends App {
+  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+  val run_args = Map( "async" -> "false" )
+  val request = SampleTaskRequests.getYearlyMeansRequest
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val result_xml = final_result.toXml
   val printer = new scala.xml.PrettyPrinter(200, 3)
