@@ -53,7 +53,7 @@ object Collections {
     parseUri(collection_uri) match {
       case (ctype, cpath) => ctype match {
         case "file" => Some(Collection(ctype = "file", url = collection_uri, vars = var_names))
-        case "collection" => datasets.get( cpath.stripPrefix("/") )
+        case "collection" => datasets.get( cpath.stripPrefix("/").toLowerCase )
       }
     }
   }

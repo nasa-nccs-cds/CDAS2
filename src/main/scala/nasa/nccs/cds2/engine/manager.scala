@@ -58,14 +58,13 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
     Await.result(futureDataset, Duration.Inf)
   }
 
-  private def produceDataset(collection: String, varName: String)(p: Promise[CDSDataset]): Unit = {
-    val datasetName = collection.toLowerCase
-    Collections.getCollection(datasetName) match {
+  private def produceDataset(collection_uri: String, varName: String)(p: Promise[CDSDataset]): Unit = {
+    Collections.getCollection(collection_uri ) match {
       case Some(collection) =>
-        val dataset = CDSDataset.load(datasetName, collection, varName)
+        val dataset = CDSDataset.load(collection_uri, collection, varName)
         logger.info("Completed reading dataset (%s:%s) ".format( collection, varName ))
         p.success(dataset)
-      case None => p.failure(new Exception("Undefined collection for dataset " + varName + ", collection = " + collection))
+      case None => p.failure(new Exception("Undefined collection for dataset " + varName + ", collection = " + collection_uri))
     }
   }
 
