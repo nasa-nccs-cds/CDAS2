@@ -1,0 +1,4 @@
+<masks>
+    <mask id="ocean50m" mtype="shapefile" resource="/shapes/ocean50m/ne_50m_ocean.shp"> </mask>
+    <mask id="ocean110m" mtype="shapefile" resource="/shapes/ocean110m/ne_110m_ocean.shp"> </mask>
+</masks>

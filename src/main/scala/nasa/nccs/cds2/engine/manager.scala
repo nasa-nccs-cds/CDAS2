@@ -2,7 +2,7 @@ package nasa.nccs.cds2.engine
 import java.io.{IOException, PrintWriter, StringWriter}
 
 import nasa.nccs.cdapi.cdm._
-import nasa.nccs.cds2.loaders.Collections
+import nasa.nccs.cds2.loaders.{Collections, Masks}
 import nasa.nccs.esgf.process._
 import org.slf4j.{Logger, LoggerFactory}
 
@@ -19,6 +19,8 @@ import java.util.concurrent.atomic.AtomicReference
 import nasa.nccs.cdapi.tensors.{CDArray, CDFloatArray}
 import spray.caching._
 import ucar.{ma2, nc2}
+import nasa.nccs.cds2.utilities.GeoTools
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
@@ -125,7 +127,25 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
   }
 
   def produceMask( fragSpec: DataFragmentSpec, variable_shape: List[Int] ) = {
+    fragSpec.mask match {
+      case Some( maskId ) => maskId match {
+        case mid if Masks.isMaskId(mid) =>
+          Masks.getMask(mid) match {
+            case Some(mask) => mask.mtype match {
+              case "shapefile" =>
+                val geotools = new GeoTools()
+                val maskpoly = geotools.readShapefile( mask.getPath )
+                val bounds: Array[Float] = Array(1.0f)
+                val mask_array = geotools.getMask( maskpoly, bounds, variable_shape.toArray )
 
+              case x => throw new Exception( s"Unrecognized Mask type: $x" )
+            }
+            case None => throw new Exception( s"Unrecognized Mask ID: $mid: options are %s".format( Masks.getMaskIds ) )
+          }
+        case varid => "varid"
+      }
+      case None => None
+    }
   }
 
   private def clearRedundantFragments( fragSpec: DataFragmentSpec ) = findEnclosedFragSpecs(fragSpec.getKey).map(_.toString).foreach( fragmentCache.remove( _ ) )

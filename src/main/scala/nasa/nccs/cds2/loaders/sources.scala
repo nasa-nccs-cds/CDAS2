@@ -1,7 +1,7 @@
 package nasa.nccs.cds2.loaders
 import java.net.URL
 
-import nasa.nccs.cdapi.cdm.{Collection, Mask}
+import nasa.nccs.cdapi.cdm.{Collection}
 
 import scala.xml.XML
 
@@ -29,13 +29,28 @@ trait XmlResource {
   def nospace( value: String ): String  = value.filter(_!=' ')
 }
 
+object Mask  {
+  def apply( mtype: String, resource: String ) = { new Mask(mtype,resource) }
+}
+class Mask( val mtype: String, val resource: String ) extends XmlResource {
+  override def toString = "Mask( mtype=%s, resource=%s )".format( mtype, resource )
+  def getPath: String = getFilePath( resource )
+}
+
 object Masks extends XmlResource {
   val masks = loadMaskXmlData(getFilePath("/masks.xml"))
+  val prefix = '#'
+
+  def isMaskId( maskId: String ): Boolean = (maskId(0) == prefix)
 
   def loadMaskXmlData(filePath:String): Map[String,Mask] = {
-    Map(XML.loadFile(filePath).child.flatMap( node => node.attribute("id") match { case None => None; case Some(id) => Some((id.toString->getMask(node))); } ):_*)
+    Map(XML.loadFile(filePath).child.flatMap( node => node.attribute("id") match { case None => None; case Some(id) => Some((prefix + id.toString->createMask(node))); } ):_*)
   }
-  def getMask( n: xml.Node ): Mask = { Mask( attr(n,"mtype"), attr(n,"url") ) }
+  def createMask( n: xml.Node ): Mask = { Mask( attr(n,"mtype"), attr(n,"url") ) }
+
+  def getMask( id: String ): Option[Mask] = masks.get(id)
+
+  def getMaskIds: Set[String] = masks.keySet
 }
 
 object Collections extends XmlResource {
@@ -88,6 +103,10 @@ object Collections extends XmlResource {
 
 object TestCollection extends App {
   println( Collections.datasets.toString )
+}
+
+object TestMasks extends App {
+  println( Masks.masks.toString )
 }
 
 

@@ -1,4 +1,4 @@
-package nasa.nccs.cdapi.cdm
+package nasa.nccs.cds2.utilities
 
 import com.vividsolutions.jts.geom
 import org.geotools.data.shapefile.files.ShpFiles
