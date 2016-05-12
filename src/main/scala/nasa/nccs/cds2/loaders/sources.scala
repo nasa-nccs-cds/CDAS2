@@ -15,21 +15,19 @@ class AxisNames( val nameMap: Map[Char,String]  ) {
 }
 
 object Collections {
-  val datasets = Map(
-    "merra/mon/atmos" -> Collection( ctype="dods", url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/mon/atmos", vars=List( "va", "ta", "clt", "ua", "psl", "hus"  )  ),
-    "merra2/mon/atmos" -> Collection( ctype="dods", url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA2/mon/atmos", vars=List( "va", "ta", "clt", "ua", "psl", "hus"  )  ),
-    "cfsr/mon/atmos"  -> Collection( ctype="dods", url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/CFSR/mon/atmos",  vars=List( "va", "ta", "clt", "ua", "psl", "hus"  )  ),
-    "ecmwf/mon/atmos" -> Collection( ctype="dods", url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/ECMWF/mon/atmos", vars=List( "va", "ta", "clt", "ua", "psl", "hus"  )  ),
-    "merra/6hr/atmos" -> Collection( ctype="dods", url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/6hr/atmos", vars=List( "va", "ta", "clt", "ua", "psl", "hus"  )  ),
-    "cfsr/6hr/atmos"  -> Collection( ctype="dods", url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/CFSR/6hr/atmos",  vars=List( "va", "ta", "clt", "ua", "psl", "hus"  )  ),
-    "ecmwf/6hr/atmos" -> Collection( ctype="dods", url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/ECMWF/6hr/atmos", vars=List( "va", "ta", "clt", "ua", "psl", "hus"  )  ),
-    "merra/mon/atmos/ta" -> Collection( ctype="file", url="file://Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MERRA_TEST_DATA.ta.nc", vars=List( "ta"  )  ),
-    "merra2/mon/atmos/ta" -> Collection( ctype="file", url="file://Users/tpmaxwel/Dropbox/Tom/Data/MERRA/ta.MERRA2.nc", vars=List( "ta"  )  ),
-    "synth/constant-1" -> Collection( ctype="file", url="file://Users/tpmaxwel/Dropbox/Tom/Data/synth/r0.nc", vars=List( "ta"  )  )
-  )
+  val datasets = loadCollectionData
+
   def toXml(): xml.Elem = {
     <collections> { for( (id,collection) <- datasets ) yield <collection id={id}> {collection.vars.mkString(",")} </collection>} </collections>
   }
+  def loadCollectionData: Map[String,Collection] = {
+    val stream : java.io.InputStream = getClass.getResourceAsStream("/collections.txt")
+    val lines = scala.io.Source.fromInputStream( stream ).getLines
+    val mapItems = for( line <- lines; toks =  line.split(';')) yield ( toks(0).filter(_!=' ') -> Collection( ctype=toks(1).filter(_!=' '), url=toks(2).filter(_!=' '), vars=getVarList(toks(3))  ) )
+    mapItems.toMap
+  }
+  def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
+
   def normalize(sval: String): String = sval.stripPrefix("\"").stripSuffix("\"").toLowerCase
 
   def toXml( collectionId: String ): xml.Elem = {
@@ -57,6 +55,10 @@ object Collections {
       }
     }
   }
+}
+
+object TestCollections extends App {
+  println( Collections.datasets )
 }
 
 

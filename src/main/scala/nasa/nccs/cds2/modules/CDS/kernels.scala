@@ -2,7 +2,7 @@ package nasa.nccs.cds2.modules.CDS
 
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.kernels._
-import nasa.nccs.cdapi.tensors.{CDCoordArrayMap, CDFloatArray, CDTimeCoordMap}
+import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDTimeCoordMap}
 import nasa.nccs.cds2.kernels.KernelTools
 import nasa.nccs.esgf.process._
 import ucar.ma2
@@ -206,7 +206,7 @@ class CDS extends KernelModule with KernelTools {
       val opName = if(binArgs.length > 2) binArgs(2) else "ave"
       val t10 = System.nanoTime
       assert(axes.length == 1, "Must bin over 1 axis only! Requested: " + axes.mkString(","))
-      val coordMap: CDCoordArrayMap = CDTimeCoordMap.getTimeCycleMap( period, cycle, cdsVariable )
+      val coordMap: CDCoordMap = CDTimeCoordMap.getTimeCycleMap( period, cycle, cdsVariable )
       val binned_array: CDFloatArray = input_array.weightedReduce(input_array.getOp("add"), axes, 0f, None, Some(coordMap)) match {
         case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
           values_sum / weights_sum
