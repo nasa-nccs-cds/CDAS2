@@ -1,5 +1,9 @@
 package nasa.nccs.cds2.loaders
-import nasa.nccs.cdapi.cdm.Collection
+import java.net.URL
+
+import nasa.nccs.cdapi.cdm.{Collection, Mask}
+
+import scala.xml.XML
 
 object AxisNames {
   def apply( x: String = "", y: String = "", z: String = "", t: String = "" ): Option[AxisNames] = {
@@ -14,21 +18,44 @@ class AxisNames( val nameMap: Map[Char,String]  ) {
   }
 }
 
-object Collections {
-  val datasets = loadCollectionData
+trait XmlResource {
+  def getFilePath( resourcePath: String ) = {
+    val resource = getClass.getResource(resourcePath)
+    assert( resource != null, s"Resource $resourcePath does not exist!" )
+    resource.getPath
+  }
+  def attr( node: xml.Node, att_name: String ) = { node.attribute(att_name) match { case None => ""; case Some(x) => x.toString }}
+  def normalize(sval: String): String = sval.stripPrefix("\"").stripSuffix("\"").toLowerCase
+  def nospace( value: String ): String  = value.filter(_!=' ')
+}
+
+object Masks extends XmlResource {
+  val masks = loadMaskXmlData(getFilePath("/masks.xml"))
+
+  def loadMaskXmlData(filePath:String): Map[String,Mask] = {
+    Map(XML.loadFile(filePath).child.flatMap( node => node.attribute("id") match { case None => None; case Some(id) => Some((id.toString->getMask(node))); } ):_*)
+  }
+  def getMask( n: xml.Node ): Mask = { Mask( attr(n,"mtype"), attr(n,"url") ) }
+}
+
+object Collections extends XmlResource {
+  val datasets = loadCollectionXmlData( getFilePath("/collections.xml") )
 
   def toXml(): xml.Elem = {
     <collections> { for( (id,collection) <- datasets ) yield <collection id={id}> {collection.vars.mkString(",")} </collection>} </collections>
   }
-  def loadCollectionData: Map[String,Collection] = {
-    val stream : java.io.InputStream = getClass.getResourceAsStream("/collections.txt")
-    val lines = scala.io.Source.fromInputStream( stream ).getLines
-    val mapItems = for( line <- lines; toks =  line.split(';')) yield ( toks(0).filter(_!=' ') -> Collection( ctype=toks(1).filter(_!=' '), url=toks(2).filter(_!=' '), vars=getVarList(toks(3))  ) )
+  def loadCollectionTextData(url:URL): Map[String,Collection] = {
+    val lines = scala.io.Source.fromURL( url ).getLines
+    val mapItems = for( line <- lines; toks =  line.split(';')) yield ( nospace(toks(0)) -> Collection( ctype=nospace(toks(1)), url=nospace(toks(2)), vars=getVarList(toks(3))  ) )
     mapItems.toMap
   }
-  def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
+  def loadCollectionXmlData(filePath:String): Map[String,Collection] = {
+    Map(XML.loadFile(filePath).child.flatMap( node => node.attribute("id") match { case None => None; case Some(id) => Some((id.toString->getCollection(node))); } ):_*)
+  }
 
-  def normalize(sval: String): String = sval.stripPrefix("\"").stripSuffix("\"").toLowerCase
+  def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
+  def getCollection( n: xml.Node ): Collection = { Collection( attr(n,"ctype"), attr(n,"url"), n.text.split(",").toList )}
+
 
   def toXml( collectionId: String ): xml.Elem = {
     datasets.get( collectionId ) match {
@@ -55,10 +82,15 @@ object Collections {
       }
     }
   }
+
 }
 
-object TestCollections extends App {
-  println( Collections.datasets )
+
+object TestCollection extends App {
+  println( Collections.datasets.toString )
 }
+
+
+
 
 
