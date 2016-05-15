@@ -350,14 +350,14 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 
 object SampleTaskRequests {
 
-  def createTestData() = {
+  def createTestData = {
     var axes = Array("time","lev","lat","lon")
     var shape = Array(1,1,180,360)
     val maskedTensor: CDFloatArray = CDArray.factory( shape, Array.fill[Float](180*360)(1f), Float.MaxValue)
     val varname = "ta"
     val resultFile = "/tmp/SyntheticTestData.nc"
     val writer: nc2.NetcdfFileWriter = nc2.NetcdfFileWriter.createNew(nc2.NetcdfFileWriter.Version.netcdf4, resultFile )
-    val dims: IndexedSeq[nc2.Dimension] = (0 until shape.length).map( idim => writer.addDimension(null, axes(idim), maskedTensor.getShape(idim)))
+    val dims: IndexedSeq[nc2.Dimension] = shape.indices.map( idim => writer.addDimension(null, axes(idim), maskedTensor.getShape(idim)))
     val variable: nc2.Variable = writer.addVariable(null, varname, ma2.DataType.FLOAT, dims.toList)
     variable.addAttribute( new nc2.Attribute( "missing_value", maskedTensor.getInvalid ) )
     writer.create()
