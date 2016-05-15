@@ -116,8 +116,8 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
       case Success(variable) =>
         try {
           val t0 = System.nanoTime()
-          val mask = produceMask( fragSpec, variable.shape )
           val result: PartitionedFragment = variable.loadRoi( fragSpec )
+          val mask = produceMask( fragSpec, variable.shape )
           logger.info("Completed variable (%s:%s) subset data input in time %.4f sec, section = %s ".format(fragSpec.collection, fragSpec.varname, (System.nanoTime()-t0)/1.0E9, fragSpec.roi ))
 //          logger.info("Data column = [ %s ]".format( ( 0 until result.shape(0) ).map( index => result.getValue( Array(index,0,100,100) ) ).mkString(", ") ) )
           p.success( result )
@@ -126,7 +126,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
     }
   }
 
-  def produceMask( fragSpec: DataFragmentSpec, variable_shape: List[Int] ) = {
+  def produceMask( fragSpec: DataFragmentSpec, mask_shape: List[Int] ) = {
     fragSpec.mask match {
       case Some( maskId ) => maskId match {
         case mid if Masks.isMaskId(mid) =>
@@ -135,8 +135,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
               case "shapefile" =>
                 val geotools = new GeoTools()
                 val maskpoly = geotools.readShapefile( mask.getPath )
-                val bounds: Array[Float] = Array(1.0f)
-                val mask_array = geotools.getMask( maskpoly, bounds, variable_shape.toArray )
+                val mask_array = geotools.getMask( maskpoly, fragSpec.roi, mask_shape.toArray )
 
               case x => throw new Exception( s"Unrecognized Mask type: $x" )
             }
@@ -254,7 +253,16 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     val sourceContainers = request.variableMap.values.filter(_.isSource)
     val sources = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource)
       yield serverContext.loadVariableData(data_container, request.getDomain(data_container.getSource) )
-    new RequestContext( request.domainMap, Map(sources.toSeq:_*), run_args )
+    val sourceMap: Map[String,OperationInputSpec] = Map(sources.toSeq:_*)
+    request.targetGridSpec.get("id") match {
+      case Some( varId ) => sourceMap.get( varId ) match {
+        case Some( inputSpec ) =>
+          val targetGrid = serverContext.createTargetGrid( inputSpec: OperationInputSpec )
+          new RequestContext (request.domainMap, sourceMap, targetGrid, run_args)
+        case None => throw new Exception( "Unrecognized variable id in Grid spec: " + varId )
+      }
+      case None => throw new Exception( "Target grid specification method has not yet been implemented: " + request.targetGridSpec.toString )
+    }
   }
 
   def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[ExecutionResults] = Future {
@@ -364,7 +372,7 @@ object SampleTaskRequests {
     val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "t") ) ) ) )
     val variableMap = Map[String,DataContainer]( "v0" -> new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) ) )
     val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Lev,1,1), DomainAxis(Lat,100,100), DomainAxis(Lon,100,100) ), None ) )
-    new TaskRequest( "CDS.average", variableMap, domainMap, workflows )
+    new TaskRequest( "CDS.average", variableMap, domainMap, workflows, Map( "id" -> "v0" ) )
   }
 
   def getTimeAveSlice: TaskRequest = {
@@ -505,7 +513,7 @@ object SampleTaskRequests {
     val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "xy")  ) ) ) )
     val variableMap = Map[String,DataContainer]( "v0" -> new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) ) )
     val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Lev,4,4), DomainAxis(Lat,100,100) ), None ) )
-    new TaskRequest( "CDS.average", variableMap, domainMap, workflows )
+    new TaskRequest( "CDS.average", variableMap, domainMap, workflows, Map( "id" -> "v0" ) )
   }
 
   def getFragmentSyncFuture( dataContainer: DataContainer, domain_container: DomainContainer): Future[PartitionedFragment] = Future {

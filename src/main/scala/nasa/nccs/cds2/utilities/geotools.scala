@@ -27,7 +27,8 @@ class GeoTools( val SRID: Int = 4326 ) {
     new geom.MultiPolygon(polyList.toArray,geometryFactory)
   }
 
-  def getGrid( bounds: Array[Float], shape: Array[Int] ): geom.MultiPoint = {
+  def getGrid( roi: ma2.Section, shape: Array[Int] ): geom.MultiPoint = {
+    val bounds = Array( 0f, 1f, 0f, 1f )
     val dx = (bounds(1)-bounds(0))/shape(0)
     val dy = (bounds(3)-bounds(2))/shape(1)
     val geoPts: IndexedSeq[geom.Coordinate] = for( ix <- (0 until shape(0));  iy <- (0 until shape(1)); x = bounds(0)+ix*dx; y = bounds(2)+iy*dy  ) yield new geom.Coordinate(x,y)
@@ -50,7 +51,7 @@ class GeoTools( val SRID: Int = 4326 ) {
     orderedPoints.toArray
   }
 
-  def getMask( mask_polys: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int] ): Array[Byte]  = getMask( mask_polys, getGrid(bounds, shape) )
+  def getMask(mask_polys: geom.MultiPolygon, roi: ma2.Section, shape: Array[Int] ): Array[Byte]  = getMask( mask_polys, getGrid( roi, shape) )
 
   def getMask( mask_polys: geom.MultiPolygon, grid: geom.MultiPoint ): Array[Byte]  = {
     val intersectedPoints = mask_polys.intersection(grid)
@@ -61,9 +62,9 @@ class GeoTools( val SRID: Int = 4326 ) {
     mask_buffer
   }
 
-  def getMaskArray( boundary: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int] ): ma2.Array  = {
+  def getMaskArray( boundary: geom.MultiPolygon, roi: ma2.Section, shape: Array[Int] ): ma2.Array  = {
 //    printGridCoords( bounds, shape )
-    ma2.Array.factory(ma2.DataType.BYTE, shape, ByteBuffer.wrap(getMask(boundary, bounds, shape)))
+    ma2.Array.factory(ma2.DataType.BYTE, shape, ByteBuffer.wrap(getMask(boundary, roi, shape)))
   }
 
   def testPoint(  mask_geom: geom.Geometry, testpoint: Array[Float] ): Boolean = {
@@ -84,22 +85,22 @@ object maskPointsTest extends App {
   }
 }
 
-object maskGridTest extends App {
-//  val oceanShapeUrl=getClass.getResource("/shapes/ocean50m/ne_50m_ocean.shp")
-  val oceanShapeUrl=getClass.getResource("/shapes/ocean110m/ne_110m_ocean.shp")
-  val geotools = new GeoTools()
-  val shape = Array(360,180)
-  val t0 = System.nanoTime
-  val mask_geom: geom.MultiPolygon = geotools.readShapefile( oceanShapeUrl.getPath() )
-  val t1 = System.nanoTime
-
-
-//  val mask1: Array[Byte]  = geotools.getMask( mask_geom, Array(0f,360f,-89.5f,90.5f), Array(360,180) )
-  val mask2: ma2.Array    = geotools.getMaskArray( mask_geom, Array(-180f,180f,-89.5f,90.5f), shape )
-  val mask_shape = mask2.getShape()
-
-  val t2 = System.nanoTime
-  println( "Mask read time = %.3f, mask compute time = %.3f".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9 ) )
-  for( iy <-((shape(1)-1) to 0 by -1 ) ) println( new String( mask2.slice(1,iy).getDataAsByteBuffer.array.map( _ match { case 1 => '*'; case 0 => '_'; case x => 'x' } ) ) )
-}
-
+//object maskGridTest extends App {
+////  val oceanShapeUrl=getClass.getResource("/shapes/ocean50m/ne_50m_ocean.shp")
+//  val oceanShapeUrl=getClass.getResource("/shapes/ocean110m/ne_110m_ocean.shp")
+//  val geotools = new GeoTools()
+//  val shape = Array(360,180)
+//  val t0 = System.nanoTime
+//  val mask_geom: geom.MultiPolygon = geotools.readShapefile( oceanShapeUrl.getPath() )
+//  val t1 = System.nanoTime
+//
+//
+////  val mask1: Array[Byte]  = geotools.getMask( mask_geom, Array(0f,360f,-89.5f,90.5f), Array(360,180) )
+//  val mask2: ma2.Array    = geotools.getMaskArray( mask_geom, Array(-180f,180f,-89.5f,90.5f), shape )
+//  val mask_shape = mask2.getShape()
+//
+//  val t2 = System.nanoTime
+//  println( "Mask read time = %.3f, mask compute time = %.3f".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9 ) )
+//  for( iy <-((shape(1)-1) to 0 by -1 ) ) println( new String( mask2.slice(1,iy).getDataAsByteBuffer.array.map( _ match { case 1 => '*'; case 0 => '_'; case x => 'x' } ) ) )
+//}
+//
