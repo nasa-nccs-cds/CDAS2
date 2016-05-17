@@ -16,7 +16,7 @@ import scala.concurrent.{Await, Future, Promise}
 import scala.util.{Failure, Success, Try}
 import java.util.concurrent.atomic.AtomicReference
 
-import nasa.nccs.cdapi.tensors.{CDArray, CDFloatArray}
+import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
 import spray.caching._
 import ucar.{ma2, nc2}
 import nasa.nccs.cds2.utilities.GeoTools
@@ -116,17 +116,24 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
       case Success(variable) =>
         try {
           val t0 = System.nanoTime()
-          val result: PartitionedFragment = variable.loadRoi( fragSpec )
-          val mask = produceMask( fragSpec, variable.shape )
+          val maskOpt = produceMask( fragSpec, variable.shape )
+          val result = fragSpec.targetGridOpt match {
+            case Some( targetGrid ) =>
+              targetGrid.loadRoi( variable, fragSpec, maskOpt)
+             case None =>
+              val targetGrid = new TargetGrid( variable, Some(fragSpec.getAxes) )
+              targetGrid.loadRoi( variable, fragSpec, maskOpt)
+          }
           logger.info("Completed variable (%s:%s) subset data input in time %.4f sec, section = %s ".format(fragSpec.collection, fragSpec.varname, (System.nanoTime()-t0)/1.0E9, fragSpec.roi ))
-//          logger.info("Data column = [ %s ]".format( ( 0 until result.shape(0) ).map( index => result.getValue( Array(index,0,100,100) ) ).mkString(", ") ) )
+          //          logger.info("Data column = [ %s ]".format( ( 0 until result.shape(0) ).map( index => result.getValue( Array(index,0,100,100) ) ).mkString(", ") ) )
           p.success( result )
+
         } catch { case e: Exception => p.failure(e) }
       case Failure(t) => p.failure(t)
     }
   }
 
-  def produceMask( fragSpec: DataFragmentSpec, mask_shape: List[Int] ) = {
+  def produceMask( fragSpec: DataFragmentSpec, mask_shape: List[Int] ): Option[CDByteArray]  = {
     fragSpec.mask match {
       case Some( maskId ) => maskId match {
         case mid if Masks.isMaskId(mid) =>
@@ -136,12 +143,12 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
                 val geotools = new GeoTools()
                 val maskpoly = geotools.readShapefile( mask.getPath )
                 val mask_array = geotools.getMask( maskpoly, fragSpec.roi, mask_shape.toArray )
-
+                Some( new CDByteArray( mask_shape.toArray, mask_array ) )
               case x => throw new Exception( s"Unrecognized Mask type: $x" )
             }
             case None => throw new Exception( s"Unrecognized Mask ID: $mid: options are %s".format( Masks.getMaskIds ) )
           }
-        case varid => "varid"
+        case varid => None
       }
       case None => None
     }
@@ -168,24 +175,24 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
     case None => getFragmentFuture( fragSpec )
   }
 
-  def loadOperationInputFuture( dataContainer: DataContainer, domain_container: DomainContainer ): Future[OperationInputSpec] = {
-    val variableFuture = getVariableFuture(dataContainer.getSource.collection, dataContainer.getSource.name)
-    variableFuture.flatMap( variable => {
-      val section = variable.getSubSection(domain_container.axes)
-      val fragSpec = variable.createFragmentSpec( section, domain_container.mask )
-      val axisSpecs: AxisIndices = variable.getAxisIndices(dataContainer.getOpSpecs)
-      for (frag <- getFragmentFuture(fragSpec)) yield new OperationInputSpec( fragSpec, axisSpecs)
-    })
-  }
-
-  def loadDataFragmentFuture( dataContainer: DataContainer, domain_container: DomainContainer ): Future[PartitionedFragment] = {
-    val variableFuture = getVariableFuture(dataContainer.getSource.collection, dataContainer.getSource.name)
-    variableFuture.flatMap( variable => {
-      val section = variable.getSubSection(domain_container.axes)
-      val fragSpec = variable.createFragmentSpec( section, domain_container.mask )
-      for (frag <- getFragmentFuture(fragSpec)) yield frag
-    })
-  }
+//  def loadOperationInputFuture( dataContainer: DataContainer, domain_container: DomainContainer ): Future[OperationInputSpec] = {
+//    val variableFuture = getVariableFuture(dataContainer.getSource.collection, dataContainer.getSource.name)
+//    variableFuture.flatMap( variable => {
+//      val section = variable.getSubSection(domain_container.axes)
+//      val fragSpec = variable.createFragmentSpec( section, domain_container.mask )
+//      val axisSpecs: AxisIndices = variable.getAxisIndices(dataContainer.getOpSpecs)
+//      for (frag <- getFragmentFuture(fragSpec)) yield new OperationInputSpec( fragSpec, axisSpecs)
+//    })
+//  }
+//
+//  def loadDataFragmentFuture( dataContainer: DataContainer, domain_container: DomainContainer ): Future[PartitionedFragment] = {
+//    val variableFuture = getVariableFuture(dataContainer.getSource.collection, dataContainer.getSource.name)
+//    variableFuture.flatMap( variable => {
+//      val section = variable.getSubSection(domain_container.axes)
+//      val fragSpec = variable.createFragmentSpec( section, domain_container.mask )
+//      for (frag <- getFragmentFuture(fragSpec)) yield frag
+//    })
+//  }
 
   def getExistingFragment( fkey: DataFragmentKey  ): Option[Future[PartitionedFragment]] = {
     val rv: Option[Future[PartitionedFragment]] = fragmentCache.get( fkey )
@@ -521,65 +528,39 @@ object SampleTaskRequests {
     val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Lev,4,4), DomainAxis(Lat,100,100) ), None ) )
     new TaskRequest( "CDS.average", variableMap, domainMap, workflows, Map( "id" -> "v0" ) )
   }
-
-  def getFragmentSyncFuture( dataContainer: DataContainer, domain_container: DomainContainer): Future[PartitionedFragment] = Future {
-    getFragmentSync( dataContainer, domain_container ) match {
-      case Some(pf) => pf
-      case None => new PartitionedFragment()
-    }
-  }
-
-  def getFragmentSync( dataContainer: DataContainer, domainContainer: DomainContainer): Option[PartitionedFragment] = {
-    val datasetName = dataContainer.getSource.collection.toLowerCase
-    var varName = dataContainer.getSource.name
-    Collections.datasets.get(datasetName) match {
-      case Some(collection) =>
-        val dataset = CDSDataset.load(datasetName, collection, varName)
-        val variable = dataset.loadVariable(varName)
-        val section = variable.getSubSection(domainContainer.axes)
-        val t0 = System.nanoTime
-        val fragSpec = variable.createFragmentSpec( section, domainContainer.mask )
-        val axisIndices: AxisIndices = variable.getAxisIndices(dataContainer.getOpSpecs)
-        val result = variable.loadRoi( fragSpec )
-        val t1 = System.nanoTime
-        println( " ** Frag gen time %.4f".format( (t1-t0)/1.0E9 ) )
-        Some( result )
-      case None => None
-    }
-  }
 }
 
-object exeSyncTest extends App {
-  import nasa.nccs.esgf.process.DomainAxis.Type._
-  val operationContainer =  new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "xy") )
-  val dataContainer = new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) )
-  val domainContainer = new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Lev,6,6) ), None )
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val t0 = System.nanoTime
-  val partitionedFragmentOpt = SampleTaskRequests.getFragmentSync( dataContainer, domainContainer )
-  val t1 = System.nanoTime
-  partitionedFragmentOpt match {
-    case Some( partitionedFragment ) => println( "Got Value, time = %.4f: %s: ".format( (t1-t0)/1.0E9, partitionedFragment.toString ) )
-    case None => println( "Error" )
-  }
-}
-
-object exeConcurrencyTest extends App {
-  import nasa.nccs.esgf.process.DomainAxis.Type._
-  val operationContainer =  new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "xy") )
-  val dataContainer = new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) )
-  val domainContainer = new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Lev,10,10) ), None )
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  cds2ExecutionManager.serverContext.dataLoader.getVariable( dataContainer.getSource.collection, dataContainer.getSource.name )
-  val t0 = System.nanoTime
-//  val futurePartitionedFragment: Future[PartitionedFragment] = cds2ExecutionManager.serverContext.dataLoader.loadDataFragmentFuture( dataContainer, domainContainer )
-  val futurePartitionedFragment: Future[PartitionedFragment]  = SampleTaskRequests.getFragmentSyncFuture( dataContainer, domainContainer )
-  val t1 = System.nanoTime
-  println("Got Future, time = %.4f".format((t1-t0)/1.0E9))
-  val partitionedFragment: PartitionedFragment = Await.result( futurePartitionedFragment, Duration.Inf )
-  val t2 = System.nanoTime
-  println( "Got Value, time = %.4f (%.4f): %s: ".format( (t2-t1)/1.0E9, (t2-t0)/1.0E9,partitionedFragment.toString ) )
-}
+//object exeSyncTest extends App {
+//  import nasa.nccs.esgf.process.DomainAxis.Type._
+//  val operationContainer =  new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "xy") )
+//  val dataContainer = new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) )
+//  val domainContainer = new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Lev,6,6) ), None )
+//  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+//  val t0 = System.nanoTime
+//  val partitionedFragmentOpt = SampleTaskRequests.getFragmentSync( dataContainer, domainContainer )
+//  val t1 = System.nanoTime
+//  partitionedFragmentOpt match {
+//    case Some( partitionedFragment ) => println( "Got Value, time = %.4f: %s: ".format( (t1-t0)/1.0E9, partitionedFragment.toString ) )
+//    case None => println( "Error" )
+//  }
+//}
+//
+//object exeConcurrencyTest extends App {
+//  import nasa.nccs.esgf.process.DomainAxis.Type._
+//  val operationContainer =  new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "xy") )
+//  val dataContainer = new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) )
+//  val domainContainer = new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Lev,10,10) ), None )
+//  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+//  cds2ExecutionManager.serverContext.dataLoader.getVariable( dataContainer.getSource.collection, dataContainer.getSource.name )
+//  val t0 = System.nanoTime
+////  val futurePartitionedFragment: Future[PartitionedFragment] = cds2ExecutionManager.serverContext.dataLoader.loadDataFragmentFuture( dataContainer, domainContainer )
+//  val futurePartitionedFragment: Future[PartitionedFragment]  = SampleTaskRequests.getFragmentSyncFuture( dataContainer, domainContainer )
+//  val t1 = System.nanoTime
+//  println("Got Future, time = %.4f".format((t1-t0)/1.0E9))
+//  val partitionedFragment: PartitionedFragment = Await.result( futurePartitionedFragment, Duration.Inf )
+//  val t2 = System.nanoTime
+//  println( "Got Value, time = %.4f (%.4f): %s: ".format( (t2-t1)/1.0E9, (t2-t0)/1.0E9,partitionedFragment.toString ) )
+//}
 
 object executionTest extends App {
   val request = SampleTaskRequests.getAnomalyTest

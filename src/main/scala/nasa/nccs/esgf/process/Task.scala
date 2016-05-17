@@ -118,10 +118,8 @@ object TaskRequest {
     var_map
   }
 
-  def buildDomainMap( domain: List[DomainContainer] ): Map[String,DomainContainer] = {
-    var domain_items = new ListBuffer[(String,DomainContainer)]()
-    for( domain_container <- domain ) domain_items += ( domain_container.name -> domain_container )
-    val domain_map = domain_items.toMap[String,DomainContainer]
+  def buildDomainMap( domain_containers: List[DomainContainer] ): Map[String,DomainContainer] = {
+    val domain_map = domain_containers.map( domain_container => domain_container.name -> domain_container ).toMap
     logger.info( "Created Domain Map: " + domain_map.toString )
     domain_map
   }
@@ -228,7 +226,7 @@ object DataFragmentSpec {
   }
 }
 
-class DataFragmentSpec( val varname: String="", val collection: String="", val dimensions: String="", val units: String="", val longname: String="", val roi: ma2.Section = new ma2.Section(), val mask: Option[String] = None, val partitions: Array[PartitionSpec]= Array() )  {
+class DataFragmentSpec( val varname: String="", val collection: String="", val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="", val longname: String="", val roi: ma2.Section = new ma2.Section(), val mask: Option[String] = None, val partitions: Array[PartitionSpec]= Array() )  {
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s, partitions = [ %s ] }".format( varname, collection, dimensions, units, longname, roi.toString, partitions.map(_.toString).mkString(", "))
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
@@ -250,6 +248,10 @@ class DataFragmentSpec( val varname: String="", val collection: String="", val d
     }
   }
 
+//  def getAxisType( ): DomainAxis.Type.Value
+
+  def getAxes: List[DomainAxis] = roi.getRanges.map( (range: ma2.Range) => new  DomainAxis( DomainAxis.fromCFName(range.getName), range.first, range.last, "indices" ) ).toList
+
   def getKey: DataFragmentKey = {
     new DataFragmentKey( varname, collection, roi.getOrigin, roi.getShape )
   }
@@ -258,7 +260,7 @@ class DataFragmentSpec( val varname: String="", val collection: String="", val d
   def getKeyString: String = getKey.toString
 
   def cutIntersection( cutSection: ma2.Section ): DataFragmentSpec =
-    new DataFragmentSpec( varname, collection, dimensions, units, longname, roi.intersect(cutSection), mask, partitions )
+    new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), mask, partitions )
 
   def getReducedSection( axisIndices: Set[Int], newsize: Int = 1 ): ma2.Section = {
     new ma2.Section( roi.getRanges.zipWithIndex.map( rngIndx => if( axisIndices(rngIndx._2) ) collapse( rngIndx._1, newsize ) else rngIndx._1 ):_* )
@@ -294,7 +296,7 @@ class DataFragmentSpec( val varname: String="", val collection: String="", val d
   }
 
   def reSection( newSection: ma2.Section ): DataFragmentSpec = {
-    new DataFragmentSpec( varname, collection, dimensions, units, longname, newSection, mask, partitions )
+    new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, newSection, mask, partitions )
   }
 
 //  private var dataFrag: Option[PartitionedFragment] = None
@@ -397,6 +399,10 @@ object DomainAxis extends ContainerBase {
 
   def apply( axistype: Type.Value, start: Int, end: Int ): Option[DomainAxis] = {
     Some( new DomainAxis(  axistype, start, end, "indices" ) )
+  }
+
+  def fromCFName( CFName: String ) = CFName.toLowerCase match {
+    case "x" => Type.Lon; case "y" => Type.Lat; case "z" => Type.Lev; case "t" => Type.T;
   }
 
   def apply( axistype: Type.Value, axis_spec: Option[Any] ): Option[DomainAxis] = {
