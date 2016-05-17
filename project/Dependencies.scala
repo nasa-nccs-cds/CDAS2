@@ -33,10 +33,8 @@ object Library {
   val joda           = "joda-time"          % "joda-time"       % "2.8.1"
   val natty          = "com.joestelmach"    % "natty"           % "0.11"
   val guava          = "com.google.guava"   % "guava"           % "18.0"
-  val geotools       = "org.geotools"      %  "gt-shapefile"    % "15-SNAPSHOT"
+  val geotools       = "org.geotools"      %  "gt-shapefile"    % "13.2"
   val breeze         = "org.scalanlp"      %% "breeze"          % "0.12"
-  val kernelmod      = "nasa.nccs"         %% "kermodbase"      % "1.0-SNAPSHOT"
-  val cdapi          = "nasa.nccs"         %% "cdapi"           % "1.0-SNAPSHOT"
   val sprayCache     = "io.spray"       % "spray-caching_2.11" % "1.3.3"
   val sprayUtil      = "io.spray"       % "spray-util_2.11"    % "1.3.3"
   val scalactic      = "org.scalactic" %% "scalactic" % "2.2.6"
@@ -53,7 +51,7 @@ object Dependencies {
     scalaTest      % "test",
     mockitoAll     % "test"
   )
-  val scala = Seq( logbackClassic, joda, natty, scalactic, scalatest )
+  val scala = Seq( logbackClassic, slf4jApi, scalaxml, scalaparser, joda, natty, scalactic, scalatest )
 
   val spark = Seq( sparkCore )
 
@@ -61,7 +59,7 @@ object Dependencies {
 
   val ndarray = Seq( nd4s, nd4j )
 
-  val kernels = Seq( kernelmod, cdapi )
+  val geo  = Seq( geotools )
 }
 
 //<groupId>com.googlecode.concurrentlinkedhashmap</groupId>

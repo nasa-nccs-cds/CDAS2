@@ -171,7 +171,8 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
   def loadOperationInputFuture( dataContainer: DataContainer, domain_container: DomainContainer ): Future[OperationInputSpec] = {
     val variableFuture = getVariableFuture(dataContainer.getSource.collection, dataContainer.getSource.name)
     variableFuture.flatMap( variable => {
-      val fragSpec = variable.createFragmentSpec(domain_container)
+      val section = variable.getSubSection(domain_container.axes)
+      val fragSpec = variable.createFragmentSpec( section, domain_container.mask )
       val axisSpecs: AxisIndices = variable.getAxisIndices(dataContainer.getOpSpecs)
       for (frag <- getFragmentFuture(fragSpec)) yield new OperationInputSpec( fragSpec, axisSpecs)
     })
@@ -180,7 +181,8 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
   def loadDataFragmentFuture( dataContainer: DataContainer, domain_container: DomainContainer ): Future[PartitionedFragment] = {
     val variableFuture = getVariableFuture(dataContainer.getSource.collection, dataContainer.getSource.name)
     variableFuture.flatMap( variable => {
-      val fragSpec = variable.createFragmentSpec(domain_container)
+      val section = variable.getSubSection(domain_container.axes)
+      val fragSpec = variable.createFragmentSpec( section, domain_container.mask )
       for (frag <- getFragmentFuture(fragSpec)) yield frag
     })
   }
@@ -249,24 +251,27 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     err.getMessage
   }
 
-  def loadInputData( request: TaskRequest, run_args: Map[String,String] ): RequestContext = {
-    val sourceContainers = request.variableMap.values.filter(_.isSource)
-    val sources = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource)
-      yield serverContext.loadVariableData(data_container, request.getDomain(data_container.getSource) )
-    val sourceMap: Map[String,OperationInputSpec] = Map(sources.toSeq:_*)
+  def createTargetGrid( request: TaskRequest ): TargetGrid = {
     request.targetGridSpec.get("id") match {
-      case Some( varId ) => sourceMap.get( varId ) match {
-        case Some( inputSpec ) =>
-          val targetGrid = serverContext.createTargetGrid( inputSpec: OperationInputSpec )
-          new RequestContext (request.domainMap, sourceMap, targetGrid, run_args)
-        case None => throw new Exception( "Unrecognized variable id in Grid spec: " + varId )
+      case Some(varId) => request.variableMap.get(varId) match {
+        case Some(dataContainer: DataContainer) => serverContext.createTargetGrid( dataContainer, request.getDomain(dataContainer.getSource) )
+        case None => throw new Exception("Unrecognized variable id in Grid spec: " + varId)
       }
-      case None => throw new Exception( "Target grid specification method has not yet been implemented: " + request.targetGridSpec.toString )
+      case None => throw new Exception("Target grid specification method has not yet been implemented: " + request.targetGridSpec.toString)
     }
   }
 
+  def loadInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ): RequestContext = {
+    val sourceContainers = request.variableMap.values.filter(_.isSource)
+    val sources = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
+      yield serverContext.loadVariableData(data_container, domainOpt, targetGrid )
+    val sourceMap: Map[String,OperationInputSpec] = Map(sources.toSeq:_*)
+    new RequestContext (request.domainMap, sourceMap, targetGrid, run_args)
+  }
+
   def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[ExecutionResults] = Future {
-    val requestContext = loadInputData( request, run_args )
+    val targetGrid: TargetGrid = createTargetGrid( request )
+    val requestContext = loadInputData( request, targetGrid, run_args )
     executeWorkflows( request, requestContext )
   }
 
@@ -274,7 +279,8 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     logger.info("Blocking Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
     val t0 = System.nanoTime
     try {
-      val requestContext = loadInputData( request, run_args )
+      val targetGrid: TargetGrid = createTargetGrid( request )
+      val requestContext = loadInputData( request, targetGrid, run_args )
       val t1 = System.nanoTime
       val rv = executeWorkflows( request, requestContext )
       val t2 = System.nanoTime
@@ -530,8 +536,9 @@ object SampleTaskRequests {
       case Some(collection) =>
         val dataset = CDSDataset.load(datasetName, collection, varName)
         val variable = dataset.loadVariable(varName)
+        val section = variable.getSubSection(domainContainer.axes)
         val t0 = System.nanoTime
-        val fragSpec = variable.createFragmentSpec(domainContainer)
+        val fragSpec = variable.createFragmentSpec( section, domainContainer.mask )
         val axisIndices: AxisIndices = variable.getAxisIndices(dataContainer.getOpSpecs)
         val result = variable.loadRoi( fragSpec )
         val t1 = System.nanoTime
