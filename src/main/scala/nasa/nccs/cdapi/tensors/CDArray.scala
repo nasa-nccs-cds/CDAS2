@@ -185,8 +185,10 @@ object CDFloatArray {
   type ReduceOpFlt = CDArray.ReduceOp[Float]
   implicit def cdArrayConverter( target: CDArray[Float] ): CDFloatArray = new CDFloatArray( target.getIndex, target.getStorage, target.getInvalid )
   implicit def toUcarArray( target: CDFloatArray ): ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, target.getShape, target.getSectionData )
+  val bTrue: Byte = 1
+  val bFalse: Byte = 0
 
-  def factory( array: ucar.ma2.Array, invalid: Float ): CDFloatArray = {
+  def factory( array: ucar.ma2.Array, invalid: Float, maskOpt: Option[CDByteArray]= None ): CDFloatArray = {
     val array_data = array.get1DJavaArray(array.getElementType)
     val storage: Array[Float] = array.getElementType.getSimpleName.toLowerCase match {
       case "float" => array_data.asInstanceOf[Array[Float]]
@@ -196,7 +198,17 @@ object CDFloatArray {
       case "double" => array_data.asInstanceOf[Array[Double]].map(_.toFloat)
       case x => throw new Exception("Unsupported elem type in CDArray: " + x)
     }
-    new CDFloatArray(new CDIndexMap(array.getShape), storage, invalid )
+    val unmasked_array = new CDFloatArray(new CDIndexMap(array.getShape), storage, invalid )
+    maskOpt match { case None => unmasked_array; case Some(mask) => applyMask( unmasked_array, mask ) }
+  }
+
+  def applyMask( data: CDFloatArray, mask: CDByteArray ): CDFloatArray = {
+    assert( data.getSize == mask.getSize, "Error, mask size does not match data size: %d vs %d".format(data.getSize, mask.getSize) )
+    val full_mask = mask.broadcast( data.getShape )
+    val iter = data.getIterator
+    val masked_data = for (index <- iter; dval = data.getStorageValue(index); if data.valid(dval); coordIndices = iter.getCoordinateIndices; maskval = full_mask.getValue(coordIndices))
+      yield if( maskval == bTrue ) dval else data.invalid
+    new CDFloatArray( data.getIndex, masked_data.toArray, data.invalid )
   }
 
   def spawn( shape: Array[Int], f: (Array[Int]) => Float, invalid: Float ): CDFloatArray = {

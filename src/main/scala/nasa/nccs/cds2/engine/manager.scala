@@ -116,13 +116,14 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
       case Success(variable) =>
         try {
           val t0 = System.nanoTime()
-          val maskOpt = produceMask( fragSpec, variable.shape )
           val result = fragSpec.targetGridOpt match {
             case Some( targetGrid ) =>
-              targetGrid.loadRoi( variable, fragSpec, maskOpt)
+               val maskOpt = fragSpec.mask.map( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape ) ).flatten
+               targetGrid.loadRoi( variable, fragSpec, maskOpt )
              case None =>
-              val targetGrid = new TargetGrid( variable, Some(fragSpec.getAxes) )
-              targetGrid.loadRoi( variable, fragSpec, maskOpt)
+               val targetGrid = new TargetGrid( variable, Some(fragSpec.getAxes) )
+               val maskOpt = fragSpec.mask.map( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape ) ).flatten
+               targetGrid.loadRoi( variable, fragSpec, maskOpt)
           }
           logger.info("Completed variable (%s:%s) subset data input in time %.4f sec, section = %s ".format(fragSpec.collection, fragSpec.varname, (System.nanoTime()-t0)/1.0E9, fragSpec.roi ))
           //          logger.info("Data column = [ %s ]".format( ( 0 until result.shape(0) ).map( index => result.getValue( Array(index,0,100,100) ) ).mkString(", ") ) )
@@ -133,25 +134,22 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
     }
   }
 
-  def produceMask( fragSpec: DataFragmentSpec, mask_shape: List[Int] ): Option[CDByteArray]  = {
-    fragSpec.mask match {
-      case Some( maskId ) => maskId match {
-        case mid if Masks.isMaskId(mid) =>
-          Masks.getMask(mid) match {
-            case Some(mask) => mask.mtype match {
-              case "shapefile" =>
-                val geotools = new GeoTools()
-                val maskpoly = geotools.readShapefile( mask.getPath )
-                val mask_array = geotools.getMask( maskpoly, fragSpec.roi, mask_shape.toArray )
-                Some( new CDByteArray( mask_shape.toArray, mask_array ) )
-              case x => throw new Exception( s"Unrecognized Mask type: $x" )
-            }
-            case None => throw new Exception( s"Unrecognized Mask ID: $mid: options are %s".format( Masks.getMaskIds ) )
-          }
-        case varid => None
+  def produceMask( maskId: String, bounds: Array[Float], mask_shape: Array[Int] ): Option[CDByteArray]  = {
+    if(Masks.isMaskId(maskId)) {
+      Masks.getMask(maskId) match {
+        case Some(mask) => mask.mtype match {
+          case "shapefile" =>
+            val geotools = new GeoTools()
+            val shapefile_path = mask.getPath
+            val maskpoly = geotools.readShapefile(shapefile_path)
+            val mask_array = geotools.getMask(maskpoly, bounds, mask_shape)
+            Some(new CDByteArray(mask_shape, mask_array))
+          case x => throw new Exception(s"Unrecognized Mask type: $x")
+        }
+        case None => throw new Exception(s"Unrecognized Mask ID: $maskId: options are %s".format(Masks.getMaskIds))
       }
-      case None => None
     }
+    None
   }
 
   private def clearRedundantFragments( fragSpec: DataFragmentSpec ) = findEnclosedFragSpecs(fragSpec.getKey).map(_.toString).foreach( fragmentCache.remove( _ ) )
@@ -384,7 +382,7 @@ object SampleTaskRequests {
     import nasa.nccs.esgf.process.DomainAxis.Type._
     val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "t") ) ) ) )
     val variableMap = Map[String,DataContainer]( "v0" -> new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) ) )
-    val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Lev,1,1), DomainAxis(Lat,100,100), DomainAxis(Lon,100,100) ), None ) )
+    val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Z,1,1), DomainAxis(Y,100,100), DomainAxis(X,100,100) ), None ) )
     new TaskRequest( "CDS.average", variableMap, domainMap, workflows, Map( "id" -> "v0" ) )
   }
 
@@ -481,6 +479,14 @@ object SampleTaskRequests {
     TaskRequest( "CDS.average", dataInputs )
   }
 
+  def getMaskedSpatialAve(collection: String, varname: String, weighting: String, level_index: Int = 0, time_index: Int = 0): TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List( Map("name" -> "d0", "mask" -> "#ocean50m", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> s"collection:/$collection", "name" -> s"$varname:v0", "domain" -> "d0")),
+      "operation" -> List(Map("unparsed" -> s"( v0, axes: xy, weights:$weighting)")))
+    TaskRequest( "CDS.average", dataInputs )
+  }
+
   def getConstant(collection: String, varname: String, level_index: Int = 0 ): TaskRequest = {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> 10, "end" -> 10, "system" -> "indices"))),
@@ -525,7 +531,7 @@ object SampleTaskRequests {
     import nasa.nccs.esgf.process.DomainAxis.Type._
     val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "xy")  ) ) ) )
     val variableMap = Map[String,DataContainer]( "v0" -> new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) ) )
-    val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Lev,4,4), DomainAxis(Lat,100,100) ), None ) )
+    val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Z,4,4), DomainAxis(Y,100,100) ), None ) )
     new TaskRequest( "CDS.average", variableMap, domainMap, workflows, Map( "id" -> "v0" ) )
   }
 }
@@ -534,7 +540,7 @@ object SampleTaskRequests {
 //  import nasa.nccs.esgf.process.DomainAxis.Type._
 //  val operationContainer =  new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "xy") )
 //  val dataContainer = new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) )
-//  val domainContainer = new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Lev,6,6) ), None )
+//  val domainContainer = new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Z,6,6) ), None )
 //  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
 //  val t0 = System.nanoTime
 //  val partitionedFragmentOpt = SampleTaskRequests.getFragmentSync( dataContainer, domainContainer )
@@ -549,7 +555,7 @@ object SampleTaskRequests {
 //  import nasa.nccs.esgf.process.DomainAxis.Type._
 //  val operationContainer =  new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "xy") )
 //  val dataContainer = new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) )
-//  val domainContainer = new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Lev,10,10) ), None )
+//  val domainContainer = new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Z,10,10) ), None )
 //  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
 //  cds2ExecutionManager.serverContext.dataLoader.getVariable( dataContainer.getSource.collection, dataContainer.getSource.name )
 //  val t0 = System.nanoTime
@@ -682,6 +688,15 @@ object execSpatialAveTest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
   val run_args = Map( "async" -> "false" )
   val request = SampleTaskRequests.getSpatialAve( "/synth/constant-1", "ta", "" )
+  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
+  val printer = new scala.xml.PrettyPrinter(200, 3)
+  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+}
+
+object execMaskedSpatialAveTest extends App {
+  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+  val run_args = Map( "async" -> "false" )
+  val request = SampleTaskRequests.getMaskedSpatialAve( "/MERRA/mon/atmos", "ta", "cosine" )
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )

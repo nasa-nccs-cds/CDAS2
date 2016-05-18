@@ -25,31 +25,12 @@ class KernelDataInput( val dataFragment: PartitionedFragment, val axisIndices: A
   def getSpec: DataFragmentSpec = dataFragment.fragmentSpec
 }
 
-class AxisSpec( val name: String, val axisType: AxisType, val units: String ) {
-  def toXml: xml.Elem = <axis id={name} units={units} class={axisClass} type={axisType.toString}> { getValues } </axis>
-  val axisClass = "base"
-  def getValues: String = ""
+object CDSVariable {
+  def toCoordAxis1D(coordAxis: CoordinateAxis): CoordinateAxis1D = coordAxis match {
+    case coordAxis1D: CoordinateAxis1D => coordAxis1D
+    case _ => throw new IllegalStateException("CDSVariable: 2D Coord axes not yet supported: " + coordAxis.getClass.getName)
+  }
 }
-class RegularAxisSpec( name: String, axisType: AxisType, units: String, val start:Double, val interval:Double, val length: Int ) extends AxisSpec( name,  axisType, units) {
-  override val axisClass = "regular"
-  override def toXml: xml.Elem = <axis id={name} units={units} class={axisClass} type={axisType.toString} start={start.toString} interval={interval.toString} length={length.toString}> </axis>
-}
-
-class IregularAxisSpec( name: String, axisType: AxisType, units: String, val values: Array[Double] ) extends AxisSpec( name,  axisType, units) {
-  override val axisClass = "iregular"
-  override def getValues: String = values.mkString(", ")
-}
-
-class NominalAxisSpec( name: String, axisType: AxisType, units: String, val values: Array[String] ) extends AxisSpec( name,  axisType, units)  {
-  override val axisClass = "nominal"
-  override def getValues: String = values.mkString(", ")
-}
-
-class GridSpec( val axes: List[AxisSpec] ) {
-  def toXml: xml.Elem = <grid> { axes.map(_.toXml) } </grid>
-}
-
-object CDSVariable { }
 
 class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc2.Variable) {
   val logger = org.slf4j.LoggerFactory.getLogger("nasa.nccs.cds2.cdm.CDSVariable")
@@ -73,18 +54,14 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
     </variable>
     // dims: %s, }\n  --> Variable Attributes: %s".format(name, description, shape.mkString("[", " ", "]"), dims.mkString("[", ",", "]"), attributes.mkString("\n\t\t", "\n\t\t", "\n"))
 
-  def toCoordAxis1D(coordAxis: CoordinateAxis): CoordinateAxis1D = coordAxis match {
-    case coordAxis1D: CoordinateAxis1D => coordAxis1D
-    case _ => throw new IllegalStateException("CDSVariable: 2D Coord axes not yet supported: " + coordAxis.getClass.getName)
-  }
 
   def read( section: ma2.Section ) = ncVariable.read(section)
 
   def getCoordinateAxes: List[ CoordinateAxis1D ] = {
-    ncVariable.getDimensions.map( dim => toCoordAxis1D( dataset.ncDataset.findCoordinateAxis( dim.getFullName ) ) ).toList
+    ncVariable.getDimensions.map( dim => CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis( dim.getFullName ) ) ).toList
   }
-  def getCoordinateAxis( axisType: nc2.constants.AxisType ): CoordinateAxis1D = toCoordAxis1D( dataset.ncDataset.findCoordinateAxis(axisType) )
-  def getCoordinateAxis( fullName: String ): CoordinateAxis1D = toCoordAxis1D( dataset.ncDataset.findCoordinateAxis(fullName) )
+  def getCoordinateAxis( axisType: nc2.constants.AxisType ): CoordinateAxis1D = CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis(axisType) )
+  def getCoordinateAxis( fullName: String ): CoordinateAxis1D = CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis(fullName) )
 
   def getAxisIndices( axisConf: List[OperationSpecs] ): AxisIndices = {
     val axis_ids = mutable.HashSet[Int]()
@@ -99,109 +76,6 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
   def getAxisIndex( axisClass: Char ): Int = {
     val coord_axis = dataset.getCoordinateAxis(axisClass)
     ncVariable.findDimensionIndex( coord_axis.getShortName )
-  }
-
-  def getNormalizedCoordinate(coordAxis: CoordinateAxis, cval: Double ): Double = coordAxis.getAxisType match {
-    case nc2.constants.AxisType.Lon =>
-      if( (cval<0.0) && ( coordAxis.getMinValue >= 0.0 ) ) cval + 360.0
-      else if( (cval>180.0) && ( coordAxis.getMaxValue <= 180.0 ) ) cval - 360.0
-      else cval
-    case x => cval
-  }
-
-  def getAxisSpec( coordAxis: CoordinateAxis1D, range: ma2.Range ): AxisSpec = {
-    coordAxis.getAxisType match {
-      case AxisType.Time =>
-        val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory(dataset.ncDataset, coordAxis, new Formatter())
-        val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
-        val timeZero = CalendarDate.of(timeCalValues.head.getCalendar,1970,1,1,1,1,1)
-        val timeRelValues = for( index <- (range.first() to range.last() by range.stride()); calVal = timeCalValues(index) ) yield calVal.getDifferenceInMsecs(timeZero)/1000.0
-        new IregularAxisSpec( "time", AxisType.Time, "seconds since 1970-1-1", timeRelValues.toArray )
-      case x =>
-        if (coordAxis.isRegular) new RegularAxisSpec(coordAxis.getFullName, coordAxis.getAxisType, coordAxis.getUnitsString, coordAxis.getCoordValue(range.first), coordAxis.getIncrement, range.length)
-        else {
-          if (coordAxis.isNumeric) new IregularAxisSpec(coordAxis.getFullName, coordAxis.getAxisType, coordAxis.getUnitsString, getNumericCoordValues(coordAxis, range))
-          else throw new Exception("Nominal Coordinate types not yet supported: %s ".format(coordAxis.getFullName))
-        }
-    }
-  }
-
-  def getAxisSpecs( section: ma2.Section ): List[AxisSpec] =
-    for( axisRangeTup <- getCoordinateAxes zip section.getRanges)
-      yield getAxisSpec( axisRangeTup._1, axisRangeTup._2 )
-
-  def getGridSpec( section: ma2.Section ): GridSpec = new GridSpec( getAxisSpecs(section) )
-
-  def getGridCoordIndex(coordAxis: CoordinateAxis, cval: Double, role: BoundsRole.Value, strict: Boolean = true): Int = {
-    val coordAxis1D = toCoordAxis1D( coordAxis )
-    coordAxis1D.findCoordElement( getNormalizedCoordinate( coordAxis, cval ) ) match {
-      case -1 =>
-        if (role == BoundsRole.Start) {
-          val grid_start = coordAxis1D.getCoordValue(0)
-          logger.warn("Axis %s: ROI Start value %f outside of grid area, resetting to grid start: %f".format(coordAxis.getShortName, cval, grid_start))
-          0
-        } else {
-          val end_index = coordAxis1D.getSize.toInt - 1
-          val grid_end = coordAxis1D.getCoordValue(end_index)
-          logger.warn("Axis %s: ROI Start value %s outside of grid area, resetting to grid end: %f".format(coordAxis.getShortName, cval, grid_end))
-          end_index
-        }
-      case ival => ival
-    }
-  }
-  def getBoundedCalDate(coordAxis1DTime: CoordinateAxis1DTime, caldate: CalendarDate, role: BoundsRole.Value, strict: Boolean = true): CalendarDate = {
-    val date_range: CalendarDateRange = coordAxis1DTime.getCalendarDateRange
-    if (!date_range.includes(caldate)) {
-      if (strict) throw new IllegalStateException("CDS2-CDSVariable: Time value %s outside of time bounds %s".format(caldate.toString, date_range.toString))
-      else {
-        if (role == BoundsRole.Start) {
-          val startDate: CalendarDate = date_range.getStart
-          logger.warn("Time value %s outside of time bounds %s, resetting value to range start date %s".format(caldate.toString, date_range.toString, startDate.toString))
-          startDate
-        } else {
-          val endDate: CalendarDate = date_range.getEnd
-          logger.warn("Time value %s outside of time bounds %s, resetting value to range end date %s".format(caldate.toString, date_range.toString, endDate.toString))
-          endDate
-        }
-      }
-    } else caldate
-  }
-
-
-  def getTimeAxis( coordAxis: CoordinateAxis): CoordinateAxis1DTime = coordAxis match {
-    case coordAxis1DTime: CoordinateAxis1DTime => coordAxis1DTime
-    case variableDS: VariableDS => CoordinateAxis1DTime.factory( dataset.ncDataset, variableDS, new Formatter() )
-    case x => throw new IllegalStateException("CDS2-CDSVariable: Can't create time axis from type type: %s ".format(coordAxis.getClass.getName))
-  }
-
-  def getTimeCoordIndex(coordAxis: CoordinateAxis, tval: String, role: BoundsRole.Value, strict: Boolean = true): Int = {
-    val coordAxis1DTime: CoordinateAxis1DTime = getTimeAxis( coordAxis )
-    val caldate: CalendarDate = cdsutils.dateTimeParser.parse(tval)
-    val caldate_bounded: CalendarDate = getBoundedCalDate(coordAxis1DTime, caldate, role, strict)
-    coordAxis1DTime.findTimeIndexFromCalendarDate(caldate_bounded)
-  }
-
-  def getTimeIndexBounds( coordAxis: CoordinateAxis, startval: String, endval: String, strict: Boolean = true): ma2.Range = {
-    val startIndex = getTimeCoordIndex( coordAxis, startval, BoundsRole.Start, strict)
-    val endIndex = getTimeCoordIndex( coordAxis, endval, BoundsRole.End, strict)
-    new ma2.Range( coordAxis.getAxisType.getCFAxisName, startIndex, endIndex)
-  }
-
-  def getNumericCoordValues( axis: CoordinateAxis1D, range: ma2.Range ): Array[Double] = {
-    val coord_values = axis.getCoordValues;
-    if (coord_values.length == range.length) coord_values else (0 until range.length).map(iE => coord_values(range.element(iE))).toArray
-  }
-
-  def getGridIndexBounds(coordAxis: CoordinateAxis, startval: Double, endval: Double, strict: Boolean = true): ma2.Range = {
-    val startIndex = getGridCoordIndex(coordAxis, startval, BoundsRole.Start, strict)
-    val endIndex = getGridCoordIndex(coordAxis, endval, BoundsRole.End, strict)
-    new ma2.Range( coordAxis.getAxisType.getCFAxisName, startIndex, endIndex )
-  }
-
-  def getIndexBounds( coordAxis: CoordinateAxis, startval: GenericNumber, endval: GenericNumber, strict: Boolean = true): ma2.Range = {
-    val indexRange = if (coordAxis.getAxisType == nc2.constants.AxisType.Time) getTimeIndexBounds( coordAxis, startval.toString, endval.toString ) else getGridIndexBounds(coordAxis, startval, endval)
-    assert(indexRange.last >= indexRange.first, "CDS2-CDSVariable: Coordinate bounds appear to be inverted: start = %s, end = %s".format(startval.toString, endval.toString))
-    indexRange
   }
 
   def getCFAxisName( dimension_index: Int, default_val: String ): String = {

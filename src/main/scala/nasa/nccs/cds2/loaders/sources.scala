@@ -38,15 +38,18 @@ class Mask( val mtype: String, val resource: String ) extends XmlResource {
 }
 
 object Masks extends XmlResource {
+  val mid_prefix: Char = '#'
   val masks = loadMaskXmlData(getFilePath("/masks.xml"))
-  val prefix = '#'
 
-  def isMaskId( maskId: String ): Boolean = (maskId(0) == prefix)
+  def isMaskId( maskId: String ): Boolean = (maskId(0) == mid_prefix )
 
   def loadMaskXmlData(filePath:String): Map[String,Mask] = {
-    Map(XML.loadFile(filePath).child.flatMap( node => node.attribute("id") match { case None => None; case Some(id) => Some((prefix + id.toString->createMask(node))); } ):_*)
+    Map(XML.loadFile(filePath).child.flatMap( node => node.attribute("id") match {
+      case None => None;
+      case Some(id) => Some( (mid_prefix +: id.toString) -> createMask(node)); }
+    ) :_* )
   }
-  def createMask( n: xml.Node ): Mask = { Mask( attr(n,"mtype"), attr(n,"url") ) }
+  def createMask( n: xml.Node ): Mask = { Mask( attr(n,"mtype"), attr(n,"resource") ) }
 
   def getMask( id: String ): Option[Mask] = masks.get(id)
 
@@ -56,16 +59,16 @@ object Masks extends XmlResource {
 object Collections extends XmlResource {
   val datasets = loadCollectionXmlData( getFilePath("/collections.xml") )
 
-  def toXml(): xml.Elem = {
+  def toXml: xml.Elem = {
     <collections> { for( (id,collection) <- datasets ) yield <collection id={id}> {collection.vars.mkString(",")} </collection>} </collections>
   }
   def loadCollectionTextData(url:URL): Map[String,Collection] = {
     val lines = scala.io.Source.fromURL( url ).getLines
-    val mapItems = for( line <- lines; toks =  line.split(';')) yield ( nospace(toks(0)) -> Collection( ctype=nospace(toks(1)), url=nospace(toks(2)), vars=getVarList(toks(3))  ) )
+    val mapItems = for( line <- lines; toks =  line.split(';')) yield  nospace(toks(0)) -> Collection( ctype=nospace(toks(1)), url=nospace(toks(2)), vars=getVarList(toks(3)) )
     mapItems.toMap
   }
   def loadCollectionXmlData(filePath:String): Map[String,Collection] = {
-    Map(XML.loadFile(filePath).child.flatMap( node => node.attribute("id") match { case None => None; case Some(id) => Some((id.toString->getCollection(node))); } ):_*)
+    Map(XML.loadFile(filePath).child.flatMap( node => node.attribute("id") match { case None => None; case Some(id) => Some(id.toString->getCollection(node)); } ):_*)
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList

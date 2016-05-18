@@ -31,12 +31,9 @@ object testOperationParser extends App {
 }
 
 object wpsNameMatchers {
-  val lonAxis = """^lon\w*""".r
-  val latAxis = """^lat\w*""".r
-  val levAxis = """^lev\w*|^plev\w*""".r
-  val yAxis = """^y\w*""".r
-  val xAxis = """^x\w*""".r
-  val zAxis = """^z\w*""".r
+  val yAxis = """^y\w*|^lat\w*""".r
+  val xAxis = """^x\w*|^lon\w*""".r
+  val zAxis = """^z\w*|^lev\w*|^plev\w*""".r
   val tAxis = """^t\w*""".r
 
   def getDimension( axisName: String ): Char = axisName match {

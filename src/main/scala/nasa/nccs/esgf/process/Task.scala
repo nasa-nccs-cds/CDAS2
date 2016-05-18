@@ -236,6 +236,11 @@ class DataFragmentSpec( val varname: String="", val collection: String="", val t
     }
   }
 
+  def getBounds: Array[Float] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
+    case Some( array ) => array
+    case None => throw new Exception( "Can't get bounds from FragmentSpec: " + toString )
+  }
+
   private def collapse( range: ma2.Range, newsize: Int = 1 ): ma2.Range = newsize match {
     case 1 => val mid_val = (range.first+range.last)/2; new ma2.Range(range.getName,mid_val,mid_val)
     case ns => val incr = math.round((range.last-range.first)/ns.toFloat); new ma2.Range(range.getName,range.first(),range.last,incr)
@@ -248,9 +253,16 @@ class DataFragmentSpec( val varname: String="", val collection: String="", val t
     }
   }
 
-//  def getAxisType( ): DomainAxis.Type.Value
+  def getRangeCF( CFName: String ): Option[ma2.Range] = Option( roi.find(CFName) )
 
-  def getAxes: List[DomainAxis] = roi.getRanges.map( (range: ma2.Range) => new  DomainAxis( DomainAxis.fromCFName(range.getName), range.first, range.last, "indices" ) ).toList
+  def getGridShape: Array[Int] = {
+    val grid_axes = List( "x", "y" )
+    dimensions.toLowerCase.split(' ').map( getRange(_) ).flatten.map( range => if(grid_axes.contains(range.getName.toLowerCase)) range.length else 1 )
+  }
+
+//  def getAxisType( cfName: String ):  DomainAxis.Type.Value = targetGridOpt.flatMap( _.grid.getAxisSpec(cfName).map( _.getAxisType ) )
+
+  def getAxes: List[DomainAxis] = roi.getRanges.map( (range: ma2.Range) => new  DomainAxis( DomainAxis.fromCFAxisName(range.getName), range.first, range.last, "indices" ) ).toList
 
   def getKey: DataFragmentKey = {
     new DataFragmentKey( varname, collection, roi.getOrigin, roi.getShape )
@@ -395,14 +407,11 @@ class DomainContainer( val name: String, val axes: List[DomainAxis], val mask: O
 }
 
 object DomainAxis extends ContainerBase {
-  object Type extends Enumeration { val Lat, Lon, Lev, X, Y, Z, T = Value }
+  object Type extends Enumeration { val X, Y, Z, T = Value }
+  def fromCFAxisName( cfName: String ): Type.Value = cfName.toLowerCase match { case "x" => Type.X; case "y" => Type.Y; case "z" => Type.Z; case "t" => Type.T; }
 
   def apply( axistype: Type.Value, start: Int, end: Int ): Option[DomainAxis] = {
     Some( new DomainAxis(  axistype, start, end, "indices" ) )
-  }
-
-  def fromCFName( CFName: String ) = CFName.toLowerCase match {
-    case "x" => Type.Lon; case "y" => Type.Lat; case "z" => Type.Lev; case "t" => Type.T;
   }
 
   def apply( axistype: Type.Value, axis_spec: Option[Any] ): Option[DomainAxis] = {
@@ -429,7 +438,7 @@ object DomainAxis extends ContainerBase {
 class DomainAxis( val axistype: DomainAxis.Type.Value, val start: GenericNumber, val end: GenericNumber, val system: String, val bounds: String = "" ) extends ContainerBase  {
   import DomainAxis.Type._
   val name =   axistype.toString
-  def getCFAxisName(): String = axistype match { case Lat => "Y"; case Lon => "X"; case Lev => "Z"; case X => "X"; case Y => "Y"; case Z => "Z"; case T => "T" }
+  def getCFAxisName(): String = axistype match { case X => "X"; case Y => "Y"; case Z => "Z"; case T => "T" }
 
   override def toString = {
     s"DomainAxis { name = $name, start = $start, end = $end, system = $system, bounds = $bounds }"
@@ -437,6 +446,15 @@ class DomainAxis( val axistype: DomainAxis.Type.Value, val start: GenericNumber,
 
   override def toXml = {
     <axis name={name} start={start.toString} end={end.toString} system={system} bounds={bounds} />
+  }
+
+  def matches ( axisType: nc2.constants.AxisType ): Boolean = {
+    import nc2.constants.AxisType, DomainAxis.Type._
+    axistype match {
+      case X => List( AxisType.Lon, AxisType.GeoX, AxisType.RadialDistance ).contains(axisType)
+      case Y => List( AxisType.Lat, AxisType.GeoY, AxisType.RadialAzimuth ).contains(axisType)
+      case Z => List( AxisType.Pressure, AxisType.Height, AxisType.RadialElevation ).contains(axisType)
+    }
   }
 }
 
@@ -446,9 +464,6 @@ object DomainContainer extends ContainerBase {
     var items = new ListBuffer[ Option[DomainAxis] ]()
     try {
       val name = filterMap(metadata, key_equals("name")) match { case None => ""; case Some(x) => x.toString }
-      items += DomainAxis( DomainAxis.Type.Lat, filterMap(metadata,  key_equals( wpsNameMatchers.latAxis )))
-      items += DomainAxis( DomainAxis.Type.Lon, filterMap(metadata,  key_equals( wpsNameMatchers.lonAxis )))
-      items += DomainAxis( DomainAxis.Type.Lev, filterMap(metadata,  key_equals( wpsNameMatchers.levAxis )))
       items += DomainAxis( DomainAxis.Type.Y,   filterMap(metadata,  key_equals( wpsNameMatchers.yAxis )))
       items += DomainAxis( DomainAxis.Type.X,   filterMap(metadata,  key_equals( wpsNameMatchers.xAxis )))
       items += DomainAxis( DomainAxis.Type.Z,   filterMap(metadata,  key_equals( wpsNameMatchers.zAxis )))

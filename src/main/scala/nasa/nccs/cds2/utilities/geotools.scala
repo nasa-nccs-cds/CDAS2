@@ -27,8 +27,7 @@ class GeoTools( val SRID: Int = 4326 ) {
     new geom.MultiPolygon(polyList.toArray,geometryFactory)
   }
 
-  def getGrid( roi: ma2.Section, shape: Array[Int] ): geom.MultiPoint = {
-    val bounds = Array( 0f, 1f, 0f, 1f )
+  def getGrid( bounds: Array[Float], shape: Array[Int] ): geom.MultiPoint = {
     val dx = (bounds(1)-bounds(0))/shape(0)
     val dy = (bounds(3)-bounds(2))/shape(1)
     val geoPts: IndexedSeq[geom.Coordinate] = for( ix <- (0 until shape(0));  iy <- (0 until shape(1)); x = bounds(0)+ix*dx; y = bounds(2)+iy*dy  ) yield new geom.Coordinate(x,y)
@@ -48,10 +47,10 @@ class GeoTools( val SRID: Int = 4326 ) {
     val maskPointCoords: Set[geom.Coordinate] = mask_points.getCoordinates.toSet
     val orderedPoints = for (gridCoord <- grid.getCoordinates) yield
       if ( maskPointCoords.contains(gridCoord) ) { bTrue } else { bFalse }
-    orderedPoints.toArray
+    orderedPoints
   }
 
-  def getMask(mask_polys: geom.MultiPolygon, roi: ma2.Section, shape: Array[Int] ): Array[Byte]  = getMask( mask_polys, getGrid( roi, shape) )
+  def getMask(mask_polys: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int] ): Array[Byte]  = getMask( mask_polys, getGrid( bounds, shape) )
 
   def getMask( mask_polys: geom.MultiPolygon, grid: geom.MultiPoint ): Array[Byte]  = {
     val intersectedPoints = mask_polys.intersection(grid)
@@ -62,9 +61,8 @@ class GeoTools( val SRID: Int = 4326 ) {
     mask_buffer
   }
 
-  def getMaskArray( boundary: geom.MultiPolygon, roi: ma2.Section, shape: Array[Int] ): ma2.Array  = {
-//    printGridCoords( bounds, shape )
-    ma2.Array.factory(ma2.DataType.BYTE, shape, ByteBuffer.wrap(getMask(boundary, roi, shape)))
+  def getMaskArray( boundary: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int] ): ma2.Array  = {
+    ma2.Array.factory(ma2.DataType.BYTE, shape, ByteBuffer.wrap(getMask(boundary, bounds, shape)))
   }
 
   def testPoint(  mask_geom: geom.Geometry, testpoint: Array[Float] ): Boolean = {
