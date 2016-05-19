@@ -101,6 +101,14 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Weighted Spatial Average")
   }
 
+  test("Weighted Masked Spatial Average") {
+    val nco_verified_result = 275.4317
+    val dataInputs = getMaskedSpatialDataInputs(merra_data, "axes: xy, weights:cosine")
+    val result_value: Float = computeValue("CDS.average", dataInputs)
+    println(s"Test Result:  $result_value, NCO Result: $nco_verified_result")
+    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Weighted Masked Spatial Average")
+  }
+
   test("Yearly Cycle") {
     readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
       case Some( nco_subsetted_timeseries ) =>

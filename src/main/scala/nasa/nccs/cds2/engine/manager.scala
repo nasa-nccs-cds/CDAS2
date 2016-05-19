@@ -33,6 +33,13 @@ class Counter(start: Int = 0) {
   }
 }
 
+object MaskKey {
+  def apply( bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int] ): MaskKey = {
+    new MaskKey( bounds, Array( mask_shape(spatial_axis_indices(0)), mask_shape(spatial_axis_indices(1) ) ) )
+  }
+}
+class MaskKey( bounds: Array[Float], dimensions: Array[Int] ) {}
+
 class MetadataOnlyException extends Exception {}
 
 class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
@@ -40,6 +47,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
   private val fragmentCache: Cache[PartitionedFragment] = LruCache()
   private val datasetCache: Cache[CDSDataset] = LruCache()
   private val variableCache: Cache[CDSVariable] = LruCache()
+  private val maskCache: Cache[CDByteArray] = LruCache()
 
   def makeKey(collection: String, varName: String) = collection + ":" + varName
 
@@ -136,22 +144,45 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
     }
   }
 
-  def produceMask( maskId: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int] ): Option[CDByteArray]  = {
-    if(Masks.isMaskId(maskId)) {
+
+  def produceMask(maskId: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int]): Option[CDByteArray] = {
+    if (Masks.isMaskId(maskId)) {
+      Masks.getMask(maskId) match {
+        case Some(mask) =>
+          val fkey = MaskKey(bounds, mask_shape, spatial_axis_indices)
+          getExistingMask(fkey) match {
+            case Some(existing_mask: Future[CDByteArray]) =>
+            case None => mask.mtype match {
+              case "shapefile" =>
+                val geotools = new GeoTools()
+                val shapefile_path = mask.getPath
+                val maskpoly = geotools.readShapefile(shapefile_path)
+                val mask_array = geotools.getMask(maskpoly, bounds, mask_shape, spatial_axis_indices)
+                Some(new CDByteArray(mask_shape, mask_array))
+              case x => throw new Exception(s"Unrecognized Mask type: $x")
+            }
+          }
+        case None => throw new Exception(s"Unrecognized Mask ID: $maskId: options are %s".format(Masks.getMaskIds))
+      }
+    } else { None }
+  }
+
+  private def promisMask( maskId: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int] )(p: Promise[CDByteArray]): Unit = {
+    try {
+      val fkey = MaskKey(bounds, mask_shape, spatial_axis_indices)
       Masks.getMask(maskId) match {
         case Some(mask) => mask.mtype match {
           case "shapefile" =>
             val geotools = new GeoTools()
             val shapefile_path = mask.getPath
             val maskpoly = geotools.readShapefile(shapefile_path)
-            val mask_array = geotools.getMask(maskpoly, bounds, mask_shape, spatial_axis_indices )
-            Some(new CDByteArray(mask_shape, mask_array))
-          case x => throw new Exception(s"Unrecognized Mask type: $x")
+            val mask_array = geotools.getMask(maskpoly, bounds, mask_shape, spatial_axis_indices)
+            p.success(new CDByteArray(mask_shape, mask_array))
+          case x => p.failure(new Exception(s"Unrecognized Mask type: $x"))
         }
-        case None => throw new Exception(s"Unrecognized Mask ID: $maskId: options are %s".format(Masks.getMaskIds))
+        case None => p.failure(new Exception(s"Unrecognized Mask ID: $maskId: options are %s".format(Masks.getMaskIds)))
       }
-    }
-    None
+    } catch { case e: Exception => p.failure(e) }     
   }
 
   private def clearRedundantFragments( fragSpec: DataFragmentSpec ) = findEnclosedFragSpecs(fragSpec.getKey).map(_.toString).foreach( fragmentCache.remove( _ ) )
@@ -193,6 +224,12 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
 //      for (frag <- getFragmentFuture(fragSpec)) yield frag
 //    })
 //  }
+
+  def getExistingMask( fkey: MaskKey  ): Option[Future[CDByteArray]] = {
+    val rv: Option[Future[CDByteArray]] = maskCache.get( fkey )
+    logger.info( ">>>>>>>>>>>>>>>> Get mask from cache: search key = " + fkey.toString + ", existing keys = " + maskCache.keys.mkString("[",",","]") + ", Success = " + rv.isDefined.toString )
+    rv
+  }
 
   def getExistingFragment( fkey: DataFragmentKey  ): Option[Future[PartitionedFragment]] = {
     val rv: Option[Future[PartitionedFragment]] = fragmentCache.get( fkey )

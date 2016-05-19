@@ -71,6 +71,11 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
     "operation" -> List(Map("unparsed" -> s"( v0, $op_args )")))
 
+  def getMaskedSpatialDataInputs(test_dataset: String, op_args: String) = Map(
+    "domain" -> List(Map("name" -> "d0", "mask" -> "#ocean50m", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
+    "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
+    "operation" -> List(Map("unparsed" -> s"( v0, $op_args )")))
+
   def getTemporalDataInputs(test_dataset: String, op_args: String, d1_time_index: Int = time_index ) = Map(
     "domain" -> List(Map("name" -> "d1", "time" -> Map("start" -> d1_time_index, "end" -> d1_time_index, "system" -> "indices")
     ), Map("name" -> "d0", "lat" -> Map("start" -> lat_value, "end" -> lat_value, "system" -> "value"), "lon" -> Map("start" -> lon_value, "end" -> lon_value, "system" -> "values"))),
