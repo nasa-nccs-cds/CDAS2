@@ -68,7 +68,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   val bounds: Array[Float] = getAxisBounds( coordAxis, domainAxisOpt)
   def getData: ma2.Array = _data
   def getAxisType: AxisType = coordAxis.getAxisType
-  def getCFAxisName: String = coordAxis.getAxisType.getCFAxisName
+  def getCFAxisName: String = coordAxis.getAxisType.getCFAxisName.toLowerCase
   def getAxisName: String = coordAxis.getShortName
   def getIndexRange: ma2.Range = range
   def getLength: Int = _data.getSize.toInt
@@ -78,11 +78,11 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
 
   private def getAxisRange( variable: CDSVariable, coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): ma2.Range = domainAxisOpt match {
     case Some( domainAxis ) =>  domainAxis.system match {
-      case asys if asys.startsWith("ind") => new ma2.Range( coordAxis.getAxisType.getCFAxisName, domainAxis.start.toInt, domainAxis.end.toInt, 1 )
+      case asys if asys.startsWith("ind") => new ma2.Range( getCFAxisName, domainAxis.start.toInt, domainAxis.end.toInt, 1 )
       case asys if asys.startsWith("val") => getGridIndexBounds( domainAxis.start, domainAxis.end )
       case _ => throw new IllegalStateException("CDSVariable: Illegal system value in axis bounds: " + domainAxis.system)
     }
-    case None => new ma2.Range( coordAxis.getAxisType.getCFAxisName, 0, coordAxis.getShape(0)-1, 1 )
+    case None => new ma2.Range( getCFAxisName, 0, coordAxis.getShape(0)-1, 1 )
   }
   private def getAxisBounds( coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): Array[Float] = domainAxisOpt match {
     case Some( domainAxis ) =>  domainAxis.system match {
@@ -145,7 +145,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   def getTimeIndexBounds( startval: String, endval: String, strict: Boolean = true): ma2.Range = {
     val startIndex = getTimeCoordIndex( startval, BoundsRole.Start, strict)
     val endIndex = getTimeCoordIndex( endval, BoundsRole.End, strict )
-    new ma2.Range( coordAxis.getAxisType.getCFAxisName, startIndex, endIndex)
+    new ma2.Range( getCFAxisName, startIndex, endIndex)
   }
 
   def getNormalizedCoordinate( cval: Double ): Double = coordAxis.getAxisType match {
@@ -181,7 +181,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   def getGridIndexBounds( startval: Double, endval: Double, strict: Boolean = true): ma2.Range = {
     val startIndex = getGridCoordIndex(startval, BoundsRole.Start, strict)
     val endIndex = getGridCoordIndex(endval, BoundsRole.End, strict)
-    new ma2.Range( coordAxis.getAxisType.getCFAxisName, startIndex, endIndex )
+    new ma2.Range( getCFAxisName, startIndex, endIndex )
   }
 
   def getIndexBounds( startval: GenericNumber, endval: GenericNumber, strict: Boolean = true): ma2.Range = {
@@ -206,7 +206,7 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
   def getAxisSpec( dim_index: Int ): GridCoordSpec = axes(dim_index)
   def getAxisSpec( axis_type: AxisType ): Option[GridCoordSpec] = axes.filter( axis => axis.getAxisType == axis_type ).headOption
   def getAxisSpec( domainAxis: DomainAxis ): Option[GridCoordSpec] = axes.filter( axis => domainAxis.matches(axis.getAxisType ) ).headOption
-  def getAxisSpec( cfAxisName: String ): Option[GridCoordSpec] = axes.filter( axis => axis.getCFAxisName.toLowerCase == cfAxisName.toLowerCase ).headOption
+  def getAxisSpec( cfAxisName: String ): Option[GridCoordSpec] = axes.filter( axis => axis.getCFAxisName.toLowerCase.equals(cfAxisName.toLowerCase) ).headOption
   def getRank = axes.length
   def getBounds: Option[Array[Float]] = getAxisSpec("x").flatMap( xaxis => getAxisSpec("y").map( yaxis => Array( xaxis.bounds(0), yaxis.bounds(0), xaxis.bounds(1), yaxis.bounds(1) )) )
   def toXml: xml.Elem = <grid> { axes.map(_.toXml) } </grid>
@@ -237,8 +237,6 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
 
 class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) extends CDSVariable(variable.name, variable.dataset, variable.ncVariable ) {
   val grid = GridSpec( variable, roiOpt )
-  val coordAxes: List[ CoordinateAxis1D ] = variable.getCoordinateAxes
-  def getCoordAxis( dimIndex: Int ): CoordinateAxis1D = coordAxes( dimIndex  )
 
   def createFragmentSpec( data_variable: CDSVariable, section: ma2.Section, mask: Option[String] = None, partIndex: Int=0, partAxis: Char='*', nPart: Int=1 ) = {
     val partitions = if ( partAxis == '*' ) List.empty[PartitionSpec] else {
@@ -255,6 +253,8 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
     new TargetGrid( variable, Some(subgrid_axes.toList)  )
   }
 
+  def getAxisIndices( axisCFNames: String ): Array[Int] = for(cfName <- axisCFNames.toArray) yield grid.getAxisSpec(cfName.toString).map( _.index ).getOrElse(-1)
+
   def getAxisIndices( axisConf: List[OperationSpecs], flatten: Boolean = false ): AxisIndices = {
       val axis_ids = mutable.HashSet[Int]()
       for( opSpec <- axisConf ) {
@@ -267,20 +267,12 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
     }
 
     def getAxisIndex( cfAxisName: String, default_val: Int = -1 ): Int = grid.getAxisSpec( cfAxisName.toLowerCase ).map( gcs => gcs.index ).getOrElse( default_val )
-
-
-    def getCFAxisName( dimension_index: Int, default_val: String ): String = {
-      val dim: nc2.Dimension = ncVariable.getDimension(dimension_index)
-      dataset.findCoordinateAxis(dim.getFullName) match {
-        case Some(axis) => axis.getAxisType.getCFAxisName
-        case None => default_val
-      }
-    }
+    def getCFAxisName( dimension_index: Int ): String = grid.getAxisSpec( dimension_index ).getCFAxisName
 
   def getBounds( section: ma2.Section ): Option[Array[Float]] = {
     val xrangeOpt: Option[Array[Float]] = Option(section.find("x")).flatMap( (r: ma2.Range) => grid.getAxisSpec("x").map( (gs: GridCoordSpec) => gs.getBounds(r) ) )
     val yrangeOpt: Option[Array[Float]] = Option(section.find("y")).flatMap( (r: ma2.Range) => grid.getAxisSpec("y").map( (gs: GridCoordSpec) => gs.getBounds(r) ) )
-    xrangeOpt.flatMap( xrange => yrangeOpt.map( yrange => Array( xrange(0), yrange(0), xrange(1), yrange(1) )) )
+    xrangeOpt.flatMap( xrange => yrangeOpt.map( yrange => Array( xrange(0), xrange(1), yrange(0), yrange(1) )) )
   }
 
   def createFragmentSpec() = new DataFragmentSpec( variable.name, dataset.name, Some(this) )

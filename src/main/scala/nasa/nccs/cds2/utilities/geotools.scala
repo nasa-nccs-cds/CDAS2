@@ -27,10 +27,12 @@ class GeoTools( val SRID: Int = 4326 ) {
     new geom.MultiPolygon(polyList.toArray,geometryFactory)
   }
 
-  def getGrid( bounds: Array[Float], shape: Array[Int] ): geom.MultiPoint = {
-    val dx = (bounds(1)-bounds(0))/shape(0)
-    val dy = (bounds(3)-bounds(2))/shape(1)
-    val geoPts: IndexedSeq[geom.Coordinate] = for( ix <- (0 until shape(0));  iy <- (0 until shape(1)); x = bounds(0)+ix*dx; y = bounds(2)+iy*dy  ) yield new geom.Coordinate(x,y)
+  def getGrid( bounds: Array[Float], shape: Array[Int], spatial_axis_indices: Array[Int]  ): geom.MultiPoint = {
+    val nx = shape( spatial_axis_indices(0) )
+    val ny = shape( spatial_axis_indices(1) )
+    val dx = (bounds(1)-bounds(0))/ nx
+    val dy = (bounds(3)-bounds(2))/ ny
+    val geoPts: IndexedSeq[geom.Coordinate] = for( ix <- (0 until nx);  iy <- (0 until ny); x = bounds(0)+ix*dx; y = bounds(2)+iy*dy  ) yield new geom.Coordinate(x,y)
     geometryFactory.createMultiPoint( geoPts.toArray )
   }
 
@@ -50,7 +52,8 @@ class GeoTools( val SRID: Int = 4326 ) {
     orderedPoints
   }
 
-  def getMask(mask_polys: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int] ): Array[Byte]  = getMask( mask_polys, getGrid( bounds, shape) )
+  def getMask(mask_polys: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int], spatial_axis_indices: Array[Int]  ): Array[Byte]  =
+    getMask( mask_polys, getGrid( bounds, shape, spatial_axis_indices) )
 
   def getMask( mask_polys: geom.MultiPolygon, grid: geom.MultiPoint ): Array[Byte]  = {
     val intersectedPoints = mask_polys.intersection(grid)
@@ -61,8 +64,8 @@ class GeoTools( val SRID: Int = 4326 ) {
     mask_buffer
   }
 
-  def getMaskArray( boundary: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int] ): ma2.Array  = {
-    ma2.Array.factory(ma2.DataType.BYTE, shape, ByteBuffer.wrap(getMask(boundary, bounds, shape)))
+  def getMaskArray( boundary: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int], spatial_axis_indices: Array[Int]   ): ma2.Array  = {
+    ma2.Array.factory(ma2.DataType.BYTE, shape, ByteBuffer.wrap(getMask(boundary, bounds, shape, spatial_axis_indices )))
   }
 
   def testPoint(  mask_geom: geom.Geometry, testpoint: Array[Float] ): Boolean = {

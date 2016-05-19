@@ -120,11 +120,11 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
           val t0 = System.nanoTime()
           val result = fragSpec.targetGridOpt match {
             case Some( targetGrid ) =>
-               val maskOpt = fragSpec.mask.map( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape ) ).flatten
+               val maskOpt = fragSpec.mask.map( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy") ) ).flatten
                targetGrid.loadRoi( variable, fragSpec, maskOpt )
              case None =>
                val targetGrid = new TargetGrid( variable, Some(fragSpec.getAxes) )
-               val maskOpt = fragSpec.mask.map( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape ) ).flatten
+               val maskOpt = fragSpec.mask.map( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy")  ) ).flatten
                targetGrid.loadRoi( variable, fragSpec, maskOpt)
           }
           logger.info("Completed variable (%s:%s) subset data input in time %.4f sec, section = %s ".format(fragSpec.collection, fragSpec.varname, (System.nanoTime()-t0)/1.0E9, fragSpec.roi ))
@@ -136,7 +136,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
     }
   }
 
-  def produceMask( maskId: String, bounds: Array[Float], mask_shape: Array[Int] ): Option[CDByteArray]  = {
+  def produceMask( maskId: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int] ): Option[CDByteArray]  = {
     if(Masks.isMaskId(maskId)) {
       Masks.getMask(maskId) match {
         case Some(mask) => mask.mtype match {
@@ -144,7 +144,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
             val geotools = new GeoTools()
             val shapefile_path = mask.getPath
             val maskpoly = geotools.readShapefile(shapefile_path)
-            val mask_array = geotools.getMask(maskpoly, bounds, mask_shape)
+            val mask_array = geotools.getMask(maskpoly, bounds, mask_shape, spatial_axis_indices )
             Some(new CDByteArray(mask_shape, mask_array))
           case x => throw new Exception(s"Unrecognized Mask type: $x")
         }

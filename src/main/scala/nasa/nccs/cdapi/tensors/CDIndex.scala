@@ -191,11 +191,11 @@ object CDTimeCoordMap {
 
   def getTimeCycleMap( step: String, cycle: String, gridSpec: TargetGrid ): CDCoordMap = {
     val dimIndex: Int = gridSpec.getAxisIndex( "t" )
-    val coordinateAxis: CoordinateAxis1D = gridSpec.getCoordAxis( dimIndex )
-    val units = coordinateAxis.getUnitsString
-    coordinateAxis.getAxisType match {
+    val axisSpec  = gridSpec.grid.getAxisSpec( dimIndex )
+    val units = axisSpec.coordAxis.getUnitsString
+    axisSpec.coordAxis.getAxisType match {
       case AxisType.Time =>
-        lazy val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory(gridSpec.dataset.ncDataset, coordinateAxis, new Formatter())
+        lazy val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory(gridSpec.dataset.ncDataset, axisSpec.coordAxis, new Formatter())
         step match {
           case "month" =>
             if (cycle == "year") {
@@ -203,12 +203,12 @@ object CDTimeCoordMap {
             } else {
               val year_offset = timeAxis.getCalendarDate(0).getFieldValue(Year)
               val binIndices: Array[Int] =  timeAxis.getCalendarDates.map( cdate => cdate.getFieldValue(Month)-1 + cdate.getFieldValue(Year) - year_offset ).toArray
-              new CDCoordMap( dimIndex, Math.ceil(coordinateAxis.getShape(0)/12.0).toInt, binIndices )
+              new CDCoordMap( dimIndex, Math.ceil(axisSpec.coordAxis.getShape(0)/12.0).toInt, binIndices )
             }
           case "year" =>
             val year_offset = timeAxis.getCalendarDate(0).getFieldValue(Year)
             val binIndices: Array[Int] =  timeAxis.getCalendarDates.map( cdate => cdate.getFieldValue(Year) - year_offset ).toArray
-            new CDCoordMap( dimIndex, Math.ceil(coordinateAxis.getShape(0)/12.0).toInt, binIndices )
+            new CDCoordMap( dimIndex, Math.ceil(axisSpec.coordAxis.getShape(0)/12.0).toInt, binIndices )
           case x => throw new Exception("Binning not yet implemented for this step type: %s".format(step))
         }
       case x => throw new Exception("Binning not yet implemented for this axis type: %s".format(x.getClass.getName))
