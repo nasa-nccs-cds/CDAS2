@@ -109,14 +109,14 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     } else caldate
   }
 
-  def getCoordinateValues: Array[Float] = coordAxis.getAxisType match {
+  def getCoordinateValues: ma2.Array = coordAxis.getAxisType match {
       case AxisType.Time =>
         val units = "seconds since 1970-1-1"
         val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory( variable.dataset.ncDataset, coordAxis, new Formatter() )
         val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
         val timeZero = CalendarDate.of(timeCalValues.head.getCalendar, 1970, 1, 1, 1, 1, 1)
         val time_values = for (index <- (range.first() to range.last() by range.stride()); calVal = timeCalValues(index)) yield calVal.getDifferenceInMsecs(timeZero).toFloat / 1000f
-        time_values.toArray
+        ma2.Array.factory( ma2.DataType.FLOAT, Array(time_values.length), time_values.toArray[Float] )
       case x => coordAxis.read( List(range) )
     }
 
@@ -236,6 +236,28 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
     new DataFragmentSpec( data_variable.name, data_variable.dataset.name, Some(this), data_variable.ncVariable.getDimensionsString(), data_variable.ncVariable.getUnitsString, data_variable.getAttributeValue( "long_name", ncVariable.getFullName ), section, mask, partitions.toArray )
   }
 
+    def getAxisIndices( axisConf: List[OperationSpecs], flatten: Boolean = false ): AxisIndices = {
+      val axis_ids = mutable.HashSet[Int]()
+      for( opSpec <- axisConf ) {
+        val axes = opSpec.getSpec("axes")
+        val axis_chars: List[Char] = if( axes.contains(',') ) axes.split(",").map(_.head).toList else axes.toList
+        axis_ids ++= axis_chars.map( cval => getAxisIndex( cval.toString ) )
+      }
+      val axisIdSet = if(flatten) axis_ids.toSet else  axis_ids.toSet
+      new AxisIndices( axisIds=axisIdSet )
+    }
+
+    def getAxisIndex( cfAxisName: String, default_val: Int = -1 ): Int = grid.getAxisSpec( cfAxisName.toLowerCase ).map( gcs => gcs.index ).getOrElse( default_val )
+
+
+    def getCFAxisName( dimension_index: Int, default_val: String ): String = {
+      val dim: nc2.Dimension = ncVariable.getDimension(dimension_index)
+      dataset.findCoordinateAxis(dim.getFullName) match {
+        case Some(axis) => axis.getAxisType.getCFAxisName
+        case None => default_val
+      }
+    }
+
   def getBounds( section: ma2.Section ): Option[Array[Float]] = {
     val xrangeOpt: Option[Array[Float]] = Option(section.find("x")).flatMap( (r: ma2.Range) => grid.getAxisSpec("x").map( (gs: GridCoordSpec) => gs.getBounds(r) ) )
     val yrangeOpt: Option[Array[Float]] = Option(section.find("y")).flatMap( (r: ma2.Range) => grid.getAxisSpec("y").map( (gs: GridCoordSpec) => gs.getBounds(r) ) )
@@ -339,16 +361,11 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     val axisSpecs: AxisIndices = targetGrid.getAxisIndices( dataContainer.getOpSpecs )
     val t2 = System.nanoTime
     val maskOpt: Option[String] = domain_container_opt.map( domain_container => domain_container.mask ).flatten
-    val fragmentSpec = targetGrid.grid.getSection match {
-      case Some(section) =>
-        val fragSpec: DataFragmentSpec = targetGrid.grid.createFragmentSpec( variable, section, maskOpt )
-        dataLoader.getFragment( fragSpec, 0.3f )
-        fragSpec
-      case None=> targetGrid.createFragmentSpec( variable, variable.getFullSection, maskOpt )
-    }
+    val fragSpec: DataFragmentSpec = targetGrid.createFragmentSpec( variable, targetGrid.grid.getSection, maskOpt )
+    dataLoader.getFragment( fragSpec, 0.3f )
     val t3 = System.nanoTime
     logger.info( " loadVariableDataT: %.4f %.4f ".format( (t1-t0)/1.0E9, (t3-t2)/1.0E9 ) )
-    return ( dataContainer.uid -> new OperationInputSpec( fragmentSpec, axisSpecs )  )
+    return ( dataContainer.uid -> new OperationInputSpec( fragSpec, axisSpecs )  )
   }
 }
 

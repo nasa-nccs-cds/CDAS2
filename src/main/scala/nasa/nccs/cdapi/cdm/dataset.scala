@@ -82,29 +82,29 @@ class CDSDataset( val name: String, val uri: String, val ncDataset: NetcdfDatase
 
   def findCoordinateAxis( fullName: String ): Option[CoordinateAxis] = ncDataset.findCoordinateAxis( fullName ) match { case null => None; case x => Some( x ) }
 
-  def getCoordinateAxis( axisType: DomainAxis.Type.Value ): Option[CoordinateAxis] = {
-    axisType match {
-      case DomainAxis.Type.X => Option( coordSystem.getXaxis )
-      case DomainAxis.Type.Y => Option( coordSystem.getYaxis )
-      case DomainAxis.Type.Z => Option( coordSystem.getHeightAxis )
-      case DomainAxis.Type.Lon => Option( coordSystem.getLonAxis )
-      case DomainAxis.Type.Lat => Option( coordSystem.getLatAxis )
-      case DomainAxis.Type.Lev => Option( coordSystem.getPressureAxis )
-      case DomainAxis.Type.T => Option( coordSystem.getTaxis )
-    }
-  }
-
-  def getCoordinateAxis(axisType: Char): CoordinateAxis = {
-    axisType.toLower match {
-      case 'x' => if (coordSystem.isGeoXY) coordSystem.getXaxis else coordSystem.getLonAxis
-      case 'y' => if (coordSystem.isGeoXY) coordSystem.getYaxis else coordSystem.getLatAxis
-      case 'z' =>
-        if (coordSystem.containsAxisType(AxisType.Pressure)) coordSystem.getPressureAxis
-        else if (coordSystem.containsAxisType(AxisType.Height)) coordSystem.getHeightAxis else coordSystem.getZaxis
-      case 't' => coordSystem.getTaxis
-      case x => throw new Exception("Can't recognize axis type '%c'".format(x))
-    }
-  }
+//  def getCoordinateAxis( axisType: DomainAxis.Type.Value ): Option[CoordinateAxis] = {
+//    axisType match {
+//      case DomainAxis.Type.X => Option( coordSystem.getXaxis )
+//      case DomainAxis.Type.Y => Option( coordSystem.getYaxis )
+//      case DomainAxis.Type.Z => Option( coordSystem.getHeightAxis )
+//      case DomainAxis.Type.Lon => Option( coordSystem.getLonAxis )
+//      case DomainAxis.Type.Lat => Option( coordSystem.getLatAxis )
+//      case DomainAxis.Type.Lev => Option( coordSystem.getPressureAxis )
+//      case DomainAxis.Type.T => Option( coordSystem.getTaxis )
+//    }
+//  }
+//
+//  def getCoordinateAxis(axisType: Char): CoordinateAxis = {
+//    axisType.toLower match {
+//      case 'x' => if (coordSystem.isGeoXY) coordSystem.getXaxis else coordSystem.getLonAxis
+//      case 'y' => if (coordSystem.isGeoXY) coordSystem.getYaxis else coordSystem.getLatAxis
+//      case 'z' =>
+//        if (coordSystem.containsAxisType(AxisType.Pressure)) coordSystem.getPressureAxis
+//        else if (coordSystem.containsAxisType(AxisType.Height)) coordSystem.getHeightAxis else coordSystem.getZaxis
+//      case 't' => coordSystem.getTaxis
+//      case x => throw new Exception("Can't recognize axis type '%c'".format(x))
+//    }
+//  }
 }
 
 // var.findDimensionIndex(java.lang.String name)

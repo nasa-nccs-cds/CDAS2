@@ -63,29 +63,6 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
   def getCoordinateAxis( axisType: nc2.constants.AxisType ): CoordinateAxis1D = CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis(axisType) )
   def getCoordinateAxis( fullName: String ): CoordinateAxis1D = CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis(fullName) )
 
-  def getAxisIndices( axisConf: List[OperationSpecs] ): AxisIndices = {
-    val axis_ids = mutable.HashSet[Int]()
-    for( opSpec <- axisConf ) {
-      val axes = opSpec.getSpec("axes")
-      val axis_chars: List[Char] = if( axes.contains(',') ) axes.split(",").map(_.head).toList else axes.toList
-      axis_ids ++= axis_chars.map( cval => getAxisIndex( cval ) )
-    }
-    new AxisIndices( axisIds=axis_ids.toSet )
-  }
-
-  def getAxisIndex( axisClass: Char ): Int = {
-    val coord_axis = dataset.getCoordinateAxis(axisClass)
-    ncVariable.findDimensionIndex( coord_axis.getShortName )
-  }
-
-  def getCFAxisName( dimension_index: Int, default_val: String ): String = {
-    val dim: nc2.Dimension = ncVariable.getDimension(dimension_index)
-    dataset.findCoordinateAxis(dim.getFullName) match {
-      case Some(axis) => axis.getAxisType.getCFAxisName
-      case None => default_val
-    }
-  }
-
 }
 
 class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  ) {
