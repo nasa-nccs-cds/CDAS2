@@ -33,6 +33,8 @@ class Counter(start: Int = 0) {
   }
 }
 
+class MetadataOnlyException extends Exception {}
+
 class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   private val fragmentCache: Cache[PartitionedFragment] = LruCache()
@@ -260,7 +262,10 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     request.targetGridSpec.get("id") match {
       case Some(varId) => request.variableMap.get(varId) match {
         case Some(dataContainer: DataContainer) => serverContext.createTargetGrid( dataContainer, request.getDomain(dataContainer.getSource) )
-        case None => throw new Exception("Unrecognized variable id in Grid spec: " + varId)
+        case None => varId match {
+          case "#META" => throw new MetadataOnlyException()
+          case x => throw new Exception("Unrecognized variable id in Grid spec: " + varId)
+        }
       }
       case None => throw new Exception("Target grid specification method has not yet been implemented: " + request.targetGridSpec.toString)
     }
@@ -268,8 +273,9 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 
   def loadInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ): RequestContext = {
     val sourceContainers = request.variableMap.values.filter(_.isSource)
+    val loadData: Boolean = !request.isMetadataRequest
     val sources = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
-      yield serverContext.loadVariableData(data_container, domainOpt, targetGrid )
+      yield serverContext.createInputSpec(data_container, domainOpt, targetGrid, loadData )
     val sourceMap: Map[String,OperationInputSpec] = Map(sources.toSeq:_*)
     new RequestContext (request.domainMap, sourceMap, targetGrid, run_args)
   }
@@ -292,6 +298,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       logger.info( "Execute Completed: LoadVariablesT> %.4f, ExecuteWorkflowT> %.4f, totalT> %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t2-t0)/1.0E9 ) )
       rv
     } catch {
+      case err: MetadataOnlyException => executeMetadataWorkflows( request )
       case err: Exception => new ExecutionResults(err)
     }
   }
@@ -343,6 +350,9 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   def executeWorkflows( request: TaskRequest, requestCx: RequestContext ): ExecutionResults = {
     new ExecutionResults( request.workflows.flatMap(workflow => workflow.operations.map( operationExecution( _, requestCx ))) )
   }
+  def executeMetadataWorkflows( request: TaskRequest ): ExecutionResults = {
+    new ExecutionResults( request.workflows.flatMap(workflow => workflow.operations.map( metadataExecution( _ ))) )
+  }
 
   def executeUtility( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
     val result: xml.Node =  <result> {"Completed executing utility " + operationCx.name.toLowerCase } </result>
@@ -356,6 +366,12 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       case "util" => executeUtility( operationCx, requestCx, serverContext )
       case x => getKernel( opName ).execute( operationCx, requestCx, serverContext )
     }
+  }
+
+  def metadataExecution( operationCx: OperationContext ): ExecutionResult = {
+    val opName = operationCx.name.toLowerCase
+    val module_name = opName.split('.')(0)
+    getKernel(opName).execute( operationCx, serverContext )
   }
 }
 
@@ -605,7 +621,7 @@ object execCacheTest extends App {
 object execMetadataTest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
   val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getMetadataRequest(0)
+  val request = SampleTaskRequests.getMetadataRequest(1)
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )
@@ -687,7 +703,7 @@ object execSubsetRequest extends App {
 object execSpatialAveTest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
   val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getSpatialAve( "/synth/constant-1", "ta", "" )
+  val request = SampleTaskRequests.getSpatialAve(  "/MERRA/mon/atmos", "ta", "cosine"  )
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )

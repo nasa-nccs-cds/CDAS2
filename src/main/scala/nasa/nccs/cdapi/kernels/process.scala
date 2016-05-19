@@ -34,7 +34,7 @@ trait ExecutionResult {
   def toXml: xml.Elem
 }
 
-class BlockingExecutionResult( val id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: GridSpec, val result_tensor: CDFloatArray ) extends ExecutionResult {
+class BlockingExecutionResult( val id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray ) extends ExecutionResult {
   def toXml = {
     val idToks = id.split('~')
     logger.info( "BlockingExecutionResult-> result_tensor: \n" + result_tensor.toString )
@@ -145,7 +145,12 @@ abstract class Kernel {
   val identifier: String = ""
   val metadata: String = ""
 
-  def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext   ): ExecutionResult
+  def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext   ): ExecutionResult = {
+    throw new Exception( " This kernel does not have a request-execute method defined: " + id )
+  }
+  def execute( operationCx: OperationContext, serverCx: ServerContext   ): ExecutionResult = {
+    throw new Exception( " This kernel cannot be executed without a request context: " + id )
+  }
   def toXmlHeader =  <kernel module={module} name={name}> { if (description.nonEmpty) <description> {description} </description> } </kernel>
 
   def toXml = {
@@ -169,7 +174,7 @@ abstract class Kernel {
     }
   }
 //
-  def saveResult( maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, gridSpec: GridSpec, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
+  def saveResult( maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, targetGrid: TargetGrid, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
     request.config("resultId") match {
       case None => logger.warn("Missing resultId: this probably means you are executing synchronously with 'async' = true ")
       case Some(resultId) =>
@@ -178,9 +183,9 @@ abstract class Kernel {
         val varname = searchForValue( varMetadata, List("varname","fullname","standard_name","original_name","long_name"), "Nd4jMaskedTensor" )
         val resultFile = Kernel.getResultFile( server.getConfiguration, resultId, true )
         val writer: nc2.NetcdfFileWriter = nc2.NetcdfFileWriter.createNew(nc2.NetcdfFileWriter.Version.netcdf4, resultFile.getAbsolutePath )
-        assert(gridSpec.axes.length == maskedTensor.getRank, "Axes not the same length as data shape in saveResult")
+        assert(targetGrid.grid.getRank == maskedTensor.getRank, "Axes not the same length as data shape in saveResult")
         val coordAxes = dataset.getCoordinateAxes
-        val dims: IndexedSeq[nc2.Dimension] = (0 until gridSpec.axes.length).map( idim => writer.addDimension(null, gridSpec.axes(idim).name, maskedTensor.getShape(idim)))
+        val dims: IndexedSeq[nc2.Dimension] = targetGrid.grid.axes.indices.map( idim => writer.addDimension(null, targetGrid.grid.getAxisSpec(idim).getAxisName, maskedTensor.getShape(idim)))
         val newCoordVars: List[ (nc2.Variable,ma2.Array) ] = ( for( coordAxis <- coordAxes ) yield inputSpec.getRange( coordAxis.getShortName ) match {
           case Some( range ) =>
             val coordVar: nc2.Variable = writer.addVariable( null, coordAxis.getShortName, coordAxis.getDataType, coordAxis.getShortName )

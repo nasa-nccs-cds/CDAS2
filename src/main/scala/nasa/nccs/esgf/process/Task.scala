@@ -25,7 +25,7 @@ case class ErrorReport(severity: String, message: String) {
   }
 }
 
-class TaskRequest(val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflows: List[WorkflowContainer] = List(), val targetGridSpec: Map[String,String] ) {
+class TaskRequest(val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflows: List[WorkflowContainer] = List(), val targetGridSpec: Map[String,String]=Map("id"->"#META") ) {
   val errorReports = new ListBuffer[ErrorReport]()
   val logger = LoggerFactory.getLogger( this.getClass )
   validate()
@@ -36,6 +36,8 @@ class TaskRequest(val name: String, val variableMap : Map[String,DataContainer],
     logger.error(error_rep.toString)
     errorReports += error_rep
   }
+
+  def isMetadataRequest: Boolean = name.split('.').last.toLowerCase().equals("metadata")
 
   def getDomain( data_source: DataSource ): Option[DomainContainer] = {
     data_source.domain match {
@@ -102,7 +104,8 @@ object TaskRequest {
     val operation_list: List[WorkflowContainer] = datainputs.getOrElse("operation", List(Map("unparsed"->"()"))).map(WorkflowContainer(process_name,_)).toList
     val variableMap = buildVarMap( data_list, operation_list )
     val domainMap = buildDomainMap( domain_list )
-    val gridSpec: Map[String,String] = Map( "id" -> datainputs.getOrElse("grid", data_list.head.uid ).toString )
+    val gridId = datainputs.getOrElse("grid", data_list.headOption.map( dc => dc.uid ).getOrElse("#META") ).toString
+    val gridSpec = Map( "id" -> gridId.toString )
     new TaskRequest( process_name, variableMap, domainMap, operation_list, gridSpec )
   }
 
@@ -329,8 +332,8 @@ class OperationSpecs( id: String, val optargs: Map[String,String] ) {
 
 
 class DataContainer(val uid: String, private val source : Option[DataSource] = None, private val operation : Option[OperationContext] = None ) extends ContainerBase {
-  assert( source.isDefined || operation.isDefined, "Empty DataContainer: variable uid = $uid" )
-  assert( source.isEmpty || operation.isEmpty, "Conflicted DataContainer: variable uid = $uid" )
+  assert( source.isDefined || operation.isDefined, s"Empty DataContainer: variable uid = $uid" )
+  assert( source.isEmpty || operation.isEmpty, s"Conflicted DataContainer: variable uid = $uid" )
   private val optSpecs = mutable.ListBuffer[ OperationSpecs ]()
 
   override def toString = {
@@ -454,6 +457,7 @@ class DomainAxis( val axistype: DomainAxis.Type.Value, val start: GenericNumber,
       case X => List( AxisType.Lon, AxisType.GeoX, AxisType.RadialDistance ).contains(axisType)
       case Y => List( AxisType.Lat, AxisType.GeoY, AxisType.RadialAzimuth ).contains(axisType)
       case Z => List( AxisType.Pressure, AxisType.Height, AxisType.RadialElevation ).contains(axisType)
+      case T => ( AxisType.Time == axisType )
     }
   }
 }

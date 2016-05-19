@@ -18,7 +18,7 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Maximum over Axes on Input Fragment"
 
-    def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
       val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
       val input_array: CDFloatArray = inputVar.dataFragment.data
       val axisSpecs = inputVar.axisIndices
@@ -31,9 +31,9 @@ class CDS extends KernelModule with KernelTools {
       val variable = serverCx.getVariable( inputVar.getSpec )
       val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
       if(async) {
-        new AsyncExecutionResult( saveResult( max_val_masked, requestCx, serverCx, variable.getGridSpec(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
+        new AsyncExecutionResult( saveResult( max_val_masked, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
       }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), max_val_masked )
+      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), max_val_masked )
     }
   }
 
@@ -42,7 +42,7 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Sets Input Fragment to constant value"
 
-    def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
       val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
       val input_array: CDFloatArray = inputVar.dataFragment.data
       val async = requestCx.config("async", "false").toBoolean
@@ -54,9 +54,9 @@ class CDS extends KernelModule with KernelTools {
       val variable = serverCx.getVariable( inputVar.getSpec )
       val section = inputVar.getSpec.getReducedSection(Set())
       if(async) {
-        new AsyncExecutionResult( saveResult( max_val_masked, requestCx, serverCx, variable.getGridSpec(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
+        new AsyncExecutionResult( saveResult( max_val_masked, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
       }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), max_val_masked )
+      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), max_val_masked )
     }
   }
 
@@ -65,7 +65,7 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Minimum over Axes on Input Fragment"
 
-    def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
       val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
       val input_array: CDFloatArray = inputVar.dataFragment.data
       val axisSpecs = inputVar.axisIndices
@@ -78,9 +78,9 @@ class CDS extends KernelModule with KernelTools {
       val variable = serverCx.getVariable( inputVar.getSpec )
       val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
       if(async) {
-        new AsyncExecutionResult( saveResult( max_val_masked, requestCx, serverCx, variable.getGridSpec(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
+        new AsyncExecutionResult( saveResult( max_val_masked, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
       }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), max_val_masked )
+      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), max_val_masked )
     }
   }
 
@@ -89,7 +89,7 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Sum over Axes on Input Fragment"
 
-    def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
       val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
       val input_array: CDFloatArray = inputVar.dataFragment.data
       val axisSpecs = inputVar.axisIndices
@@ -102,9 +102,9 @@ class CDS extends KernelModule with KernelTools {
       val variable = serverCx.getVariable( inputVar.getSpec )
       val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
       if(async) {
-        new AsyncExecutionResult( saveResult( max_val_masked, requestCx, serverCx, variable.getGridSpec(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
+        new AsyncExecutionResult( saveResult( max_val_masked, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
       }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), max_val_masked )
+      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), max_val_masked )
     }
   }
 
@@ -113,7 +113,7 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Weighted Average over Axes on Input Fragment"
 
-    def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
       val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
       val optargs: Map[String, String] = operationCx.getConfiguration
       val input_array: CDFloatArray = inputVar.dataFragment.data
@@ -124,7 +124,7 @@ class CDS extends KernelModule with KernelTools {
       val weighting_type = operationCx.config("weights", if( operationCx.config("axes","").contains('y') ) "cosine" else "")
       val weightsOpt: Option[CDFloatArray] = weighting_type match {
         case "" => None
-        case "cosine" => Some( input_array.computeWeights( weighting_type, Map( 'y' -> serverCx.getAxisData( inputVar.getSpec, 'y' ) ) ) )
+        case "cosine" => serverCx.getAxisData( inputVar.getSpec, 'y' ).map( axis_data => input_array.computeWeights( weighting_type, Map( 'y' ->  axis_data ) ) )
         case x => throw new NoSuchElementException( "Can't recognize weighting method: %s".format( x ))
       }
       val mean_val_masked: CDFloatArray = input_array.mean( axes.toArray, weightsOpt )
@@ -133,9 +133,9 @@ class CDS extends KernelModule with KernelTools {
       val variable = serverCx.getVariable( inputVar.getSpec )
       val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
       if(async) {
-        new AsyncExecutionResult( saveResult( mean_val_masked, requestCx, serverCx, variable.getGridSpec(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
+        new AsyncExecutionResult( saveResult( mean_val_masked, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
       }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), mean_val_masked )
+      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), mean_val_masked )
     }
   }
 
@@ -144,7 +144,7 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Subset of Input Fragment"
 
-    def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
       val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
       val optargs: Map[String, String] = operationCx.getConfiguration
       val resultFragment = optargs.get("domain") match {
@@ -156,9 +156,9 @@ class CDS extends KernelModule with KernelTools {
       val variable = serverCx.getVariable( inputVar.getSpec )
       val section = resultFragment.fragmentSpec.roi
       if(async) {
-        new AsyncExecutionResult( saveResult( resultFragment.data, requestCx, serverCx, variable.getGridSpec(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
+        new AsyncExecutionResult( saveResult( resultFragment.data, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
       }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), resultFragment.data )
+      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), resultFragment.data )
     }
   }
 
@@ -167,7 +167,7 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Displays Metadata for available data collections and masks"
 
-    def execute(operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext): ExecutionResult = {
+    override def execute(operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext): ExecutionResult = {
       import nasa.nccs.cds2.loaders.Collections
       val result: (String, xml.Node) = requestCx.inputs.headOption match {
         case None => ("Collection", Collections.toXml)
@@ -185,6 +185,11 @@ class CDS extends KernelModule with KernelTools {
         case (id, resultXml) => new XmlExecutionResult("Metadata~" + id, resultXml )
       }
     }
+
+    override def execute(operationCx: OperationContext, serverCx: ServerContext): ExecutionResult = {
+      import nasa.nccs.cds2.loaders.Collections
+      new XmlExecutionResult("Metadata~Collection", Collections.toXml )
+    }
   }
 
   class aggregate extends Kernel {
@@ -192,7 +197,7 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Aggregate data into bins using specified reduce function"
 
-    def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
       val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
       val optargs: Map[String, String] = operationCx.getConfiguration
       val input_array: CDFloatArray = inputVar.dataFragment.data
@@ -206,7 +211,7 @@ class CDS extends KernelModule with KernelTools {
       val opName = if(binArgs.length > 2) binArgs(2) else "ave"
       val t10 = System.nanoTime
       assert(axes.length == 1, "Must bin over 1 axis only! Requested: " + axes.mkString(","))
-      val coordMap: CDCoordMap = CDTimeCoordMap.getTimeCycleMap( period, cycle, cdsVariable )
+      val coordMap: CDCoordMap = CDTimeCoordMap.getTimeCycleMap( period, cycle, requestCx.targetGrid )
       val binned_array: CDFloatArray = input_array.weightedReduce(input_array.getOp("add"), axes, 0f, None, Some(coordMap)) match {
         case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
           values_sum / weights_sum
@@ -216,9 +221,9 @@ class CDS extends KernelModule with KernelTools {
       val variable = serverCx.getVariable(inputVar.getSpec)
       val section = inputVar.getSpec.getReducedSection(Set(axes(0)), binned_array.getShape(axes(0)))
       if (async) {
-        new AsyncExecutionResult(saveResult(binned_array, requestCx, serverCx, variable.getGridSpec(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx)))
+        new AsyncExecutionResult(saveResult(binned_array, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx)))
       }
-      else new BlockingExecutionResult(operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), binned_array)
+      else new BlockingExecutionResult(operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), binned_array)
     }
   }
 
@@ -227,7 +232,7 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Anomaly over Input Fragment"
 
-    def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
       val inputVar: KernelDataInput  =  inputVars( operationCx, requestCx, serverCx ).head
       val optargs: Map[String,String] =  operationCx.getConfiguration
       val input_array = inputVar.dataFragment.data
@@ -238,7 +243,7 @@ class CDS extends KernelModule with KernelTools {
       val weighting_type = requestCx.config("weights", if( operationCx.config("axis","").contains('y') ) "cosine" else "")
       val weightsOpt: Option[CDFloatArray] = weighting_type match {
         case "" => None
-        case wtype => Some( input_array.computeWeights( wtype, Map( 'y' -> serverCx.getAxisData( inputVar.getSpec, 'y' ) ) ) )
+        case wtype => serverCx.getAxisData( inputVar.getSpec, 'y' ).map( axis_data => input_array.computeWeights( wtype, Map( 'y' ->  axis_data ) ) )
       }
       val anomaly_result: CDFloatArray = input_array.anomaly( axes.toArray, weightsOpt )
       val variable = serverCx.getVariable( inputVar.getSpec )
@@ -246,9 +251,9 @@ class CDS extends KernelModule with KernelTools {
       val t11 = System.nanoTime
       logger.info("Anomaly, time = %.4f s".format( (t11-t10)/1.0E9 ) )
       if(async) {
-        new AsyncExecutionResult( saveResult( anomaly_result, requestCx, serverCx, variable.getGridSpec(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
+        new AsyncExecutionResult( saveResult( anomaly_result, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
       }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), variable.getGridSpec(section), anomaly_result )
+      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), anomaly_result )
     }
   }
 }

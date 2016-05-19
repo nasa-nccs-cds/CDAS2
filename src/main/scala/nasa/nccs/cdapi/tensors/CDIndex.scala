@@ -2,7 +2,10 @@
 
 package nasa.nccs.cdapi.tensors
 import java.util.Formatter
+
 import nasa.nccs.cdapi.cdm.CDSVariable
+import nasa.nccs.esgf.process.TargetGrid
+
 import scala.collection.mutable.ListBuffer
 import ucar.ma2
 import ucar.nc2.constants.AxisType
@@ -186,16 +189,13 @@ class CDCoordMap( val dimIndex: Int, val nBins: Int, val mapArray: Array[Int] ) 
 object CDTimeCoordMap {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
 
-  def getTimeCycleMap( step: String, cycle: String, variable: CDSVariable ): CDCoordMap = {
-    val dimIndex: Int = variable.getAxisIndex( 't' )
-    val coordinateAxis: CoordinateAxis1D = variable.dataset.getCoordinateAxis( 't' ) match {
-      case caxis: CoordinateAxis1D => caxis;
-      case x => throw new Exception("Coordinate Axis type %s can't currently be binned".format(x.getClass.getName))
-    }
+  def getTimeCycleMap( step: String, cycle: String, gridSpec: TargetGrid ): CDCoordMap = {
+    val dimIndex: Int = gridSpec.getAxisIndex( "t" )
+    val coordinateAxis: CoordinateAxis1D = gridSpec.getCoordAxis( dimIndex )
     val units = coordinateAxis.getUnitsString
     coordinateAxis.getAxisType match {
       case AxisType.Time =>
-        lazy val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory(variable.dataset.ncDataset, coordinateAxis, new Formatter())
+        lazy val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory(gridSpec.dataset.ncDataset, coordinateAxis, new Formatter())
         step match {
           case "month" =>
             if (cycle == "year") {
