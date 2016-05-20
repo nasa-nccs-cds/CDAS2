@@ -1,6 +1,7 @@
 package nasa.nccs.cds2.utilities
 
 import com.vividsolutions.jts.geom
+import nasa.nccs.cdapi.tensors.CDByteArray
 import org.geotools.data.shapefile.files.ShpFiles
 import org.geotools.data.shapefile.shp.ShapefileReader
 import java.nio.ByteBuffer
@@ -8,8 +9,8 @@ import ucar.ma2
 import scala.collection.mutable.ListBuffer
 
 class GeoTools( val SRID: Int = 4326 ) {
-  val precisionModel = new geom.PrecisionModel( geom.PrecisionModel.FLOATING_SINGLE )
-  val geometryFactory = new geom.GeometryFactory( precisionModel, SRID)
+  val precisionModel = new geom.PrecisionModel(geom.PrecisionModel.FLOATING_SINGLE)
+  val geometryFactory = new geom.GeometryFactory(precisionModel, SRID)
   val bTrue: Byte = 1
   val bFalse: Byte = 0
 
@@ -24,54 +25,64 @@ class GeoTools( val SRID: Int = 4326 ) {
       }
     }
     r.close()
-    new geom.MultiPolygon(polyList.toArray,geometryFactory)
+    new geom.MultiPolygon(polyList.toArray, geometryFactory)
   }
 
-  def getGrid( bounds: Array[Float], shape: Array[Int], spatial_axis_indices: Array[Int]  ): geom.MultiPoint = {
-    val nx = shape( spatial_axis_indices(0) )
-    val ny = shape( spatial_axis_indices(1) )
-    val dx = (bounds(1)-bounds(0))/ nx
-    val dy = (bounds(3)-bounds(2))/ ny
-    val geoPts: IndexedSeq[geom.Coordinate] = for( ix <- (0 until nx);  iy <- (0 until ny); x = bounds(0)+ix*dx; y = bounds(2)+iy*dy  ) yield new geom.Coordinate(x,y)
-    geometryFactory.createMultiPoint( geoPts.toArray )
+  def getGrid(bounds: Array[Float], shape: Array[Int], spatial_axis_indices: Array[Int]): geom.MultiPoint = {
+    val nx = shape(spatial_axis_indices(0))
+    val ny = shape(spatial_axis_indices(1))
+    val dx = (bounds(1) - bounds(0)) / nx
+    val dy = (bounds(3) - bounds(2)) / ny
+    val geoPts: IndexedSeq[geom.Coordinate] = for (ix <- (0 until nx); iy <- (0 until ny); x = bounds(0) + ix * dx; y = bounds(2) + iy * dy) yield new geom.Coordinate(x, y)
+    geometryFactory.createMultiPoint(geoPts.toArray)
   }
 
-  def printGridCoords( bounds: Array[Float], shape: Array[Int] ): Unit = {
-    val dx = (bounds(1)-bounds(0))/shape(0)
-    val dy = (bounds(3)-bounds(2))/shape(1)
-    for( ix <- (0 until shape(0)); x = bounds(0)+ix*dx ) {
-      val coords = for( iy <- (0 until shape(1)); y = bounds(2)+iy*dy  ) yield new geom.Coordinate(x,y)
-      println( coords.toList.mkString(", ") )
+  def printGridCoords(bounds: Array[Float], shape: Array[Int]): Unit = {
+    val dx = (bounds(1) - bounds(0)) / shape(0)
+    val dy = (bounds(3) - bounds(2)) / shape(1)
+    for (ix <- (0 until shape(0)); x = bounds(0) + ix * dx) {
+      val coords = for (iy <- (0 until shape(1)); y = bounds(2) + iy * dy) yield new geom.Coordinate(x, y)
+      println(coords.toList.mkString(", "))
     }
   }
 
   def pointsToMask(grid: geom.MultiPoint, mask_points: geom.MultiPoint): Array[Byte] = {
     val maskPointCoords: Set[geom.Coordinate] = mask_points.getCoordinates.toSet
     val orderedPoints = for (gridCoord <- grid.getCoordinates) yield
-      if ( maskPointCoords.contains(gridCoord) ) { bTrue } else { bFalse }
+      if (maskPointCoords.contains(gridCoord)) {
+        bTrue
+      } else {
+        bFalse
+      }
     orderedPoints
   }
 
-  def getMask(mask_polys: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int], spatial_axis_indices: Array[Int]  ): Array[Byte]  =
-    getMask( mask_polys, getGrid( bounds, shape, spatial_axis_indices) )
+  def getMask(mask_polys: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int], spatial_axis_indices: Array[Int]): Array[Byte] =
+    getMask(mask_polys, getGrid(bounds, shape, spatial_axis_indices))
 
-  def getMask( mask_polys: geom.MultiPolygon, grid: geom.MultiPoint ): Array[Byte]  = {
+  def getMask(mask_polys: geom.MultiPolygon, grid: geom.MultiPoint): Array[Byte] = {
     val intersectedPoints = mask_polys.intersection(grid)
-    val mask_buffer:  Array[Byte]  =  intersectedPoints match {
-      case mask_mpt: geom.MultiPoint => pointsToMask ( grid, mask_mpt )
-      case x => throw new Exception( "Unexpected result type from grid intersection: " + x.getClass.getCanonicalName )
+    val mask_buffer: Array[Byte] = intersectedPoints match {
+      case mask_mpt: geom.MultiPoint => pointsToMask(grid, mask_mpt)
+      case x => throw new Exception("Unexpected result type from grid intersection: " + x.getClass.getCanonicalName)
     }
     mask_buffer
   }
 
-  def getMaskArray( boundary: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int], spatial_axis_indices: Array[Int]   ): ma2.Array  = {
-    ma2.Array.factory(ma2.DataType.BYTE, shape, ByteBuffer.wrap(getMask(boundary, bounds, shape, spatial_axis_indices )))
+  def getMaskArray(boundary: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int], spatial_axis_indices: Array[Int]): ma2.Array = {
+    ma2.Array.factory(ma2.DataType.BYTE, shape, ByteBuffer.wrap(getMask(boundary, bounds, shape, spatial_axis_indices)))
   }
 
-  def testPoint(  mask_geom: geom.Geometry, testpoint: Array[Float] ): Boolean = {
-    val geo_pt = geometryFactory.createPoint( new geom.Coordinate( testpoint(0), testpoint(1) ) )
-    mask_geom.contains( geo_pt )
+  def testPoint(mask_geom: geom.Geometry, testpoint: Array[Float]): Boolean = {
+    val geo_pt = geometryFactory.createPoint(new geom.Coordinate(testpoint(0), testpoint(1)))
+    mask_geom.contains(geo_pt)
   }
+
+  def produceMask(shapefile_path: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int]): CDByteArray = {
+    val mask_array = getMask( readShapefile(shapefile_path), bounds, mask_shape, spatial_axis_indices )
+    new CDByteArray(mask_shape, mask_array)
+  }
+
 
 }
 

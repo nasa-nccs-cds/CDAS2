@@ -144,40 +144,31 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
     }
   }
 
-
   def produceMask(maskId: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int]): Option[CDByteArray] = {
     if (Masks.isMaskId(maskId)) {
-      Masks.getMask(maskId) match {
-        case Some(mask) =>
-          val fkey = MaskKey(bounds, mask_shape, spatial_axis_indices)
-          getExistingMask(fkey) match {
-            case Some(existing_mask: Future[CDByteArray]) =>
-            case None => mask.mtype match {
-              case "shapefile" =>
-                val geotools = new GeoTools()
-                val shapefile_path = mask.getPath
-                val maskpoly = geotools.readShapefile(shapefile_path)
-                val mask_array = geotools.getMask(maskpoly, bounds, mask_shape, spatial_axis_indices)
-                Some(new CDByteArray(mask_shape, mask_array))
-              case x => throw new Exception(s"Unrecognized Mask type: $x")
-            }
-          }
-        case None => throw new Exception(s"Unrecognized Mask ID: $maskId: options are %s".format(Masks.getMaskIds))
-      }
-    } else { None }
+      val maskFuture = getMaskFuture( maskId, bounds, mask_shape, spatial_axis_indices  )
+      val result = Await.result( maskFuture, Duration.Inf )
+      logger.info("Loaded mask (%s) data".format( maskId ))
+      Some(result)
+    } else {
+      None
+    }
   }
 
-  private def promisMask( maskId: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int] )(p: Promise[CDByteArray]): Unit = {
+  private def getMaskFuture( maskId: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int]  ): Future[CDByteArray] = {
+    val fkey = MaskKey(bounds, mask_shape, spatial_axis_indices)
+    val maskFuture = maskCache( fkey ) { promiseMask( maskId, bounds, mask_shape, spatial_axis_indices ) _ }
+    logger.info( ">>>>>>>>>>>>>>>> Put mask in cache: " + fkey.toString + ", keys = " + maskCache.keys.mkString("[",",","]") )
+    maskFuture
+  }
+
+  private def promiseMask( maskId: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int] )(p: Promise[CDByteArray]): Unit = {
     try {
-      val fkey = MaskKey(bounds, mask_shape, spatial_axis_indices)
       Masks.getMask(maskId) match {
         case Some(mask) => mask.mtype match {
           case "shapefile" =>
             val geotools = new GeoTools()
-            val shapefile_path = mask.getPath
-            val maskpoly = geotools.readShapefile(shapefile_path)
-            val mask_array = geotools.getMask(maskpoly, bounds, mask_shape, spatial_axis_indices)
-            p.success(new CDByteArray(mask_shape, mask_array))
+            p.success( geotools.produceMask( mask.getPath, bounds, mask_shape, spatial_axis_indices ) )
           case x => p.failure(new Exception(s"Unrecognized Mask type: $x"))
         }
         case None => p.failure(new Exception(s"Unrecognized Mask ID: $maskId: options are %s".format(Masks.getMaskIds)))
