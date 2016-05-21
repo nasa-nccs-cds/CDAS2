@@ -192,7 +192,42 @@ class CDS extends KernelModule with KernelTools {
     }
   }
 
-  class aggregate extends Kernel {
+//  class aggregate extends Kernel {
+//    val inputs = List(Port("input fragment", "1"))
+//    val outputs = List(Port("result", "1"))
+//    override val description = "Aggregate data into bins using specified reduce function"
+//
+//    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+//      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
+//      val optargs: Map[String, String] = operationCx.getConfiguration
+//      val input_array: CDFloatArray = inputVar.dataFragment.data
+//      val cdsVariable = serverCx.getVariable(inputVar.getSpec)
+//      val axisSpecs = inputVar.axisIndices
+//      val async = requestCx.config("async", "false").toBoolean
+//      val axes = axisSpecs.getAxes.toArray
+//      val binArgs = optargs.getOrElse("bins","").split('|')
+//      val cycle = if(binArgs.length > 3) binArgs(3) else ""
+//      val period = if(binArgs.length > 1) binArgs(1) else ""
+//      val opName = if(binArgs.length > 2) binArgs(2) else "ave"
+//      val t10 = System.nanoTime
+//      assert(axes.length == 1, "Must bin over 1 axis only! Requested: " + axes.mkString(","))
+//      val coordMap: CDCoordMap = CDTimeCoordMap.getTimeCycleMap( period, cycle, requestCx.targetGrid )
+//      val binned_array: CDFloatArray = input_array.weightedReduce(input_array.getOp("add"), axes, 0f, None, Some(coordMap)) match {
+//        case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
+//          values_sum / weights_sum
+//      }
+//      val t11 = System.nanoTime
+//      logger.info("Binned array, time = %.4f s, result = %s".format((t11 - t10) / 1.0E9, binned_array.toString))
+//      val variable = serverCx.getVariable(inputVar.getSpec)
+//      val section = inputVar.getSpec.getReducedSection(Set(axes(0)), binned_array.getShape(axes(0)))
+//      if (async) {
+//        new AsyncExecutionResult(saveResult(binned_array, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx)))
+//      }
+//      else new BlockingExecutionResult(operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), binned_array)
+//    }
+//  }
+
+  class timeBin extends Kernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Aggregate data into bins using specified reduce function"
@@ -204,14 +239,15 @@ class CDS extends KernelModule with KernelTools {
       val cdsVariable = serverCx.getVariable(inputVar.getSpec)
       val axisSpecs = inputVar.axisIndices
       val async = requestCx.config("async", "false").toBoolean
-      val axes = axisSpecs.getAxes.toArray
-      val binArgs = optargs.getOrElse("bins","").split('|')
-      val cycle = if(binArgs.length > 3) binArgs(3) else ""
-      val period = if(binArgs.length > 1) binArgs(1) else ""
-      val opName = if(binArgs.length > 2) binArgs(2) else "ave"
+      val axes = requestCx.targetGrid.getAxisIndices("t")
+
+      val period = getIntArg( optargs, "period", Some(1) )
+      val mod = getIntArg( optargs, "mod", Some(1) )
+      val unit = getStringArg( optargs, "unit" )
+      val offset = getIntArg( optargs, "offset", Some(0) )
+
       val t10 = System.nanoTime
-      assert(axes.length == 1, "Must bin over 1 axis only! Requested: " + axes.mkString(","))
-      val coordMap: CDCoordMap = CDTimeCoordMap.getTimeCycleMap( period, cycle, requestCx.targetGrid )
+      val coordMap: CDCoordMap = CDTimeCoordMap.getTimeCycleMap( period, unit, mod, offset, requestCx.targetGrid )
       val binned_array: CDFloatArray = input_array.weightedReduce(input_array.getOp("add"), axes, 0f, None, Some(coordMap)) match {
         case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
           values_sum / weights_sum

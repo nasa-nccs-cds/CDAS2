@@ -162,6 +162,27 @@ abstract class Kernel {
     </kernel>
   }
 
+  def getStringArg( args: Map[String, String], argname: String, defaultVal: Option[String] = None ): String = {
+    args.get( argname ) match {
+      case Some( sval ) => sval
+      case None => defaultVal match { case None => throw new Exception( s"Parameter $argname (int) is reqired for operation " + this.id ); case Some(sval) => sval }
+    }
+  }
+
+  def getIntArg( args: Map[String, String], argname: String, defaultVal: Option[Int] = None ): Int = {
+    args.get( argname ) match {
+      case Some( sval ) => try { sval.toInt } catch { case err: NumberFormatException => throw new Exception( s"Parameter $argname must ba an integer: $sval" ) }
+      case None => defaultVal match { case None => throw new Exception( s"Parameter $argname (int) is reqired for operation " + this.id ); case Some(ival) => ival }
+    }
+  }
+
+  def getFloatArg( args: Map[String, String], argname: String, defaultVal: Option[Float] = None ): Float = {
+    args.get( argname ) match {
+      case Some( sval ) => try { sval.toFloat } catch { case err: NumberFormatException => throw new Exception( s"Parameter $argname must ba a float: $sval" ) }
+      case None => defaultVal match { case None => throw new Exception( s"Parameter $argname (float) is reqired for operation " + this.id ); case Some(fval) => fval }
+    }
+  }
+
   def inputVars( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): List[KernelDataInput] = serverCx.inputs(operationCx.inputs.map( requestCx.getInputSpec(_) ) )
 
   def searchForValue( metadata: Map[String,nc2.Attribute], keys: List[String], default_val: String ) : String = {

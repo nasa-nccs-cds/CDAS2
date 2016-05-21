@@ -128,11 +128,11 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
           val t0 = System.nanoTime()
           val result = fragSpec.targetGridOpt match {
             case Some( targetGrid ) =>
-               val maskOpt = fragSpec.mask.map( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy") ) ).flatten
+               val maskOpt = fragSpec.mask.flatMap( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy") ) )
                targetGrid.loadRoi( variable, fragSpec, maskOpt )
              case None =>
                val targetGrid = new TargetGrid( variable, Some(fragSpec.getAxes) )
-               val maskOpt = fragSpec.mask.map( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy")  ) ).flatten
+               val maskOpt = fragSpec.mask.flatMap( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy")  ) )
                targetGrid.loadRoi( variable, fragSpec, maskOpt)
           }
           logger.info("Completed variable (%s:%s) subset data input in time %.4f sec, section = %s ".format(fragSpec.collection, fragSpec.varname, (System.nanoTime()-t0)/1.0E9, fragSpec.roi ))
