@@ -471,13 +471,13 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
-      "operation" -> List(Map("unparsed" -> "( v0, axes: t, bins: t|month|ave|year )" )) )
-    TaskRequest( "CDS.aggregate", dataInputs )
+      "operation" -> List(Map("unparsed" -> "( v0, period:1, unit:month, mod:12 )" )) )
+    TaskRequest( "CDS.timeBin", dataInputs )
   }
 
   def getSeasonalCycleRequest: TaskRequest = {
     val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "time" -> Map("start" -> 2, "end" -> 12, "system" -> "indices"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
       "operation" -> List(Map("unparsed" -> "( v0, period:3, unit:month, mod:4, offset:2)" )) )
     TaskRequest( "CDS.timeBin", dataInputs )
@@ -487,8 +487,8 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
-      "operation" -> List(Map("unparsed" -> "( v0, axes: t, bins: t|year|ave )" )) )
-    TaskRequest( "CDS.aggregate", dataInputs )
+      "operation" -> List(Map("unparsed" -> "( v0, period:12, unit:month )" )) )
+    TaskRequest( "CDS.timeBin", dataInputs )
   }
 
   def getSubsetRequest: TaskRequest = {
