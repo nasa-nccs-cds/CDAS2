@@ -242,12 +242,16 @@ class CDS extends KernelModule with KernelTools {
       val axes = requestCx.targetGrid.getAxisIndices("t")
 
       val period = getIntArg( optargs, "period", Some(1) )
-      val mod = getIntArg( optargs, "mod", Some(1) )
+      val mod = getIntArg( optargs, "mod", Some(Int.MaxValue) )
       val unit = getStringArg( optargs, "unit" )
       val offset = getIntArg( optargs, "offset", Some(0) )
 
       val t10 = System.nanoTime
-      val coordMap: CDCoordMap = CDTimeCoordMap.getTimeCycleMap( period, unit, mod, offset, requestCx.targetGrid )
+      val cdTimeCoordMap: CDTimeCoordMap = new CDTimeCoordMap(requestCx.targetGrid)
+      val coordMap: CDCoordMap = cdTimeCoordMap.getTimeCycleMap( period, unit, mod, offset )
+      val timeData  = cdTimeCoordMap.getTimeIndexIterator( "month" ).toArray
+      logger.info( "Binned array, timeData = [ %s ]".format( timeData.mkString(",") ) )
+      logger.info( "Binned array, coordMap = %s".format( coordMap.toString ) )
       val binned_array: CDFloatArray = input_array.weightedReduce(input_array.getOp("add"), axes, 0f, None, Some(coordMap)) match {
         case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
           values_sum / weights_sum
