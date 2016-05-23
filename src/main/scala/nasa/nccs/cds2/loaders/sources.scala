@@ -57,6 +57,7 @@ object Masks extends XmlResource {
 }
 
 object Collections extends XmlResource {
+  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val datasets = loadCollectionXmlData( getFilePath("/collections.xml") )
 
   def toXml: xml.Elem = {
@@ -68,7 +69,8 @@ object Collections extends XmlResource {
     mapItems.toMap
   }
   def loadCollectionXmlData(filePath:String): Map[String,Collection] = {
-    Map(XML.loadFile(filePath).child.flatMap( node => node.attribute("id") match { case None => None; case Some(id) => Some(id.toString->getCollection(node)); } ):_*)
+    try{ Map(XML.loadFile(filePath).child.flatMap( node => node.attribute("id") match { case None => None; case Some(id) => Some(id.toString->getCollection(node)); } ):_*) }
+    catch { case err: java.io.IOException => throw new Exception( "Error opening collection data file '%s': %s".format( filePath, err.getMessage) ) }
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
@@ -96,10 +98,15 @@ object Collections extends XmlResource {
     parseUri(collection_uri) match {
       case (ctype, cpath) => ctype match {
         case "file" => Some(Collection(ctype = "file", url = collection_uri, vars = var_names))
-        case "collection" => datasets.get( cpath.stripPrefix("/").toLowerCase )
+        case "collection" =>
+          val collection_key = cpath.stripPrefix("/").stripSuffix(""""""").toLowerCase
+          logger.info( " getCollection( %s ) ".format(collection_key) )
+          datasets.get( collection_key )
       }
     }
   }
+
+  def getCollectionKeys: Array[String] = datasets.keys.toArray
 
 }
 
