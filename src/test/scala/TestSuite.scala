@@ -29,19 +29,19 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     val values: CDFloatArray = new CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )
     val counts: CDFloatArray = new CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )
     for (index <- (0 until tsdata.getSize); val0 = tsdata.getFlatValue(index); if tsdata.valid(val0) ) {
-      val bin_index = index % cycle_period
-      values.augment( Array(bin_index), val0 )
-      counts.augment( Array(bin_index),  1f )
+      values.augment( Array(index % cycle_period), val0 )
+      counts.augment( Array(index % cycle_period),  1f )
     }
     values / counts
   }
 
-  def computeSeriesAverage( tsdata: CDFloatArray, ave_period: Int ): CDFloatArray = {
+  def computeSeriesAverage( tsdata: CDFloatArray, ave_period: Int, offset: Int = 0, mod: Int = Int.MaxValue ): CDFloatArray = {
     val npts = tsdata.getSize / ave_period + 1
     val values: CDFloatArray = new CDFloatArray( Array(npts), Array.fill[Float](npts)(0f), Float.NaN )
     val counts: CDFloatArray = new CDFloatArray( Array(npts), Array.fill[Float](npts)(0f), Float.NaN )
     for (index <- (0 until tsdata.getSize); val0 = tsdata.getFlatValue(index); if tsdata.valid(val0) ) {
-      val bin_index = index / ave_period
+      val op_offset = (ave_period-offset) % ave_period
+      val bin_index = ( ( index + op_offset ) / ave_period ) % mod
       values.augment( Array(bin_index), val0 )
       counts.augment( Array(bin_index), 1f )
     }

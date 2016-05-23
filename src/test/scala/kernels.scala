@@ -122,6 +122,19 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
     }
   }
 
+  test("Seasonal Cycle") {
+    readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
+      case Some( nco_subsetted_timeseries ) =>
+        val dataInputs = getTemporalDataInputs(merra_data, "period:3, unit:month, mod:4, offset:2")
+        val result_values = computeArray("CDS.timeBin", dataInputs)
+        val nco_verified_result = computeSeriesAverage( nco_subsetted_timeseries, 3, 2, 4 )
+        val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
+        println("Test Result: (%s)\n NCO Result: (%s)\n Max_scaled_diff: %f".format(result_values.toString(), nco_verified_result.toString(), max_scaled_diff))
+        assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Yearly Cycle")
+      case None => fail( "Error reading verification data")
+    }
+  }
+
   test("Yearly Means") {
     readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
       case Some( nco_subsetted_timeseries ) =>
