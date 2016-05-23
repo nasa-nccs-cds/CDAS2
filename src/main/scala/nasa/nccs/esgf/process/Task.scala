@@ -101,7 +101,7 @@ object TaskRequest {
     logger.info( "TaskRequest--> process_name: %s, datainputs: %s".format( process_name, datainputs.toString ) )
     val data_list: List[DataContainer] = datainputs.getOrElse("variable", List() ).map(DataContainer(_)).toList
     val domain_list: List[DomainContainer] = datainputs.getOrElse("domain", List()).map(DomainContainer(_)).toList
-    val operation_list: List[WorkflowContainer] = datainputs.getOrElse("operation", List(Map("unparsed"->"()"))).map(WorkflowContainer(process_name,_)).toList
+    val operation_list: List[WorkflowContainer] = datainputs.getOrElse("operation", List() ).map(WorkflowContainer( process_name, data_list.map(_.uid), _ ) ).toList
     val variableMap = buildVarMap( data_list, operation_list )
     val domainMap = buildDomainMap( domain_list )
     val gridId = datainputs.getOrElse("grid", data_list.headOption.map( dc => dc.uid ).getOrElse("#META") ).toString
@@ -493,11 +493,9 @@ class WorkflowContainer(val operations: Iterable[OperationContext] = List() ) ex
 }
 
 object WorkflowContainer extends ContainerBase {
-  def apply(process_name: String, metadata: Map[String, Any]): WorkflowContainer = {
+  def apply(process_name: String, uid_list: List[String], metadata: Map[String, Any]): WorkflowContainer = {
     try {
-      import nasa.nccs.esgf.utilities.wpsOperationParser
-      val parsed_data_inputs = wpsOperationParser.parseOp(metadata("unparsed").toString)
-      new WorkflowContainer( parsed_data_inputs.map(OperationContext(process_name,_)))
+      new WorkflowContainer( OperationContext( process_name, uid_list, metadata ) )
     } catch {
       case e: Exception =>
         val msg = "Error creating WorkflowContainer: " + e.getMessage
@@ -518,39 +516,21 @@ class OperationContext( val identifier: String, val name: String, val result: St
 }
 
 object OperationContext extends ContainerBase  {
-  def apply(process_name: String, raw_metadata: Any): OperationContext = {
-    raw_metadata match {
-      case (ident: String, args: List[_]) =>
-        val varlist = new ListBuffer[String]()
-        val optargs = new ListBuffer[(String,String)]()
-        for( raw_arg<-args; arg=raw_arg.toString ) {
-          if(arg contains ":") {
-            val arg_items = arg.split(":").map( _.trim.toLowerCase )
-            optargs += ( if( arg_items.length > 1 ) ( arg_items(0) -> arg_items(1) ) else ( arg_items(0) -> "" ) )
-          }
-          else varlist += arg.trim.toLowerCase
-        }
-        val ids = ident.split("~").map( _.trim.toLowerCase )
-        ids.length match {
-          case 1 =>
-            new OperationContext( identifier = ident, name=process_name, result = ids(0), inputs = varlist.toList, Map(optargs:_*) )
-          case 2 =>
-            val op_name = if( ids(0).nonEmpty ) ids(0) else process_name
-            val identifier = if( ids(0).nonEmpty ) ident else process_name + ident
-            new OperationContext( identifier = identifier, name = op_name, result = ids(1), inputs = varlist.toList, Map(optargs:_*) )
-          case _ =>
-            val msg = "Unrecognized format for Operation id: " + ident
-            logger.error(msg)
-            throw new Exception(msg)
-        }
-      case _ =>
-        val msg = "Unrecognized format for OperationContext: " + raw_metadata.toString
-        logger.error(msg)
-        throw new Exception(msg)
+  var resultIndex = 0
+  def apply( process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
+    val op_inputs: List[String] = metadata.get( "input" ) match {
+      case Some( input_values: List[String] ) => input_values.map( _.trim.toLowerCase )
+      case Some( input_value: String ) => List( input_value.trim.toLowerCase )
+      case None => uid_list.map( _.trim.toLowerCase )
+      case x => throw new Exception ( "Unrecognized input in operation spec: " + x.toString )
     }
+    val op_name = metadata.getOrElse( "name", process_name ).toString.trim.toLowerCase
+    val op_result = metadata.getOrElse( "result", generateResultId ).toString.trim.toLowerCase
+    val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim.toLowerCase )
+    new OperationContext( identifier = op_result + "~" + op_name, name=op_name, result = op_result, inputs = op_inputs, optargs )
   }
+  def generateResultId: String = { resultIndex += 1; "$v"+resultIndex.toString }
 }
-
 
 class TaskProcessor {
 
