@@ -173,7 +173,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader {
         }
         case None => p.failure(new Exception(s"Unrecognized Mask ID: $maskId: options are %s".format(Masks.getMaskIds)))
       }
-    } catch { case e: Exception => p.failure(e) }     
+    } catch { case e: Exception => p.failure(e) }
   }
 
   private def clearRedundantFragments( fragSpec: DataFragmentSpec ) = findEnclosedFragSpecs(fragSpec.getKey).map(_.toString).foreach( fragmentCache.remove( _ ) )
@@ -477,7 +477,7 @@ object SampleTaskRequests {
 
   def getSeasonalCycleRequest: TaskRequest = {
     val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "time" -> Map("start" -> 2, "end" -> 12, "system" -> "indices"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "time" -> Map("start" -> 0, "end" -> 36, "system" -> "indices"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
       "operation" -> List(Map("unparsed" -> "( v0, period:3, unit:month, mod:4, offset:2)" )) )
     TaskRequest( "CDS.timeBin", dataInputs )

@@ -252,9 +252,10 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid ) {
     val start_value = timeIter.getValue(0)-1
     val accum = new IndexValueAccumulator()
     assert(offset <= period, "TimeBin offset can't be >= the period.")
-    val period_offest = if (period <= 1) 0 else pos_mod(offset - (start_value % period), period) % period
+    val period_offest = pos_mod(offset - (start_value % period), period) % period
+    val op_offset = (period - period_offest) % period
     val timeIndices = for (time_index <- timeIter; bin_index = accum.getValue(time_index)) yield {
-      (( bin_index + (period - period_offest) ) / period) % mod
+      (( bin_index + op_offset ) / period) % mod
     }
     new CDCoordMap(axisSpec.index, timeIndices.toArray)
   }
