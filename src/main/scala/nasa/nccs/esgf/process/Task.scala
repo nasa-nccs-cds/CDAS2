@@ -111,7 +111,7 @@ object TaskRequest {
 
   def buildVarMap( data: List[DataContainer], workflow: List[WorkflowContainer] ): Map[String,DataContainer] = {
     var data_var_items = for( data_container <- data ) yield ( data_container.uid -> data_container )
-    var op_var_items = for( workflow_container<- workflow; operation<-workflow_container.operations; if !operation.result.isEmpty ) yield ( operation.result -> DataContainer(operation) )
+    var op_var_items = for( workflow_container<- workflow; operation<-workflow_container.operations; if !operation.rid.isEmpty ) yield ( operation.rid -> DataContainer(operation) )
     val var_map = Map( op_var_items ++ data_var_items: _* )
     logger.info( "Created Variable Map: " + var_map.toString )
     for( workflow_container<- workflow; operation<-workflow_container.operations; vid<-operation.inputs; if(!vid.isEmpty)  ) var_map.get( vid ) match {
@@ -368,7 +368,7 @@ class DataContainer(val uid: String, private val source : Option[DataSource] = N
 
 object DataContainer extends ContainerBase {
   def apply( operation: OperationContext ): DataContainer = {
-      new DataContainer( uid=operation.result, operation=Some(operation) )
+      new DataContainer( uid=operation.rid, operation=Some(operation) )
   }
   def apply(metadata: Map[String, Any]): DataContainer = {
     try {
@@ -484,6 +484,7 @@ object DomainContainer extends ContainerBase {
 }
 
 class WorkflowContainer(val operations: Iterable[OperationContext] = List() ) extends ContainerBase {
+  def this( oc: OperationContext ) = this( List(oc) )
   override def toString = {
     s"WorkflowContainer { operations = $operations }"
   }
@@ -505,13 +506,13 @@ object WorkflowContainer extends ContainerBase {
   }
 }
 
-class OperationContext( val identifier: String, val name: String, val result: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext  {
+class OperationContext( val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext  {
   def getConfiguration = configuration
   override def toString = {
-    s"OperationContext { id = $identifier,  name = $name, result = $result, inputs = $inputs, configurations = $configuration }"
+    s"OperationContext { id = $identifier,  name = $name, rid = $rid, inputs = $inputs, configurations = $configuration }"
   }
   override def toXml = {
-    <proc id={identifier} name={name} result={result} inputs={inputs.toString} configurations={configuration.toString}/>
+    <proc id={identifier} name={name} rid={rid} inputs={inputs.toString} configurations={configuration.toString}/>
   }
 }
 
@@ -519,15 +520,15 @@ object OperationContext extends ContainerBase  {
   var resultIndex = 0
   def apply( process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
     val op_inputs: List[String] = metadata.get( "input" ) match {
-      case Some( input_values: List[String] ) => input_values.map( _.trim.toLowerCase )
+      case Some( input_values: List[_] ) => input_values.map( _.toString.trim.toLowerCase ).toList
       case Some( input_value: String ) => List( input_value.trim.toLowerCase )
       case None => uid_list.map( _.trim.toLowerCase )
       case x => throw new Exception ( "Unrecognized input in operation spec: " + x.toString )
     }
     val op_name = metadata.getOrElse( "name", process_name ).toString.trim.toLowerCase
-    val op_result = metadata.getOrElse( "result", generateResultId ).toString.trim.toLowerCase
+    val op_rid = metadata.getOrElse( "rid", generateResultId ).toString.trim.toLowerCase
     val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim.toLowerCase )
-    new OperationContext( identifier = op_result + "~" + op_name, name=op_name, result = op_result, inputs = op_inputs, optargs )
+    new OperationContext( identifier = op_rid + "~" + op_name, name=op_name, rid = op_rid, inputs = op_inputs, optargs )
   }
   def generateResultId: String = { resultIndex += 1; "$v"+resultIndex.toString }
 }

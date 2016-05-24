@@ -66,23 +66,25 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     max_diff / mag.toFloat
   }
 
-  def getSpatialDataInputs(test_dataset: String, op_args: String) = Map(
+  def getSpatialDataInputs(test_dataset: String, op_args: (String,String)* )  = Map(
     "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
     "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
-    "operation" -> List(Map("unparsed" -> s"( v0, $op_args )")))
+    "operation" -> List(Map( ( ("input"->"v0") :: op_args.toList ) :_* )))
 
-  def getMaskedSpatialDataInputs(test_dataset: String, op_args: String) = Map(
+  def getMaskedSpatialDataInputs(test_dataset: String, op_args: (String,String)* ) = Map(
     "domain" -> List(Map("name" -> "d0", "mask" -> "#ocean50m", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
     "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
-    "operation" -> List(Map("unparsed" -> s"( v0, $op_args )")))
+    "operation" ->  List(Map( ( ("input"->"v0") :: op_args.toList ) :_* )))
 
-  def getTemporalDataInputs(test_dataset: String, op_args: String, d1_time_index: Int = time_index ) = Map(
+  def getTemporalDataInputs(test_dataset: String, d1_time_index: Int, op_args: (String,String)*  ) = Map(
     "domain" -> List(Map("name" -> "d1", "time" -> Map("start" -> d1_time_index, "end" -> d1_time_index, "system" -> "indices")
     ), Map("name" -> "d0", "lat" -> Map("start" -> lat_value, "end" -> lat_value, "system" -> "value"), "lon" -> Map("start" -> lon_value, "end" -> lon_value, "system" -> "values"))),
     "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
-    "operation" -> List(Map("unparsed" -> s"( v0, $op_args )")))
+    "operation" ->  List(Map( ( ("input"->"v0") :: op_args.toList ) :_* )))
 
-  def getMetaDataInputs(test_dataset: String, varName: String) = Map( "variable" -> List(Map("uri" -> test_dataset, "name" -> varName ) ) )
+  def getMetaDataInputs(test_dataset: String, varName: String) = Map(
+    "variable" -> List(Map("uri" -> test_dataset, "name" -> varName )),
+    "operation" ->  List(Map( ("input"->varName), ("name"->"CDS.metadata" ) )))
 
   def computeResult( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): ExecutionResult = {
     val request = TaskRequest( kernel_name, data_inputs )

@@ -424,7 +424,7 @@ object SampleTaskRequests {
 
   def getAveTimeseries: TaskRequest = {
     import nasa.nccs.esgf.process.DomainAxis.Type._
-    val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "t") ) ) ) )
+    val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", rid = "ivar#1", inputs = List("v0"), Map("axis" -> "t") ) ) ) )
     val variableMap = Map[String,DataContainer]( "v0" -> new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) ) )
     val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Z,1,1), DomainAxis(Y,100,100), DomainAxis(X,100,100) ), None ) )
     new TaskRequest( "CDS.average", variableMap, domainMap, workflows, Map( "id" -> "v0" ) )
@@ -434,7 +434,7 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lon" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lev" -> Map("start" -> 8, "end" -> 8, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "hur:v0", "domain" -> "d0")),
-      "operation" -> List(Map("unparsed" -> "( v0, axes: t )")))
+      "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
       TaskRequest( "CDS.average", dataInputs )
   }
 
@@ -442,7 +442,7 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("unparsed" -> "( v0, axes: t, bins: t|month|ave|year )")))
+      "operation" -> List( Map( "input"->"v0", "period"->1, "unit"->"month", "mod"->12  ) ))
     TaskRequest( "CDS.bin", dataInputs )
   }
 
@@ -451,19 +451,7 @@ object SampleTaskRequests {
       "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
                         Map("name" -> "d1", "time" -> Map("start" -> "2010-01-16T12:00:00", "end" -> "2010-01-16T12:00:00", "system" -> "values") ) ),
       "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
-      "operation" -> List(Map("unparsed" -> "CDS.anomaly( v0, axes: t ),CDS.aggregate( v0, axes: t, bins: t|month|ave|year ),CDS.subset( v0, domain:d1 )" )) )
-    TaskRequest( "CDS.workflow", dataInputs )
-  }
-
-  def getCacheInWorkflowRequest: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(   Map("name" -> "d0",  "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
-                          Map("name" -> "d1",  "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"),
-                                               "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"),
-                                               "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")) ),
-      "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0"),
-                          Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v1", "domain" -> "d1") ),
-      "operation" -> List(Map("unparsed" -> "util.cache( v0 ), CDS.anomaly( v1, axes: t )" )) )
+      "operation" -> List(  Map( "input"->"v0", "axes"->"t", "name"->"CDS.anomaly" ), Map( "input"->"v0", "period"->1, "unit"->"month", "mod"->12, "name"->"CDS.timeBin"  ), Map( "input"->"v0", "domain"->"d1", "name"->"CDS.subset" ) ) )
     TaskRequest( "CDS.workflow", dataInputs )
   }
 
@@ -471,7 +459,7 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
-      "operation" -> List(Map("unparsed" -> "( v0, period:1, unit:month, mod:12 )" )) )
+      "operation" -> List( Map( "input"->"v0", "period"->1, "unit"->"month", "mod"->12 ) ))
     TaskRequest( "CDS.timeBin", dataInputs )
   }
 
@@ -479,7 +467,7 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "time" -> Map("start" -> 0, "end" -> 36, "system" -> "indices"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
-      "operation" -> List(Map("unparsed" -> "( v0, period:3, unit:month, mod:4, offset:2)" )) )
+      "operation" -> List( Map( "input"->"v0", "period"->3, "unit"->"month", "mod"->4, "offset"->2  ) ))
     TaskRequest( "CDS.timeBin", dataInputs )
   }
 
@@ -487,7 +475,7 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
-      "operation" -> List(Map("unparsed" -> "( v0, period:12, unit:month )" )) )
+      "operation" -> List( Map( "input"->"v0", "period"->12, "unit"->"month" ) ))
     TaskRequest( "CDS.timeBin", dataInputs )
   }
 
@@ -496,7 +484,7 @@ object SampleTaskRequests {
       "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
         Map("name" -> "d1", "time" -> Map("start" -> 3, "end" -> 3, "system" -> "indices") ) ),
       "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
-      "operation" -> List(Map("unparsed" -> "( v0, domain:d1 )" )) )
+      "operation" -> List( Map( "input"->"v0", "domain"->"d1" ) ))
     TaskRequest( "CDS.subset", dataInputs )
   }
 
@@ -504,7 +492,7 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lon" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lev" -> Map("start" -> 8, "end" -> 8, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("unparsed" -> "( v0, axes: t )")))
+      "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
     TaskRequest( "CDS.anomaly", dataInputs )
   }
 
@@ -527,7 +515,7 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> s"collection:/$collection", "name" -> s"$varname:v0", "domain" -> "d0")),
-      "operation" -> List(Map("unparsed" -> s"( v0, axes: xy, weights:$weighting)")))
+      "operation" -> List( Map( "input"->"v0", "axes"->"xy", "weights"->weighting ) ))
     TaskRequest( "CDS.average", dataInputs )
   }
 
@@ -535,7 +523,7 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "mask" -> "#ocean50m", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> s"collection:/$collection", "name" -> s"$varname:v0", "domain" -> "d0")),
-      "operation" -> List(Map("unparsed" -> s"( v0, axes: xy, weights:$weighting)")))
+      "operation" -> List( Map( "input"->"v0", "axes"->"xy", "weights"->weighting ) ))
     TaskRequest( "CDS.average", dataInputs )
   }
 
@@ -543,7 +531,7 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> 10, "end" -> 10, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> s"collection:/$collection", "name" -> s"$varname:v0", "domain" -> "d0")),
-      "operation" -> List(Map("unparsed" -> s"( v0 )")))
+      "operation" -> List( Map( "input"->"v0") ))
     TaskRequest( "CDS.const", dataInputs )
   }
 
@@ -551,7 +539,7 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lev" -> Map("start" -> 20, "end" -> 20, "system" -> "indices"), "time" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://merra/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("unparsed" -> "( v0, axes: xy )")))
+      "operation" -> List( Map( "input"->"v0", "axes"->"xy" ) ))
     TaskRequest( "CDS.max", dataInputs )
   }
 
@@ -559,7 +547,7 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lev" -> Map("start" -> 20, "end" -> 20, "system" -> "indices"), "time" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://merra/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("unparsed" -> "( v0, axes: xy )")))
+      "operation" -> List( Map( "input"->"v0", "axes"->"xy" ) ))
     TaskRequest( "CDS.min", dataInputs )
   }
 
@@ -567,7 +555,7 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" ->  List(Map("name" -> "d0", "lat" -> Map("start" -> -7.0854263, "end" -> -7.0854263, "system" -> "values"), "lon" -> Map("start" -> -122.075, "end" -> -122.075, "system" -> "values"), "lev" -> Map("start" -> 100000, "end" -> 100000, "system" -> "values"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("unparsed" -> "(v0,axes:t)")))
+      "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
     TaskRequest( "CDS.anomaly", dataInputs )
   }
 
@@ -575,13 +563,13 @@ object SampleTaskRequests {
     val dataInputs = Map(
       "domain" ->  List( Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("unparsed" -> "CDS.anomaly(v0,axes:t),CDS.subset(v0,domain:d1)")))
+      "operation" -> List( Map( "input"->"v0", "axes"->"t", "name"->"CDS.anomaly" ), Map( "input"->"v0", "domain"->"d1", "name"->"CDS.subset" )) )
     TaskRequest( "CDS.workflow", dataInputs )
   }
 
   def getAveArray: TaskRequest = {
     import nasa.nccs.esgf.process.DomainAxis.Type._
-    val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "xy")  ) ) ) )
+    val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", rid = "ivar#1", inputs = List("v0"), Map("axis" -> "xy")  ) ) ) )
     val variableMap = Map[String,DataContainer]( "v0" -> new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) ) )
     val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Z,4,4), DomainAxis(Y,100,100) ), None ) )
     new TaskRequest( "CDS.average", variableMap, domainMap, workflows, Map( "id" -> "v0" ) )
@@ -693,15 +681,6 @@ object execCreateVRequest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
   val run_args = Map( "async" -> "false" )
   val request = SampleTaskRequests.getCreateVRequest
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-}
-
-object execCacheInWorkflowRequest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getCacheInWorkflowRequest
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )

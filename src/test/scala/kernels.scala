@@ -8,7 +8,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
 
   test("Sum") {
     val nco_verified_result = 4.886666e+07
-    val dataInputs = getSpatialDataInputs(merra_data, "axes: xy")
+    val dataInputs = getSpatialDataInputs(merra_data, ( "axes"->"xy"))
     val result_value: Float = computeValue("CDS.sum", dataInputs)
     println(s"Test Result:  $result_value, NCO Result: $nco_verified_result")
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
@@ -16,7 +16,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
 
   test("Sum Constant") {
     val nco_verified_result = 180749.0
-    val dataInputs = getSpatialDataInputs(const_data, "axes: xy")
+    val dataInputs = getSpatialDataInputs(const_data, ( "axes"->"xy"))
     val result_value: Float = computeValue("CDS.sum", dataInputs)
     println(s"Test Result:  $result_value, NCO Result: $nco_verified_result")
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
@@ -24,7 +24,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
 
   test("Maximum") {
     val nco_verified_result = 291.1066
-    val dataInputs = getSpatialDataInputs(merra_data, "axes: xy")
+    val dataInputs = getSpatialDataInputs(merra_data, ( "axes"->"xy"))
     val result_value: Float = computeValue("CDS.max", dataInputs)
     println(s"Test Result:  $result_value, NCO Result: $nco_verified_result")
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Maximum")
@@ -32,7 +32,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
 
   test("Minimum") {
     val nco_verified_result = 239.4816
-    val dataInputs = getSpatialDataInputs(merra_data, "axes: xy")
+    val dataInputs = getSpatialDataInputs(merra_data, ( "axes"->"xy"))
     val result_value: Float = computeValue("CDS.min", dataInputs)
     println(s"Test Result:  $result_value, NCO Result: $nco_verified_result")
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Minimum")
@@ -41,7 +41,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
   test("Anomaly") {
     readVerificationData( "/data/ta_anomaly_0_0.nc", "ta" ) match {
       case Some( nco_verified_result ) =>
-        val dataInputs = getTemporalDataInputs(merra_data, "axes: t")
+        val dataInputs = getTemporalDataInputs(merra_data, 0, ( "axes"->"t") )
         val result_values = computeArray("CDS.anomaly", dataInputs)
         val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
         println("Test Result: (%s)\n NCO Result: (%s)\n Max_scaled_diff: %f".format(result_values.toString(), nco_verified_result.toString(), max_scaled_diff))
@@ -53,7 +53,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
   test("Subset(d0)") {
     readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
       case Some( nco_verified_result ) =>
-        val dataInputs = getTemporalDataInputs(merra_data, "")
+        val dataInputs = getTemporalDataInputs(merra_data, 0, ( "axes"->"t") )
         val result_values = computeArray("CDS.subset", dataInputs)
         val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
         println("Test Result: (%s)\n NCO Result: (%s)\n Max_scaled_diff: %f".format(result_values.toString(), nco_verified_result.toString(), max_scaled_diff))
@@ -67,7 +67,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
       case Some( nco_verified_result ) =>
         val time_index = 3
         val verified_result_array = nco_verified_result.section( Array(time_index,0,0,0), Array(1,1,1,1) )
-        val dataInputs = getTemporalDataInputs(merra_data, "domain: d1", time_index)
+        val dataInputs = getTemporalDataInputs(merra_data, time_index, ( "domain"->"d1") )
         val result_values = computeArray("CDS.subset", dataInputs)
         val max_scaled_diff = maxScaledDiff(result_values,verified_result_array)
         println("Test Result: (%s)\n NCO Result: (%s)\n Max_scaled_diff: %f".format(result_values.toString(), verified_result_array.toString(), max_scaled_diff))
@@ -78,7 +78,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
 
   test("Spatial Average") {
     val nco_verified_result = 270.092
-    val dataInputs = getSpatialDataInputs(merra_data, "axes: xy, weights: ")
+    val dataInputs = getSpatialDataInputs(merra_data, ( "axes"->"xy"), ( "weights"->"") )
     val result_value: Float = computeValue("CDS.average", dataInputs)
     println(s"Test Result:  $result_value, NCO Result: $nco_verified_result")
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Spatial Average")
@@ -95,7 +95,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
 
   test("Weighted Spatial Average") {
     val nco_verified_result = 275.4043
-    val dataInputs = getSpatialDataInputs(merra_data, "axes: xy, weights:cosine")
+    val dataInputs = getSpatialDataInputs(merra_data, ( "axes"->"xy"), ( "weights"->"cosine") )
     val result_value: Float = computeValue("CDS.average", dataInputs)
     println(s"Test Result:  $result_value, NCO Result: $nco_verified_result")
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Weighted Spatial Average")
@@ -103,7 +103,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
 
   test("Weighted Masked Spatial Average") {
     val nco_verified_result = 275.4317
-    val dataInputs = getMaskedSpatialDataInputs(merra_data, "axes: xy, weights:cosine")
+    val dataInputs = getMaskedSpatialDataInputs(merra_data, ( "axes"->"xy"), ( "weights"->"cosine") )
     val result_value: Float = computeValue("CDS.average", dataInputs)
     println(s"Test Result:  $result_value, NCO Result: $nco_verified_result")
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Weighted Masked Spatial Average")
@@ -112,7 +112,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
   test("Yearly Cycle") {
     readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
       case Some( nco_subsetted_timeseries ) =>
-        val dataInputs = getTemporalDataInputs(merra_data, "period:1, unit:month, mod:12")
+        val dataInputs = getTemporalDataInputs( merra_data, 0, ( "unit"->"month"), ( "period"->"1"), ( "mod"->"12")  )
         val result_values = computeArray("CDS.timeBin", dataInputs)
         val nco_verified_result = computeCycle( nco_subsetted_timeseries, 12 )
         val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
@@ -125,7 +125,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
   test("Seasonal Cycle") {
     readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
       case Some( nco_subsetted_timeseries ) =>
-        val dataInputs = getTemporalDataInputs(merra_data, "period:3, unit:month, mod:4, offset:2")
+        val dataInputs = getTemporalDataInputs(merra_data, 0, ( "unit"->"month"), ( "period"->"3"), ( "mod"->"4"), ( "offset"->"2") )
         val result_values = computeArray("CDS.timeBin", dataInputs)
         val nco_verified_result = computeSeriesAverage( nco_subsetted_timeseries, 3, 2, 4 )
         val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
@@ -138,7 +138,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
   test("Yearly Means") {
     readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
       case Some( nco_subsetted_timeseries ) =>
-        val dataInputs = getTemporalDataInputs(merra_data, "period:12, unit:month")
+        val dataInputs = getTemporalDataInputs(merra_data, 0, ( "unit"->"month"), ( "period"->"12") )
         val result_values = computeArray("CDS.timeBin", dataInputs)
         val nco_verified_result = computeSeriesAverage( nco_subsetted_timeseries, 12 )
         val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
@@ -151,7 +151,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
 
   test("Spatial Average Constant") {
     val nco_verified_result = 1.0
-    val dataInputs = getSpatialDataInputs(const_data, "axes: xy, weights:")
+    val dataInputs = getSpatialDataInputs(const_data, ( "axes"->"xy"), ( "weights"->"") )
     val result_value: Float = computeValue("CDS.average", dataInputs)
     println(s"Test Result:  $result_value, NCO Result: $nco_verified_result")
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Spatial Average Constant")
@@ -159,7 +159,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
 
   test("Weighted Spatial Average Constant") {
     val nco_verified_result = 1.0
-    val dataInputs = getSpatialDataInputs(const_data, "axes: xy, weights:cosine")
+    val dataInputs = getSpatialDataInputs(const_data, ( "axes"->"xy"), ( "weights"->"cosine") )
     val result_value: Float = computeValue("CDS.average", dataInputs)
     println(s"Test Result:  $result_value, NCO Result: $nco_verified_result")
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Spatial Average Constant with Weights")

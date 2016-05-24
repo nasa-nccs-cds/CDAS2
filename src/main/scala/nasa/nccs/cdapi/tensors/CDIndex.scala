@@ -23,8 +23,7 @@ object CDIndexMap {
   def factory(shape: Array[Int], stride: Array[Int]=Array.emptyIntArray, offset: Int = 0): CDIndexMap = new CDIndexMap(shape, stride, offset )
 }
 
-abstract class IndexMapIterator( val domainAxisOpt: Option[DomainAxis] ) extends collection.Iterator[Int] {
-  val index_offset: Int = domainAxisOpt match { case None => 0; case Some(domainAxis) =>  domainAxis.start.toInt }
+abstract class IndexMapIterator extends collection.Iterator[Int] {
   val _length: Int = getLength
   var count = 0
   def hasNext: Boolean = { count < _length }
@@ -33,7 +32,8 @@ abstract class IndexMapIterator( val domainAxisOpt: Option[DomainAxis] ) extends
   def getLength: Int
 }
 
-abstract class TimeIndexMapIterator( val timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis]  ) extends IndexMapIterator(domainAxisOpt) {
+abstract class TimeIndexMapIterator( val timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis]  ) extends IndexMapIterator {
+  val index_offset: Int = domainAxisOpt match { case None => 0; case Some(domainAxis) =>  domainAxis.start.toInt }
   override def getLength: Int =  domainAxisOpt match { case None => timeAxis.getSize.toInt; case Some(domainAxis) =>  (domainAxis.end.toInt - domainAxis.start.toInt + 1) }
   def toDate( cd: CalendarDate ): DateTime = new DateTime( cd.toDate )
 }
