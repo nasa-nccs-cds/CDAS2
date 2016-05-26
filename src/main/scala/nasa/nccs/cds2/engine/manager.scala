@@ -567,6 +567,14 @@ object SampleTaskRequests {
     TaskRequest( "CDS.workflow", dataInputs )
   }
 
+  def getAnomalyArrayNcMLTest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" ->  List( Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "file://Users/tpmaxwel/data/AConaty/comp-ECMWF/ecmwf.xml", "name" -> "Temperature:v0", "domain" -> "d0")),
+      "operation" -> List( Map( "input"->"v0", "axes"->"t", "name"->"CDS.anomaly" ), Map( "input"->"v0", "domain"->"d1", "name"->"CDS.subset" )) )
+    TaskRequest( "CDS.workflow", dataInputs )
+  }
+
   def getAveArray: TaskRequest = {
     import nasa.nccs.esgf.process.DomainAxis.Type._
     val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", rid = "ivar#1", inputs = List("v0"), Map("axis" -> "xy")  ) ) ) )
@@ -659,6 +667,17 @@ object execAnomalyTest extends App {
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )
 }
+
+object execAnomalyNcMLTest extends App {
+  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+  val run_args = Map( "async" -> "false" )
+  val request = SampleTaskRequests.getAnomalyArrayNcMLTest
+  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
+  val printer = new scala.xml.PrettyPrinter(200, 3)
+  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+}
+
+
 
 object execAnomalyTest2 extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)

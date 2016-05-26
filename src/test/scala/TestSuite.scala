@@ -84,7 +84,7 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
 
   def getMetaDataInputs(test_dataset: String, varName: String) = Map(
     "variable" -> List(Map("uri" -> test_dataset, "name" -> varName )),
-    "operation" ->  List(Map( ("input"->varName), ("name"->"CDS.metadata" ) )))
+    "operation" ->  List(Map( ("input"->varName), ("name"->"CDS.metadata" ) )) )
 
   def computeResult( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): ExecutionResult = {
     val request = TaskRequest( kernel_name, data_inputs )

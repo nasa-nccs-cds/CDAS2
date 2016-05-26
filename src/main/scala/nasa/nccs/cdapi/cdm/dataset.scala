@@ -49,15 +49,16 @@ object CDSDataset {
 
   private def loadNetCDFDataSet(url: String): NetcdfDataset = {
     NetcdfDataset.setUseNaNs(false)
-    logger.info("Opening NetCDF dataset %s".format(url))
+    val dset_address = if ( url.toLowerCase().startsWith("file:/") ) url.substring(6) else url
     try {
-      NetcdfDataset.openDataset(url)
+      logger.info("Opening NetCDF dataset %s".format(dset_address))
+      NetcdfDataset.openDataset( dset_address )
     } catch {
       case e: java.io.IOException =>
-        logger.error("Couldn't open dataset %s".format(url))
+        logger.error("Couldn't open dataset %s".format(dset_address))
         throw e
       case ex: Exception =>
-        logger.error("Something went wrong while reading %s".format(url))
+        logger.error("Something went wrong while reading %s".format(dset_address))
         throw ex
     }
   }
