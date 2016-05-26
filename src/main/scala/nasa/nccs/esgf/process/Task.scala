@@ -132,7 +132,9 @@ class ContainerBase {
   val logger = LoggerFactory.getLogger( this.getClass )
   def item_key(map_item: (String, Any)): String = map_item._1
 
-  def normalize(sval: String): String = sval.stripPrefix("\"").stripSuffix("\"").toLowerCase
+  def normalize(sval: String): String = stripQuotes(sval).toLowerCase
+
+  def stripQuotes(sval: String): String = sval.stripPrefix("\"").stripSuffix("\"")
 
   def getStringKeyMap( generic_map: Map[_,_] ): Map[String,Any] = {
     assert( generic_map.isEmpty | generic_map.keys.head.isInstanceOf[ String ] )
@@ -376,7 +378,7 @@ object DataContainer extends ContainerBase {
       val fullname = filterMap(metadata, key_equals("name")) match { case None => ""; case Some(x) => x.toString }
       val domain = filterMap(metadata, key_equals("domain")) match { case None => ""; case Some(x) => x.toString }
       val name_items = fullname.toString.split(':')
-      val dsource = new DataSource( normalize(name_items.head), uri, normalize(domain) )
+      val dsource = new DataSource( stripQuotes(name_items.head), uri, normalize(domain) )
       new DataContainer(normalize(name_items.last), source = Some(dsource) )
     } catch {
       case e: Exception =>
