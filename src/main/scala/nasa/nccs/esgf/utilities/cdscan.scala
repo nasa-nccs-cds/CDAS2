@@ -8,7 +8,7 @@ object NCMLWriter {
 
   def isNcFile( file: File ): Boolean = {
     val fname = file.getName.toLowerCase
-    file.isFile && (fname.endsWith(".nc4") || fname.endsWith(".nc"))
+    file.isFile && (fname.endsWith(".nc4") || fname.endsWith(".nc") || fname.endsWith(".hdf") )
   }
 
   def getNcFiles(file: File): Iterable[File] = {

@@ -14,7 +14,9 @@ import scala.collection.JavaConversions._
 // import scala.collection.JavaConverters._
 
 object Collection {
-  def apply( ctype: String, url: String, vars: List[String] = List() ) = { new Collection(ctype,url,vars) }
+  def apply( ctype: String, url: String, vars: List[String] = List() ) = {
+    new Collection(ctype,url,vars)
+  }
 }
 class Collection( val ctype: String, val url: String, val vars: List[String] = List() ) {
   def getUri( varName: String = "" ) = {
