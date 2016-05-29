@@ -28,6 +28,9 @@ libraryDependencies ++= Dependencies.cache
 
 libraryDependencies ++= Dependencies.geo
 
+fork in run:= true
+
+javaOptions in run ++= Seq( "-Xmx2G", "-Xms512M")
 
 
 
