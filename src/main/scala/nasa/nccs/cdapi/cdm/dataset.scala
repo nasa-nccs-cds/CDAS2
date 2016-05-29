@@ -49,7 +49,7 @@ object CDSDataset {
 
   private def loadNetCDFDataSet(url: String): NetcdfDataset = {
     NetcdfDataset.setUseNaNs(false)
-    val dset_address = if ( url.toLowerCase().startsWith("file:/") ) url.substring(6) else url
+    val dset_address = if ( url.toLowerCase().startsWith("file://") ) url.substring(6) else if ( url.toLowerCase().startsWith("file:") ) url.substring(5) else url
     try {
       logger.info("Opening NetCDF dataset %s".format(dset_address))
       NetcdfDataset.openDataset( dset_address )
