@@ -1,6 +1,9 @@
 package nasa.nccs.esgf.utilities
 import java.io.{BufferedWriter, File, FileWriter}
 
+import ucar.nc2.constants.AxisType
+import ucar.nc2.dataset.NetcdfDataset
+
 object NCMLWriter {
 
   def getNcFiles(args: Array[String]): Iterator[File] =
@@ -18,12 +21,20 @@ object NCMLWriter {
     ( Seq(file) ++: children.flatMap(getNcFiles(_)) ).filter( NCMLWriter.isNcFile(_) )
   }
 
+  def getNTimeCoords(ncFile: File): Int = {
+    val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( "file:"+ ncFile.getAbsolutePath )
+    Option( ncDataset.findCoordinateAxis( AxisType.Time ) ) match {
+      case Some( timeAxis ) => timeAxis.getSize.toInt
+      case None => throw new Exception( "ncFile does not have a time axis: " + ncFile.getAbsolutePath )
+    }
+  }
+
   def getNCML( files: Iterator[File] ): xml.Node = {
     <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
       <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
-      <aggregation type="union">
-       { for( f <- files ) yield <netcdf location={f.getAbsolutePath}/> }
-      </aggregation>
+      <aggregation dimName="time" type="joinExisting"> {
+        for( f <- files ) yield <netcdf location={"file:"+f.getAbsolutePath} ncoords={getNTimeCoords(f).toString}/>
+      } </aggregation>
     </netcdf>
   }
 
