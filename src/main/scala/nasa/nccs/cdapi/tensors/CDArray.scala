@@ -175,10 +175,8 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
     }
     bb
   }
-
-  override def toString: String = {
-    "Index: " + this.cdIndexMap.toString + "\n Data = " + getSectionData.mkString("[ ",", "," ]")
-  }
+  override def toString: String = "Index: " + this.cdIndexMap.toString
+  def toDataString: String = "Index: " + this.cdIndexMap.toString + "\n Data = " + getSectionData.mkString("[ ",", "," ]")
 }
 
 object CDFloatArray {
