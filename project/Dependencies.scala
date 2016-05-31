@@ -39,6 +39,7 @@ object Library {
   val sprayUtil      = "io.spray"       % "spray-util_2.11"    % "1.3.3"
   val scalactic      = "org.scalactic" %% "scalactic" % "2.2.6"
   val scalatest      = "org.scalatest" %% "scalatest" % "2.2.6" % "test"
+  val concurrentlinkedhashmap = "com.googlecode.concurrentlinkedhashmap" % "concurrentlinkedhashmap-lru" % "1.4.2"
 }
 
 object Dependencies {
@@ -55,7 +56,7 @@ object Dependencies {
 
   val spark = Seq( sparkCore )
 
-  val cache = Seq( sprayCache, sprayUtil )
+  val cache = Seq( concurrentlinkedhashmap )
 
   val ndarray = Seq( nd4s, nd4j )
 

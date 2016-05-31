@@ -17,7 +17,7 @@ import scala.util.{Failure, Success, Try}
 import java.util.concurrent.atomic.AtomicReference
 
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
-import spray.caching._
+import nasa.nccs.caching._
 import ucar.{ma2, nc2}
 import nasa.nccs.cds2.utilities.GeoTools
 
