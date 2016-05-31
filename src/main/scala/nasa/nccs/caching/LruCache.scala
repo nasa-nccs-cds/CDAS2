@@ -1,15 +1,17 @@
 package nasa.nccs.caching
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
-import scala.annotation.tailrec
-import scala.concurrent.duration.Duration
-import scala.concurrent.{ Promise, ExecutionContext, Future }
-import scala.util.{ Failure, Success }
-import scala.collection.JavaConversions._
-import scala.collection.JavaConverters._
+import nasa.nccs.utilities.Timestamp
 
+import scala.annotation.tailrec
+import scala.collection.JavaConverters._
+import scala.concurrent.duration.Duration
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.{Failure, Success}
 
 object LruCache {
+
+  //# source-quote-LruCache-apply
   /**
     * Creates a new [[ExpiringLruCache]] or
     * [[SimpleLruCache]] instance depending on whether
@@ -17,14 +19,19 @@ object LruCache {
     */
   def apply[V](maxCapacity: Int = 500,
                initialCapacity: Int = 16,
-               timeToLive: Duration = Duration.Zero,
-               timeToIdle: Duration = Duration.Zero): Cache[V] = {
+               timeToLive: Duration = Duration.Inf,
+               timeToIdle: Duration = Duration.Inf): Cache[V] = {
     //#
-    import Duration._
-    def isNonZeroFinite(d: Duration) = d != Zero && d.isFinite
-    def millis(d: Duration) = if (isNonZeroFinite(d)) d.toMillis else 0L
-    if (isNonZeroFinite(timeToLive) || isNonZeroFinite(timeToIdle))
-      new ExpiringLruCache[V](maxCapacity, initialCapacity, millis(timeToLive), millis(timeToIdle))
+    def check(dur: Duration, name: String) =
+      require(dur != Duration.Zero,
+        s"Behavior of LruCache.apply changed: Duration.Zero not allowed any more for $name parameter. To disable " +
+          "expiration use Duration.Inf instead of Duration.Zero")
+    // migration help
+    check(timeToLive, "timeToLive")
+    check(timeToIdle, "timeToIdle")
+
+    if (timeToLive.isFinite() || timeToIdle.isFinite())
+      new ExpiringLruCache[V](maxCapacity, initialCapacity, timeToLive, timeToIdle)
     else
       new SimpleLruCache[V](maxCapacity, initialCapacity)
   }
@@ -54,18 +61,25 @@ final class SimpleLruCache[V](val maxCapacity: Int, val initialCapacity: Int) ex
         future.onComplete { value ⇒
           promise.complete(value)
           // in case of exceptions we remove the cache entry (i.e. try again later)
-          if (value.isFailure) store.remove(key, promise)
+          if (value.isFailure) store.remove(key, promise.future)
         }
         future
       case existingFuture ⇒ existingFuture
     }
   }
 
-  def keys = store.keySet.toSet
-
   def remove(key: Any) = Option(store.remove(key))
 
-  def clear() { store.clear() }
+  def clear(): Unit = { store.clear() }
+
+  def keys: Set[Any] = store.keySet().asScala.toSet
+
+  def ascendingKeys(limit: Option[Int] = None) =
+    limit.map { lim ⇒ store.ascendingKeySetWithLimit(lim) }
+      .getOrElse(store.ascendingKeySet())
+      .iterator().asScala
+
+  def size = store.size
 }
 
 /**
@@ -83,11 +97,9 @@ final class SimpleLruCache[V](val maxCapacity: Int, val initialCapacity: Int) ex
   * @param timeToIdle the time-to-idle in millis, zero for disabling tti-expiration
   */
 final class ExpiringLruCache[V](maxCapacity: Long, initialCapacity: Int,
-                                timeToLive: Long, timeToIdle: Long) extends Cache[V] {
-  require(timeToLive >= 0, "timeToLive must not be negative")
-  require(timeToIdle >= 0, "timeToIdle must not be negative")
-  require(timeToLive == 0 || timeToIdle == 0 || timeToLive > timeToIdle,
-    "timeToLive must be greater than timeToIdle, if both are non-zero")
+                                timeToLive: Duration, timeToIdle: Duration) extends Cache[V] {
+  require(!timeToLive.isFinite || !timeToIdle.isFinite || timeToLive > timeToIdle,
+    s"timeToLive($timeToLive) must be greater than timeToIdle($timeToIdle)")
 
   private[caching] val store = new ConcurrentLinkedHashMap.Builder[Any, Entry[V]]
     .initialCapacity(initialCapacity)
@@ -105,8 +117,6 @@ final class ExpiringLruCache[V](maxCapacity: Long, initialCapacity: Int,
       if (store.remove(key, entry)) None // successfully removed
       else get(key) // nope, try again
   }
-
-  def keys = store.keySet.toSet
 
   def apply(key: Any, genValue: () ⇒ Future[V])(implicit ec: ExecutionContext): Future[V] = {
     def insert() = {
@@ -145,22 +155,29 @@ final class ExpiringLruCache[V](maxCapacity: Long, initialCapacity: Int,
     case entry                     ⇒ None
   }
 
-  def clear() { store.clear() }
+  def clear(): Unit = { store.clear() }
 
-  private def isAlive(entry: Entry[V]) = {
-    val now = System.currentTimeMillis
-    (timeToLive == 0 || (now - entry.created) < timeToLive) &&
-      (timeToIdle == 0 || (now - entry.lastAccessed) < timeToIdle)
-  }
+  def keys: Set[Any] = store.keySet().asScala.toSet
+
+  def ascendingKeys(limit: Option[Int] = None) =
+    limit.map { lim ⇒ store.ascendingKeySetWithLimit(lim) }
+      .getOrElse(store.ascendingKeySet())
+      .iterator().asScala
+
+  def size = store.size
+
+  private def isAlive(entry: Entry[V]) =
+    (entry.created + timeToLive).isFuture &&
+      (entry.lastAccessed + timeToIdle).isFuture
 }
 
 private[caching] class Entry[T](val promise: Promise[T]) {
-  @volatile var created = System.currentTimeMillis
-  @volatile var lastAccessed = System.currentTimeMillis
+  @volatile var created = Timestamp.now
+  @volatile var lastAccessed = Timestamp.now
   def future = promise.future
-  def refresh() {
+  def refresh(): Unit = {
     // we dont care whether we overwrite a potentially newer value
-    lastAccessed = System.currentTimeMillis
+    lastAccessed = Timestamp.now
   }
   override def toString = future.value match {
     case Some(Success(value))     ⇒ value.toString
