@@ -3,8 +3,8 @@
 package nasa.nccs.cdapi.tensors
 import java.nio._
 
-import nasa.nccs.cdapi.tensors.CDArray.{ StorageIndex, FlatIndex }
-import nasa.nccs.utilities.cdsutils
+import nasa.nccs.cdapi.tensors.CDArray.{FlatIndex, StorageIndex}
+import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.ma2
 
 object CDArray {
@@ -54,7 +54,7 @@ object CDArray {
 //  }
 }
 
-abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, private val storage: Array[T] )  {
+abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, private val storage: Array[T] ) extends Loggable {
   protected val rank = cdIndexMap.getRank
   protected val dataType = CDArray.getDataType(storage)
 

@@ -1,21 +1,16 @@
 package nasa.nccs.cdapi.cdm
 
-import java.util.Formatter
-
 import nasa.nccs.cdapi.kernels.AxisIndices
-import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
-import nasa.nccs.esgf.utilities.numbers.GenericNumber
+import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray, CDIndexMap}
+import nasa.nccs.cds2.engine.FragmentPersistence
 import nasa.nccs.utilities.cdsutils
 import ucar.nc2.time.{CalendarDate, CalendarDateRange}
 import nasa.nccs.esgf.process._
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
 import ucar.nc2.constants.AxisType
-
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import scala.collection.mutable
-
 
 object BoundsRole extends Enumeration { val Start, End = Value }
 
@@ -56,7 +51,7 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
 
 
   def read( section: ma2.Section ) = ncVariable.read(section)
-
+  def getTargetGrid( fragSpec: DataFragmentSpec ): TargetGrid = fragSpec.targetGridOpt match { case Some(targetGrid) => targetGrid;  case None => new TargetGrid( this, Some(fragSpec.getAxes) ) }
   def getCoordinateAxes: List[ CoordinateAxis1D ] = {
     ncVariable.getDimensions.map( dim => CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis( dim.getFullName ) ) ).toList
   }
@@ -65,8 +60,11 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
 
 }
 
-class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  ) {
+class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  )  {
   val LOG = org.slf4j.LoggerFactory.getLogger(this.getClass)
+//  private var dataStore: Option[ CDFloatArray ] = Some( array )
+//  private val cdIndexMap: CDIndexMap = array.getIndex
+//  private val invalid: Float = array.getInvalid
 
   def this() = this( new CDFloatArray( Array(0), Array.emptyFloatArray, Float.MaxValue ), None, new DataFragmentSpec )
 
@@ -76,17 +74,27 @@ class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray]
   def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = {
     fragmentSpec.getDatasetMetadata(serverContext)
   }
-
   def data: CDFloatArray = array
-  def mask: Option[CDByteArray] = maskOpt
-  def shape: List[Int] = array.getShape.toList
-  def getValue( indices: Array[Int] ): Float = array.getValue( indices )
 
-  override def toString = { "{Fragment: shape = [%s], section = [%s]}".format( array.getShape.mkString(","), fragmentSpec.roi.toString ) }
+//  def data: CDFloatArray = dataStore match {
+//    case Some( array ) => array
+//    case None => restore match {
+//      case Some(array) => new CDFloatArray( cdIndexMap, array, invalid )
+//      case None => throw new Exception( "Error restoring data for fragment: "+ fragmentSpec.toString )
+//    }
+//  }
+//  def restore: Option[ Array[Float] ] = FragmentPersistence.getFragmentData( fragmentSpec: DataFragmentSpec )
+//  def free = { dataStore = None }
+
+  def mask: Option[CDByteArray] = maskOpt
+  def shape: List[Int] = data.getShape.toList
+  def getValue( indices: Array[Int] ): Float = data.getValue( indices )
+
+  override def toString = { "{Fragment: shape = [%s], section = [%s]}".format( data.getShape.mkString(","), fragmentSpec.roi.toString ) }
 
   def cutIntersection( cutSection: ma2.Section, copy: Boolean = true ): PartitionedFragment = {
     val newFragSpec = fragmentSpec.cutIntersection(cutSection)
-    val newDataArray: CDFloatArray = array.section( newFragSpec.roi.shiftOrigin(fragmentSpec.roi).getRanges.toList )
+    val newDataArray: CDFloatArray = data.section( newFragSpec.roi.shiftOrigin(fragmentSpec.roi).getRanges.toList )
     new PartitionedFragment( if(copy) newDataArray.dup else newDataArray, maskOpt, newFragSpec )
   }
 
@@ -94,7 +102,7 @@ class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray]
     if (fragmentSpec.roi.equals( newSection )) this
     else {
       val relativeSection = newSection.shiftOrigin( fragmentSpec.roi )
-      val newDataArray: CDFloatArray = array.section( relativeSection.getRanges.toList )
+      val newDataArray: CDFloatArray = data.section( relativeSection.getRanges.toList )
       new PartitionedFragment( if(copy) newDataArray.dup else newDataArray, maskOpt, fragmentSpec.reSection( newSection ) )
     }
   }

@@ -315,6 +315,8 @@ class DataFragmentSpec( val varname: String="", val collection: String="", val t
   def reSection( newSection: ma2.Section ): DataFragmentSpec = {
     new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, newSection, mask, partitions )
   }
+  def reSection( fkey: DataFragmentKey ): DataFragmentSpec = reSection( fkey.getRoi )
+
 
 //  private var dataFrag: Option[PartitionedFragment] = None
   //  def setData( fragment: PartitionedFragment ) = { assert( dataFrag == None, "Overwriting Data Fragment in " + toString ); dataFrag = Option(fragment) }

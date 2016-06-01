@@ -2,6 +2,7 @@ package nasa.nccs.cds2.loaders
 import java.net.URL
 
 import nasa.nccs.cdapi.cdm.{Collection}
+import nasa.nccs.utilities.Loggable
 
 import scala.xml.XML
 
@@ -18,7 +19,7 @@ class AxisNames( val nameMap: Map[Char,String]  ) {
   }
 }
 
-trait XmlResource {
+trait XmlResource extends Loggable {
   def getFilePath( resourcePath: String ) = {
     val resource = getClass.getResource(resourcePath)
     assert( resource != null, s"Resource $resourcePath does not exist!" )
