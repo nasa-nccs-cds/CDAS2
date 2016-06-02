@@ -57,15 +57,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
   def restore( cache_id: String, size: Int ): Option[Array[Float]] = arrayFromDiskFloat( cache_id, size )
   def restore( fragKey: DataFragmentKey ): Option[Array[Float]] =  fragmentIdCache.get(fragKey).flatMap( restore( _, fragKey.getSize ) )
-
-  def restore( cache_id_future: Future[String], size: Int ): Option[Array[Float]] = {
-    if(!cache_id_future.isCompleted) { cache_id_future.wait }
-    cache_id_future.value match {
-      case Some(Success(cache_id))  ⇒ restore( cache_id, size )
-      case Some(Failure(exception)) ⇒ logError(exception, "Error restoring persisted data " ); None
-      case None => None
-    }
-  }
+  def restore( cache_id_future: Future[String], size: Int ): Option[Array[Float]] = restore( Await.result(cache_id_future, Duration.Inf), size )
 
   def getEnclosingFragmentData( fragSpec: DataFragmentSpec ): Option[ ( DataFragmentKey, Array[Float] ) ] = {
     val fragKeys = findEnclosingFragSpecs( fragSpec.getKey )
@@ -116,6 +108,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   private val variableCache: Cache[String,CDSVariable] = new LruCache("Store","variable",false)
   private val maskCache: Cache[MaskKey,CDByteArray] = new LruCache("Store","mask",false)
   def getFragmentKeys: Set[DataFragmentKey] = fragmentCache.keys
+  def clearFragmentCache = fragmentCache.clear()
 
   def makeKey(collection: String, varName: String) = collection + ":" + varName
 

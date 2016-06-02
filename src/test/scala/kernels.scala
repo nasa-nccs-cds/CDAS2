@@ -1,6 +1,6 @@
 import nasa.nccs.cdapi.kernels.{BlockingExecutionResult, ErrorExecutionResult}
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.engine.CDS2ExecutionManager
+import nasa.nccs.cds2.engine.{CDS2ExecutionManager, collectionDataCache}
 import nasa.nccs.esgf.process.TaskRequest
 import org.scalatest._
 
@@ -36,6 +36,15 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
     val result_value: Float = computeValue("CDS.min", dataInputs)
     println(s"Test Result:  $result_value, NCO Result: $nco_verified_result")
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Minimum")
+  }
+
+  test("Persistence") {
+    val dataInputs = getSubsetDataInputs( merra_data )
+    val result_array1: CDFloatArray = computeArray("CDS.subset", dataInputs)
+    collectionDataCache.clearFragmentCache
+    val result_array2: CDFloatArray = computeArray("CDS.subset", dataInputs)
+    val max_diff = maxDiff( result_array1, result_array2 )
+    println(s"Test Result: %.4f".format( max_diff ) )
   }
 
   test("Anomaly") {
