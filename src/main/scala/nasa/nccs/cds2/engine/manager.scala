@@ -49,18 +49,21 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
   def persist( fragSpec: DataFragmentSpec, frag: PartitionedFragment ): Future[String] = fragmentIdCache(fragSpec.getKey) { promiseCacheId(frag) _ }
 
+  def getEntries: Seq[(DataFragmentKey,String)] = fragmentIdCache.getEntries
+
   def promiseCacheId( frag: PartitionedFragment )(p: Promise[String]): Unit =
     try { p.success( arrayToDisk( frag.data.getSectionData ) ) }
     catch { case err: Throwable => logError( err, "Error writing cache data to disk:"); p.failure(err) }
 
-  def restore( cache_id: String ): Option[Array[Float]] = arrayFromDisk( cache_id )
-  def restore( fragKey: DataFragmentKey ): Option[Array[Float]] =  fragmentIdCache.get(fragKey).flatMap( restore(_) )
+  def restore( cache_id: String, size: Int ): Option[Array[Float]] = arrayFromDiskFloat( cache_id, size )
+  def restore( fragKey: DataFragmentKey ): Option[Array[Float]] =  fragmentIdCache.get(fragKey).flatMap( restore( _, fragKey.getSize ) )
 
-  def restore( cache_id_future: Future[String] ): Option[Array[Float]] = {
-    cache_id_future.wait
+  def restore( cache_id_future: Future[String], size: Int ): Option[Array[Float]] = {
+    if(!cache_id_future.isCompleted) { cache_id_future.wait }
     cache_id_future.value match {
-      case Some(Success(cache_id))  ⇒ restore( cache_id )
+      case Some(Success(cache_id))  ⇒ restore( cache_id, size )
       case Some(Failure(exception)) ⇒ logError(exception, "Error restoring persisted data " ); None
+      case None => None
     }
   }
 
@@ -69,7 +72,9 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     fragKeys.headOption match {
       case Some( fkey ) => restore(fkey) match {
         case Some(array) => Some( (fkey->array) )
+        case None => None
       }
+      case None => None
     }
   }
   def getFragmentData( fragSpec: DataFragmentSpec ): Option[ Array[Float] ] = restore( fragSpec.getKey )
@@ -187,7 +192,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
             val cdvar: CDSVariable = getVariable(fragSpec.collection, fragSpec.varname )
             val newFragSpec = fragSpec.reSection(fkey)
             val maskOpt = newFragSpec.mask.flatMap( maskId => produceMask( maskId, newFragSpec.getBounds, newFragSpec.getGridShape, cdvar.getTargetGrid( newFragSpec ).getAxisIndices("xy") ) )
-            val fragment = new PartitionedFragment( new CDFloatArray( flt_array, cdvar.missing ), maskOpt, newFragSpec )
+            val fragment = new PartitionedFragment( new CDFloatArray( newFragSpec.getShape, flt_array, cdvar.missing ), maskOpt, newFragSpec )
             fragmentCache.put( fkey, fragment )
             Some(fragment.cutNewSubset(fragSpec.roi))
           case None => None
@@ -610,7 +615,7 @@ object SampleTaskRequests {
 
   def getAnomalyTest: TaskRequest = {
     val dataInputs = Map(
-      "domain" ->  List(Map("name" -> "d0", "lat" -> Map("start" -> -7.0854263, "end" -> -7.0854263, "system" -> "values"), "lon" -> Map("start" -> -122.075, "end" -> -122.075, "system" -> "values"), "lev" -> Map("start" -> 100000, "end" -> 100000, "system" -> "values"))),
+      "domain" ->  List(Map("name" -> "d0", "lat" -> Map("start" -> -7.0854263, "end" -> -7.0854263, "system" -> "values"), "lon" -> Map("start" -> 12.075, "end" -> 12.075, "system" -> "values"), "lev" -> Map("start" -> 100000, "end" -> 100000, "system" -> "values"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
       "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
     TaskRequest( "CDS.anomaly", dataInputs )
@@ -705,6 +710,7 @@ object execCacheTest extends App {
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+  while(true) { Thread.sleep(2000) }
 }
 
 object execMetadataTest extends App {
@@ -718,11 +724,17 @@ object execMetadataTest extends App {
 
 object execAnomalyTest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "true" )
-  val request = SampleTaskRequests.getAnomalyArrayTest
+  val run_args = Map( "async" -> "false" )
+  val request = SampleTaskRequests.getAnomalyTest
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+}
+
+object displayFragmentMap extends App {
+  val entries: Seq[(DataFragmentKey,String)] = FragmentPersistence.getEntries
+  entries.foreach( entry => entry match { case (dkey, cache_id) => println( "%s => %s".format( cache_id, dkey.toString ))})
+
 }
 
 object execAnomalyNcMLTest extends App {

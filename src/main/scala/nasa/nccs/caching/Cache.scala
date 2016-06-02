@@ -19,6 +19,8 @@ trait Cache[K,V] { cache ⇒
 
   def put( key: K, value: V )
 
+  def getEntries: Seq[(K,V)]
+
   class Keyed(key: K) {
     /**
       * Returns either the cached Future for the key or evaluates the given call-by-name argument

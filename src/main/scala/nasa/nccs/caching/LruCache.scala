@@ -1,14 +1,19 @@
 package nasa.nccs.caching
 
 import java.io._
-import java.nio.file.{Paths, Files}
+import java.nio.file.{Files, Paths}
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.utilities.{Loggable, Timestamp}
 import java.util.AbstractMap
 
 import nasa.nccs.cdapi.cdm.DiskCacheFileMgr
+import nasa.nccs.cds2.engine.FragmentPersistence._
+
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success}
 
@@ -26,28 +31,41 @@ final class LruCache[K,V]( val cname: String, val ctype: String, val persistent:
 
   private[caching] val store = getStore
 
-  def getStore(): ConcurrentLinkedHashMap[K, Future[V]] = restore match {
-    case Some(store) => store
-    case None => new ConcurrentLinkedHashMap.Builder[K, Future[V]]
-      .initialCapacity(initialCapacity)
-      .maximumWeightedCapacity(maxCapacity)
-      .build()
+  def getStore(): ConcurrentLinkedHashMap[K, Future[V]] = {
+    val hmap = new ConcurrentLinkedHashMap.Builder[K, Future[V]].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).build()
+    restore match {
+      case Some( entrySeq ) => entrySeq.foreach( entry => entry match { case (key,value) => hmap.put(key,Future(value)) } )
+      case None => Unit
+    }
+    hmap
   }
 
   def get(key: K) = Option(store.get(key))
 
+  def getEntries: Seq[(K,V)] = {
+    val entries = for (entry: java.util.Map.Entry[K, Future[V]] <- store.entrySet.toSet) yield entry.getValue.value match {
+      case Some(Success(value)) ⇒ Some((entry.getKey -> value))
+      case x ⇒ None
+    }
+    entries.flatten.toSeq
+  }
+
   def persist: Unit = {
     Files.createDirectories( Paths.get(cacheFile).getParent )
     val ostr = new ObjectOutputStream ( new FileOutputStream( cacheFile ) )
-    ostr.writeObject( store )
+    val entries = for( entry: java.util.Map.Entry[K,Future[V]] <- store.entrySet.toSet ) yield entry.getValue.value match  {
+      case Some(Success(value))  ⇒ Some( ( entry.getKey -> value ) )
+      case x ⇒ None
+    }
+    ostr.writeObject( getEntries )
   }
 
-  protected def restore: Option[ConcurrentLinkedHashMap[K, Future[V]]] = {
+  protected def restore: Option[Seq[(K,V)]] = {
     try {
       val istr = new ObjectInputStream(new FileInputStream(cacheFile))
-      Some( istr.readObject.asInstanceOf[ConcurrentLinkedHashMap[K, Future[V]]] )
+      Some( istr.readObject.asInstanceOf[Seq[(K,V)]] )
     } catch {
-      case err: Throwable => logger.warn("Can't loading cache map: " + cacheFile); None
+      case err: Throwable => logger.warn("Can't load cache map: " + cacheFile); None
     }
   }
 
@@ -73,7 +91,7 @@ final class LruCache[K,V]( val cname: String, val ctype: String, val persistent:
 
   def clear(): Unit = { store.clear() }
 
-  def keys: Set[Any] = store.keySet().asScala.toSet
+  def keys: Set[K] = store.keySet().asScala.toSet
 
   def ascendingKeys(limit: Option[Int] = None) =
     limit.map { lim ⇒ store.ascendingKeySetWithLimit(lim) }

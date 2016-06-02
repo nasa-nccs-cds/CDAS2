@@ -5,7 +5,8 @@ import java.nio.channels.{FileChannel, NonReadableChannelException}
 import nasa.nccs.esgf.process.DomainAxis
 import nasa.nccs.cdapi.cdm
 import ucar.nc2
-import java.io.{FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, Serializable}
+import java.nio.file.{Paths, Files}
+import java.io.{FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, Serializable, RandomAccessFile}
 import java.nio._
 
 import nasa.nccs.cds2.loaders.XmlResource
@@ -15,6 +16,7 @@ import ucar.nc2.dataset.{CoordinateAxis, CoordinateSystem, NetcdfDataset}
 import scala.collection.mutable
 import scala.collection.concurrent
 import scala.collection.JavaConversions._
+import scala.reflect.ClassTag
 import scala.xml.XML
 // import scala.collection.JavaConverters._
 
@@ -38,21 +40,28 @@ object DiskCacheFileMgr extends XmlResource {
   val diskCacheMap = loadDiskCacheMap
 
   def getDiskCacheFilePath( cachetype: String, cache_file: String ): String = {
-    val cache_dir = getDiskCache()
-    Array( cache_dir, cachetype, cache_file ).mkString("/")
+    val cacheFilePath = Array( getDiskCache(), cachetype, cache_file ).mkString("/")
+    Files.createDirectories( Paths.get(cacheFilePath).getParent )
+    cacheFilePath
   }
 
   protected def getDiskCache( id: String = "main" ) = diskCacheMap.get(id) match {
     case None => throw new Exception( "No disk cache defined: " + id )
-    case Some( diskCache ) => diskCache.replaceFirst("^~",System.getProperty("user.home"))
+    case Some( diskCache ) =>
+      diskCache.replaceFirst("^~",System.getProperty("user.home"))
   }
 
   protected def loadDiskCacheMap: Map[String,String] = {
-    var filePath = getFilePath("/cache")
-    Map(XML.loadFile(filePath).child.flatMap( node => node.attribute("id") match {
-      case None => None;
-      case Some(id) => Some( id.toString-> node.attribute("path").toString ); }
-    ) :_* )
+    var filePath = getFilePath("/cache.xml")
+    val tuples = XML.loadFile(filePath).child.map(
+      node => node.attribute("id") match {
+        case None => None;
+        case Some(id) => node.attribute("path") match {
+          case Some(path) => Some(id.toString -> path.toString)
+          case None => None
+        }
+      })
+    Map( tuples.flatten: _* )
   }
 }
 
@@ -60,21 +69,33 @@ trait DiskCachable extends XmlResource {
 
   def getCacheType: String
 
+  def sizeof[T]( value: T ) = value match {
+    case _: Float => 4; case _: Short => 2; case _: Double => 8; case _: Int => 4; case _: Byte => 1
+    case x => throw new Exception("Unsupported type in sizeof: " + x.toString)
+  }
 
   protected def arrayToDisk[T <: AnyVal]( data: Array[T]  ): String = {
+    val memsize = data.size * sizeof( data.head )
     val cache_file = "a" + System.nanoTime.toHexString
-    val channel = new FileOutputStream( DiskCacheFileMgr.getDiskCacheFilePath( getCacheType, cache_file) ).getChannel
-    val buffer: MappedByteBuffer  = channel.map(FileChannel.MapMode.READ_WRITE, 0, data.size )
-    data.head match {
-      case _: Float =>  buffer.asFloatBuffer.put( data.asInstanceOf[Array[Float]] )
-      case _: Short =>  buffer.asShortBuffer.put( data.asInstanceOf[Array[Short]] )
-      case _: Double => buffer.asDoubleBuffer.put( data.asInstanceOf[Array[Double]] )
-      case _: Int =>    buffer.asIntBuffer.put( data.asInstanceOf[Array[Int]] )
-      case _: Byte =>   buffer.put( data.asInstanceOf[Array[Byte]] )
-      case x => throw new Exception( "Unsupported array type in arrayToDisk: " + x.toString )
+    try {
+      val t0 = System.nanoTime()
+      val channel = new RandomAccessFile(DiskCacheFileMgr.getDiskCacheFilePath(getCacheType, cache_file),"rw").getChannel()
+      val buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, 0, memsize )
+      data.head match {
+        case _: Float => buffer.asFloatBuffer.put(data.asInstanceOf[Array[Float]])
+        case _: Short => buffer.asShortBuffer.put(data.asInstanceOf[Array[Short]])
+        case _: Double => buffer.asDoubleBuffer.put(data.asInstanceOf[Array[Double]])
+        case _: Int => buffer.asIntBuffer.put(data.asInstanceOf[Array[Int]])
+        case _: Byte => buffer.put(data.asInstanceOf[Array[Byte]])
+        case x => throw new Exception("Unsupported array type in arrayToDisk: " + x.toString)
+      }
+      channel.close
+      val t1 = System.nanoTime()
+      logger.info( s"Persisted cache data to file '%s', memsize = %d, time = %.2f".format( cache_file, memsize, (t1-t0)/1.0E9))
+      cache_file
+    } catch {
+      case err: Throwable => logError(err, s"Error writing data to disk, size = $memsize" ); ""
     }
-    channel.close
-    cache_file
   }
 
   protected def objectToDisk[T <: Serializable]( record: T  ): String = {
@@ -89,24 +110,34 @@ trait DiskCachable extends XmlResource {
     istr.readObject.asInstanceOf[T]
   }
 
-  protected def arrayFromDisk[T <: AnyVal]( cache_id: String  ): Option[Array[T]] = {
+  def getReadBuffer( cache_id: String ): ( FileChannel, MappedByteBuffer ) = {
+    val channel = new FileInputStream(DiskCacheFileMgr.getDiskCacheFilePath(getCacheType, cache_id)).getChannel
+    channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size)
+  }
+
+  protected def arrayFromDiskFloat( cache_id: String, size: Int  ): Option[Array[Float]] = {
     try {
-      val channel = new FileInputStream(DiskCacheFileMgr.getDiskCacheFilePath(getCacheType, cache_id)).getChannel
-      val buffer: MappedByteBuffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size)
-      val data: Array[T] = Array.fill[T](channel.size.toInt)(0.asInstanceOf[T])
-      data.head match {
-        case _: Float => buffer.asFloatBuffer.get(data.asInstanceOf[Array[Float]])
-        case _: Short => buffer.asShortBuffer.get(data.asInstanceOf[Array[Short]])
-        case _: Double => buffer.asDoubleBuffer.get(data.asInstanceOf[Array[Double]])
-        case _: Int => buffer.asIntBuffer.get(data.asInstanceOf[Array[Int]])
-        case _: Byte => buffer.get(data.asInstanceOf[Array[Byte]])
-        case x => throw new Exception("Unsupported array type in arrayFromDisk: " + x.toString)
+      val t0 = System.nanoTime()
+      getReadBuffer(cache_id) match { case ( channel, buffer ) =>
+        val data: Array[Float] = Array.fill[Float](size)(0f)
+        buffer.asFloatBuffer.get(data.asInstanceOf[Array[Float]])
+        channel.close
+        val t1 = System.nanoTime()
+        logger.info( s"Restored persisted data to cache '%s', memsize = %d, time = %.2f".format( cache_id, size, (t1-t0)/1.0E9))
+        Some(data)
       }
-      channel.close
-      Some(data)
     } catch { case err: Throwable => logError(err,"Error retreiving persisted cache data"); None }
   }
 
+  protected def arrayFromDiskByte( cache_id: String  ): Option[Array[Byte]] = {
+    try { getReadBuffer(cache_id) match { case ( channel, buffer ) =>
+        val data: Array[Byte] = Array.fill[Byte](channel.size.toInt)(0)
+        buffer.get(data.asInstanceOf[Array[Byte]])
+        channel.close
+        Some(data)
+      }
+    } catch { case err: Throwable => logError(err,"Error retreiving persisted cache data"); None }
+  }
 
 }
 

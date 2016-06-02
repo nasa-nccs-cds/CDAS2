@@ -199,7 +199,7 @@ class DataSource(val name: String, val collection: String, val domain: String ) 
   def isReadable = ( !collection.isEmpty && !name.isEmpty && !domain.isEmpty )
 }
 
-class DataFragmentKey( val varname: String, val collection: String, val origin: Array[Int], val shape: Array[Int] ) {
+class DataFragmentKey( val varname: String, val collection: String, val origin: Array[Int], val shape: Array[Int] ) extends Serializable {
   override def toString =  "%s:%s:%s:%s".format( varname, collection, origin.mkString(","), shape.mkString(","))
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def getRoi: ma2.Section = new ma2.Section(origin,shape)
@@ -254,15 +254,18 @@ class DataFragmentSpec( val varname: String="", val collection: String="", val t
     val dims = dimensions.toLowerCase.split(' ')
     dims.indexOf( dimension_name.toLowerCase ) match {
       case -1 => None
-      case x => Some( roi.getRange( x ) )
+      case x => Option( roi.getRange( x ) )
     }
   }
 
   def getRangeCF( CFName: String ): Option[ma2.Range] = Option( roi.find(CFName) )
 
+  def getShape = roi.getShape
+
   def getGridShape: Array[Int] = {
     val grid_axes = List( "x", "y" )
-    dimensions.toLowerCase.split(' ').map( getRange(_) ).flatten.map( range => if(grid_axes.contains(range.getName.toLowerCase)) range.length else 1 )
+    val ranges = dimensions.toLowerCase.split(' ').map( getRange(_) ).flatten
+    ranges.map(  range => if(grid_axes.contains(range.getName.toLowerCase)) range.length else 1 )
   }
 
 //  def getAxisType( cfName: String ):  DomainAxis.Type.Value = targetGridOpt.flatMap( _.grid.getAxisSpec(cfName).map( _.getAxisType ) )
@@ -313,7 +316,8 @@ class DataFragmentSpec( val varname: String="", val collection: String="", val t
   }
 
   def reSection( newSection: ma2.Section ): DataFragmentSpec = {
-    new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, newSection, mask, partitions )
+    val newRanges = for( iR <- roi.getRanges.indices; r0 = roi.getRange(iR); rNew = newSection.getRange(iR) ) yield new ma2.Range(r0.getName,rNew)
+    new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), mask, partitions )
   }
   def reSection( fkey: DataFragmentKey ): DataFragmentSpec = reSection( fkey.getRoi )
 

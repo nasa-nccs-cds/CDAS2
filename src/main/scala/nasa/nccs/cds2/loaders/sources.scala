@@ -58,7 +58,6 @@ object Masks extends XmlResource {
 }
 
 object Collections extends XmlResource {
-  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val datasets = loadCollectionXmlData( getFilePath("/collections.xml") )
 
   def toXml: xml.Elem = {
