@@ -45,6 +45,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
     val result_array2: CDFloatArray = computeArray("CDS.subset", dataInputs)
     val max_diff = maxDiff( result_array1, result_array2 )
     println(s"Test Result: %.4f".format( max_diff ) )
+    assert(max_diff == 0.0, " Persisted data differs from original data" )
   }
 
   test("Anomaly") {
