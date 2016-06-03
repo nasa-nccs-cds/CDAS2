@@ -38,7 +38,18 @@ object NCMLWriter {
     <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
       <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
       <aggregation dimName="time" type="joinExisting"> {
-        for( f <- files ) yield  <netcdf location={"file:"+f.getAbsolutePath} ncoords={getNTimeCoords(f).toString}/>
+        var index = 0
+        var nChecks = 10
+        var ncoords = -1
+        for( f <- files ) yield  {
+          if( index < nChecks ) {
+            val current_ncoords = getNTimeCoords(f)
+            if ( ( ncoords >= 0 ) && ( ncoords != current_ncoords ) ) { nChecks = Int.MaxValue }
+            ncoords = current_ncoords
+          }
+          index = index + 1
+            <netcdf location={"file:"+f.getAbsolutePath} ncoords={ncoords.toString}/>
+        }
       } </aggregation>
     </netcdf>
   }
