@@ -24,12 +24,11 @@ object NCMLWriter {
   def getNTimeCoords(ncFile: File): Int = {
     val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( "file:"+ ncFile.getAbsolutePath )
     Option( ncDataset.findCoordinateAxis( AxisType.Time ) ) match {
-      case Some( timeAxis ) => {
+      case Some( timeAxis ) =>
         val nc = timeAxis.getSize
         println( "Processing file '%s', ncoords = %d ".format( ncFile.getAbsolutePath, nc ) )
-        ncDataset.close
+        ncDataset.close()
         nc.toInt
-      }
       case None => throw new Exception( "ncFile does not have a time axis: " + ncFile.getAbsolutePath )
     }
   }
@@ -46,8 +45,8 @@ object NCMLWriter {
             val current_ncoords = getNTimeCoords(f)
             if ( ( ncoords >= 0 ) && ( ncoords != current_ncoords ) ) { nChecks = Int.MaxValue }
             ncoords = current_ncoords
+            index = index + 1
           }
-          index = index + 1
             <netcdf location={"file:"+f.getAbsolutePath} ncoords={ncoords.toString}/>
         }
       } </aggregation>
