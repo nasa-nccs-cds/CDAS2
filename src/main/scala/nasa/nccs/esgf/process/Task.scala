@@ -200,7 +200,7 @@ class DataSource(val name: String, val collection: String, val domain: String ) 
 }
 
 class DataFragmentKey( val varname: String, val collection: String, val origin: Array[Int], val shape: Array[Int] ) extends Serializable {
-  override def toString =  "%s:%s:%s:%s".format( varname, collection, origin.mkString(","), shape.mkString(","))
+  override def toString =  "DataFragmentKey{ name = %s, collection = %s, origin = [ %s ], shape = [ %s ] }".format( varname, collection, origin.mkString(", "), shape.mkString(", "))
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def getRoi: ma2.Section = new ma2.Section(origin,shape)
   def equalRoi( df: DataFragmentKey ): Boolean = ( shape.sameElements(df.shape) && origin.sameElements(df.origin ) )
@@ -264,7 +264,7 @@ class DataFragmentSpec( val varname: String="", val collection: String="", val t
 
   def getGridShape: Array[Int] = {
     val grid_axes = List( "x", "y" )
-    val ranges = dimensions.toLowerCase.split(' ').map( getRange(_) ).flatten
+    val ranges = dimensions.toLowerCase.split(' ').flatMap( getRange )
     ranges.map(  range => if(grid_axes.contains(range.getName.toLowerCase)) range.length else 1 )
   }
 
@@ -528,7 +528,7 @@ object OperationContext extends ContainerBase  {
   var resultIndex = 0
   def apply( process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
     val op_inputs: List[String] = metadata.get( "input" ) match {
-      case Some( input_values: List[_] ) => input_values.map( _.toString.trim.toLowerCase ).toList
+      case Some( input_values: List[_] ) => input_values.map( _.toString.trim.toLowerCase )
       case Some( input_value: String ) => List( input_value.trim.toLowerCase )
       case None => uid_list.map( _.trim.toLowerCase )
       case x => throw new Exception ( "Unrecognized input in operation spec: " + x.toString )

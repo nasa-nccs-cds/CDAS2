@@ -29,12 +29,12 @@ final class LruCache[K,V]( val cname: String, val ctype: String, val persistent:
   require(maxCapacity >= 0, "maxCapacity must not be negative")
   require(initialCapacity <= maxCapacity, "initialCapacity must be <= maxCapacity")
 
-  private[caching] val store = getStore
+  private[caching] val store = getStore()
 
   def getStore(): ConcurrentLinkedHashMap[K, Future[V]] = {
     val hmap = new ConcurrentLinkedHashMap.Builder[K, Future[V]].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).build()
     restore match {
-      case Some( entrySeq ) => entrySeq.foreach( entry => entry match { case (key,value) => hmap.put(key,Future(value)) } )
+      case Some( entrySeq ) => entrySeq.foreach { case (key,value) => hmap.put(key,Future(value)) }
       case None => Unit
     }
     hmap
@@ -44,17 +44,17 @@ final class LruCache[K,V]( val cname: String, val ctype: String, val persistent:
 
   def getEntries: Seq[(K,V)] = {
     val entries = for (entry: java.util.Map.Entry[K, Future[V]] <- store.entrySet.toSet) yield entry.getValue.value match {
-      case Some(Success(value)) ⇒ Some((entry.getKey -> value))
+      case Some(Success(value)) ⇒ Some( entry.getKey -> value )
       case x ⇒ None
     }
     entries.flatten.toSeq
   }
 
-  def persist: Unit = {
+  def persist(): Unit = {
     Files.createDirectories( Paths.get(cacheFile).getParent )
     val ostr = new ObjectOutputStream ( new FileOutputStream( cacheFile ) )
     val entries = for( entry: java.util.Map.Entry[K,Future[V]] <- store.entrySet.toSet ) yield entry.getValue.value match  {
-      case Some(Success(value))  ⇒ Some( ( entry.getKey -> value ) )
+      case Some(Success(value))  ⇒ Some(  entry.getKey -> value  )
       case x ⇒ None
     }
     ostr.writeObject( getEntries )
@@ -92,6 +92,7 @@ final class LruCache[K,V]( val cname: String, val ctype: String, val persistent:
   def clear(): Unit = { store.clear() }
 
   def keys: Set[K] = store.keySet().asScala.toSet
+  def values: Iterable[Future[V]] = store.values().asScala
 
   def ascendingKeys(limit: Option[Int] = None) =
     limit.map { lim ⇒ store.ascendingKeySetWithLimit(lim) }

@@ -1,7 +1,7 @@
 import nasa.nccs.cdapi.kernels.{BlockingExecutionResult, ErrorExecutionResult, ExecutionResult, XmlExecutionResult}
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.engine.CDS2ExecutionManager
-import nasa.nccs.esgf.process.TaskRequest
+import nasa.nccs.esgf.process.{RequestContext, TargetGrid, TaskRequest}
 import org.scalatest._
 import ucar.nc2.dataset.NetcdfDataset
 
@@ -101,6 +101,11 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
   def getMetaDataInputs(test_dataset: String, varName: String) = Map(
     "variable" -> List(Map("uri" -> test_dataset, "name" -> varName )),
     "operation" ->  List(Map( ("input"->varName), ("name"->"CDS.metadata" ) )) )
+
+  def getRequestContext( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): RequestContext = {
+    val request = TaskRequest( kernel_name, data_inputs )
+    cds2ExecutionManager.getRequestContext( request, run_args )
+  }
 
   def computeResult( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): ExecutionResult = {
     val request = TaskRequest( kernel_name, data_inputs )

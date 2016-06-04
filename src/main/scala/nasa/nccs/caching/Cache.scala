@@ -68,6 +68,8 @@ trait Cache[K,V] { cache ⇒
     */
   def keys: Set[K]
 
+  def values: Iterable[Future[V]]
+
   /**
     * Returns a snapshot view of the keys as an iterator, traversing the keys from the least likely
     * to be retained to the most likely.  Note that this is not constant time.

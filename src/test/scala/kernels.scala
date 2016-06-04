@@ -1,7 +1,7 @@
 import nasa.nccs.cdapi.kernels.{BlockingExecutionResult, ErrorExecutionResult}
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.engine.{CDS2ExecutionManager, collectionDataCache}
-import nasa.nccs.esgf.process.TaskRequest
+import nasa.nccs.cds2.engine.{FragmentPersistence, CDS2ExecutionManager, collectionDataCache}
+import nasa.nccs.esgf.process.{OperationInputSpec, RequestContext, TaskRequest}
 import org.scalatest._
 
 class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
@@ -40,6 +40,10 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
 
   test("Persistence") {
     val dataInputs = getSubsetDataInputs( merra_data )
+    val request_context: RequestContext = getRequestContext( "CDS.metadata", dataInputs )
+    for( ospec <- request_context.inputs.values ) {
+      FragmentPersistence.deleteEnclosing(ospec.data)
+    }
     val result_array1: CDFloatArray = computeArray("CDS.subset", dataInputs)
     collectionDataCache.clearFragmentCache
     val result_array2: CDFloatArray = computeArray("CDS.subset", dataInputs)
