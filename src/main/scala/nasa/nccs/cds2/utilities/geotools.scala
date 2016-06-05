@@ -18,7 +18,7 @@ class GeoTools( val SRID: Int = 4326 ) {
     val in = new ShpFiles(filePath)
     val r: ShapefileReader = new ShapefileReader(in, false, false, geometryFactory)
     val polyList = new ListBuffer[geom.Polygon]()
-    while (r.hasNext()) r.nextRecord().shape() match {
+    while (r.hasNext) r.nextRecord.shape match {
       case poly: geom.Polygon => polyList += poly
       case mpoly: geom.MultiPolygon => for (ig <- (0 until mpoly.getNumGeometries); geo = mpoly.getGeometryN(ig)) geo match {
         case poly: geom.Polygon => polyList += poly
@@ -80,7 +80,7 @@ class GeoTools( val SRID: Int = 4326 ) {
 
   def produceMask(shapefile_path: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int]): CDByteArray = {
     val mask_array = getMask( readShapefile(shapefile_path), bounds, mask_shape, spatial_axis_indices )
-    new CDByteArray(mask_shape, mask_array)
+    CDByteArray(mask_shape, mask_array)
   }
 
 

@@ -13,53 +13,49 @@ object CDArray {
   type StorageIndex = Int
   type FlatIndex = Int
 
-  def factory[T <: AnyVal]( shape: Array[Int], storage: Array[T], invalid: T ): CDArray[T] = factory( new CDIndexMap(shape), storage, invalid )
+  def factory[T <: AnyVal]( shape: Array[Int], storage: Buffer, invalid: T ): CDArray[T] = factory( new CDIndexMap(shape), storage, invalid )
 
-  def factory[T <: AnyVal]( index: CDIndexMap, storage: Array[T], invalid: T ): CDArray[T] = {
-    CDArray.getDataType(storage) match {
-      case ma2.DataType.FLOAT => new CDFloatArray( index, storage.asInstanceOf[Array[Float]], invalid.asInstanceOf[Float] ).asInstanceOf[CDArray[T]]
-      case ma2.DataType.INT => new CDIntArray( index, storage.asInstanceOf[Array[Int]] ).asInstanceOf[CDArray[T]]
-      case ma2.DataType.BYTE => new CDByteArray( index, storage.asInstanceOf[Array[Byte]] ).asInstanceOf[CDArray[T]]
-      case ma2.DataType.SHORT => new CDShortArray( index, storage.asInstanceOf[Array[Short]] ).asInstanceOf[CDArray[T]]
-      case ma2.DataType.DOUBLE => new CDDoubleArray( index, storage.asInstanceOf[Array[Double]], invalid.asInstanceOf[Double] ).asInstanceOf[CDArray[T]]
+  def factory[T <: AnyVal]( index: CDIndexMap, storage: Buffer, invalid: T ): CDArray[T] = {
+    storage match {
+      case x: FloatBuffer => new CDFloatArray( index, storage.asInstanceOf[FloatBuffer], invalid.asInstanceOf[Float] ).asInstanceOf[CDArray[T]]
+      case x: IntBuffer => new CDIntArray( index, storage.asInstanceOf[IntBuffer] ).asInstanceOf[CDArray[T]]
+      case x: ByteBuffer => new CDByteArray( index, storage.asInstanceOf[ByteBuffer] ).asInstanceOf[CDArray[T]]
+      case x: ShortBuffer => new CDShortArray( index, storage.asInstanceOf[ShortBuffer] ).asInstanceOf[CDArray[T]]
+      case x: DoubleBuffer => new CDDoubleArray( index, storage.asInstanceOf[DoubleBuffer], invalid.asInstanceOf[Double] ).asInstanceOf[CDArray[T]]
       case x => throw new Exception( "Unsupported elem type in CDArray: " + x)
     }
   }
 
-  def factory[T <: AnyVal]( array: ucar.ma2.Array, invalid: T ): CDArray[T] =
-    factory( new CDIndexMap( array.getShape ), array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[T]], invalid )
-
-  def getDataType[T <: AnyVal]( storage: Array[T] ): ma2.DataType = storage match {
-    case x: Array[Byte] => ma2.DataType.BYTE
-    case x: Array[Double] => ma2.DataType.DOUBLE
-    case x: Array[Float] => ma2.DataType.FLOAT
-    case x: Array[Int] => ma2.DataType.INT
-    case x: Array[Short] => ma2.DataType.SHORT
-    case x => throw new Exception("Unsupported elem type in CDArray: " + x)
+  def toBuffer( array: ucar.ma2.Array ): Buffer = array.getElementType.toString match {
+    case "float"  => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]] )
+    case "double" => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]] )
+    case "int"    => IntBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]] )
+    case "short"  => ShortBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]] )
+    case x                => ByteBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Byte]] )
   }
 
-//    storage.headOption match {
-//      case Some(elem) =>
-//        val elemType: String = elem.getClass.getSimpleName.toLowerCase
-//        elemType match {
-//          case "float" => ma2.DataType.FLOAT
-//          case "int" => ma2.DataType.INT
-//          case "btye" => ma2.DataType.BYTE
-//          case "short" => ma2.DataType.SHORT
-//          case "double" => ma2.DataType.DOUBLE
-//          case x => throw new Exception( "Unsupported elem type in CDArray: " + x)
-//        }
-//      case None => ma2.DataType.OPAQUE
-//    }
-//  }
+  def factory[T <: AnyVal]( array: ucar.ma2.Array, invalid: T ): CDArray[T] =
+    factory( new CDIndexMap( array.getShape ), toBuffer( array), invalid )
+
+  def getDataType( storage: Buffer ): ma2.DataType = storage match {
+    case x: DoubleBuffer => ma2.DataType.DOUBLE
+    case x: FloatBuffer => ma2.DataType.FLOAT
+    case x: IntBuffer => ma2.DataType.INT
+    case x: ShortBuffer => ma2.DataType.SHORT
+    case x: ByteBuffer => ma2.DataType.BYTE
+  }
+
+
 }
 
-abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, private val storage: Array[T] ) extends Loggable {
+abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, private val storage: Buffer ) extends Loggable {
   protected val rank = cdIndexMap.getRank
-  protected val dataType = CDArray.getDataType(storage)
+  protected val dataType = CDArray.getDataType( storage )
 
-  def isStorageCongruent: Boolean = ( cdIndexMap.getSize == storage.length ) && !cdIndexMap.broadcasted
+  def isStorageCongruent: Boolean = ( cdIndexMap.getSize == getStorageSize ) && !cdIndexMap.broadcasted
   def getInvalid: T
+  def getStorageSize: Int = storage.capacity
+  def getElementSize: Int = dataType.getSize
   def getIndex: CDIndexMap = new CDIndexMap( this.cdIndexMap )
   def dup() = CDArray.factory[T]( cdIndexMap, storage, getInvalid )
   def getIterator: CDIterator = if(isStorageCongruent) new CDStorageIndexIterator( cdIndexMap ) else CDIterator.factory( cdIndexMap )
@@ -68,18 +64,18 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   def getStride: Array[Int] = cdIndexMap.getStride
   def getOffset: Int = cdIndexMap.getOffset
   def getReducedShape: Array[Int] = cdIndexMap.getReducedShape
-  def getStorageValue( index: StorageIndex ): T = storage(index)
-  def getValue( indices: Array[Int] ): T = storage( cdIndexMap.getStorageIndex(indices) )
-  def getFlatValue( index: FlatIndex ): T = storage( getIterator.flatToStorage(index) )
-  def setStorageValue( index: StorageIndex, value: T ): Unit = { storage(index) = value }
-  def setValue( indices: Array[Int], value: T ): Unit = { storage( cdIndexMap.getStorageIndex(indices) ) = value }
-  def setFlatValue( index: FlatIndex, value: T  ): Unit = storage( getIterator.flatToStorage(index) ) = value
+  def getStorageValue( index: StorageIndex ): T
+  def getValue( indices: Array[Int] ): T = getStorageValue( cdIndexMap.getStorageIndex(indices) )
+  def getFlatValue( index: FlatIndex ): T = getStorageValue( getIterator.flatToStorage(index) )
+  def setStorageValue( index: StorageIndex, value: T ): Unit
+  def setValue( indices: Array[Int], value: T ): Unit = { setStorageValue( cdIndexMap.getStorageIndex(indices), value )   }
+  def setFlatValue( index: FlatIndex, value: T  ): Unit = setStorageValue( getIterator.flatToStorage(index), value )
   def getSize: Int =  cdIndexMap.getSize
-  def getSizeBytes: Int =  cdIndexMap.getSize * dataType.getSize
+  def getSizeBytes: Int =  cdIndexMap.getSize * getElementSize
   def getRangeIterator(ranges: List[ma2.Range] ): CDIterator = section(ranges).getIterator
-  def getStorage: Array[T] = storage
-  def copySectionData: Array[T]
-  def getSectionData: Array[T] = if( isStorageCongruent ) getStorage else copySectionData
+  def getStorage: Buffer = storage
+  def copySectionData: Buffer
+  def getSectionData: Buffer = if( isStorageCongruent ) getStorage else copySectionData
   def section(ranges: List[ma2.Range]): CDArray[T] = createView(cdIndexMap.section(ranges))
   def valid( value: T ): Boolean
   def spawn( shape: Array[Int], fillval: T ): CDArray[T]
@@ -94,7 +90,8 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
     accumulator.broadcast( fullShape )
   }
 
-  def getReducedArray(): CDArray[T] = { CDArray.factory[T]( getReducedShape, storage, getInvalid ) }
+  def getReducedArray: CDArray[T] = { CDArray.factory[T]( getReducedShape, storage, getInvalid ) }
+
 
   def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T, coordMapOpt: Option[CDCoordMap] = None ): CDArray[T] = {
     val fullShape = coordMapOpt match { case Some(coordMap) => coordMap.mapShape( getShape ); case None => getShape }
@@ -123,7 +120,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
       case Some(stride_array) => stride_array
       case None => Array.fill[Int](origin.length)(1)
     }
-    val rangeSeq = for (i <- (0 until origin.length) ) yield {
+    val rangeSeq = for (i <- origin.indices ) yield {
       if (shape(i) < 0) ma2.Range.VLEN
       else new ma2.Range(origin(i), origin(i) + strides(i) * shape(i) - 1, strides(i))
     }
@@ -163,42 +160,40 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 
   protected def createView( cdIndexMap: CDIndexMap ): CDArray[T] = CDArray.factory(cdIndexMap, storage, getInvalid )
 
-  def getDataAsByteBuffer: ByteBuffer = {
-    val bb: ByteBuffer = cdsutils.ptime(  "getDataAsByteBuffer.allocate" ) { ByteBuffer.allocate( ( dataType.getSize * getSize ).asInstanceOf[Int] ) }
-    dataType match {
-      case ma2.DataType.FLOAT => bb.asFloatBuffer.put( getSectionData.asInstanceOf[Array[Float]]  )
-      case ma2.DataType.INT => bb.asIntBuffer.put( getSectionData.asInstanceOf[Array[Int]] )
-      case ma2.DataType.BYTE => bb.put( getSectionData.asInstanceOf[Array[Byte]] )
-      case ma2.DataType.SHORT => bb.asShortBuffer.put( getSectionData.asInstanceOf[Array[Short]] )
-      case ma2.DataType.DOUBLE => bb.asDoubleBuffer.put( getSectionData.asInstanceOf[Array[Double]] )
-      case x => throw new Exception( "Unsupported elem type in CDArray: " + x)
-    }
-    bb
-  }
+
   override def toString: String = "Index: " + this.cdIndexMap.toString
-  def toDataString: String = "Index: " + this.cdIndexMap.toString + "\n Data = " + getSectionData.mkString("[ ",", "," ]")
+
 }
 
 object CDFloatArray {
   type ReduceOpFlt = CDArray.ReduceOp[Float]
-  implicit def cdArrayConverter( target: CDArray[Float] ): CDFloatArray = new CDFloatArray( target.getIndex, target.getStorage, target.getInvalid )
+  implicit def cdArrayConverter( target: CDArray[Float] ): CDFloatArray = new CDFloatArray( target.getIndex, target.getStorage.asInstanceOf[ FloatBuffer ], target.getInvalid )
   implicit def toUcarArray( target: CDFloatArray ): ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, target.getShape, target.getSectionData )
   val bTrue: Byte = 1
   val bFalse: Byte = 0
 
+  def apply( cdIndexMap: CDIndexMap, floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( cdIndexMap, FloatBuffer.wrap(floatData),  invalid )
+  def apply( shape: Array[Int], floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( shape, FloatBuffer.wrap(floatData),  invalid )
+
+  def toFloatBuffer( array: ucar.ma2.Array ): FloatBuffer = array.getElementType.toString match {
+    case "float"  => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]] )
+    case "double" => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]].map( _.toFloat ) )
+    case "int"    => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toFloat ) )
+    case "short"  => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toFloat ) )
+    case x        => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Byte]].map( _.toFloat ) )
+  }
+  def toFloatBuffer( buffer: Buffer ): FloatBuffer = buffer match {
+    case x: FloatBuffer  => buffer.asInstanceOf[ FloatBuffer ]
+    case x => throw new Exception( "Attempt to convert non-float buffer to FloatBuffer")
+  }
+
   def factory( array: ucar.ma2.Array, invalid: Float, maskOpt: Option[CDByteArray]= None ): CDFloatArray = {
-    val array_data = array.get1DJavaArray(array.getElementType)
-    val storage: Array[Float] = array.getElementType.getSimpleName.toLowerCase match {
-      case "float" => array_data.asInstanceOf[Array[Float]]
-      case "int" => array_data.asInstanceOf[Array[Int]].map(_.toFloat)
-      case "short" => array_data.asInstanceOf[Array[Short]].map(_.toFloat)
-      case "byte" => array_data.asInstanceOf[Array[Byte]].map(_.toFloat)
-      case "double" => array_data.asInstanceOf[Array[Double]].map(_.toFloat)
-      case x => throw new Exception("Unsupported elem type in CDArray: " + x)
-    }
+    val storage = CDFloatArray.toFloatBuffer( array )
     val unmasked_array = new CDFloatArray(new CDIndexMap(array.getShape), storage, invalid )
     maskOpt match { case None => unmasked_array; case Some(mask) => applyMask( unmasked_array, mask ) }
   }
+
+  def toArray(buffer: FloatBuffer): Array[Float] = if( buffer.hasArray ) buffer.array else { val array = Array.fill[Float]( buffer.capacity )(0); buffer.put(array); array }
 
   def applyMask( data: CDFloatArray, mask: CDByteArray ): CDFloatArray = {
     assert( data.getSize == mask.getSize, "Error, mask size does not match data size: %d vs %d".format(data.getSize, mask.getSize) )
@@ -206,11 +201,11 @@ object CDFloatArray {
     val iter = data.getIterator
     val masked_data = for (index <- iter; dval = data.getStorageValue(index); if data.valid(dval); coordIndices = iter.getCoordinateIndices; maskval = full_mask.getValue(coordIndices))
       yield if( maskval == bTrue ) dval else data.invalid
-    new CDFloatArray( data.getIndex, masked_data.toArray, data.invalid )
+    new CDFloatArray( data.getIndex, FloatBuffer.wrap( masked_data.toArray ), data.invalid )
   }
 
   def spawn( shape: Array[Int], f: (Array[Int]) => Float, invalid: Float ): CDFloatArray = {
-    val new_array: CDFloatArray = CDArray.factory( shape, Array.fill[Float]( shape.product )(0f), invalid  )
+    val new_array: CDFloatArray = CDArray.factory( shape, FloatBuffer.wrap( Array.fill[Float]( shape.product )(0f) ), invalid  )
     val cdIndexMap = new CDIndexMap( shape )
     val iter = CDIterator.factory( cdIndexMap )
     for ( index <- iter; coords = iter.getCoordinateIndices; value = f(coords) ) new_array.setValue( coords, value )
@@ -222,7 +217,7 @@ object CDFloatArray {
     val iter = DualArrayIterator(input0,input1)
     val result = for (flatIndex <- iter; v0 = iter.value0; v1 = iter.value1 ) yield
         if (!input0.valid(v0)) input0.invalid else if (!input1.valid(v1)) input0.invalid else reductionOp(v0, v1)
-    new CDFloatArray( iter.getShape, result.toArray, input0.invalid )
+    new CDFloatArray( iter.getShape, FloatBuffer.wrap(result.toArray), input0.invalid )
   }
 
   def accumulate( reductionOp: ReduceOpFlt, input0: CDFloatArray, input1: CDFloatArray ): Unit = {
@@ -237,12 +232,12 @@ object CDFloatArray {
     val result = for( flatIndex <- input0.getIterator; v0 = input0.getStorageValue(flatIndex) ) yield
       if( !input0.valid( v0 ) ) input0.invalid
       else reductionOp(v0,fval)
-    new CDFloatArray( input0.getShape, result.toArray, input0.invalid )
+    new CDFloatArray( input0.getShape, FloatBuffer.wrap(result.toArray), input0.invalid )
   }
 
 }
 
-class CDFloatArray( cdIndexMap: CDIndexMap, storage: Array[Float], protected val invalid: Float ) extends CDArray[Float](cdIndexMap,storage) {
+class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, protected val invalid: Float ) extends CDArray[Float](cdIndexMap,floatStorage) {
   type ReduceOpFlt = CDFloatArray.ReduceOpFlt
   val addOp: ReduceOpFlt = (x:Float, y:Float) => ( x + y )
   val subtractOp: ReduceOpFlt = (x:Float, y:Float) => ( x - y )
@@ -260,16 +255,20 @@ class CDFloatArray( cdIndexMap: CDIndexMap, storage: Array[Float], protected val
     case x if x.startsWith("max") => maxOp
     case x if x.startsWith("min") => minOp
   }
-  def this( shape: Array[Int], storage: Array[Float], invalid: Float ) = this( CDIndexMap.factory(shape), storage, invalid )
-  def this( storage: Array[Float], invalid: Float ) = this( CDIndexMap.factory( Array(storage.size) ), storage, invalid )
-  protected def getData: Array[Float] = storage.asInstanceOf[Array[Float]]
-  override def dup(): CDFloatArray = new CDFloatArray( cdIndexMap.getShape, this.getSectionData, invalid )
+  def getStorageValue( index: StorageIndex ): Float = floatStorage.get( index )
+  def setStorageValue( index: StorageIndex, value: Float ): Unit = floatStorage.put( index, value )
+  def this( shape: Array[Int], storage: FloatBuffer, invalid: Float ) = this( CDIndexMap.factory(shape), storage, invalid )
+  def this( storage: FloatBuffer, invalid: Float ) = this( CDIndexMap.factory( Array(storage.capacity()) ), storage, invalid )
+  protected def getData: FloatBuffer = floatStorage
+  def getStorageArray: Array[Float] = CDFloatArray.toArray( floatStorage )
+  def getSectionArray: Array[Float] = CDFloatArray.toArray( getSectionData.asInstanceOf[FloatBuffer] )
+  def getArrayData: Array[Float]  = if( isStorageCongruent ) getStorageArray else getSectionArray
+  override def dup(): CDFloatArray = new CDFloatArray( cdIndexMap.getShape, this.getSectionData.asInstanceOf[FloatBuffer], invalid )
   def valid( value: Float ) = ( value != invalid )
-  def toCDFloatArray( target: CDArray[Float] ) = new CDFloatArray( target.getIndex, target.getStorage, invalid )
-  def copySectionData: Array[Float] =  ( for ( index <- getIterator; value = getData(index) ) yield { value } ).toArray
-  def spawn( shape: Array[Int], fillval: Float ): CDArray[Float] = CDArray.factory( shape, Array.fill[Float]( shape.product )(fillval), invalid  )
-  def zeros: CDFloatArray = new CDFloatArray( getShape, Array.fill[Float]( getSize )(0), invalid )
-  def invalids: CDFloatArray = new CDFloatArray( getShape, Array.fill[Float]( getSize )(invalid), invalid )
+  def toCDFloatArray( target: CDArray[Float] ) = new CDFloatArray( target.getIndex, target.getStorage.asInstanceOf[FloatBuffer], invalid )
+  def spawn( shape: Array[Int], fillval: Float ): CDArray[Float] = CDArray.factory( shape, FloatBuffer.wrap(Array.fill[Float]( shape.product )(fillval)), invalid  )
+  def zeros: CDFloatArray = new CDFloatArray( getShape, FloatBuffer.wrap( Array.fill[Float]( getSize )(0) ), invalid )
+  def invalids: CDFloatArray = new CDFloatArray( getShape, FloatBuffer.wrap( Array.fill[Float]( getSize )(invalid) ), invalid )
   def getInvalid = invalid
 
   def -(array: CDFloatArray) = CDFloatArray.combine( subtractOp, this, array )
@@ -291,12 +290,20 @@ class CDFloatArray( cdIndexMap: CDIndexMap, storage: Array[Float], protected val
   def sum(reduceDims: Array[Int]): CDFloatArray = reduce( addOp, reduceDims, 0f )
 
   def augmentFlat( flat_index: FlatIndex, value: Float, opName: String = "add"  ): Unit = {
-    val storageIndex = getIterator.flatToStorage( flat_index )
-    storage( storageIndex ) = getOp(opName)( storage( storageIndex ), value )
+    val storageIndex: StorageIndex = getIterator.flatToStorage( flat_index )
+    setStorageValue( storageIndex, getOp(opName)( getStorageValue( storageIndex ), value ) )
   }
   def augment( coord_indices: Array[Int], value: Float, opName: String = "add"  ): Unit = {
     val storageIndex = cdIndexMap.getStorageIndex( coord_indices )
-    storage( storageIndex ) = getOp(opName)( storage( storageIndex ), value )
+    setStorageValue( storageIndex,getOp(opName)( getStorageValue( storageIndex ), value ) )
+  }
+  def map( f: Float => Float ): CDFloatArray = {
+    val mappedData: IndexedSeq[Float] = for (i <- (0 until getStorageSize); array_value = getStorageValue(i) ) yield if( valid(array_value) ) { f(array_value) } else { invalid }
+    new CDFloatArray( cdIndexMap, FloatBuffer.wrap(mappedData.toArray), invalid )
+  }
+  def copySectionData: FloatBuffer =  {
+    val floatData = ( for ( index <- getIterator; value = floatStorage.get(index) ) yield { value } );
+    FloatBuffer.wrap(floatData.toArray)
   }
 
   def weightedReduce( reductionOp: ReduceOpFlt, reduceDims: Array[Int], initVal: Float, weightsOpt: Option[CDFloatArray] = None, coordMapOpt: Option[CDCoordMap] = None ): ( CDFloatArray, CDFloatArray ) = {
@@ -321,9 +328,14 @@ class CDFloatArray( cdIndexMap: CDIndexMap, storage: Array[Float], protected val
       case None =>
         for (index <- iter; array_value = getStorageValue(index); if valid(array_value); coordIndices = iter.getCoordinateIndices) weightsOpt match {
           case Some(weights) =>
-            val weight = weights.getValue(coordIndices)
-            value_accumulator.setValue(coordIndices, reductionOp(value_accumulator.getValue(coordIndices), array_value * weight))
-            weights_accumulator.setValue(coordIndices, weights_accumulator.getValue(coordIndices) + weight)
+            try {
+              val weight = weights.getValue(coordIndices)
+              value_accumulator.setValue(coordIndices, reductionOp(value_accumulator.getValue(coordIndices), array_value * weight))
+              weights_accumulator.setValue(coordIndices, weights_accumulator.getValue(coordIndices) + weight)
+            } catch {
+              case ex: Throwable =>
+                println( "Error! ")
+            }
           case None =>
             value_accumulator.setValue(coordIndices, reductionOp(value_accumulator.getValue(coordIndices), array_value))
             weights_accumulator.setValue(coordIndices, weights_accumulator.getValue(coordIndices) + 1f )
@@ -345,7 +357,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, storage: Array[Float], protected val
 
   def flat_array_square_profile(): CDFloatArray = {
     val cdResult = for (index <- getIterator; value = getStorageValue(index) ) yield value * value
-    new CDFloatArray( getShape, cdResult.toArray, invalid )
+    new CDFloatArray( getShape, FloatBuffer.wrap(cdResult.toArray), invalid )
   }
 
 //  if (weightsOpt.isDefined) assert( getShape.sameElements(weightsOpt.get.getShape), " Weight array in mean op has wrong shape: (%s) vs. (%s)".format( weightsOpt.get.getShape.mkString(","), getShape.mkString(",") ))
@@ -384,94 +396,109 @@ class CDFloatArray( cdIndexMap: CDIndexMap, storage: Array[Float], protected val
             val axis_length = yAxisData.getSize
             val axis_data = CDFloatArray.factory( yAxisData, Float.MaxValue )
             assert( axis_length == getShape(axisIndex), "Y Axis data mismatch, %d vs %d".format(axis_length,getShape(axisIndex) ) )
-            val cosineWeights: Array[Float] = axis_data.getStorage.map( x => Math.cos( Math.toRadians(x) ).toFloat )
+            val cosineWeights: CDFloatArray = axis_data.map( x => Math.cos( Math.toRadians(x) ).toFloat )
             val base_shape: Array[Int] = Array( (0 until rank).map(i => if(i==axisIndex) getShape(axisIndex) else 1 ): _* )
-            val weightsArray: CDArray[Float] =  CDArray.factory( base_shape, cosineWeights, Float.MinValue )
+            val weightsArray: CDArray[Float] =  CDArray.factory( base_shape, cosineWeights.getStorage, invalid )
             weightsArray.broadcast( getShape )
           case None => throw new NoSuchElementException( "Missing axis data in weights computation, type: %s".format( weighting_type ))
         }
       case x => throw new NoSuchElementException( "Can't recognize weighting method: %s".format( x ))
     }
   }
-
+  def toDataString: String = "Index: " + this.cdIndexMap.toString + "\n Data = " + getSectionData.asInstanceOf[FloatBuffer].array().mkString("[ ",", "," ]")
 }
 
-class CDByteArray( cdIndexMap: CDIndexMap, storage: Array[Byte] ) extends CDArray[Byte](cdIndexMap,storage) {
+object CDByteArray {
+  val bTrue: Byte = 1
+  val bFalse: Byte = 0
+  def apply( cdIndexMap: CDIndexMap, bytetData: Array[Byte] ): CDByteArray = new CDByteArray(cdIndexMap, ByteBuffer.wrap(bytetData))
+  def apply( shape: Array[Int], bytetData: Array[Byte] ): CDByteArray = new CDByteArray( shape, ByteBuffer.wrap(bytetData) )
+}
 
-  protected def getData: Array[Byte] = storage.asInstanceOf[Array[Byte]]
+class CDByteArray( cdIndexMap: CDIndexMap, val byteStorage: ByteBuffer ) extends CDArray[Byte](cdIndexMap,byteStorage) {
 
-  def this( shape: Array[Int], storage: Array[Byte] ) = this( CDIndexMap.factory(shape), storage )
+  protected def getData: ByteBuffer = byteStorage
+
+  def this( shape: Array[Int], storage: ByteBuffer ) = this( CDIndexMap.factory(shape), storage )
 
   def valid( value: Byte ): Boolean = true
   def getInvalid: Byte = Byte.MinValue
+  def getStorageValue( index: StorageIndex ): Byte = byteStorage.get( index )
+  def setStorageValue( index: StorageIndex, value: Byte ): Unit = byteStorage.put( index, value )
 
-  override def dup(): CDByteArray = new CDByteArray( cdIndexMap.getShape, this.getSectionData )
-  def spawn( shape: Array[Int], fillval: Byte ): CDArray[Byte] = CDArray.factory( shape, Array.fill[Byte]( shape.product )(fillval), getInvalid  )
+  override def dup(): CDByteArray = new CDByteArray( cdIndexMap.getShape, this.getSectionData.asInstanceOf[ByteBuffer] )
+  def spawn( shape: Array[Int], fillval: Byte ): CDArray[Byte] = CDArray.factory( shape, ByteBuffer.wrap(Array.fill[Byte]( shape.product )(fillval)), getInvalid  )
 
-  def copySectionData: Array[Byte] = {
-    val array_data_iter = for (index <- getIterator; value = getData(index)) yield value
-    array_data_iter.toArray
+  def copySectionData: ByteBuffer = {
+    val array_data_iter = for (index <- getIterator; value = getStorageValue(index)) yield value
+    ByteBuffer.wrap(array_data_iter.toArray)
   }
 }
 
-class CDIntArray( cdIndexMap: CDIndexMap, storage: Array[Int] ) extends CDArray[Int](cdIndexMap,storage) {
+class CDIntArray( cdIndexMap: CDIndexMap, val intStorage: IntBuffer ) extends CDArray[Int](cdIndexMap,intStorage) {
 
-  protected def getData: Array[Int] = storage.asInstanceOf[Array[Int]]
+  protected def getData: IntBuffer = intStorage
+  def getStorageValue( index: StorageIndex ): Int = intStorage.get( index )
+  def setStorageValue( index: StorageIndex, value: Int ): Unit = intStorage.put( index, value )
 
-  def this( shape: Array[Int], storage: Array[Int] ) = this( CDIndexMap.factory(shape), storage )
+  def this( shape: Array[Int], storage: IntBuffer ) = this( CDIndexMap.factory(shape), storage )
   def valid( value: Int ): Boolean = true
   def getInvalid: Int = Int.MinValue
 
-  override def dup(): CDIntArray = new CDIntArray( cdIndexMap.getShape, this.getSectionData )
-  def spawn( shape: Array[Int], fillval: Int ): CDArray[Int] = CDArray.factory( shape, Array.fill[Int]( shape.product )(fillval), getInvalid  )
+  override def dup(): CDIntArray = new CDIntArray( cdIndexMap.getShape, this.getSectionData.asInstanceOf[IntBuffer] )
+  def spawn( shape: Array[Int], fillval: Int ): CDArray[Int] = CDArray.factory( shape, IntBuffer.wrap(Array.fill[Int]( shape.product )(fillval)), getInvalid  )
 
-  def copySectionData: Array[Int] = {
-    val array_data_iter = for ( index <- getIterator; value = getData(index) ) yield value
-    array_data_iter.toArray
+  def copySectionData: IntBuffer = {
+    val array_data_iter = for ( index <- getIterator; value = getStorageValue(index) ) yield value
+    IntBuffer.wrap(array_data_iter.toArray)
   }
 }
 
-class CDShortArray( cdIndexMap: CDIndexMap, storage: Array[Short] ) extends CDArray[Short](cdIndexMap,storage) {
+class CDShortArray( cdIndexMap: CDIndexMap, val shortStorage: ShortBuffer ) extends CDArray[Short](cdIndexMap,shortStorage) {
 
-  protected def getData: Array[Short] = storage.asInstanceOf[Array[Short]]
+  protected def getData: ShortBuffer = shortStorage
   def getInvalid: Short = Short.MinValue
+  def getStorageValue( index: StorageIndex ): Short = shortStorage.get( index )
+  def setStorageValue( index: StorageIndex, value: Short ): Unit = shortStorage.put( index, value )
 
-  def this( shape: Array[Int], storage: Array[Short] ) = this( CDIndexMap.factory(shape), storage )
+  def this( shape: Array[Int], storage: ShortBuffer ) = this( CDIndexMap.factory(shape), storage )
   def valid( value: Short ): Boolean = true
 
-  override def dup(): CDShortArray = new CDShortArray( cdIndexMap.getShape, this.getSectionData )
-  def spawn( shape: Array[Int], fillval: Short ): CDArray[Short] = CDArray.factory( shape, Array.fill[Short]( shape.product )(fillval), getInvalid  )
+  override def dup(): CDShortArray = new CDShortArray( cdIndexMap.getShape, this.getSectionData.asInstanceOf[ShortBuffer] )
+  def spawn( shape: Array[Int], fillval: Short ): CDArray[Short] = CDArray.factory( shape, ShortBuffer.wrap(Array.fill[Short]( shape.product )(fillval)), getInvalid  )
 
-  def copySectionData: Array[Short] = {
-    val array_data_iter = for ( index <- getIterator; value = getData(index) ) yield value
-    array_data_iter.toArray
+  def copySectionData: ShortBuffer = {
+    val array_data_iter = for ( index <- getIterator; value = getStorageValue(index) ) yield value
+    ShortBuffer.wrap(array_data_iter.toArray)
   }
 }
 
 object CDDoubleArray {
-  implicit def cdArrayConverter(target: CDArray[Double]): CDDoubleArray = new CDDoubleArray(target.getIndex, target.getStorage, target.getInvalid )
+  implicit def cdArrayConverter(target: CDArray[Double]): CDDoubleArray = new CDDoubleArray(target.getIndex, target.getStorage.asInstanceOf[DoubleBuffer], target.getInvalid )
   implicit def toUcarArray(target: CDDoubleArray): ma2.Array = ma2.Array.factory(ma2.DataType.DOUBLE, target.getShape, target.getSectionData)
 }
 
-class CDDoubleArray( cdIndexMap: CDIndexMap, storage: Array[Double], protected val invalid: Double ) extends CDArray[Double](cdIndexMap,storage) {
+class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, protected val invalid: Double ) extends CDArray[Double](cdIndexMap,doubleStorage) {
 
-  protected def getData: Array[Double] = storage.asInstanceOf[Array[Double]]
+  protected def getData: DoubleBuffer = doubleStorage
   def getInvalid = invalid
+  def getStorageValue( index: StorageIndex ): Double = doubleStorage.get( index )
+  def setStorageValue( index: StorageIndex, value: Double ): Unit = doubleStorage.put( index, value )
 
-  def this( shape: Array[Int], storage: Array[Double], invalid: Double ) = this( CDIndexMap.factory(shape), storage, invalid )
+  def this( shape: Array[Int], storage: DoubleBuffer, invalid: Double ) = this( CDIndexMap.factory(shape), storage, invalid )
 
   def valid( value: Double ) = ( value != invalid )
 
-  override def dup(): CDDoubleArray = new CDDoubleArray( cdIndexMap.getShape, this.getSectionData, getInvalid )
-  def spawn( shape: Array[Int], fillval: Double ): CDArray[Double] = CDArray.factory( shape, Array.fill[Double]( shape.product )(fillval), getInvalid )
+  override def dup(): CDDoubleArray = new CDDoubleArray( cdIndexMap.getShape, this.getSectionData.asInstanceOf[DoubleBuffer] , getInvalid )
+  def spawn( shape: Array[Int], fillval: Double ): CDArray[Double] = CDArray.factory( shape, DoubleBuffer.wrap(Array.fill[Double]( shape.product )(fillval)), getInvalid )
 
-  def copySectionData: Array[Double] = {
-    val array_data_iter = for ( index <- getIterator; value = getData(index) ) yield value
-    array_data_iter.toArray
+  def copySectionData: DoubleBuffer = {
+    val array_data_iter = for ( index <- getIterator; value = getStorageValue(index) ) yield value
+    DoubleBuffer.wrap(array_data_iter.toArray)
   }
 
-  def zeros: CDDoubleArray = new CDDoubleArray( getShape, Array.fill[Double]( getSize )(0), invalid )
-  def invalids: CDDoubleArray = new CDDoubleArray( getShape, Array.fill[Double]( getSize )(invalid), invalid )
+  def zeros: CDDoubleArray = new CDDoubleArray( getShape, DoubleBuffer.wrap(Array.fill[Double]( getSize )(0)), invalid )
+  def invalids: CDDoubleArray = new CDDoubleArray( getShape, DoubleBuffer.wrap(Array.fill[Double]( getSize )(invalid)), invalid )
 
 }
 
@@ -488,89 +515,89 @@ object ArrayReduceTest extends App {
 
 }
 
-
-object ArrayTest extends App {
-  val base_shape = Array(5,5,5)
-  val subset_origin = Array(1,1,1)
-  val subset_shape = Array(2,2,2)
-  val storage = Array.iterate( 0f, 125 )( x => x + 1f )
-  val cdIndexMap: CDIndexMap = CDIndexMap.factory( base_shape )
-  val cd_array = CDArray.factory( cdIndexMap, storage, Float.MaxValue )
-  val ma2_array: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, base_shape, storage )
-  val cd_array_subset = cd_array.section( subset_origin,  subset_shape )
-  val ma2_array_subset = ma2_array.sectionNoReduce( subset_origin,  subset_shape, Array(1,1,1) )
-
-  val cd_array_slice = cd_array_subset.slice( 0, 0 )
-  val ma2_array_slice = ma2_array_subset.slice( 0, 0 ).reshape( Array(1,2,2) )
-
-  val cd_array_tp = cd_array_slice.transpose( 1,2 )
-  val ma2_array_tp = ma2_array_slice.transpose( 1,2 )
-
-
-  println( cd_array_tp.toString )
-  println( ma2_array_tp.toString )
-
-//  val cd_array_bcast = cd_array_slice.broadcast( 0, 3 )
-//  println( cd_array_bcast.toString )
-}
-
-object ArrayPerformanceTest extends App {
-  import scala.collection.mutable.ListBuffer
-  val base_shape = Array(100,100,10)
-  val storage: Array[Float] = Array.iterate( 0f, 100000 )( x => x + 1f )
-  val cdIndexMap: CDIndexMap = CDIndexMap.factory( base_shape )
-  val cd_array = new CDFloatArray( cdIndexMap, storage, Float.MaxValue )
-  val ma2_array: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, base_shape, storage )
-  val ma2Iter: ma2.IndexIterator = ma2_array.getIndexIterator
-
-  val itest = 2
-
-  itest match {
-    case 0 =>
-      val t00 = System.nanoTime
-      val cdResult = cd_array.flat_array_square_profile()
-      val t01 = System.nanoTime
-      println ("cd2Result Time = %.4f,  ".format ((t01 - t00) / 1.0E9) )
-
-      var result = new ListBuffer[Float] ()
-      val t10 = System.nanoTime
-      val ma2Result = while (ma2Iter.hasNext) { val value = ma2Iter.getFloatNext; result += value * value }
-      val ma2ResultData = result.toArray
-      val t11 = System.nanoTime
-      println ("ma2Result Time = %.4f,  ".format ((t11 - t10) / 1.0E9) )
-
-    case 1 =>
-      val section_origin = Array( 10, 10, 1 )
-      val section_shape = Array( 80, 80, 8 )
-      val section_strides = Array( 1, 1, 1 )
-
-      val ma2Result = ma2_array.section( section_origin, section_shape )
-      val t10 = System.nanoTime
-      val ma2Data = ma2Result.getDataAsByteBuffer
-      val t11 = System.nanoTime
-
-      println ("ma2Result Time = %.4f,  ".format ((t11 - t10) / 1.0E9) )
-
-    case 2 =>
-      val section_origin = Array( 10, 10, 1 )
-      val section_shape = Array( 80, 80, 8 )
-      val section_strides = Array( 1, 1, 1 )
-
-      val cdResult = cd_array.section( section_origin, section_shape )
-      val t00 = System.nanoTime
-      val cdData = cdResult.getDataAsByteBuffer
-      val t01 = System.nanoTime
-
-      println ("cd2Result Time = %.4f,  ".format ((t01 - t00) / 1.0E9) )
-
-  }
-
-
-
-}
-
-
-
-
-
-
+//
+//object ArrayTest extends App {
+//  val base_shape = Array(5,5,5)
+//  val subset_origin = Array(1,1,1)
+//  val subset_shape = Array(2,2,2)
+//  val storage = Array.iterate( 0f, 125 )( x => x + 1f )
+//  val cdIndexMap: CDIndexMap = CDIndexMap.factory( base_shape )
+//  val cd_array = CDArray.factory( cdIndexMap, storage, Float.MaxValue )
+//  val ma2_array: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, base_shape, storage )
+//  val cd_array_subset = cd_array.section( subset_origin,  subset_shape )
+//  val ma2_array_subset = ma2_array.sectionNoReduce( subset_origin,  subset_shape, Array(1,1,1) )
+//
+//  val cd_array_slice = cd_array_subset.slice( 0, 0 )
+//  val ma2_array_slice = ma2_array_subset.slice( 0, 0 ).reshape( Array(1,2,2) )
+//
+//  val cd_array_tp = cd_array_slice.transpose( 1,2 )
+//  val ma2_array_tp = ma2_array_slice.transpose( 1,2 )
+//
+//
+//  println( cd_array_tp.toString )
+//  println( ma2_array_tp.toString )
+//
+////  val cd_array_bcast = cd_array_slice.broadcast( 0, 3 )
+////  println( cd_array_bcast.toString )
+//}
+//
+//object ArrayPerformanceTest extends App {
+//  import scala.collection.mutable.ListBuffer
+//  val base_shape = Array(100,100,10)
+//  val storage: Array[Float] = Array.iterate( 0f, 100000 )( x => x + 1f )
+//  val cdIndexMap: CDIndexMap = CDIndexMap.factory( base_shape )
+//  val cd_array = new CDFloatArray( cdIndexMap, storage, Float.MaxValue )
+//  val ma2_array: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, base_shape, storage )
+//  val ma2Iter: ma2.IndexIterator = ma2_array.getIndexIterator
+//
+//  val itest = 2
+//
+//  itest match {
+//    case 0 =>
+//      val t00 = System.nanoTime
+//      val cdResult = cd_array.flat_array_square_profile()
+//      val t01 = System.nanoTime
+//      println ("cd2Result Time = %.4f,  ".format ((t01 - t00) / 1.0E9) )
+//
+//      var result = new ListBuffer[Float] ()
+//      val t10 = System.nanoTime
+//      val ma2Result = while (ma2Iter.hasNext) { val value = ma2Iter.getFloatNext; result += value * value }
+//      val ma2ResultData = result.toArray
+//      val t11 = System.nanoTime
+//      println ("ma2Result Time = %.4f,  ".format ((t11 - t10) / 1.0E9) )
+//
+//    case 1 =>
+//      val section_origin = Array( 10, 10, 1 )
+//      val section_shape = Array( 80, 80, 8 )
+//      val section_strides = Array( 1, 1, 1 )
+//
+//      val ma2Result = ma2_array.section( section_origin, section_shape )
+//      val t10 = System.nanoTime
+//      val ma2Data = ma2Result.getDataAsByteBuffer
+//      val t11 = System.nanoTime
+//
+//      println ("ma2Result Time = %.4f,  ".format ((t11 - t10) / 1.0E9) )
+//
+//    case 2 =>
+//      val section_origin = Array( 10, 10, 1 )
+//      val section_shape = Array( 80, 80, 8 )
+//      val section_strides = Array( 1, 1, 1 )
+//
+//      val cdResult = cd_array.section( section_origin, section_shape )
+//      val t00 = System.nanoTime
+//      val cdData = cdResult.getDataAsByteBuffer
+//      val t01 = System.nanoTime
+//
+//      println ("cd2Result Time = %.4f,  ".format ((t01 - t00) / 1.0E9) )
+//
+//  }
+//
+//
+//
+//}
+//
+//
+//
+//
+//
+//

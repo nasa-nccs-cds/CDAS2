@@ -66,7 +66,7 @@ class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray]
 //  private val cdIndexMap: CDIndexMap = array.getIndex
 //  private val invalid: Float = array.getInvalid
 
-  def this() = this( new CDFloatArray( Array(0), Array.emptyFloatArray, Float.MaxValue ), None, new DataFragmentSpec )
+  def this() = this( CDFloatArray( Array(0), Array.emptyFloatArray, Float.MaxValue ), None, new DataFragmentSpec )
 
   def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] = {
     fragmentSpec.getVariableMetadata(serverContext) ++ Map( metaData.map( item => (item._1 -> new nc2.Attribute(item._1,item._2)) ) :_* )
@@ -95,7 +95,7 @@ class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray]
   def cutIntersection( cutSection: ma2.Section, copy: Boolean = true ): PartitionedFragment = {
     val newFragSpec = fragmentSpec.cutIntersection(cutSection)
     val newDataArray: CDFloatArray = data.section( newFragSpec.roi.shiftOrigin(fragmentSpec.roi).getRanges.toList )
-    new PartitionedFragment( if(copy) newDataArray.dup else newDataArray, maskOpt, newFragSpec )
+    new PartitionedFragment( if(copy) newDataArray.dup() else newDataArray, maskOpt, newFragSpec )
   }
 
   def cutNewSubset( newSection: ma2.Section, copy: Boolean = true ): PartitionedFragment = {
@@ -103,7 +103,7 @@ class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray]
     else {
       val relativeSection = newSection.shiftOrigin( fragmentSpec.roi )
       val newDataArray: CDFloatArray = data.section( relativeSection.getRanges.toList )
-      new PartitionedFragment( if(copy) newDataArray.dup else newDataArray, maskOpt, fragmentSpec.reSection( newSection ) )
+      new PartitionedFragment( if(copy) newDataArray.dup() else newDataArray, maskOpt, fragmentSpec.reSection( newSection ) )
     }
   }
   def size: Long = fragmentSpec.roi.computeSize

@@ -26,8 +26,8 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
   }
 
   def computeCycle( tsdata: CDFloatArray, cycle_period: Int ): CDFloatArray = {
-    val values: CDFloatArray = new CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )
-    val counts: CDFloatArray = new CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )
+    val values: CDFloatArray = CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )
+    val counts: CDFloatArray = CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )
     for (index <- (0 until tsdata.getSize); val0 = tsdata.getFlatValue(index); if tsdata.valid(val0) ) {
       values.augment( Array(index % cycle_period), val0 )
       counts.augment( Array(index % cycle_period),  1f )
@@ -37,8 +37,8 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
 
   def computeSeriesAverage( tsdata: CDFloatArray, ave_period: Int, offset: Int = 0, mod: Int = Int.MaxValue ): CDFloatArray = {
     val npts = tsdata.getSize / ave_period + 1
-    val values: CDFloatArray = new CDFloatArray( Array(npts), Array.fill[Float](npts)(0f), Float.NaN )
-    val counts: CDFloatArray = new CDFloatArray( Array(npts), Array.fill[Float](npts)(0f), Float.NaN )
+    val values: CDFloatArray = CDFloatArray( Array(npts), Array.fill[Float](npts)(0f), Float.NaN )
+    val counts: CDFloatArray = CDFloatArray( Array(npts), Array.fill[Float](npts)(0f), Float.NaN )
     for (index <- (0 until tsdata.getSize); val0 = tsdata.getFlatValue(index); if tsdata.valid(val0) ) {
       val op_offset = (ave_period-offset) % ave_period
       val bin_index = ( ( index + op_offset ) / ave_period ) % mod
@@ -53,8 +53,8 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     var magsum = 0.0
     var count = 0
     val length = Math.min(array0.getSize, array1.getSize)
-    val a0 = array0.getSectionData
-    val a1 = array1.getSectionData
+    val a0 = array0.getArrayData
+    val a1 = array1.getArrayData
     for (index <- (0 until length); val0 = a0(index); if val0 != array0.getInvalid; val1 = a1(index); if val1 != array1.getInvalid; diff = Math.abs(val0 - val1)) {
       if (diff > max_diff) {
         max_diff = diff
@@ -69,8 +69,8 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
   def maxDiff(array0: CDFloatArray, array1: CDFloatArray): Float = {
     var max_diff = 0f
     val length = Math.min(array0.getSize, array1.getSize)
-    val a0 = array0.getSectionData
-    val a1 = array1.getSectionData
+    val a0 = array0.getArrayData
+    val a1 = array1.getArrayData
     for (index <- (0 until length); val0 = a0(index); if val0 != array0.getInvalid; val1 = a1(index); if val1 != array1.getInvalid; diff = Math.abs(val0 - val1)) {
       if (diff > max_diff) { max_diff = diff }
     }

@@ -51,7 +51,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   def getEntries: Seq[(DataFragmentKey,String)] = fragmentIdCache.getEntries
 
   def promiseCacheId( frag: PartitionedFragment )(p: Promise[String]): Unit =
-    try { p.success( arrayToDisk( frag.data.getSectionData ) ) }
+    try { p.success( arrayToDisk( frag.data.getArrayData ) ) }
     catch { case err: Throwable => logError( err, "Error writing cache data to disk:"); p.failure(err) }
 
   def restore( cache_id: String, size: Int ): Option[Array[Float]] = arrayFromDiskFloat( cache_id, size )
@@ -60,7 +60,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   def blockUntilDone(): Unit = fragmentIdCache.values.foreach( Await.result(_, Duration.Inf) )
 
   def deleteEnclosing( fragSpec: DataFragmentSpec ) =
-    findEnclosingFragSpecs(  fragmentIdCache.keys, fragSpec.getKey ).map( delete )
+    findEnclosingFragSpecs(  fragmentIdCache.keys, fragSpec.getKey ).foreach( delete )
 
   def delete( fragKey: DataFragmentKey ) = {
     fragmentIdCache.get(fragKey) match {
@@ -121,7 +121,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   private val datasetCache: Cache[String,CDSDataset] = new LruCache("Store","dataset",false)
   private val variableCache: Cache[String,CDSVariable] = new LruCache("Store","variable",false)
   private val maskCache: Cache[MaskKey,CDByteArray] = new LruCache("Store","mask",false)
-  def clearFragmentCache = fragmentCache.clear()
+  def clearFragmentCache() = fragmentCache.clear
 
   def makeKey(collection: String, varName: String) = collection + ":" + varName
 
@@ -198,7 +198,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
             val cdvar: CDSVariable = getVariable(fragSpec.collection, fragSpec.varname )
             val newFragSpec = fragSpec.reSection(fkey)
             val maskOpt = newFragSpec.mask.flatMap( maskId => produceMask( maskId, newFragSpec.getBounds, newFragSpec.getGridShape, cdvar.getTargetGrid( newFragSpec ).getAxisIndices("xy") ) )
-            val fragment = new PartitionedFragment( new CDFloatArray( newFragSpec.getShape, flt_array, cdvar.missing ), maskOpt, newFragSpec )
+            val fragment = new PartitionedFragment( CDFloatArray( newFragSpec.getShape, flt_array, cdvar.missing ), maskOpt, newFragSpec )
             fragmentCache.put( fkey, fragment )
             Some(fragment.cutNewSubset(fragSpec.roi))
           case None => None
@@ -475,10 +475,10 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 
 object SampleTaskRequests {
 
-  def createTestData = {
+  def createTestData() = {
     var axes = Array("time","lev","lat","lon")
     var shape = Array(1,1,180,360)
-    val maskedTensor: CDFloatArray = CDArray.factory( shape, Array.fill[Float](180*360)(1f), Float.MaxValue)
+    val maskedTensor: CDFloatArray = CDFloatArray( shape, Array.fill[Float](180*360)(1f), Float.MaxValue)
     val varname = "ta"
     val resultFile = "/tmp/SyntheticTestData.nc"
     val writer: nc2.NetcdfFileWriter = nc2.NetcdfFileWriter.createNew(nc2.NetcdfFileWriter.Version.netcdf4, resultFile )
@@ -718,7 +718,7 @@ object execCacheTest extends App {
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-  FragmentPersistence.blockUntilDone
+  FragmentPersistence.blockUntilDone()
 }
 
 object execMetadataTest extends App {

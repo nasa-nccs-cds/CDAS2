@@ -38,7 +38,7 @@ class BlockingExecutionResult( val id: String, val intputSpecs: List[DataFragmen
   def toXml = {
     val idToks = id.split('~')
     logger.info( "BlockingExecutionResult-> result_tensor: \n" + result_tensor.toString )
-    <result id={idToks(1)} op={idToks(0)}> { intputSpecs.map( _.toXml ) } { gridSpec.toXml } <data undefined={result_tensor.getInvalid.toString}> {result_tensor.copySectionData.mkString(",")}  </data>  </result>
+    <result id={idToks(1)} op={idToks(0)}> { intputSpecs.map( _.toXml ) } { gridSpec.toXml } <data undefined={result_tensor.getInvalid.toString}> {result_tensor.getArrayData.mkString(",")}  </data>  </result>
   }
 }
 
@@ -183,7 +183,7 @@ abstract class Kernel {
     }
   }
 
-  def inputVars( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): List[KernelDataInput] = serverCx.inputs(operationCx.inputs.map( requestCx.getInputSpec(_) ) )
+  def inputVars( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): List[KernelDataInput] = serverCx.inputs(operationCx.inputs.map( requestCx.getInputSpec ) )
 
   def searchForValue( metadata: Map[String,nc2.Attribute], keys: List[String], default_val: String ) : String = {
     keys.length match {
@@ -230,7 +230,7 @@ abstract class Kernel {
           println( "Writing result %s to file '%s'".format(resultId,resultFile.getAbsolutePath) )
           Some(resultId)
         } catch {
-          case e: IOException => logger.error("ERROR creating file %s%n%s".format(resultFile.getAbsolutePath, e.getMessage()))
+          case e: IOException => logger.error("ERROR creating file %s%n%s".format(resultFile.getAbsolutePath, e.getMessage ) )
         }
     }
     None
