@@ -38,7 +38,7 @@ class BlockingExecutionResult( val id: String, val intputSpecs: List[DataFragmen
   def toXml = {
     val idToks = id.split('~')
     logger.info( "BlockingExecutionResult-> result_tensor: \n" + result_tensor.toString )
-    <result id={idToks(1)} op={idToks(0)}> { intputSpecs.map( _.toXml ) } { gridSpec.toXml } <data undefined={result_tensor.getInvalid.toString}> {result_tensor.getArrayData.mkString(",")}  </data>  </result>
+    <result id={idToks(1)} op={idToks(0)}> { intputSpecs.map( _.toXml ) } { gridSpec.toXml } <data undefined={result_tensor.getInvalid.toString}> {result_tensor.mkDataString(",")}  </data>  </result>
   }
 }
 

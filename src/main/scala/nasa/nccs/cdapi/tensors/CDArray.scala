@@ -7,6 +7,8 @@ import nasa.nccs.cdapi.tensors.CDArray.{FlatIndex, StorageIndex}
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.ma2
 
+import scala.collection.mutable.ArrayBuffer
+
 object CDArray {
 
   type ReduceOp[T] = (T,T)=>T
@@ -182,6 +184,7 @@ object CDFloatArray {
     case "short"  => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toFloat ) )
     case x        => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Byte]].map( _.toFloat ) )
   }
+
   def toFloatBuffer( buffer: Buffer ): FloatBuffer = buffer match {
     case x: FloatBuffer  => buffer.asInstanceOf[ FloatBuffer ]
     case x => throw new Exception( "Attempt to convert non-float buffer to FloatBuffer")
@@ -193,7 +196,7 @@ object CDFloatArray {
     maskOpt match { case None => unmasked_array; case Some(mask) => applyMask( unmasked_array, mask ) }
   }
 
-  def toArray(buffer: FloatBuffer): Array[Float] = if( buffer.hasArray ) buffer.array else { val array = Array.fill[Float]( buffer.capacity )(0); buffer.put(array); array }
+  def toArray(buffer: FloatBuffer): Array[Float] = if( buffer.hasArray ) buffer.array else { val data =for( index: Int <- (0 until buffer.capacity) ) yield buffer.get( index ); data.toArray }
 
   def applyMask( data: CDFloatArray, mask: CDByteArray ): CDFloatArray = {
     assert( data.getSize == mask.getSize, "Error, mask size does not match data size: %d vs %d".format(data.getSize, mask.getSize) )
@@ -260,8 +263,11 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def this( shape: Array[Int], storage: FloatBuffer, invalid: Float ) = this( CDIndexMap.factory(shape), storage, invalid )
   def this( storage: FloatBuffer, invalid: Float ) = this( CDIndexMap.factory( Array(storage.capacity()) ), storage, invalid )
   protected def getData: FloatBuffer = floatStorage
+  override def getSectionData: FloatBuffer = super.getSectionData.asInstanceOf[FloatBuffer]
+  def getStorageData: FloatBuffer = floatStorage
+
   def getStorageArray: Array[Float] = CDFloatArray.toArray( floatStorage )
-  def getSectionArray: Array[Float] = CDFloatArray.toArray( getSectionData.asInstanceOf[FloatBuffer] )
+  def getSectionArray: Array[Float] = CDFloatArray.toArray( getSectionData )
   def getArrayData: Array[Float]  = if( isStorageCongruent ) getStorageArray else getSectionArray
   override def dup(): CDFloatArray = new CDFloatArray( cdIndexMap.getShape, this.getSectionData.asInstanceOf[FloatBuffer], invalid )
   def valid( value: Float ) = ( value != invalid )
@@ -405,7 +411,9 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
       case x => throw new NoSuchElementException( "Can't recognize weighting method: %s".format( x ))
     }
   }
-  def toDataString: String = "Index: " + this.cdIndexMap.toString + "\n Data = " + getSectionData.asInstanceOf[FloatBuffer].array().mkString("[ ",", "," ]")
+  def toDataString: String = "Index: " + this.cdIndexMap.toString + "\n Data = " + mkDataString("[ ",", "," ]")
+  def mkDataString( sep: String ): String = getSectionArray.map( _.toString ).mkString( sep )
+  def mkDataString( start: String, sep: String, end: String ): String = getSectionArray.map( _.toString ).mkString( start, sep, end )
 }
 
 object CDByteArray {

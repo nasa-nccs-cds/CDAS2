@@ -1,5 +1,6 @@
 package nasa.nccs.cds2.engine
 import java.io.{IOException, PrintWriter, StringWriter}
+import java.nio.FloatBuffer
 
 import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
 import nasa.nccs.cds2.loaders.{Collections, Masks}
@@ -51,12 +52,12 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   def getEntries: Seq[(DataFragmentKey,String)] = fragmentIdCache.getEntries
 
   def promiseCacheId( frag: PartitionedFragment )(p: Promise[String]): Unit =
-    try { p.success( arrayToDisk( frag.data.getArrayData ) ) }
+    try { p.success( bufferToDiskFloat( frag.data.getSectionData ) ) }
     catch { case err: Throwable => logError( err, "Error writing cache data to disk:"); p.failure(err) }
 
-  def restore( cache_id: String, size: Int ): Option[Array[Float]] = arrayFromDiskFloat( cache_id, size )
-  def restore( fragKey: DataFragmentKey ): Option[Array[Float]] =  fragmentIdCache.get(fragKey).flatMap( restore( _, fragKey.getSize ) )
-  def restore( cache_id_future: Future[String], size: Int ): Option[Array[Float]] = restore( Await.result(cache_id_future, Duration.Inf), size )
+  def restore( cache_id: String, size: Int ): Option[FloatBuffer] = bufferFromDiskFloat( cache_id, size )
+  def restore( fragKey: DataFragmentKey ): Option[FloatBuffer] =  fragmentIdCache.get(fragKey).flatMap( restore( _, fragKey.getSize ) )
+  def restore( cache_id_future: Future[String], size: Int ): Option[FloatBuffer] = restore( Await.result(cache_id_future, Duration.Inf), size )
   def blockUntilDone(): Unit = fragmentIdCache.values.foreach( Await.result(_, Duration.Inf) )
 
   def deleteEnclosing( fragSpec: DataFragmentSpec ) =
@@ -73,7 +74,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     }
   }
 
-  def getEnclosingFragmentData( fragSpec: DataFragmentSpec ): Option[ ( DataFragmentKey, Array[Float] ) ] = {
+  def getEnclosingFragmentData( fragSpec: DataFragmentSpec ): Option[ ( DataFragmentKey, FloatBuffer ) ] = {
     val fragKeys = findEnclosingFragSpecs(  fragmentIdCache.keys, fragSpec.getKey )
     fragKeys.headOption match {
       case Some( fkey ) => restore(fkey) match {
@@ -83,7 +84,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
       case None => None
     }
   }
-  def getFragmentData( fragSpec: DataFragmentSpec ): Option[ Array[Float] ] = restore( fragSpec.getKey )
+  def getFragmentData( fragSpec: DataFragmentSpec ): Option[ FloatBuffer ] = restore( fragSpec.getKey )
 }
 
 
@@ -194,11 +195,11 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     fragOpt match {
       case None =>
         FragmentPersistence.getEnclosingFragmentData(fragSpec) match {
-          case Some((fkey, flt_array)) =>
+          case Some((fkey, fltBuffer)) =>
             val cdvar: CDSVariable = getVariable(fragSpec.collection, fragSpec.varname )
             val newFragSpec = fragSpec.reSection(fkey)
             val maskOpt = newFragSpec.mask.flatMap( maskId => produceMask( maskId, newFragSpec.getBounds, newFragSpec.getGridShape, cdvar.getTargetGrid( newFragSpec ).getAxisIndices("xy") ) )
-            val fragment = new PartitionedFragment( CDFloatArray( newFragSpec.getShape, flt_array, cdvar.missing ), maskOpt, newFragSpec )
+            val fragment = new PartitionedFragment( new CDFloatArray( newFragSpec.getShape, fltBuffer, cdvar.missing ), maskOpt, newFragSpec )
             fragmentCache.put( fkey, fragment )
             Some(fragment.cutNewSubset(fragSpec.roi))
           case None => None

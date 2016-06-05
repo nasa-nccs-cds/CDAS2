@@ -74,21 +74,14 @@ trait DiskCachable extends XmlResource {
     case x => throw new Exception("Unsupported type in sizeof: " + x.toString)
   }
 
-  protected def arrayToDisk[T <: AnyVal]( data: Array[T]  ): String = {
-    val memsize = data.size * sizeof( data.head )
+  protected def bufferToDiskFloat( data: FloatBuffer  ): String = {
+    val memsize = data.capacity() * 4
     val cache_file = "a" + System.nanoTime.toHexString
     try {
       val t0 = System.nanoTime()
       val channel = new RandomAccessFile(DiskCacheFileMgr.getDiskCacheFilePath(getCacheType, cache_file),"rw").getChannel()
       val buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, 0, memsize )
-      data.head match {
-        case _: Float => buffer.asFloatBuffer.put(data.asInstanceOf[Array[Float]])
-        case _: Short => buffer.asShortBuffer.put(data.asInstanceOf[Array[Short]])
-        case _: Double => buffer.asDoubleBuffer.put(data.asInstanceOf[Array[Double]])
-        case _: Int => buffer.asIntBuffer.put(data.asInstanceOf[Array[Int]])
-        case _: Byte => buffer.put(data.asInstanceOf[Array[Byte]])
-        case x => throw new Exception("Unsupported array type in arrayToDisk: " + x.toString)
-      }
+      buffer.asFloatBuffer.put(data)
       channel.close
       val t1 = System.nanoTime()
       logger.info( s"Persisted cache data to file '%s', memsize = %d, time = %.2f".format( cache_file, memsize, (t1-t0)/1.0E9))
@@ -115,12 +108,11 @@ trait DiskCachable extends XmlResource {
     channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size)
   }
 
-  protected def arrayFromDiskFloat( cache_id: String, size: Int  ): Option[Array[Float]] = {
+  protected def bufferFromDiskFloat( cache_id: String, size: Int  ): Option[FloatBuffer] = {
     try {
       val t0 = System.nanoTime()
       getReadBuffer(cache_id) match { case ( channel, buffer ) =>
-        val data: Array[Float] = Array.fill[Float](size)(0f)
-        buffer.asFloatBuffer.get(data.asInstanceOf[Array[Float]])
+        val data: FloatBuffer = buffer.asFloatBuffer
         channel.close
         val t1 = System.nanoTime()
         logger.info( s"Restored persisted data to cache '%s', memsize = %d, time = %.2f".format( cache_id, size, (t1-t0)/1.0E9))
@@ -129,12 +121,10 @@ trait DiskCachable extends XmlResource {
     } catch { case err: Throwable => logError(err,"Error retreiving persisted cache data"); None }
   }
 
-  protected def arrayFromDiskByte( cache_id: String  ): Option[Array[Byte]] = {
+  protected def arrayFromDiskByte( cache_id: String  ): Option[ByteBuffer] = {
     try { getReadBuffer(cache_id) match { case ( channel, buffer ) =>
-        val data: Array[Byte] = Array.fill[Byte](channel.size.toInt)(0)
-        buffer.get(data.asInstanceOf[Array[Byte]])
         channel.close
-        Some(data)
+        Some(buffer)
       }
     } catch { case err: Throwable => logError(err,"Error retreiving persisted cache data"); None }
   }
