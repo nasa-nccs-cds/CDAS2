@@ -1,12 +1,10 @@
 <collections>
     <collection id="ecmwf/mon/atmos" ctype="dods" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/ECMWF/mon/atmos"> va,ta,clt,ua,psl,hus </collection>
-    <collection id="merra/mon/atmos/ta" ctype="file" url="file://Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MERRA_TEST_DATA.ta.nc"> ta </collection>
     <collection id="cfsr/6hr/atmos" ctype="dods" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/CFSR/6hr/atmos"> va,ta,clt,ua,psl,hus </collection>
     <collection id="merra2/mon/atmos" ctype="dods" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA2/mon/atmos"> va,ta,clt,ua,psl,hus </collection>
     <collection id="merra/6hr/atmos" ctype="dods" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/6hr/atmos"> va,ta,clt,ua,psl,hus </collection>
     <collection id="ecmwf/6hr/atmos" ctype="dods" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/ECMWF/6hr/atmos"> va,ta,clt,ua,psl,hus </collection>
-    <collection id="merra2/mon/atmos/ta" ctype="file" url="file://Users/tpmaxwel/Dropbox/Tom/Data/MERRA/ta.MERRA2.nc"> ta </collection>
     <collection id="merra/mon/atmos" ctype="dods" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/mon/atmos"> va,ta,clt,ua,psl,hus </collection>
     <collection id="cfsr/mon/atmos" ctype="dods" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/CFSR/mon/atmos"> va,ta,clt,ua,psl,hus </collection>
-    <collection id="synth/constant-1" ctype="file" url="file://Users/tpmaxwel/Dropbox/Tom/Data/synth/r0.nc"> ta </collection>
+    <collection id="merra2/mon/M2TMNXLND" ctype="file" url="file:/att/nobackup/tpmaxwel/data/MERRA2/M2TMNXLND.5.12.4.xml"> SFMC, GWETPROF, GWETROOT, GWETTOP </collection>
 </collections>
