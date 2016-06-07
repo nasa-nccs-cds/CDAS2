@@ -1,7 +1,8 @@
 package nasa.nccs.cds2.loaders
 import java.net.URL
+import java.nio.file.{ Paths, Files }
 
-import nasa.nccs.cdapi.cdm.{Collection}
+import nasa.nccs.cdapi.cdm.Collection
 import nasa.nccs.utilities.Loggable
 
 import scala.xml.XML
@@ -58,7 +59,7 @@ object Masks extends XmlResource {
 }
 
 object Collections extends XmlResource {
-  val datasets = loadCollectionXmlData( getFilePath("/collections.xml") )
+  val datasets = loadCollectionXmlData( getFilePath("/collections.xml"), "~/.cdas2/collections.xml" )
 
   def toXml: xml.Elem = {
     <collections> { for( (id,collection) <- datasets ) yield <collection id={id}> {collection.vars.mkString(",")} </collection>} </collections>
@@ -68,9 +69,18 @@ object Collections extends XmlResource {
     val mapItems = for( line <- lines; toks =  line.split(';')) yield  nospace(toks(0)) -> Collection( ctype=nospace(toks(1)), url=nospace(toks(2)), vars=getVarList(toks(3)) )
     mapItems.toMap
   }
-  def loadCollectionXmlData(filePath:String): Map[String,Collection] = {
-    try{ Map(XML.loadFile(filePath).child.flatMap( node => node.attribute("id") match { case None => None; case Some(id) => Some(id.toString->getCollection(node)); } ):_*) }
-    catch { case err: java.io.IOException => throw new Exception( "Error opening collection data file '%s': %s".format( filePath, err.getMessage) ) }
+
+  def loadCollectionXmlData(filePaths:String*): Map[String,Collection] = {
+    var elems = Seq()
+    for ( filePath <- filePaths; if Files.exists( Paths.get(filePath) ) ) {
+      try {
+        elems ++= XML.loadFile(filePath).child.flatMap(node => node.attribute("id") match {
+          case None => None;
+          case Some(id) => Some(id.toString -> getCollection(node));
+        })
+      } catch { case err: java.io.IOException => throw new Exception( "Error opening collection data file {%s}: %s".format( filePath, err.getMessage) ) }
+    }
+    Map(elems:_*)
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
