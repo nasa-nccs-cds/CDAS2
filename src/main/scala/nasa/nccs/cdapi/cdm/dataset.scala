@@ -155,7 +155,8 @@ object CDSDataset extends DiskCachable  {
     val t0 = System.nanoTime
     val ncDataset: NetcdfDataset = loadNetCDFDataSet( uri )
     val coordSystems: List[CoordinateSystem] = ncDataset.getCoordinateSystems.toList
-    assert( coordSystems.size <= 1, "Multiple coordinate systems for one dataset is not supported" )
+    if( coordSystems.size > 1 ) logger.warn( "Multiple coordinate systems for one dataset:" )
+    for(coordSystem <- coordSystems ) { logger.warn( "\t-->" + coordSystem.toString ) }
     if(coordSystems.isEmpty) throw new IllegalStateException("Error creating coordinate system for variable " + varName )
     val rv = new CDSDataset( dsetName, uri, ncDataset, varName, coordSystems.head )
     val t1 = System.nanoTime

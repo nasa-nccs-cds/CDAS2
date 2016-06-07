@@ -7,9 +7,10 @@ import java.nio.channels.FileChannel
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.caching.{Cache, LruCache}
-import nasa.nccs.cdapi.cdm.{DiskCacheFileMgr, PartitionedFragment}
+import nasa.nccs.cdapi.cdm.{CDSVariable, DiskCacheFileMgr, PartitionedFragment}
+import nasa.nccs.cdapi.tensors.CDByteArray
 import nasa.nccs.cds2.loaders.XmlResource
-import nasa.nccs.esgf.process.DataFragmentKey
+import nasa.nccs.esgf.process.{DataFragmentKey, DataFragmentSpec}
 import ucar.ma2
 import ucar.ma2.Range
 import ucar.nc2.dataset.NetcdfDataset
@@ -20,12 +21,15 @@ class CacheChunk( offset: Int, shape: Array[Int], data:ma2.Array ) {
   def getSize: Int = shape.product
 }
 
-class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {
-  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
-  private val ncVariable = netcdfDataset.findVariable(varName)
+//class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {
+//  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
+// private val ncVariable = netcdfDataset.findVariable(varName)
+
+class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragmentSpec, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) {
+  private val ncVariable = cdVariable.ncVariable
   private val chunkCache: Cache[Int,CacheChunk] = new LruCache("Store",cacheType,false)
   private val nReadProcessors = Runtime.getRuntime.availableProcessors - 1
-  private val roi: ma2.Section = sectionOpt match { case Some(aSection) => aSection; case None => new ma2.Section(ncVariable.getShape) }
+  private val roi: ma2.Section = fragSpec.roi
   private val baseShape = roi.getShape
   private val dType: ma2.DataType  = ncVariable.getDataType
   private val elemSize = ncVariable.getElementSize
@@ -53,7 +57,7 @@ class CacheFileReader( val datasetFile: String, val varName: String, val section
     nElementsWritten
   }
 
-  def execute( chunkSize: Int, sectionOpt: Option[ma2.Section] ): Int = {
+  def execute( chunkSize: Int ): Int = {
     val nChunks = Math.ceil( range0.length / chunkSize.toFloat ).toInt
     val readProcFuts: IndexedSeq[Future[Int]] = for( coreIndex <- (0 until nReadProcessors) ) yield Future { readDataChunks(nChunks,chunkSize,coreIndex) }
     val writeProcFut: Future[Int] = Future { writeChunks(nChunks) }
@@ -94,17 +98,17 @@ class CacheFileReader( val datasetFile: String, val varName: String, val section
 
 }
 
-object cacheWriterTest extends App {
-  val data_file = "/usr/local/web/data/MERRA/MERRA300.prod.assim.inst3_3d_asm_Cp.xml"
-  val netcdfDataset = NetcdfDataset.openDataset( data_file )
-  val varName = "t"
-  val ncVariable = netcdfDataset.findVariable(varName)
-  var shape = ncVariable.getShape
-  var section: ma2.Section = new ma2.Section(shape)
-
-
-  println(".")
-}
+//object cacheWriterTest extends App {
+//  val data_file = "/usr/local/web/data/MERRA/MERRA300.prod.assim.inst3_3d_asm_Cp.xml"
+//  val netcdfDataset = NetcdfDataset.openDataset( data_file )
+//  val varName = "t"
+//  val ncVariable = netcdfDataset.findVariable(varName)
+//  var shape = ncVariable.getShape
+//  var section: ma2.Section = new ma2.Section(shape)
+//
+//
+//  println(".")
+//}
 
 //dType match {
 //  case ma2.DataType.FLOAT =>

@@ -4,16 +4,26 @@ import java.util.Formatter
 import nasa.nccs.cdapi.cdm._
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, VariableDS}
 import java.util.Formatter
+
 import nasa.nccs.cdapi.kernels.AxisIndices
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
+import nasa.nccs.esgf.utilities.FileToCacheStream
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.utilities.cdsutils
 import ucar.nc2.time.{CalendarDate, CalendarDateRange}
-import ucar.{ma2, nc2 }
+import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+
+sealed abstract class DataAccessMode
+object DataAccessMode {
+  case object Read extends DataAccessMode
+  case object Cache extends DataAccessMode
+  case object MetaData extends DataAccessMode
+}
 
 object FragmentSelectionCriteria extends Enumeration { val Largest, Smallest = Value }
 
@@ -295,6 +305,13 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
     createPartitionedFragment( fragmentSpec, maskOpt, cdArray )
   }
 
+  def loadRoiToCache( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
+    val cacheStream = new FileToCacheStream( data_variable, fragmentSpec, maskOpt )
+    val array: ma2.Array = data_variable.read(fragmentSpec.roi)
+    val cdArray: CDFloatArray = CDFloatArray.factory(array, data_variable.missing, maskOpt )
+    createPartitionedFragment( fragmentSpec, maskOpt, cdArray )
+  }
+
   def createPartitionedFragment( fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray], ndArray: CDFloatArray ): PartitionedFragment =  {
     new PartitionedFragment( ndArray, maskOpt, fragmentSpec )
   }
@@ -364,7 +381,7 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     rv
   }
 
-  def createInputSpec( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid, loadData: Boolean = true ): (String, OperationInputSpec) = {
+  def createInputSpec( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid, dataAccessMode: DataAccessMode ): (String, OperationInputSpec) = {
     val data_source: DataSource = dataContainer.getSource
     val t0 = System.nanoTime
     val variable: CDSVariable = dataLoader.getVariable(data_source.collection, data_source.name)
@@ -373,7 +390,11 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     val t2 = System.nanoTime
     val maskOpt: Option[String] = domain_container_opt.flatMap( domain_container => domain_container.mask )
     val fragSpec: DataFragmentSpec = targetGrid.createFragmentSpec( variable, targetGrid.grid.getSection, maskOpt )
-    if( loadData ) { dataLoader.getFragment( fragSpec, 0.3f ) }
+    dataAccessMode match {
+      case DataAccessMode.Read =>  dataLoader.getFragment( fragSpec, 0.3f )
+      case DataAccessMode.Cache =>  dataLoader.cacheFragment( fragSpec )
+      case DataAccessMode.MetaData =>  Unit
+    }
     val t3 = System.nanoTime
     logger.info( " loadVariableDataT: %.4f %.4f ".format( (t1-t0)/1.0E9, (t3-t2)/1.0E9 ) )
     dataContainer.uid -> new OperationInputSpec( fragSpec, axisSpecs )

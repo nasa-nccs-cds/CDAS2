@@ -284,6 +284,15 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     }
   }
 
+  def cacheFragment( fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f  ): PartitionedFragment = {   // TODO: Insert Cache Command
+    cutExistingFragment(fragSpec, abortSizeFraction) getOrElse {
+      val fragmentFuture = getFragmentFuture(fragSpec)
+      val result = Await.result(fragmentFuture, Duration.Inf)
+      logger.info("Loaded variable (%s:%s) subset data, section = %s ".format(fragSpec.collection, fragSpec.varname, fragSpec.roi))
+      result
+    }
+  }
+
   def getFragmentAsync( fragSpec: DataFragmentSpec  ): Future[PartitionedFragment] = cutExistingFragment(fragSpec) match {
     case Some( fragment ) => Future { fragment }
     case None => getFragmentFuture( fragSpec )
