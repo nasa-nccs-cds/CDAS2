@@ -578,7 +578,7 @@ object SampleTaskRequests {
   def getCacheRequest: TaskRequest = {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0",  "lev" -> Map("start" -> 100000, "end" -> 100000, "system" -> "values"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")) )
+      "variable" -> List(Map("uri" -> "collection://merra2/mon/M2TMNXLND", "name" -> "SFWMC:v0", "domain" -> "d0")) )
     TaskRequest( "util.cache", dataInputs )
   }
 

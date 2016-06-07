@@ -76,7 +76,7 @@ object Collections extends XmlResource {
       try {
         elems ++= XML.loadFile(filePath).child.flatMap(node => node.attribute("id") match {
           case None => None;
-          case Some(id) => Some(id.toString -> getCollection(node));
+          case Some(id) => Some(id.toString.toLowerCase -> getCollection(node));
         })
       } catch { case err: java.io.IOException => throw new Exception( "Error opening collection data file {%s}: %s".format( filePath, err.getMessage) ) }
     }
