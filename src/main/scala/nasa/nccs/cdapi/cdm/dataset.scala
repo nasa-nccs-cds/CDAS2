@@ -64,7 +64,7 @@ object DiskCacheFileMgr extends XmlResource {
         })
       Map(tuples.flatten: _*)
     } catch {
-      case err: Throwable => Map( "path"->"~/.cdas2/cache" )
+      case err: Throwable => Map( "main"->"~/.cdas2/cache" )
     }
   }
 }
