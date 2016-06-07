@@ -71,7 +71,7 @@ object Collections extends XmlResource {
   }
 
   def loadCollectionXmlData(filePaths:String*): Map[String,Collection] = {
-    var elems = Seq()
+    var elems = Seq[(String,Collection)]()
     for ( filePath <- filePaths; if Files.exists( Paths.get(filePath) ) ) {
       try {
         elems ++= XML.loadFile(filePath).child.flatMap(node => node.attribute("id") match {
@@ -80,7 +80,7 @@ object Collections extends XmlResource {
         })
       } catch { case err: java.io.IOException => throw new Exception( "Error opening collection data file {%s}: %s".format( filePath, err.getMessage) ) }
     }
-    Map(elems:_*)
+    Map[String,Collection](elems:_*)
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
