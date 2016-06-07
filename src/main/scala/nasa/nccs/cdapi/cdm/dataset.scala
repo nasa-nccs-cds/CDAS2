@@ -52,16 +52,20 @@ object DiskCacheFileMgr extends XmlResource {
   }
 
   protected def loadDiskCacheMap: Map[String,String] = {
-    var filePath = getFilePath("/cache.xml")
-    val tuples = XML.loadFile(filePath).child.map(
-      node => node.attribute("id") match {
-        case None => None;
-        case Some(id) => node.attribute("path") match {
-          case Some(path) => Some(id.toString -> path.toString)
-          case None => None
-        }
-      })
-    Map( tuples.flatten: _* )
+    try {
+      var filePath = getFilePath("/cache.xml")
+      val tuples = XML.loadFile(filePath).child.map(
+        node => node.attribute("id") match {
+          case None => None;
+          case Some(id) => node.attribute("path") match {
+            case Some(path) => Some(id.toString -> path.toString)
+            case None => None
+          }
+        })
+      Map(tuples.flatten: _*)
+    } catch {
+      case err: Throwable => Map( "path"->"~/.cdas2/cache" )
+    }
   }
 }
 
