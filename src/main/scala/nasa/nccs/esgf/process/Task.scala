@@ -39,6 +39,12 @@ class TaskRequest(val name: String, val variableMap : Map[String,DataContainer],
 
   def isMetadataRequest: Boolean = name.split('.').last.toLowerCase().equals("metadata")
 
+  def getDataAccessMode(): DataAccessMode = name.split('.').last.toLowerCase match {
+      case "metadata" =>  DataAccessMode.MetaData
+      case "cache" =>     DataAccessMode.Cache
+      case _ =>           DataAccessMode.Read
+    }
+
   def getDomain( data_source: DataSource ): Option[DomainContainer] = {
     data_source.domain match {
       case "" => None

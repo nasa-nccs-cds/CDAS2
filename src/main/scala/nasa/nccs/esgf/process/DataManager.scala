@@ -30,7 +30,7 @@ object FragmentSelectionCriteria extends Enumeration { val Largest, Smallest = V
 trait DataLoader {
   def getDataset( collection: String, varName: String ): CDSDataset
   def getVariable( collection: String, varName: String ): CDSVariable
-  def getFragment( fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f ): PartitionedFragment
+  def getFragment( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode, abortSizeFraction: Float=0f ): PartitionedFragment
 }
 
 trait ScopeContext {
@@ -292,40 +292,42 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
       case Some(partSection) =>
         val array = data_variable.read(partSection)
         val cdArray: CDFloatArray = CDFloatArray.factory(array, variable.missing )
-        createPartitionedFragment( fragmentSpec, maskOpt, cdArray )
+        new PartitionedFragment( cdArray, maskOpt, fragmentSpec )
       case None =>
         logger.warn("No fragment generated for partition index %s out of %d parts".format(partition.partIndex, partition.nPart))
         new PartitionedFragment()
     }
   }
 
-  def loadRoi( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
+  def loadRoi( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray], dataAccessMode: DataAccessMode ): PartitionedFragment =
+    dataAccessMode match {
+      case DataAccessMode.Read => loadRoiDirect( data_variable, fragmentSpec, maskOpt )
+      case DataAccessMode.Cache =>  loadRoiViaCache( data_variable, fragmentSpec, maskOpt )
+      case DataAccessMode.MetaData =>  throw new Exception( "Attempt to load data in metadata operation")
+    }
+
+  def loadRoiDirect( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
     val array: ma2.Array = data_variable.read(fragmentSpec.roi)
     val cdArray: CDFloatArray = CDFloatArray.factory(array, data_variable.missing, maskOpt )
-    createPartitionedFragment( fragmentSpec, maskOpt, cdArray )
+    new PartitionedFragment( cdArray, maskOpt, fragmentSpec )
   }
 
-  def loadRoiToCache( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
+  def loadRoiViaCache( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
     val cacheStream = new FileToCacheStream( data_variable, fragmentSpec, maskOpt )
-    val array: ma2.Array = data_variable.read(fragmentSpec.roi)
-    val cdArray: CDFloatArray = CDFloatArray.factory(array, data_variable.missing, maskOpt )
-    createPartitionedFragment( fragmentSpec, maskOpt, cdArray )
+    val cdArray: CDFloatArray = cacheStream.cacheFloatData( data_variable.getCacheChunkSize  )
+    new PartitionedFragment( cdArray, maskOpt, fragmentSpec )
   }
-
-  def createPartitionedFragment( fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray], ndArray: CDFloatArray ): PartitionedFragment =  {
-    new PartitionedFragment( ndArray, maskOpt, fragmentSpec )
-  }
-
-
 }
 
 class ServerContext( val dataLoader: DataLoader, private val configuration: Map[String,String] )  extends ScopeContext {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   def getConfiguration = configuration
-  def inputs( inputSpecs: List[OperationInputSpec] ): List[KernelDataInput] = for( inputSpec <- inputSpecs ) yield new KernelDataInput( getVariableData(inputSpec.data), inputSpec.axes )
   def getVariable(fragSpec: DataFragmentSpec ): CDSVariable = dataLoader.getVariable( fragSpec.collection, fragSpec.varname )
   def getVariable(collection: String, varname: String ): CDSVariable = dataLoader.getVariable( collection, varname )
-  def getVariableData( fragSpec: DataFragmentSpec ): PartitionedFragment = dataLoader.getFragment( fragSpec )
+  def getVariableData( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode ): PartitionedFragment = dataLoader.getFragment( fragSpec, dataAccessMode )
+
+  def inputs( inputSpecs: List[OperationInputSpec], dataAccessMode: DataAccessMode ): List[KernelDataInput] =
+    for( inputSpec <- inputSpecs ) yield new KernelDataInput( getVariableData(inputSpec.data, dataAccessMode), inputSpec.axes )
 
   def getAxisData( fragSpec: DataFragmentSpec, axis: Char ): Option[( Int, ma2.Array )] = {
     val variable: CDSVariable = dataLoader.getVariable(fragSpec.collection, fragSpec.varname)
@@ -368,9 +370,9 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     fragSpec.targetGridOpt.map( targetGrid => targetGrid.getAxisIndices( axisConf ) )
   }
 
-  def getSubset( fragSpec: DataFragmentSpec, new_domain_container: DomainContainer ): PartitionedFragment = {
+  def getSubset( fragSpec: DataFragmentSpec, new_domain_container: DomainContainer, dataAccessMode: DataAccessMode = DataAccessMode.Read ): PartitionedFragment = {
     val t0 = System.nanoTime
-    val baseFragment = dataLoader.getFragment( fragSpec )
+    val baseFragment = dataLoader.getFragment( fragSpec, dataAccessMode )
     val t1 = System.nanoTime
     val variable = getVariable( fragSpec )
     val targetGrid = fragSpec.targetGridOpt match { case Some(tg) => tg; case None => new TargetGrid( variable, Some(fragSpec.getAxes) ) }
@@ -390,15 +392,12 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     val t2 = System.nanoTime
     val maskOpt: Option[String] = domain_container_opt.flatMap( domain_container => domain_container.mask )
     val fragSpec: DataFragmentSpec = targetGrid.createFragmentSpec( variable, targetGrid.grid.getSection, maskOpt )
-    dataAccessMode match {
-      case DataAccessMode.Read =>  dataLoader.getFragment( fragSpec, 0.3f )
-      case DataAccessMode.Cache =>  dataLoader.cacheFragment( fragSpec )
-      case DataAccessMode.MetaData =>  Unit
-    }
+    if(dataAccessMode != DataAccessMode.MetaData ) dataLoader.getFragment( fragSpec, dataAccessMode, 0.3f )
     val t3 = System.nanoTime
     logger.info( " loadVariableDataT: %.4f %.4f ".format( (t1-t0)/1.0E9, (t3-t2)/1.0E9 ) )
     dataContainer.uid -> new OperationInputSpec( fragSpec, axisSpecs )
   }
 }
+
 
 

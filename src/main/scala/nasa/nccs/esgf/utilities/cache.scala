@@ -1,31 +1,35 @@
 package nasa.nccs.esgf.utilities
 
-import java.io.RandomAccessFile
-import java.nio.{FloatBuffer, MappedByteBuffer}
+import java.io.{FileInputStream, RandomAccessFile}
+import java.nio.{BufferOverflowException, ByteBuffer, FloatBuffer, MappedByteBuffer}
 import java.nio.channels.FileChannel
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.caching.{Cache, LruCache}
 import nasa.nccs.cdapi.cdm.{CDSVariable, DiskCacheFileMgr, PartitionedFragment}
-import nasa.nccs.cdapi.tensors.CDByteArray
+import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
 import nasa.nccs.cds2.loaders.XmlResource
 import nasa.nccs.esgf.process.{DataFragmentKey, DataFragmentSpec}
+import nasa.nccs.utilities.Loggable
 import ucar.ma2
 import ucar.ma2.Range
 import ucar.nc2.dataset.NetcdfDataset
 
 import scala.concurrent.duration.Duration
 
-class CacheChunk( offset: Int, shape: Array[Int], data:ma2.Array ) {
-  def getSize: Int = shape.product
+class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val buffer: ByteBuffer ) {
+  def size: Int = shape.product
+  def data: Array[Byte] = buffer.array
+  def byteSize = shape.product * elemSize
+  def byteOffset = offset * elemSize
 }
 
 //class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {
 //  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
-class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragmentSpec, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) {
+class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragmentSpec, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
   private val ncVariable = cdVariable.ncVariable
   private val chunkCache: Cache[Int,CacheChunk] = new LruCache("Store",cacheType,false)
   private val nReadProcessors = Runtime.getRuntime.availableProcessors - 1
@@ -34,6 +38,12 @@ class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragment
   private val dType: ma2.DataType  = ncVariable.getDataType
   private val elemSize = ncVariable.getElementSize
   private val range0 = roi.getRange(0)
+
+  def getChunkMemorySize( chunkSize: Int ) : Int = {
+    var full_shape = baseShape.clone()
+    full_shape(0) = chunkSize
+    full_shape.product * elemSize
+  }
 
   def getCacheFilePath: String = {
     val cache_file = "a" + System.nanoTime.toHexString
@@ -50,51 +60,58 @@ class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragment
       subsection.replaceRange(0,chunkRange)
       val data = ncVariable.read(subsection)
       val chunkShape = subsection.getShape
-      val chunk = new CacheChunk(startLoc,chunkShape,data)
+      val chunk = new CacheChunk( startLoc, elemSize, chunkShape, data.getDataAsByteBuffer )
       chunkCache.put( iChunk, chunk )
       nElementsWritten += chunkShape.product
     }
     nElementsWritten
   }
 
-  def execute( chunkSize: Int ): Int = {
-    val nChunks = Math.ceil( range0.length / chunkSize.toFloat ).toInt
-    val readProcFuts: IndexedSeq[Future[Int]] = for( coreIndex <- (0 until nReadProcessors) ) yield Future { readDataChunks(nChunks,chunkSize,coreIndex) }
-    val writeProcFut: Future[Int] = Future { writeChunks(nChunks) }
+  def execute( chunkSize: Int ): String = {
+    val nChunks = if(chunkSize <= 0) { 1 } else { Math.ceil( range0.length / chunkSize.toFloat ).toInt }
+    val readProcFuts: IndexedSeq[Future[Int]] = for( coreIndex <- (0 until Math.min( nChunks, nReadProcessors ) ) ) yield Future { readDataChunks(nChunks,chunkSize,coreIndex) }
+    val writeProcFut: Future[String] = Future { writeChunks(nChunks,chunkSize) }
     Await.result( writeProcFut, Duration.Inf )
   }
 
-  def getMemSize( cacheChunk: CacheChunk ): Int = {
-    cacheChunk.getSize * elemSize
-  }
-
-
-
-  def writeChunks(nChunks: Int): Int = {
-    val channel = new RandomAccessFile(getCacheFilePath,"rw").getChannel()
-    var bufferOpt: Option[MappedByteBuffer] = None
-    var nElementsWritten = 0
-
-    for( iChunk <- (0 until nChunks) ) {
-      while(true) {
-        chunkCache.get(iChunk) match {
-          case Some( cacheChunkFut: Future[CacheChunk] ) =>
-            val cacheChunk = Await.result( cacheChunkFut, Duration.Inf )
-            if( bufferOpt == None )  { bufferOpt = Some( channel.map( FileChannel.MapMode.READ_WRITE, 0, getMemSize( cacheChunk ) ) ) }
-            nElementsWritten += writeChunk( cacheChunk, bufferOpt )
-           case None => Thread.sleep( 200 )
-        }
-      }
-    }
-    nElementsWritten
-  }
-
-  def writeChunk( cacheChunk: CacheChunk, bufferOpt: Option[MappedByteBuffer] ): Int = {
-    bufferOpt match {
-      case Some(buffer) => 0
-      case None => throw new Exception( "Error opening Memory Map");
+  def cacheFloatData( chunkSize: Int  ): CDFloatArray = {
+    assert( dType == ma2.DataType.FLOAT, "Attempting to cache %s data as float: %s".format(dType.toString,cdVariable.name) )
+    val cache_id = execute( chunkSize )
+    getReadBuffer(cache_id) match {
+      case (channel, buffer) =>
+        val storage: FloatBuffer = buffer.asFloatBuffer
+        channel.close
+        new CDFloatArray( fragSpec.getShape, storage, cdVariable.missing )
     }
   }
+
+  def getReadBuffer( cache_id: String ): ( FileChannel, MappedByteBuffer ) = {
+    val channel = new FileInputStream( cache_id ).getChannel
+    channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size)
+  }
+
+  def writeChunks( nChunks: Int, chunkSize: Int ): String = {
+    val cacheFilePath = getCacheFilePath
+    val chunkByteSize = getChunkMemorySize( chunkSize )
+    val channel = new RandomAccessFile(cacheFilePath,"rw").getChannel()
+    logger.info( "Writing Buffer file '%s', nChunks = %d, chunkByteSize = %d, size = %d".format( cacheFilePath, nChunks, chunkByteSize, chunkByteSize * nChunks ))
+    var buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, 0, chunkByteSize * nChunks  )
+    (0 until nChunks).foreach( processChunkFromReader( _, buffer ) )
+    cacheFilePath
+  }
+
+  def processChunkFromReader( iChunk: Int, buffer: MappedByteBuffer ): Unit = {
+    chunkCache.get(iChunk) match {
+      case Some( cacheChunkFut: Future[CacheChunk] ) =>
+        val cacheChunk = Await.result( cacheChunkFut, Duration.Inf )
+//        logger.info( "Writing chunk %d, size = %d, position = %d ".format( iChunk, cacheChunk.byteSize, buffer.position ) )
+        buffer.put( cacheChunk.data )
+      case None =>
+        Thread.sleep( 200 )
+        processChunkFromReader( iChunk, buffer )
+    }
+  }
+
 
 }
 

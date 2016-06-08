@@ -164,9 +164,11 @@ object CDSDataset extends DiskCachable  {
     rv
   }
 
+  def urlToPath(url: String): String = if ( url.toLowerCase().startsWith("file://") ) url.substring(6) else if ( url.toLowerCase().startsWith("file:") ) url.substring(5) else url
+
   private def loadNetCDFDataSet(url: String): NetcdfDataset = {
     NetcdfDataset.setUseNaNs(false)
-    val dset_address = if ( url.toLowerCase().startsWith("file://") ) url.substring(6) else if ( url.toLowerCase().startsWith("file:") ) url.substring(5) else url
+    val dset_address = urlToPath(url)
     try {
       logger.info("Opening NetCDF dataset %s".format(dset_address))
       NetcdfDataset.openDataset( dset_address )
@@ -181,16 +183,38 @@ object CDSDataset extends DiskCachable  {
   }
 }
 
+case class DatasetFileAggregation( val aggDim: String, val aggFileMap: Seq[(String,Int)] ) {
+  def getNElems(): Int = {
+    assert( !aggFileMap.isEmpty, "Error, aggregated dataset has no files!" )
+    val nElems0 = aggFileMap.head._2
+    val nonConstantElems = aggFileMap.filter { case (filePath, nElems ) => nElems != nElems0 }
+    if( nonConstantElems.isEmpty ) nElems0 else { throw new Exception("Non uniform aggregations not yet supported! (Notify developers and look for next version)")}
+  }
+}
+
 class CDSDatasetRec( val dsetName: String, val uri: String, val varName: String ) extends Serializable {}
 
 class CDSDataset( val name: String, val uri: String, val ncDataset: NetcdfDataset, val varName: String, val coordSystem: CoordinateSystem ) {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val attributes: List[nc2.Attribute] = ncDataset.getGlobalAttributes.map( a => { new nc2.Attribute( name + "--" + a.getFullName, a ) } ).toList
   val coordAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
+  val fileAgg: Option[DatasetFileAggregation] = getDatasetFileAggregation
 
   def getCoordinateAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
-
+  def getFilePath = CDSDataset.urlToPath(uri)
   def getSerializable = new CDSDatasetRec( name, uri, varName )
+
+  def getDatasetFileAggregation: Option[DatasetFileAggregation] = {
+    if( uri.startsWith("http:" ) ) { None }
+    else if( uri.endsWith(".xml" ) || uri.endsWith(".ncml" ) ) {
+      val aggregation = XML.loadFile(getFilePath) \ "aggregation"
+      val aggDim = (aggregation \ "@dimName").text
+      val fileNodes = ( aggregation \ "netcdf" ).map( node => ( (node \ "@location").text ->  ( node \ "@ncoords").text.toInt )  )
+      Some( new DatasetFileAggregation( aggDim, fileNodes ) )
+    } else {
+      None
+    }
+  }
 
   def loadVariable( varName: String ): cdm.CDSVariable = {
     val t0 = System.nanoTime

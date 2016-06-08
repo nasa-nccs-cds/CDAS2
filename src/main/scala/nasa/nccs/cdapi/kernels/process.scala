@@ -183,7 +183,7 @@ abstract class Kernel {
     }
   }
 
-  def inputVars( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): List[KernelDataInput] = serverCx.inputs(operationCx.inputs.map( requestCx.getInputSpec ) )
+  def inputVars( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext, dataAccessMode: DataAccessMode = DataAccessMode.Read ): List[KernelDataInput] = serverCx.inputs(operationCx.inputs.map( requestCx.getInputSpec ), dataAccessMode )
 
   def searchForValue( metadata: Map[String,nc2.Attribute], keys: List[String], default_val: String ) : String = {
     keys.length match {

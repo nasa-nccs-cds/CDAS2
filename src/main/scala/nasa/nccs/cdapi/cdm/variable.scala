@@ -9,8 +9,10 @@ import nasa.nccs.esgf.process._
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
 import ucar.nc2.constants.AxisType
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.xml.XML
 
 object BoundsRole extends Enumeration { val Start, End = Value }
 
@@ -27,6 +29,8 @@ object CDSVariable {
   }
 }
 
+
+
 class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc2.Variable) {
   val logger = org.slf4j.LoggerFactory.getLogger("nasa.nccs.cds2.cdm.CDSVariable")
   val description = ncVariable.getDescription
@@ -37,6 +41,7 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
   val attributes = nc2.Attribute.makeMap(ncVariable.getAttributes).toMap
   val missing = getAttributeValue( "missing_value", "" ) match { case "" => Float.MaxValue; case s => s.toFloat }
 
+  def getCacheChunkSize: Int = dataset.fileAgg match { case None => -1; case Some( datasetFileAgg ) => datasetFileAgg.getNElems }
   def getFullSection: ma2.Section = ncVariable.getShapeAsSection
   def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last; case None => default_value }
   override def toString = "\nCDSVariable(%s) { description: '%s', shape: %s, dims: %s, }\n  --> Variable Attributes: %s".format(name, description, shape.mkString("[", " ", "]"), dims.mkString("[", ",", "]"), attributes.mkString("\n\t\t", "\n\t\t", "\n"))

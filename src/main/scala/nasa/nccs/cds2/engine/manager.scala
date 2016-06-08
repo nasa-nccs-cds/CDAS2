@@ -207,8 +207,8 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
       case x => x
     }
   }
-//  def getEnclosingFragmentData( fragSpec: DataFragmentSpec ): Option[ ( DataFragmentKey, Array[Float] ) ] = {
-  private def promiseFragment( fragSpec: DataFragmentSpec )(p: Promise[PartitionedFragment]): Unit =
+
+  private def promiseFragment( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode )(p: Promise[PartitionedFragment]): Unit =
     getVariableFuture( fragSpec.collection, fragSpec.varname )  onComplete {
       case Success(variable) =>
         try {
@@ -216,11 +216,11 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
           val result = fragSpec.targetGridOpt match {
             case Some( targetGrid ) =>
                val maskOpt = fragSpec.mask.flatMap( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy") ) )
-               targetGrid.loadRoi( variable, fragSpec, maskOpt )
+               targetGrid.loadRoi( variable, fragSpec, maskOpt, dataAccessMode )
              case None =>
                val targetGrid = new TargetGrid( variable, Some(fragSpec.getAxes) )
                val maskOpt = fragSpec.mask.flatMap( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy")  ) )
-               targetGrid.loadRoi( variable, fragSpec, maskOpt)
+               targetGrid.loadRoi( variable, fragSpec, maskOpt, dataAccessMode )
           }
           logger.info("Completed variable (%s:%s) subset data input in time %.4f sec, section = %s ".format(fragSpec.collection, fragSpec.varname, (System.nanoTime()-t0)/1.0E9, fragSpec.roi ))
           //          logger.info("Data column = [ %s ]".format( ( 0 until result.shape(0) ).map( index => result.getValue( Array(index,0,100,100) ) ).mkString(", ") ) )
@@ -263,40 +263,33 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
 
   private def clearRedundantFragments( fragSpec: DataFragmentSpec ) = findEnclosedFragSpecs( fragmentCache.keys, fragSpec.getKey ).foreach( fragmentCache.remove )
 
-  private def getFragmentFuture( fragSpec: DataFragmentSpec  ): Future[PartitionedFragment] = {
-    val fragFuture = fragmentCache( fragSpec.getKey ) { promiseFragment( fragSpec ) _ }
+  private def getFragmentFuture( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode  ): Future[PartitionedFragment] = {
+    val fragFuture = fragmentCache( fragSpec.getKey ) { promiseFragment( fragSpec, dataAccessMode ) _ }
     fragFuture onComplete {
       case Success(fragment) =>
         clearRedundantFragments( fragSpec )
-        FragmentPersistence.persist( fragSpec, fragment )
+        if( dataAccessMode == DataAccessMode.Read ) FragmentPersistence.persist( fragSpec, fragment )
       case Failure(t) => Unit
     }
     logger.info( ">>>>>>>>>>>>>>>> Put frag in cache: " + fragSpec.toString + ", keys = " + fragmentCache.keys.mkString("[",",","]") )
     fragFuture
   }
 
-  def getFragment( fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f  ): PartitionedFragment = {
+  def getFragment( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode, abortSizeFraction: Float=0f  ): PartitionedFragment = {
     cutExistingFragment(fragSpec, abortSizeFraction) getOrElse {
-      val fragmentFuture = getFragmentFuture(fragSpec)
+      val fragmentFuture = getFragmentFuture(fragSpec, dataAccessMode)
       val result = Await.result(fragmentFuture, Duration.Inf)
       logger.info("Loaded variable (%s:%s) subset data, section = %s ".format(fragSpec.collection, fragSpec.varname, fragSpec.roi))
       result
     }
   }
 
-  def cacheFragment( fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f  ): PartitionedFragment = {   // TODO: Insert Cache Command
-    cutExistingFragment(fragSpec, abortSizeFraction) getOrElse {
-      val fragmentFuture = getFragmentFuture(fragSpec)
-      val result = Await.result(fragmentFuture, Duration.Inf)
-      logger.info("Loaded variable (%s:%s) subset data, section = %s ".format(fragSpec.collection, fragSpec.varname, fragSpec.roi))
-      result
+  def getFragmentAsync( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode  ): Future[PartitionedFragment] =
+    cutExistingFragment(fragSpec) match {
+      case Some(fragment) => Future { fragment }
+      case None => getFragmentFuture(fragSpec, dataAccessMode)
     }
-  }
 
-  def getFragmentAsync( fragSpec: DataFragmentSpec  ): Future[PartitionedFragment] = cutExistingFragment(fragSpec) match {
-    case Some( fragment ) => Future { fragment }
-    case None => getFragmentFuture( fragSpec )
-  }
 
 //  def loadOperationInputFuture( dataContainer: DataContainer, domain_container: DomainContainer ): Future[OperationInputSpec] = {
 //    val variableFuture = getVariableFuture(dataContainer.getSource.collection, dataContainer.getSource.name)
@@ -379,9 +372,8 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 
   def loadInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ): RequestContext = {
     val sourceContainers = request.variableMap.values.filter(_.isSource)
-    val loadData: Boolean = !request.isMetadataRequest
     val sources = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
-      yield serverContext.createInputSpec(data_container, domainOpt, targetGrid, loadData )
+      yield serverContext.createInputSpec(data_container, domainOpt, targetGrid, request.getDataAccessMode )
     val sourceMap: Map[String,OperationInputSpec] = Map(sources.toSeq:_*)
     new RequestContext (request.domainMap, sourceMap, targetGrid, run_args)
   }
@@ -586,8 +578,8 @@ object SampleTaskRequests {
 
   def getCacheRequest: TaskRequest = {
     val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0",  "lev" -> Map("start" -> 100000, "end" -> 100000, "system" -> "values"))),
-      "variable" -> List(Map("uri" -> "collection://merra2/mon/M2TMNXLND", "name" -> "SFWMC:v0", "domain" -> "d0")) )
+      "domain" -> List( Map("name" -> "d0",  "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://merra300/hourly/asm_Cp", "name" -> "t:v0", "domain" -> "d0")) )
     TaskRequest( "util.cache", dataInputs )
   }
 
