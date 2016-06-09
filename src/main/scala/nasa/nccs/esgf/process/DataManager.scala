@@ -201,13 +201,14 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
 
 object GridSpec extends Loggable {
     def apply( variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ): GridSpec = {
-      val t0 = System.nanoTime()
       val coordSpecs = for (idim <- variable.dims.indices; dim = variable.dims(idim); coord_axis = variable.getCoordinateAxis(dim.getFullName)) yield {
+        val t0 = System.nanoTime()
         val domainAxisOpt: Option[DomainAxis] = roiOpt.flatMap(axes => axes.find(da => da.matches( coord_axis.getAxisType )))
-        new GridCoordSpec(idim, variable, coord_axis, domainAxisOpt)
+        val rv = new GridCoordSpec(idim, variable, coord_axis, domainAxisOpt)
+        val t1 = System.nanoTime()
+        logger.info( "Init GridCoordSpec[%d](%s), time = %.4f".format( idim, dim.getFullName, (t1-t0)/1.0E9) )
+        rv
       }
-      val t1 = System.nanoTime()
-      logger.info( "Init GridSpec, time = %.4f".format( (t1-t0)/1.0E9) )
       new GridSpec( variable, coordSpecs )
     }
 }
