@@ -70,8 +70,7 @@ class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragment
   def execute( chunkSize: Int ): String = {
     val nChunks = if(chunkSize <= 0) { 1 } else { Math.ceil( range0.length / chunkSize.toFloat ).toInt }
     val readProcFuts: IndexedSeq[Future[Int]] = for( coreIndex <- (0 until Math.min( nChunks, nReadProcessors ) ) ) yield Future { readDataChunks(nChunks,chunkSize,coreIndex) }
-    val writeProcFut: Future[String] = Future { writeChunks(nChunks,chunkSize) }
-    Await.result( writeProcFut, Duration.Inf )
+    writeChunks(nChunks,chunkSize)
   }
 
   def cacheFloatData( chunkSize: Int  ): CDFloatArray = {
