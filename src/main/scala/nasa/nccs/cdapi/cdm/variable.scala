@@ -61,15 +61,7 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
     ncVariable.getDimensions.map( dim => CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis( dim.getFullName ) ) ).toList
   }
   def getCoordinateAxis( axisType: nc2.constants.AxisType ): CoordinateAxis1D = CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis(axisType) )
-
-  def getCoordinateAxis( fullName: String ): CoordinateAxis1D = {
-    val t0 = System.nanoTime()
-    val rv = CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis(fullName) )
-    val t1 = System.nanoTime()
-    logger.info( "getCoordinateAxis '%s', time = %.4f".format( fullName, (t1-t0)/1.0E9))
-    rv
-  }
-
+  def getCoordinateAxis( fullName: String ): CoordinateAxis1D = CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis(fullName) )
 }
 
 class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  )  {

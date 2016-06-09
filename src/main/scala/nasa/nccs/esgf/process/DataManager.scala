@@ -121,12 +121,16 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     } else caldate
   }
 
+
   def getCoordinateValues: ma2.Array = coordAxis.getAxisType match {
       case AxisType.Time =>
+        val t0 = System.nanoTime()
         val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory( variable.dataset.ncDataset, coordAxis, new Formatter() )
         val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
         val timeZero = CalendarDate.of(timeCalValues.head.getCalendar, 1970, 1, 1, 1, 1, 1)
         val time_values = for (index <- (range.first() to range.last() by range.stride()); calVal = timeCalValues(index)) yield calVal.getDifferenceInMsecs(timeZero).toFloat / 1000f
+        val t1 = System.nanoTime()
+        logger.info( "get Time Coordinate Values, time = %.4f".format( (t1-t0)/1.0E9) )
         ma2.Array.factory( ma2.DataType.FLOAT, Array(time_values.length), time_values.toArray[Float] )
       case x =>
         coordAxis.read( List(range) )
@@ -202,8 +206,8 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
 object GridSpec extends Loggable {
     def apply( variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ): GridSpec = {
       val coordSpecs = for (idim <- variable.dims.indices; dim = variable.dims(idim); coord_axis = variable.getCoordinateAxis(dim.getFullName)) yield {
-        val t0 = System.nanoTime()
         val domainAxisOpt: Option[DomainAxis] = roiOpt.flatMap(axes => axes.find(da => da.matches( coord_axis.getAxisType )))
+        val t0 = System.nanoTime()
         val rv = new GridCoordSpec(idim, variable, coord_axis, domainAxisOpt)
         val t1 = System.nanoTime()
         logger.info( "Init GridCoordSpec[%d](%s), time = %.4f".format( idim, dim.getFullName, (t1-t0)/1.0E9) )

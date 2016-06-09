@@ -186,9 +186,7 @@ object CDSDataset extends DiskCachable  {
 case class DatasetFileAggregation( val aggDim: String, val aggFileMap: Seq[(String,Int)] ) {
   def getNElems(): Int = {
     assert( !aggFileMap.isEmpty, "Error, aggregated dataset has no files!" )
-    val nElems0 = aggFileMap.head._2
-    val nonConstantElems = aggFileMap.filter { case (filePath, nElems ) => nElems != nElems0 }
-    if( nonConstantElems.isEmpty ) nElems0 else { throw new Exception("Non uniform aggregations not yet supported! (Notify developers and look for next version)")}
+    return aggFileMap.head._2
   }
 }
 

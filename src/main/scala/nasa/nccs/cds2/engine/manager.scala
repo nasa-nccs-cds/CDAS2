@@ -175,13 +175,8 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   }
 
   def getVariable(collection: String, varName: String): CDSVariable = {
-    val t0 = System.nanoTime()
     val futureVariable: Future[CDSVariable] = getVariableFuture(collection, varName)
-    val t1 = System.nanoTime()
-    val rv = Await.result(futureVariable, Duration.Inf)
-    val t2 = System.nanoTime()
-    logger.info("getVariableT %.4f %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9 ) )
-    rv
+    Await.result(futureVariable, Duration.Inf)
   }
 
   def getVariable(fragSpec: DataFragmentSpec): CDSVariable = getVariable(fragSpec.collection, fragSpec.varname)
