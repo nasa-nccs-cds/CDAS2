@@ -52,7 +52,6 @@ class NCMLWriter(args: Iterator[String]) {
     Option( ncDataset.findCoordinateAxis( AxisType.Time ) ) match {
       case Some( timeAxis ) =>
         val values = getTimeValues( ncDataset, timeAxis )
-        println( "Processing file '%s', ncoords = %d ".format( ncFile.getAbsolutePath, values.length ) )
         ncDataset.close()
         values
       case None => throw new Exception( "ncFile does not have a time axis: " + ncFile.getAbsolutePath )
@@ -63,6 +62,7 @@ class NCMLWriter(args: Iterator[String]) {
     var nElementsWritten = 0
     for( iFile <- (coreIndex until ncFiles.length by nReadProcessors); file = ncFiles.get(iFile) ) {
       val values = getTimeCoordValues(file)
+      println( "Core[%d]: Processing file '%s', ncoords = %d ".format( coreIndex, file.getAbsolutePath, values.length ) )
       val aggFileRec = new AggFileRec( file.getAbsolutePath, values )
       aggFileRecCache.put( iFile, aggFileRec )
       nElementsWritten += 1
