@@ -206,10 +206,9 @@ object GridSpec extends Loggable {
         val domainAxisOpt: Option[DomainAxis] = roiOpt.flatMap(axes => axes.find(da => da.matches( coord_axis.getAxisType )))
         new GridCoordSpec(idim, variable, coord_axis, domainAxisOpt)
       }
-      val rv = new GridSpec( variable, coordSpecs )
       val t1 = System.nanoTime()
-      logger.info( "init GridSpec, time = %.4f".format( (t1-t0)/1.0E9))
-      rv
+      logger.info( "Init GridSpec, time = %.4f".format( (t1-t0)/1.0E9) )
+      new GridSpec( variable, coordSpecs )
     }
 }
 
