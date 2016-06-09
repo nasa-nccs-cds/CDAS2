@@ -157,7 +157,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
       case Success(dataset) =>
         try {
           val variable = dataset.loadVariable(varName)
-          logger.info("Completed reading variable %s ".format( varName ))
+          logger.info("Completed reading variable %s, time = %.4f".format( varName, System.currentTimeMillis/1.0E6 ) )
           p.success(variable)
         }
         catch {
@@ -626,7 +626,7 @@ object SampleTaskRequests {
   def getAnomalyTest: TaskRequest = {
     val dataInputs = Map(
       "domain" ->  List(Map("name" -> "d0", "lat" -> Map("start" -> -7.0854263, "end" -> -7.0854263, "system" -> "values"), "lon" -> Map("start" -> 12.075, "end" -> 12.075, "system" -> "values"), "lev" -> Map("start" -> 100000, "end" -> 100000, "system" -> "values"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+      "variable" -> List(Map("uri" -> "collection://merra300/hourly/asm_Cp", "name" -> "t:v0", "domain" -> "d0")),
       "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
     TaskRequest( "CDS.anomaly", dataInputs )
   }
