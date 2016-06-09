@@ -157,7 +157,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
       case Success(dataset) =>
         try {
           val variable = dataset.loadVariable(varName)
-          logger.info("Completed reading variable %s, time = %.4f".format( varName, System.currentTimeMillis/1.0E6 ) )
+          logger.info("Completed reading variable %s".format( varName ) )
           p.success(variable)
         }
         catch {
@@ -371,11 +371,17 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   }
 
   def loadInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ): RequestContext = {
+    val t0 = System.nanoTime
     val sourceContainers = request.variableMap.values.filter(_.isSource)
+    val t1 = System.nanoTime
     val sources = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
       yield serverContext.createInputSpec(data_container, domainOpt, targetGrid, request.getDataAccessMode )
+    val t2 = System.nanoTime
     val sourceMap: Map[String,OperationInputSpec] = Map(sources.toSeq:_*)
-    new RequestContext (request.domainMap, sourceMap, targetGrid, run_args)
+    val rv = new RequestContext (request.domainMap, sourceMap, targetGrid, run_args)
+    val t3 = System.nanoTime
+    logger.info( " LoadInputDataT: %.4f %.4f %.4f".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9 ) )
+    rv
   }
 
   def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[ExecutionResults] = Future {
@@ -391,11 +397,12 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     val t0 = System.nanoTime
     try {
       val targetGrid: TargetGrid = createTargetGrid( request )
-      val requestContext = loadInputData( request, targetGrid, run_args )
       val t1 = System.nanoTime
-      val rv = executeWorkflows( request, requestContext )
+      val requestContext = loadInputData( request, targetGrid, run_args )
       val t2 = System.nanoTime
-      logger.info( "Execute Completed: LoadVariablesT> %.4f, ExecuteWorkflowT> %.4f, totalT> %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t2-t0)/1.0E9 ) )
+      val rv = executeWorkflows( request, requestContext )
+      val t3 = System.nanoTime
+      logger.info( "Execute Completed: CreateTargetGrid> %.4f, LoadVariablesT> %.4f, ExecuteWorkflowT> %.4f, totalT> %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, (t3-t0)/1.0E9 ) )
       rv
     } catch {
       case err: MetadataOnlyException => executeMetadataWorkflows( request )
