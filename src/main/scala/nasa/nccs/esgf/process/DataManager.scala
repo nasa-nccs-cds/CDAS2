@@ -9,7 +9,7 @@ import nasa.nccs.cdapi.kernels.AxisIndices
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
 import nasa.nccs.esgf.utilities.FileToCacheStream
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
-import nasa.nccs.utilities.cdsutils
+import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.nc2.time.{CalendarDate, CalendarDateRange}
 import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
@@ -199,13 +199,17 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   }
 }
 
-object GridSpec {
+object GridSpec extends Loggable {
     def apply( variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ): GridSpec = {
+      val t0 = System.nanoTime()
       val coordSpecs = for (idim <- variable.dims.indices; dim = variable.dims(idim); coord_axis = variable.getCoordinateAxis(dim.getFullName)) yield {
         val domainAxisOpt: Option[DomainAxis] = roiOpt.flatMap(axes => axes.find(da => da.matches( coord_axis.getAxisType )))
         new GridCoordSpec(idim, variable, coord_axis, domainAxisOpt)
       }
-      new GridSpec( variable, coordSpecs )
+      val rv = new GridSpec( variable, coordSpecs )
+      val t1 = System.nanoTime()
+      logger.info( "init GridSpec, time = %.4f".format( (t1-t0)/1.0E9))
+      rv
     }
 }
 
@@ -340,11 +344,11 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
   }
 
   def createTargetGrid( dataContainer: DataContainer, domainContainerOpt: Option[DomainContainer] ): TargetGrid = {
-    val t0 = System.nanoTime
     val roiOpt: Option[List[DomainAxis]] = domainContainerOpt.map( domainContainer => domainContainer.axes )
     val source = dataContainer.getSource
-    val t1 = System.nanoTime
+    val t0 = System.nanoTime
     val variable: CDSVariable = dataLoader.getVariable( source.collection, source.name )
+    val t1 = System.nanoTime
     val rv = new TargetGrid( variable, roiOpt )
     val t2 = System.nanoTime
     logger.info( " CreateTargetGridT: %.4f %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9 ) )
