@@ -339,11 +339,16 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     )
   }
 
-  def createTargetGrid( dataContainer: DataContainer, domainContainerOpt: Option[DomainContainer] ) = {
+  def createTargetGrid( dataContainer: DataContainer, domainContainerOpt: Option[DomainContainer] ): TargetGrid = {
+    val t0 = System.nanoTime
     val roiOpt: Option[List[DomainAxis]] = domainContainerOpt.map( domainContainer => domainContainer.axes )
     val source = dataContainer.getSource
+    val t1 = System.nanoTime
     val variable: CDSVariable = dataLoader.getVariable( source.collection, source.name )
-    new TargetGrid( variable, roiOpt )
+    val rv = new TargetGrid( variable, roiOpt )
+    val t2 = System.nanoTime
+    logger.info( " CreateTargetGridT: %.4f %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9 ) )
+    rv
   }
 
   def getDataset(collection: String, varname: String ): CDSDataset = dataLoader.getDataset( collection, varname )
@@ -394,8 +399,10 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     val fragSpec: DataFragmentSpec = targetGrid.createFragmentSpec( variable, targetGrid.grid.getSection, maskOpt )
     if(dataAccessMode != DataAccessMode.MetaData ) dataLoader.getFragment( fragSpec, dataAccessMode, 0.3f )
     val t3 = System.nanoTime
-    logger.info( " LoadVariableDataT: %.4f %.4f %.4f".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9 ) )
-    dataContainer.uid -> new OperationInputSpec( fragSpec, axisSpecs )
+    val rv = dataContainer.uid -> new OperationInputSpec( fragSpec, axisSpecs )
+    val t4 = System.nanoTime
+    logger.info( " LoadVariableDataT: %.4f %.4f %.4f, T = %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, (t4-t0)/1.0E9 ) )
+    rv
   }
 }
 
