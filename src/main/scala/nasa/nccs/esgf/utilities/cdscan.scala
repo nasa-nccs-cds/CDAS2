@@ -62,7 +62,7 @@ class NCMLWriter(args: Iterator[String]) {
     var nElementsWritten = 0
     for( iFile <- (coreIndex until ncFiles.length by nReadProcessors); file = ncFiles.get(iFile) ) {
       val values = getTimeCoordValues(file)
-      println( "Core[%d]: Processing file '%s', ncoords = %d ".format( coreIndex, file.getAbsolutePath, values.length ) )
+      println( "Core[%d]: Processing file[%d] '%s', ncoords = %d ".format( coreIndex, iFile, file.getAbsolutePath, values.length ) )
       val aggFileRec = new AggFileRec( file.getAbsolutePath, values )
       aggFileRecCache.put( iFile, aggFileRec )
       nElementsWritten += 1
@@ -86,8 +86,10 @@ class NCMLWriter(args: Iterator[String]) {
     <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
       <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
       <aggregation dimName="time" units="seconds since 1970-1-1" type="joinExisting">
-        { for( iFile <- (0 until ncFiles.length ); aggFileRec = getAggFileRec(iFile) ) yield
-            <netcdf location={"file:" + aggFileRec.path} ncoords={aggFileRec.nElem.toString}> { aggFileRec.axisValues.mkString(", ") } </netcdf>
+        { for( iFile <- (0 until ncFiles.length ); aggFileRec = getAggFileRec(iFile) ) yield {
+          println( "getNCML: Writing xml for file[%d] '%s', ncoords = %d ".format( iFile, aggFileRec.path, aggFileRec.nElem ) )
+          <netcdf location={"file:" + aggFileRec.path} ncoords={aggFileRec.nElem.toString}> {aggFileRec.axisValues.mkString(", ")} </netcdf>
+          }
         }
       </aggregation>
     </netcdf>
