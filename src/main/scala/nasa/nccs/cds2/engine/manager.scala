@@ -145,8 +145,10 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   private def produceDataset(collection_uri: String, varName: String)(p: Promise[CDSDataset]): Unit =
     Collections.getCollection( collection_uri ) match {
       case Some(collection) =>
+        val t0 = System.nanoTime()
         val dataset = CDSDataset.load(collection_uri, collection, varName)
-        logger.info("Completed reading dataset (%s:%s) ".format( collection, varName ))
+        val t1 = System.nanoTime()
+        logger.info(" Completed reading dataset (%s:%s), T: %.4f ".format( collection, varName, (t1-t0)/1.0E9 ))
         p.success(dataset)
       case None => p.failure(new Exception("Undefined collection for dataset " + varName + ", collection = " + collection_uri + ".  Current collections = " + Collections.getCollectionKeys.mkString("[ " ,", ", " ]") ))
     }
@@ -156,8 +158,10 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     getDatasetFuture(collection, varName) onComplete {
       case Success(dataset) =>
         try {
+          val t0 = System.nanoTime()
           val variable = dataset.loadVariable(varName)
-          logger.info("Completed reading variable %s".format( varName ) )
+          val t1 = System.nanoTime()
+          logger.info(" Completed reading variable %s, T: %.4f".format( varName, (t1-t0)/1.0E9 ) )
           p.success(variable)
         }
         catch {
@@ -171,8 +175,13 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   }
 
   def getVariable(collection: String, varName: String): CDSVariable = {
+    val t0 = System.nanoTime()
     val futureVariable: Future[CDSVariable] = getVariableFuture(collection, varName)
-    Await.result(futureVariable, Duration.Inf)
+    val t1 = System.nanoTime()
+    val rv = Await.result(futureVariable, Duration.Inf)
+    val t2 = System.nanoTime()
+    logger.info("getVariableT %.4f %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9 ) )
+    rv
   }
 
   def getVariable(fragSpec: DataFragmentSpec): CDSVariable = getVariable(fragSpec.collection, fragSpec.varname)
