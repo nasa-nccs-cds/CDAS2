@@ -104,15 +104,17 @@ case class AggFileRec( file: File ) {
 }
 
 object cdscan extends App {
+  val t0 = System.nanoTime()
   val ofile = args(0)
   val ncmlWriter = new NCMLWriter( args.tail.iterator )
   val ncmlNode = ncmlWriter.getNCML
   val file = new File( ofile )
   val bw = new BufferedWriter(new FileWriter(file))
-  println( "Writing NcML to file '%s'".format( file.getAbsolutePath ))
   val nodeStr = ncmlNode.toString
   bw.write( nodeStr )
   bw.close()
+  val t1 = System.nanoTime()
+  println( "Writing NcML to file '%s', time = %.4f".format( file.getAbsolutePath, (t1-t0)/1.0E9)  )
 }
 
 object NCMLWriterTest extends App {
@@ -123,7 +125,7 @@ object NCMLWriterTest extends App {
   val file = new File( ofile )
   val bw = new BufferedWriter(new FileWriter(file))
   val t1 = System.nanoTime()
-  println( "Writing NcML to file '%s', time = %.2f:".format( file.getAbsolutePath, (t1-t0)/1.0E9) )
+  println( "Writing NcML to file '%s', time = %.4f:".format( file.getAbsolutePath, (t1-t0)/1.0E9) )
   val nodeStr = ncmlNode.toString
   println( nodeStr )
   bw.write( nodeStr )
