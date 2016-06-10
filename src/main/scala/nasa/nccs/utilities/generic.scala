@@ -35,6 +35,15 @@ object cdsutils {
     for ( cpitem <- cpitems; fileitem = new File(cpitem); if fileitem.isFile && fileitem.getName.toLowerCase.endsWith(".jar") ) yield new JarFile(fileitem)
   }
 
+  def printHeapUsage = {
+    val MB = 1024 * 1024
+    val heapSize: Long = Runtime.getRuntime.totalMemory
+    val heapSizeMax: Long = Runtime.getRuntime.maxMemory
+    val heapFreeSize: Long = Runtime.getRuntime.freeMemory
+    println( "-->> HEAP: heapSize = %d M, heapSizeMax = %d M, heapFreeSize = %d M".format( heapSize/MB, heapSizeMax/MB, heapFreeSize/MB ) )
+
+  }
+
   def ptime[R]( label: String)(block: => R): R = {
     val t0 = System.nanoTime()
     val result = block

@@ -2,7 +2,10 @@ package nasa.nccs.esgf.utilities
 import java.io.{BufferedWriter, File, FileWriter}
 import java.util.Formatter
 import java.util.concurrent.ArrayBlockingQueue
+
 import nasa.nccs.caching.{Cache, LruCache}
+import nasa.nccs.utilities.cdsutils
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.Breaks._
 import scala.collection.JavaConversions._
@@ -10,6 +13,7 @@ import scala.collection.JavaConverters._
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, NetcdfDataset, VariableDS}
 import ucar.nc2.time.{CalendarDate, CalendarDateRange}
+
 import scala.concurrent.Future
 
 object NCMLWriter {
@@ -28,6 +32,30 @@ object NCMLWriter {
 
   def getNcFiles(args: Iterator[String]): Iterator[File] =
     args.map( (arg: String) => NCMLWriter.getNcFiles(new File(arg))).foldLeft(Iterator[File]())(_ ++ _)
+}
+
+class NCMLSerialWriter(val args: Iterator[String]) {
+
+  def getAggFileRecsSerial(): IndexedSeq[AggFileRec] = {
+    val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
+    val nFiles = files.length
+    val aggFileRecs: IndexedSeq[AggFileRec] = for ( iFile <- files.indices; file = files(iFile) ) yield {
+      val aggFileRec = new AggFileRec(file)
+      println("Processing file[%d] '%s', start = %d, ncoords = %d ".format(iFile, file.getAbsolutePath, aggFileRec.startValue, aggFileRec.nElem))
+      cdsutils.printHeapUsage
+      aggFileRec
+    }
+    aggFileRecs.sortWith((afr0, afr1) => (afr0.startValue < afr1.startValue))
+  }
+
+  def getNCML: xml.Node = {
+    <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
+      <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
+      <aggregation dimName="time" units="seconds since 1970-1-1" type="joinExisting">
+        { for( aggFileRec <- getAggFileRecsSerial ) yield { <netcdf location={"file:" + aggFileRec.path} ncoords={aggFileRec.nElem.toString}> { aggFileRec.axisValues.mkString(", ") } </netcdf> } }
+      </aggregation>
+    </netcdf>
+  }
 }
 
 class NCMLWriter(args: Iterator[String], val maxCores: Int = 10) {
@@ -62,6 +90,8 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 10) {
     val aggFileRecs = for( iFile <- (0 until nFiles) ) yield aggFileRecQueue.take
     aggFileRecs.sortWith( ( afr0, afr1 ) =>  (afr0.startValue < afr1.startValue) )
   }
+
+
 
   def getNCML: xml.Node = {
     println("Processing %d files with %d workers".format( nFiles, nReadProcessors) )
@@ -106,7 +136,7 @@ case class AggFileRec( file: File ) {
 object cdscan extends App {
   val t0 = System.nanoTime()
   val ofile = args(0)
-  val ncmlWriter = new NCMLWriter( args.tail.iterator )
+  val ncmlWriter = new NCMLSerialWriter( args.tail.iterator )
   val ncmlNode = ncmlWriter.getNCML
   val file = new File( ofile )
   val bw = new BufferedWriter(new FileWriter(file))
@@ -120,7 +150,7 @@ object cdscan extends App {
 object NCMLWriterTest extends App {
   val t0 = System.nanoTime()
   val ofile = "/tmp/MERRA300.prod.assim.inst3_3d_asm_Cp.xml"
-  val ncmlWriter = new NCMLWriter( Array("/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/2005/").iterator )
+  val ncmlWriter = new NCMLSerialWriter( Array("/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/2005/").iterator )
   val ncmlNode = ncmlWriter.getNCML
   val file = new File( ofile )
   val bw = new BufferedWriter(new FileWriter(file))
