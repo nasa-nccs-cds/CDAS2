@@ -341,6 +341,8 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       case None => throw new Exception("Unrecognized Kernel Module %s, modules = %s ".format( moduleName, kernelManager.getModuleNames.mkString("[ ",", "," ]") ) )
     }
   }
+  def getResourcePath( resource: String ): Option[String] = Option(getClass.getResource(resource)).map( _.getPath )
+
   def getKernel( moduleName: String, operation: String  ): Kernel = {
     val kmod = getKernelModule( moduleName )
     kmod.getKernel( operation  ) match {

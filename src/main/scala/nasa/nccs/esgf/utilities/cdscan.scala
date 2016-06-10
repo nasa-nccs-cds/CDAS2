@@ -4,6 +4,7 @@ import java.util.Formatter
 import java.util.concurrent.ArrayBlockingQueue
 import nasa.nccs.caching.{Cache, LruCache}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.control.Breaks._
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import ucar.nc2.constants.AxisType
@@ -29,28 +30,30 @@ object NCMLWriter {
     args.map( (arg: String) => NCMLWriter.getNcFiles(new File(arg))).foldLeft(Iterator[File]())(_ ++ _)
 }
 
-class NCMLWriter(args: Iterator[String]) {
-  private val nReadProcessors = Math.min( Runtime.getRuntime.availableProcessors - 1, 8 )
+class NCMLWriter(args: Iterator[String], val maxCores: Int = 10) {
+  private val nReadProcessors = Math.min( Runtime.getRuntime.availableProcessors - 1, maxCores )
   private val files: IndexedSeq[File]  = NCMLWriter.getNcFiles( args ).toIndexedSeq
   private val nFiles = files.length
   private val fileQueue: ArrayBlockingQueue[Option[File]] = initFileQueue( files )
   private val aggFileRecQueue = new ArrayBlockingQueue[AggFileRec]( nFiles )
 
   def initFileQueue( ncFiles: IndexedSeq[File] ): ArrayBlockingQueue[Option[File]] = {
-    val queue = new ArrayBlockingQueue[Option[File]]( 3*ncFiles.length )
+    val queue = new ArrayBlockingQueue[Option[File]]( ncFiles.length + nReadProcessors )
     ncFiles foreach { f => queue.put(Some(f)) }
-    0 to ncFiles.length foreach { _ => queue.put(None) }
+    0 until nReadProcessors foreach { _ => queue.put(None) }
     queue
   }
 
   def processFiles(coreIndex: Int): Unit = {
-    fileQueue.take() match {
-      case None => Unit
-      case Some(file) =>
-        val aggFileRec = new AggFileRec(file)
-        aggFileRecQueue.put(aggFileRec)
-        println("Core[%d]: Processing file[%d] '%s', ncoords = %d ".format(coreIndex, aggFileRec.startValue, file.getAbsolutePath, aggFileRec.nElem))
-        processFiles(coreIndex)
+    breakable { for (iFile <- 0 to nFiles) {
+        fileQueue.take() match {
+          case None => break
+          case Some(file) =>
+            val aggFileRec = new AggFileRec(file)
+            aggFileRecQueue.put(aggFileRec)
+            println("Core[%d]: Processing file[%d] '%s', start = %d, ncoords = %d ".format(coreIndex, iFile, file.getAbsolutePath, aggFileRec.startValue, aggFileRec.nElem))
+        }
+      }
     }
   }
 
@@ -61,8 +64,7 @@ class NCMLWriter(args: Iterator[String]) {
   }
 
   def getNCML: xml.Node = {
-    val readProcFuts: IndexedSeq[Future[Unit]] = for( coreIndex <- (0 until Math.min( nFiles, nReadProcessors ) ) ) yield Future { processFiles(coreIndex) }
-    val aggFileRecCache: Cache[Int,AggFileRec] = new LruCache("Store","cdscan",false)
+    println("Processing %d files with %d workers".format( nFiles, nReadProcessors) )
     <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
       <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
       <aggregation dimName="time" units="seconds since 1970-1-1" type="joinExisting">
@@ -114,12 +116,14 @@ object cdscan extends App {
 }
 
 object NCMLWriterTest extends App {
+  val t0 = System.nanoTime()
   val ofile = "/tmp/MERRA300.prod.assim.inst3_3d_asm_Cp.xml"
   val ncmlWriter = new NCMLWriter( Array("/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/2005/").iterator )
   val ncmlNode = ncmlWriter.getNCML
   val file = new File( ofile )
   val bw = new BufferedWriter(new FileWriter(file))
-  println( "Writing NcML to file '%s':".format( file.getAbsolutePath ))
+  val t1 = System.nanoTime()
+  println( "Writing NcML to file '%s', time = %.2f:".format( file.getAbsolutePath, (t1-t0)/1.0E9) )
   val nodeStr = ncmlNode.toString
   println( nodeStr )
   bw.write( nodeStr )
