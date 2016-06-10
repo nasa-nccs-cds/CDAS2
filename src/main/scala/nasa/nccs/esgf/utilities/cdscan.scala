@@ -63,32 +63,22 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 10) {
   private val nReadProcessors = Math.min( Runtime.getRuntime.availableProcessors - 1, maxCores )
   private val files: IndexedSeq[File]  = NCMLWriter.getNcFiles( args ).toIndexedSeq
   private val nFiles = files.length
-  private val fileQueue: ArrayBlockingQueue[Option[File]] = initFileQueue( files )
   private val aggFileRecQueue = new ArrayBlockingQueue[AggFileRec]( nFiles )
 
-  def initFileQueue( ncFiles: IndexedSeq[File] ): ArrayBlockingQueue[Option[File]] = {
-    val queue = new ArrayBlockingQueue[Option[File]]( ncFiles.length + nReadProcessors )
-    ncFiles foreach { f => queue.put(Some(f)) }
-    0 until nReadProcessors foreach { _ => queue.put(None) }
-    queue
-  }
 
-  def processFiles(coreIndex: Int): Unit = {
-    breakable { for (iFile <- 0 to nFiles) {
-        fileQueue.take() match {
-          case None => break
-          case Some(file) =>
-            val aggFileRec = new AggFileRec(file)
-            aggFileRecQueue.put(aggFileRec)
-            println("Core[%d]: Processing file[%d] '%s', start = %d, ncoords = %d ".format(coreIndex, iFile, file.getAbsolutePath, aggFileRec.startValue, aggFileRec.nElem))
-        }
-      }
+  def processFiles( files: IndexedSeq[File] ): IndexedSeq[AggFileRec] =
+    for( iFile <- files.indices; file = files(iFile) ) yield {
+      val aggFileRec = new AggFileRec(file)
+      println("Processing file[%d] '%s', start = %d, ncoords = %d ".format( iFile, file.getAbsolutePath, aggFileRec.startValue, aggFileRec.nElem ) )
+      aggFileRec
     }
-  }
+
 
   def getAggFileRecs(): IndexedSeq[AggFileRec] = {
-    val readProcFuts: IndexedSeq[Future[Unit]] = for( coreIndex <- (0 until Math.min( nFiles, nReadProcessors ) ) ) yield Future { processFiles(coreIndex) }
-    val aggFileRecs = for( iFile <- (0 until nFiles) ) yield aggFileRecQueue.take
+    val groupSize = Math.ceil(nFiles/nReadProcessors.toFloat).toInt
+    val fileGroups: Iterator[IndexedSeq[File]] = files.sliding(groupSize)
+    val aggFileRecFuts = Future.sequence( for( fileGroup <- fileGroups ) yield Future { processFiles(fileGroup) } )
+    aggFileRecFuts.onSuccess()
     aggFileRecs.sortWith( ( afr0, afr1 ) =>  (afr0.startValue < afr1.startValue) )
   }
 
