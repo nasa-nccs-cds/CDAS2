@@ -39,9 +39,10 @@ class NCMLSerialWriter(val args: Iterator[String]) {
   def getAggFileRecsSerial(): IndexedSeq[AggFileRec] = {
     val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
     val nFiles = files.length
+    println( "NCMLSerialWriter--> Processing %d files:".format(nFiles) )
     val aggFileRecs: IndexedSeq[AggFileRec] = for ( iFile <- files.indices; file = files(iFile) ) yield {
       val aggFileRec = new AggFileRec(file)
-      println("Processing file[%d] '%s', start = %d, ncoords = %d ".format(iFile, file.getAbsolutePath, aggFileRec.startValue, aggFileRec.nElem))
+      println("  >> Processing file[%d] '%s', start = %d, ncoords = %d ".format(iFile, file.getAbsolutePath, aggFileRec.startValue, aggFileRec.nElem))
       cdsutils.printHeapUsage
       aggFileRec
     }
