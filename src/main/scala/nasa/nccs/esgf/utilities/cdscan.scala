@@ -7,6 +7,7 @@ import nasa.nccs.caching.{Cache, LruCache}
 import nasa.nccs.utilities.cdsutils
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
 import scala.util.control.Breaks._
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -14,7 +15,7 @@ import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, NetcdfDataset, VariableDS}
 import ucar.nc2.time.{CalendarDate, CalendarDateRange}
 
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
 
 object NCMLWriter {
 
@@ -36,24 +37,24 @@ object NCMLWriter {
 
 class NCMLSerialWriter(val args: Iterator[String]) {
 
-  def getAggFileRecsSerial(): IndexedSeq[AggFileRec] = {
+  def getFileHeadersSerial(): IndexedSeq[FileHeader] = {
     val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
     val nFiles = files.length
     println( "NCMLSerialWriter--> Processing %d files:".format(nFiles) )
-    val aggFileRecs: IndexedSeq[AggFileRec] = for ( iFile <- files.indices; file = files(iFile) ) yield {
-      val aggFileRec = new AggFileRec(file)
-      println("  >> Processing file[%d] '%s', start = %d, ncoords = %d ".format(iFile, file.getAbsolutePath, aggFileRec.startValue, aggFileRec.nElem))
+    val fileHeaders: IndexedSeq[FileHeader] = for ( iFile <- files.indices; file = files(iFile) ) yield {
+      val fileHeader = new FileHeader(file)
+      println("  >> Processing file[%d] '%s', start = %d, ncoords = %d ".format(iFile, file.getAbsolutePath, fileHeader.startValue, fileHeader.nElem))
       cdsutils.printHeapUsage
-      aggFileRec
+      fileHeader
     }
-    aggFileRecs.sortWith((afr0, afr1) => (afr0.startValue < afr1.startValue))
+    fileHeaders.sortWith((afr0, afr1) => (afr0.startValue < afr1.startValue))
   }
 
   def getNCML: xml.Node = {
     <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
       <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
       <aggregation dimName="time" units="seconds since 1970-1-1" type="joinExisting">
-        { for( aggFileRec <- getAggFileRecsSerial ) yield { <netcdf location={"file:" + aggFileRec.path} ncoords={aggFileRec.nElem.toString}> { aggFileRec.axisValues.mkString(", ") } </netcdf> } }
+        { for( fileHeader <- getFileHeadersSerial ) yield { <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString}> { fileHeader.axisValues.mkString(", ") } </netcdf> } }
       </aggregation>
     </netcdf>
   }
@@ -63,45 +64,42 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 10) {
   private val nReadProcessors = Math.min( Runtime.getRuntime.availableProcessors - 1, maxCores )
   private val files: IndexedSeq[File]  = NCMLWriter.getNcFiles( args ).toIndexedSeq
   private val nFiles = files.length
-  private val aggFileRecQueue = new ArrayBlockingQueue[AggFileRec]( nFiles )
+  private val fileHeaderQueue = new ArrayBlockingQueue[FileHeader]( nFiles )
 
-
-  def processFiles( files: IndexedSeq[File] ): IndexedSeq[AggFileRec] =
-    for( iFile <- files.indices; file = files(iFile) ) yield {
-      val aggFileRec = new AggFileRec(file)
-      println("Processing file[%d] '%s', start = %d, ncoords = %d ".format( iFile, file.getAbsolutePath, aggFileRec.startValue, aggFileRec.nElem ) )
-      aggFileRec
-    }
-
-
-  def getAggFileRecs(): IndexedSeq[AggFileRec] = {
+  def getFileHeaders(): IndexedSeq[FileHeader] = {
     val groupSize = Math.ceil(nFiles/nReadProcessors.toFloat).toInt
-    val fileGroups: Iterator[IndexedSeq[File]] = files.sliding(groupSize)
-    val aggFileRecFuts = Future.sequence( for( fileGroup <- fileGroups ) yield Future { processFiles(fileGroup) } )
-    aggFileRecFuts.onSuccess()
-    aggFileRecs.sortWith( ( afr0, afr1 ) =>  (afr0.startValue < afr1.startValue) )
+    val fileHeaderFuts  = Future.sequence( for( fileGroup <- files.sliding(groupSize) ) yield Future { FileHeader.factory(fileGroup) } )
+    Await.result( fileHeaderFuts, Duration.Inf ).foldLeft( IndexedSeq[FileHeader]() )(_ ++ _).sortWith( ( afr0, afr1 ) =>  (afr0.startValue < afr1.startValue) )
   }
-
-
 
   def getNCML: xml.Node = {
     println("Processing %d files with %d workers".format( nFiles, nReadProcessors) )
     <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
       <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
       <aggregation dimName="time" units="seconds since 1970-1-1" type="joinExisting">
-        { for( aggFileRec <- getAggFileRecs ) yield { <netcdf location={"file:" + aggFileRec.path} ncoords={aggFileRec.nElem.toString}> { aggFileRec.axisValues.mkString(", ") } </netcdf> } }
+        { for( fileHeader <- getFileHeaders ) yield { <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString}> { fileHeader.axisValues.mkString(", ") } </netcdf> } }
       </aggregation>
     </netcdf>
   }
 }
 
-case class AggFileRec( file: File ) {
+object FileHeader {
+  def apply( file: File ): FileHeader = new FileHeader(file)
+  def factory( files: IndexedSeq[File] ): IndexedSeq[FileHeader] =
+    for( iFile <- files.indices; file = files(iFile) ) yield {
+      val fileHeader = new FileHeader(file)
+      println("Processing file[%d] '%s', start = %d, ncoords = %d ".format( iFile, file.getAbsolutePath, fileHeader.startValue, fileHeader.nElem ) )
+      fileHeader
+    }
+}
+
+class FileHeader( file: File ) {
   val path: String = file.getAbsolutePath
   val axisValues: Array[Long] =  getTimeCoordValues(file)
   def nElem = axisValues.length
   def startValue = axisValues(0)
 
-  override def toString: String = " *** AggFileRec { path='%s', nElem=%d, startValue=%d } ".format( path, nElem, startValue )
+  override def toString: String = " *** FileHeader { path='%s', nElem=%d, startValue=%d } ".format( path, nElem, startValue )
 
   def getTimeValues( ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index : Int = 0, end_index : Int = -1, stride: Int = 1 ): Array[Long] = {
     val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory( ncDataset, coordAxis, new Formatter())
@@ -127,7 +125,7 @@ case class AggFileRec( file: File ) {
 object cdscan extends App {
   val t0 = System.nanoTime()
   val ofile = args(0)
-  val ncmlWriter = new NCMLSerialWriter( args.tail.iterator )
+  val ncmlWriter = new NCMLWriter( args.tail.iterator )
   val ncmlNode = ncmlWriter.getNCML
   val file = new File( ofile )
   val bw = new BufferedWriter(new FileWriter(file))
@@ -141,7 +139,7 @@ object cdscan extends App {
 object NCMLWriterTest extends App {
   val t0 = System.nanoTime()
   val ofile = "/tmp/MERRA300.prod.assim.inst3_3d_asm_Cp.xml"
-  val ncmlWriter = new NCMLSerialWriter( Array("/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/2005/").iterator )
+  val ncmlWriter = new NCMLWriter( Array("/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/2005/").iterator )
   val ncmlNode = ncmlWriter.getNCML
   val file = new File( ofile )
   val bw = new BufferedWriter(new FileWriter(file))
