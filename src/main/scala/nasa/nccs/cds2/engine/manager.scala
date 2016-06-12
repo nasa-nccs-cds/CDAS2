@@ -44,7 +44,7 @@ class MaskKey( bounds: Array[Float], dimensions: Array[Int] ) {}
 class MetadataOnlyException extends Exception {}
 
 object FragmentPersistence extends DiskCachable with FragSpecKeySet {
-  private val fragmentIdCache: Cache[DataFragmentKey,String] = new LruCache("CacheIdMap","fragment",true)
+  private val fragmentIdCache: Cache[DataFragmentKey,String] = new FutureCache("CacheIdMap","fragment",true)
   def getCacheType = "fragment"
 
   def persist( fragSpec: DataFragmentSpec, frag: PartitionedFragment ): Future[String] = fragmentIdCache(fragSpec.getKey) { promiseCacheId(frag) _ }
@@ -118,10 +118,10 @@ trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {
 }
 
 class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with FragSpecKeySet {
-  private val fragmentCache: Cache[DataFragmentKey,PartitionedFragment] = new LruCache("Store","fragment",false)
-  private val datasetCache: Cache[String,CDSDataset] = new LruCache("Store","dataset",false)
-  private val variableCache: Cache[String,CDSVariable] = new LruCache("Store","variable",false)
-  private val maskCache: Cache[MaskKey,CDByteArray] = new LruCache("Store","mask",false)
+  private val fragmentCache: Cache[DataFragmentKey,PartitionedFragment] = new FutureCache("Store","fragment",false)
+  private val datasetCache: Cache[String,CDSDataset] = new FutureCache("Store","dataset",false)
+  private val variableCache: Cache[String,CDSVariable] = new FutureCache("Store","variable",false)
+  private val maskCache: Cache[MaskKey,CDByteArray] = new FutureCache("Store","mask",false)
   def clearFragmentCache() = fragmentCache.clear
 
   def makeKey(collection: String, varName: String) = collection + ":" + varName

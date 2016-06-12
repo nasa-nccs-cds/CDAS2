@@ -21,6 +21,8 @@ object cdsutils {
 
   def flatlist[T]( values: Option[T]* ): List[T] = values.flatten.toList
 
+  def ceilDiv( numer: Int, denom: Int ) : Int = Math.ceil( numer/ denom.toFloat ).toInt
+
   def getInstance[T]( cls: Class[T] ) = cls.getConstructor().newInstance()
 
   def findNonNull[T]( values: T* ): Option[T] = values.toList.find( _ != null )

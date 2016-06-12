@@ -1,22 +1,18 @@
-package nasa.nccs.esgf.utilities
+package nasa.nccs.caching
 
 import java.io.{FileInputStream, RandomAccessFile}
-import java.nio.{BufferOverflowException, ByteBuffer, FloatBuffer, MappedByteBuffer}
 import java.nio.channels.FileChannel
+import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
 
-import scala.concurrent.{Await, Future}
-import scala.concurrent.ExecutionContext.Implicits.global
-import nasa.nccs.caching.{Cache, LruCache}
-import nasa.nccs.cdapi.cdm.{CDSVariable, DiskCacheFileMgr, PartitionedFragment}
+import nasa.nccs.cdapi.cdm.{CDSVariable, DiskCacheFileMgr}
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
-import nasa.nccs.cds2.loaders.XmlResource
-import nasa.nccs.esgf.process.{DataFragmentKey, DataFragmentSpec}
+import nasa.nccs.esgf.process.DataFragmentSpec
 import nasa.nccs.utilities.Loggable
 import ucar.ma2
-import ucar.ma2.Range
-import ucar.nc2.dataset.NetcdfDataset
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 
 class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val buffer: ByteBuffer ) {
   def size: Int = shape.product
@@ -31,7 +27,7 @@ class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val
 
 class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragmentSpec, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
   private val ncVariable = cdVariable.ncVariable
-  private val chunkCache: Cache[Int,CacheChunk] = new LruCache("Store",cacheType,false)
+  private val chunkCache: Cache[Int,CacheChunk] = new FutureCache("Store",cacheType,false)
   private val nReadProcessors = Runtime.getRuntime.availableProcessors - 1
   private val roi: ma2.Section = fragSpec.roi
   private val baseShape = roi.getShape

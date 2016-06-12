@@ -1,9 +1,6 @@
 package nasa.nccs.cdapi.cdm
 
 import java.nio.channels.{FileChannel, NonReadableChannelException}
-
-import nasa.nccs.esgf.process.DomainAxis
-import nasa.nccs.cdapi.cdm
 import ucar.nc2
 import java.nio.file.{Paths, Files}
 import java.io.{FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, Serializable, RandomAccessFile}
@@ -183,11 +180,12 @@ object CDSDataset extends DiskCachable  {
   }
 }
 
-case class DatasetFileAggregation( val aggDim: String, val aggFileMap: Seq[(String,Int)] ) {
+case class DatasetFileHeaders( val aggDim: String, val aggFileMap: Seq[FileHeader] ) {
   def getNElems(): Int = {
     assert( !aggFileMap.isEmpty, "Error, aggregated dataset has no files!" )
-    return aggFileMap.head._2
+    return aggFileMap.head.nElem
   }
+  def getAxisValues: Array[Long] = aggFileMap.map(_.axisValues).foldLeft(Array[Long]()) { _ ++ _ }
 }
 
 class CDSDatasetRec( val dsetName: String, val uri: String, val varName: String ) extends Serializable {}
@@ -196,29 +194,30 @@ class CDSDataset( val name: String, val uri: String, val ncDataset: NetcdfDatase
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val attributes: List[nc2.Attribute] = ncDataset.getGlobalAttributes.map( a => { new nc2.Attribute( name + "--" + a.getFullName, a ) } ).toList
   val coordAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
-  val fileAgg: Option[DatasetFileAggregation] = getDatasetFileAggregation
+  val fileHeaders: Option[DatasetFileHeaders] = getDatasetFileHeaders
+
 
   def getCoordinateAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
   def getFilePath = CDSDataset.urlToPath(uri)
   def getSerializable = new CDSDatasetRec( name, uri, varName )
 
-  def getDatasetFileAggregation: Option[DatasetFileAggregation] = {
+  def getDatasetFileHeaders: Option[DatasetFileHeaders] = {
     if( uri.startsWith("http:" ) ) { None }
     else if( uri.endsWith(".xml" ) || uri.endsWith(".ncml" ) ) {
       val aggregation = XML.loadFile(getFilePath) \ "aggregation"
       val aggDim = (aggregation \ "@dimName").text
-      val fileNodes = ( aggregation \ "netcdf" ).map( node => ( (node \ "@location").text ->  ( node \ "@ncoords").text.toInt )  )
-      Some( new DatasetFileAggregation( aggDim, fileNodes ) )
+      val fileNodes = ( aggregation \ "netcdf" ).map( node => new FileHeader(  (node \ "@location").text,  node.text.split(",").map( _.toLong ) ) )
+      Some( new DatasetFileHeaders( aggDim, fileNodes ) )
     } else {
       None
     }
   }
 
-  def loadVariable( varName: String ): cdm.CDSVariable = {
+  def loadVariable( varName: String ): CDSVariable = {
     val t0 = System.nanoTime
     val ncVariable = ncDataset.findVariable(varName)
     if (ncVariable == null) throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
-    val rv = new cdm.CDSVariable( varName, this, ncVariable )
+    val rv = new CDSVariable( varName, this, ncVariable )
     val t1 = System.nanoTime
     logger.info( "loadVariable(%s)T> %.4f,  ".format( varName, (t1-t0)/1.0E9 ) )
     rv

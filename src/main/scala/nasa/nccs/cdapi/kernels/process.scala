@@ -230,7 +230,7 @@ abstract class Kernel {
           println( "Writing result %s to file '%s'".format(resultId,resultFile.getAbsolutePath) )
           Some(resultId)
         } catch {
-          case e: IOException => logger.error("ERROR creating file %s%n%s".format(resultFile.getAbsolutePath, e.getMessage ) )
+          case e: IOException => logger.error("ERROR creating file %s%n%s".format(resultFile.getAbsolutePath, e.getMessage() ) )
         }
     }
     None
