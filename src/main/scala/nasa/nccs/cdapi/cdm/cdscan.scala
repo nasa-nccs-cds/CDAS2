@@ -50,7 +50,7 @@ object NCMLWriter {
 
   def getFileHeaders( files: IndexedSeq[File], nReadProcessors: Int ): IndexedSeq[FileHeader] = {
     val groupSize = cdsutils.ceilDiv( files.length, nReadProcessors )
-    val fileGroups = files.sliding(groupSize).toIndexedSeq
+    val fileGroups = files.grouped(groupSize).toIndexedSeq
     val fileHeaderFuts  = Future.sequence( for( workerIndex <- fileGroups.indices; fileGroup = fileGroups(workerIndex) ) yield Future { FileHeader.factory( fileGroup, workerIndex ) } )
     Await.result( fileHeaderFuts, Duration.Inf ).foldLeft( IndexedSeq[FileHeader]() ) {_ ++ _} sortWith { ( afr0, afr1 ) =>  (afr0.startValue < afr1.startValue) }
   }
@@ -127,7 +127,7 @@ object FileHeader {
       val t0 = System.nanoTime()
       val fileHeader = FileHeader(file)
       val t1 = System.nanoTime()
-      println("Worker[%d]: Processing file[%d] '%s', start = %d, ncoords = %d, time = %.4f ".format( workerIndex, iFile, file.getAbsolutePath, fileHeader.startValue, fileHeader.nElem, (t1-t0)/1.0E9 ) )
+      println("Worker[%d]: Processing file[%d] '%s', start = %.3f, ncoords = %d, time = %.4f ".format( workerIndex, iFile, file.getAbsolutePath, fileHeader.startValue, fileHeader.nElem, (t1-t0)/1.0E9 ) )
       fileHeader
     }
   def getTimeValues( ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index : Int = 0, end_index : Int = -1, stride: Int = 1 ): Array[Double] = {
