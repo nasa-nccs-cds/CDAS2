@@ -11,7 +11,7 @@ import ucar.nc2.dataset.{NetcdfDataset, CoordinateAxis1DTime, VariableDS}
 import ucar.nc2.ncml.{NcMLWriter, Aggregation, AggregationExisting}
 import ucar.nc2.time.CalendarDate
 import ucar.nc2.util.{CancelTaskImpl, CancelTask, DiskCache2}
-
+import scala.collection.JavaConversions._
 import scala.collection.JavaConversions._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -153,9 +153,9 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 10) {
 
   def makeVariableNode( variable: nc2.Variable ) = {
     val buff: Nothing = new Nothing
-    val dims: Array[String] = variable.getDimensions.map( dim => if (dim.isVariableLength) "*" else dim.getLength.toString )
+    val dims: Array[String] = variable.getDimensions.map( dim => if (dim.isShared) dim.getShortName else if (dim.isVariableLength) "*" else dim.getLength.toString ).toArray
 
-    import scala.collection.JavaConversions._
+
     for (att <- variable.getAttributes) makeAttributeElement(att)
     <variable name={variable.getShortName} shape={dims.mkString(" ")} type={variable.getDataType.toString} >
     </variable>
