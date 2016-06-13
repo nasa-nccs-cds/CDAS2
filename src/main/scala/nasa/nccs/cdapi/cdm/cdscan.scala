@@ -4,7 +4,7 @@ import java.io._
 import java.nio.file.{Paths, Path}
 import java.util.Formatter
 import java.util.concurrent.ArrayBlockingQueue
-import ucar.nc2
+import ucar.{nc2, ma2}
 import nasa.nccs.utilities.cdsutils
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset.{NetcdfDataset, CoordinateAxis1DTime, VariableDS}
@@ -68,35 +68,6 @@ class NCMLSerialWriter(val args: Iterator[String]) {
   }
 }
 
-class NCMLAggregation(val args: Iterator[String]) {
-  val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
-  val nFiles = files.length
-  val fileHeaders = NCMLWriter.getFileHeadersSerial(files)
-
-  def getAggregation: NetcdfDataset = {
-    val aggDataset: NetcdfDataset= new NetcdfDataset()
-    val aggregation = new AggregationExisting(aggDataset, "time", "")
-    for( fileHeader <- fileHeaders ) {
-      val filename = Paths.get(fileHeader.path).getFileName.toString
-      val id = filename.substring(0, filename.lastIndexOf('.'))
-      aggregation.addExplicitDataset( "test", fileHeader.path, id, fileHeader.nElem.toString, fileHeader.axisValues.mkString(","), null, null )
-    }
-    aggDataset.setAggregation(aggregation)
-    val cancelTask = new CancelTaskImpl()
-    aggregation.finish( cancelTask )
-    aggDataset
-  }
-
-  def getNCML: xml.Node = {
-    <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
-      <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
-      <aggregation dimName="time" units="seconds since 1970-1-1" type="joinExisting">
-        { for( fileHeader <- fileHeaders ) yield { <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString}> { fileHeader.axisValues.mkString(", ") } </netcdf> } }
-      </aggregation>
-    </netcdf>
-  }
-}
-
 class NCMLWriter(args: Iterator[String], val maxCores: Int = 10) {
   private val nReadProcessors = Math.min( Runtime.getRuntime.availableProcessors - 1, maxCores )
   private val files: IndexedSeq[File]  = NCMLWriter.getNcFiles( args ).toIndexedSeq
@@ -105,72 +76,41 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 10) {
   val fileHeaders = NCMLWriter.getFileHeaders( files, nReadProcessors )
   val fileMetadata = FileMetadata(files.head)
 
-  def makeAttributeElement(attribute: Nothing): Nothing = {
-    val attElem: Nothing = new Nothing("attribute", namespace)
-    attElem.setAttribute("name", attribute.getShortName)
-    val dt: Nothing = attribute.getDataType
-    if ((dt != null) && (dt ne DataType.STRING)) attElem.setAttribute("type", dt.toString)
-    if (attribute.getLength eq 0) {
-      return attElem
-    }
-    if (attribute.isString) {
-      val buff: Nothing = new Nothing
-      {
-        var i: Int = 0
-        while (i < attribute.getLength) {
-          {
-            val sval: Nothing = attribute.getStringValue(i)
-            if (i > 0) buff.append("|")
-            buff.append(sval)
-          }
-          ({
-            i += 1; i - 1
-          })
-        }
+  def getAttribute( attribute: nc2.Attribute ): xml.Node =
+    if( attribute.getDataType == ma2.DataType.STRING ) {
+      if( attribute.getLength > 1 ) {
+        val sarray: IndexedSeq[String] = (0 until attribute.getLength).map(i => attribute.getStringValue(i).filter(ch => org.jdom2.Verifier.isXMLCharacter(ch)))
+          <attribute name={attribute.getShortName} value={sarray.mkString("|")} separator="|"/>
+      } else {
+          <attribute name={attribute.getShortName} value={attribute.getStringValue(0)} />
       }
-      attElem.setAttribute("value", Parse.cleanCharacterData(buff.toString))
-      if (attribute.getLength > 1) attElem.setAttribute("separator", "|")
-    }
-    else {
-      val buff: Nothing = new Nothing
-      {
-        var i: Int = 0
-        while (i < attribute.getLength) {
-          {
-            val `val`: Nothing = attribute.getNumericValue(i)
-            if (i > 0) buff.append(" ")
-            buff.append(`val`.toString)
-          }
-          ({
-            i += 1; i - 1
-          })
-        }
+    } else {
+      if( attribute.getLength > 1 ) {
+          val sarray: IndexedSeq[String] = (0 until attribute.getLength).map( i => attribute.getNumericValue(i).toString )
+          <attribute name={attribute.getShortName} type={attribute.getDataType.toString} value={sarray.mkString(" ")}/>
+      } else {
+          <attribute name={attribute.getShortName} type={attribute.getDataType.toString} value={attribute.getNumericValue(0).toString}/>
       }
-      attElem.setAttribute("value", buff.toString)
     }
-    return attElem
-  }
 
-  def makeVariableNode( variable: nc2.Variable ) = {
-    val buff: Nothing = new Nothing
-    val dims: Array[String] = variable.getDimensions.map( dim => if (dim.isShared) dim.getShortName else if (dim.isVariableLength) "*" else dim.getLength.toString ).toArray
+  def getDims( variable: nc2.Variable ): String = variable.getDimensions.map( dim => if (dim.isShared) dim.getShortName else if (dim.isVariableLength) "*" else dim.getLength.toString ).toArray.mkString(" ")
+  def getDimension( dimension: nc2.Dimension ): xml.Node = <dimension name={dimension.getFullName} length={dimension.getLength.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString}/>
+  def getAggDataset( fileHeader: FileHeader ): xml.Node = <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString} coordValue={ fileHeader.axisValues.mkString(", ") }/>
 
-
-    for (att <- variable.getAttributes) makeAttributeElement(att)
-    <variable name={variable.getShortName} shape={dims.mkString(" ")} type={variable.getDataType.toString} >
-    </variable>
-}
   def getNCML: xml.Node = {
     println("Processing %d files with %d workers".format( nFiles, nReadProcessors) )
     <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
       <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
-      { for( dim <- fileMetadata.dimensions ) yield { <dimension name={dim.getFullName} length={dim.getLength} isUnlimited={dim.isUnlimited} isVariableLength={dim.isVariableLength} isShared={dim.isShared}/> }
-        for( variable <- fileMetadata.variables; varElement = ncmlWriter. .makeVariableElement(variable, false) ) yield {
-
-            <variable name={variable.getShortName} shape={variable.getShape} type={variable.isUnlimited} isVariableLength={dim.isVariableLength} isShared={dim.isShared}/> }
+      { for( attribute <- fileMetadata.attributes ) yield getAttribute(attribute) }
+      { for (dimension <- fileMetadata.dimensions) yield getDimension(dimension) }
+      { for (variable <- fileMetadata.variables) yield {
+        <variable name={variable.getShortName} shape={getDims(variable)} type={variable.getDataType.toString}>
+        { for (attribute <- variable.getAttributes) yield getAttribute(attribute) }
+        </variable>
+        }
       }
       <aggregation dimName="time" units="seconds since 1970-1-1" type="joinExisting">
-        { for( fileHeader <- fileHeaders ) yield { <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString} coordValue={ fileHeader.axisValues.mkString(", ") }/> } }
+        { for( fileHeader <- fileHeaders ) yield { getAggDataset(fileHeader) } }
       </aggregation>
     </netcdf>
   }
@@ -219,8 +159,9 @@ object FileMetadata {
 class FileMetadata( val ncFile: File ) {
   private val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( "file:"+ ncFile.getAbsolutePath )
   val coordinateAxes = ncDataset.getCoordinateAxes.toList
-  val dimensions = ncDataset.getDimensions.toList
+  val dimensions: List[nc2.Dimension] = ncDataset.getDimensions.toList
   val variables = ncDataset.getVariables.toList
+  val attributes = ncDataset.getGlobalAttributes
 }
 
 object cdscan extends App {
@@ -250,26 +191,5 @@ object NCMLWriterTest extends App {
   println( nodeStr )
   bw.write( nodeStr )
   bw.close()
-}
-
-
-object AggregationTest0 extends App {
-  Aggregation.setPersistenceCache( new DiskCache2(".cdas/ncml",true,60*24*90,-1) )
-  val aggDataset: NetcdfDataset= new NetcdfDataset()
-  val aggregation = new AggregationExisting(aggDataset, "time", "")
-  aggregation.addDatasetScan( null, "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY", "nc", null, null, null, "true", null )
-  val cacheFile = "/Users/tpmaxwel/.cdas/test.ncml"
-  aggDataset.setAggregation( aggregation )
-  val ostr = new ObjectOutputStream ( new FileOutputStream( cacheFile ) )
-  aggDataset.writeNcML( ostr, null )
-}
-
-object AggregationTest1 extends App {
-  Aggregation.setPersistenceCache( new DiskCache2(".cdas/ncml",true,60*24*90,-1) )
-  val ncmlAggregation = new NCMLAggregation( Array("/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/2005/").iterator )
-  val aggDataset = ncmlAggregation.getAggregation
-  val cacheFile = "/Users/tpmaxwel/.cdas/test.ncml"
-  val ostr = new ObjectOutputStream ( new FileOutputStream( cacheFile ) )
-  aggDataset.writeNcML( ostr, null )
 }
 

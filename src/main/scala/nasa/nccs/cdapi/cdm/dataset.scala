@@ -206,7 +206,7 @@ class CDSDataset( val name: String, val uri: String, val ncDataset: NetcdfDatase
     else if( uri.endsWith(".xml" ) || uri.endsWith(".ncml" ) ) {
       val aggregation = XML.loadFile(getFilePath) \ "aggregation"
       val aggDim = (aggregation \ "@dimName").text
-      val fileNodes = ( aggregation \ "netcdf" ).map( node => new FileHeader(  (node \ "@location").text,  node.text.split(",").map( _.toLong ) ) )
+      val fileNodes = ( aggregation \ "netcdf" ).map( node => new FileHeader(  (node \ "@location").text,  (node \ "@coordValue").text.split(",").map( _.trim.toLong ) ) )
       Some( new DatasetFileHeaders( aggDim, fileNodes ) )
     } else {
       None
