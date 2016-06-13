@@ -185,7 +185,7 @@ case class DatasetFileHeaders( val aggDim: String, val aggFileMap: Seq[FileHeade
     assert( !aggFileMap.isEmpty, "Error, aggregated dataset has no files!" )
     return aggFileMap.head.nElem
   }
-  def getAxisValues: Array[Long] = aggFileMap.map(_.axisValues).foldLeft(Array[Long]()) { _ ++ _ }
+  def getAggAxisValues: Array[Double] = aggFileMap.map(_.axisValues).foldLeft(Array[Double]()) { _ ++ _ }
 }
 
 class CDSDatasetRec( val dsetName: String, val uri: String, val varName: String ) extends Serializable {}
@@ -206,7 +206,7 @@ class CDSDataset( val name: String, val uri: String, val ncDataset: NetcdfDatase
     else if( uri.endsWith(".xml" ) || uri.endsWith(".ncml" ) ) {
       val aggregation = XML.loadFile(getFilePath) \ "aggregation"
       val aggDim = (aggregation \ "@dimName").text
-      val fileNodes = ( aggregation \ "netcdf" ).map( node => new FileHeader(  (node \ "@location").text,  (node \ "@coordValue").text.split(",").map( _.trim.toLong ) ) )
+      val fileNodes = ( aggregation \ "netcdf" ).map( node => new FileHeader(  (node \ "@location").text,  (node \ "@coordValue").text.split(",").map( _.trim.toDouble ) ) )
       Some( new DatasetFileHeaders( aggDim, fileNodes ) )
     } else {
       None

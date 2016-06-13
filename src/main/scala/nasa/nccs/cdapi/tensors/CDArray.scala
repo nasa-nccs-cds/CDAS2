@@ -484,6 +484,25 @@ class CDShortArray( cdIndexMap: CDIndexMap, val shortStorage: ShortBuffer ) exte
 object CDDoubleArray {
   implicit def cdArrayConverter(target: CDArray[Double]): CDDoubleArray = new CDDoubleArray(target.getIndex, target.getStorage.asInstanceOf[DoubleBuffer], target.getInvalid )
   implicit def toUcarArray(target: CDDoubleArray): ma2.Array = ma2.Array.factory(ma2.DataType.DOUBLE, target.getShape, target.getSectionData)
+
+  def toDoubleBuffer( array: ucar.ma2.Array ): DoubleBuffer = array.getElementType.toString match {
+    case "float"  => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]].map( _.toDouble )  )
+    case "double" => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]] )
+    case "int"    => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toDouble ) )
+    case "short"  => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toDouble ) )
+    case x        => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Byte]].map( _.toDouble ) )
+  }
+  def toArray(buffer: DoubleBuffer): Array[Double] = if( buffer.hasArray ) buffer.array else { val data =for( index: Int <- (0 until buffer.capacity) ) yield buffer.get( index ); data.toArray }
+
+  def toDoubleBuffer( buffer: Buffer ): DoubleBuffer = buffer match {
+    case x: DoubleBuffer  => buffer.asInstanceOf[ DoubleBuffer ]
+    case x => throw new Exception( "Attempt to convert non-float buffer to DoubleBuffer")
+  }
+
+  def factory( array: ucar.ma2.Array, invalid: Double = Double.MaxValue ): CDDoubleArray = {
+    val storage = CDDoubleArray.toDoubleBuffer( array )
+    new CDDoubleArray(new CDIndexMap(array.getShape), storage, invalid )
+  }
 }
 
 class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, protected val invalid: Double ) extends CDArray[Double](cdIndexMap,doubleStorage) {
@@ -508,6 +527,11 @@ class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, pr
   def zeros: CDDoubleArray = new CDDoubleArray( getShape, DoubleBuffer.wrap(Array.fill[Double]( getSize )(0)), invalid )
   def invalids: CDDoubleArray = new CDDoubleArray( getShape, DoubleBuffer.wrap(Array.fill[Double]( getSize )(invalid)), invalid )
 
+  override def getSectionData: DoubleBuffer = super.getSectionData.asInstanceOf[DoubleBuffer]
+  def getStorageData: DoubleBuffer = doubleStorage
+  def getStorageArray: Array[Double] = CDDoubleArray.toArray( doubleStorage )
+  def getSectionArray: Array[Double] = CDDoubleArray.toArray( getSectionData )
+  def getArrayData: Array[Double]  = if( isStorageCongruent ) getStorageArray else getSectionArray
 }
 
 object ArrayReduceTest extends App {

@@ -247,7 +247,7 @@ class DataFragmentSpec( val varname: String="", val collection: String="", val t
     }
   }
 
-  def getBounds: Array[Float] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
+  def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
     case Some( array ) => array
     case None => throw new Exception( "Can't get bounds from FragmentSpec: " + toString )
   }

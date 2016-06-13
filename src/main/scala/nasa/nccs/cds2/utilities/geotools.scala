@@ -28,7 +28,7 @@ class GeoTools( val SRID: Int = 4326 ) {
     new geom.MultiPolygon(polyList.toArray, geometryFactory)
   }
 
-  def getGrid(bounds: Array[Float], shape: Array[Int], spatial_axis_indices: Array[Int]): geom.MultiPoint = {
+  def getGrid(bounds: Array[Double], shape: Array[Int], spatial_axis_indices: Array[Int]): geom.MultiPoint = {
     val nx = shape(spatial_axis_indices(0))
     val ny = shape(spatial_axis_indices(1))
     val dx = (bounds(1) - bounds(0)) / nx
@@ -37,7 +37,7 @@ class GeoTools( val SRID: Int = 4326 ) {
     geometryFactory.createMultiPoint(geoPts.toArray)
   }
 
-  def printGridCoords(bounds: Array[Float], shape: Array[Int]): Unit = {
+  def printGridCoords(bounds: Array[Double], shape: Array[Int]): Unit = {
     val dx = (bounds(1) - bounds(0)) / shape(0)
     val dy = (bounds(3) - bounds(2)) / shape(1)
     for (ix <- (0 until shape(0)); x = bounds(0) + ix * dx) {
@@ -57,7 +57,7 @@ class GeoTools( val SRID: Int = 4326 ) {
     orderedPoints
   }
 
-  def getMask(mask_polys: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int], spatial_axis_indices: Array[Int]): Array[Byte] =
+  def getMask(mask_polys: geom.MultiPolygon, bounds: Array[Double], shape: Array[Int], spatial_axis_indices: Array[Int]): Array[Byte] =
     getMask(mask_polys, getGrid(bounds, shape, spatial_axis_indices))
 
   def getMask(mask_polys: geom.MultiPolygon, grid: geom.MultiPoint): Array[Byte] = {
@@ -69,7 +69,7 @@ class GeoTools( val SRID: Int = 4326 ) {
     mask_buffer
   }
 
-  def getMaskArray(boundary: geom.MultiPolygon, bounds: Array[Float], shape: Array[Int], spatial_axis_indices: Array[Int]): ma2.Array = {
+  def getMaskArray(boundary: geom.MultiPolygon, bounds: Array[Double], shape: Array[Int], spatial_axis_indices: Array[Int]): ma2.Array = {
     ma2.Array.factory(ma2.DataType.BYTE, shape, ByteBuffer.wrap(getMask(boundary, bounds, shape, spatial_axis_indices)))
   }
 
@@ -78,7 +78,7 @@ class GeoTools( val SRID: Int = 4326 ) {
     mask_geom.contains(geo_pt)
   }
 
-  def produceMask(shapefile_path: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int]): CDByteArray = {
+  def produceMask(shapefile_path: String, bounds: Array[Double], mask_shape: Array[Int], spatial_axis_indices: Array[Int]): CDByteArray = {
     val mask_array = getMask( readShapefile(shapefile_path), bounds, mask_shape, spatial_axis_indices )
     CDByteArray(mask_shape, mask_array)
   }

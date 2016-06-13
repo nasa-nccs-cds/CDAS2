@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
 export CDAS_BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-export CDAS_MAIN_DIR=${CDAS_BIN_DIR}/../src/main
-export CDAS_SCALA_DIR=${CDAS_MAIN_DIR}/scala
-export CDAS_RESOURCES_DIR=${CDAS_MAIN_DIR}/resources
+export CDAS_SCALA_DIR=${CDAS_BIN_DIR}/../src/main/scala
+export CDAS_CACHE_DIR=${CDAS_BIN_DIR}/../cache
 export PATH=${CDAS_BIN_DIR}:${PATH}
-export CLASSPATH=${CDAS_SCALA_DIR}:${CDAS_RESOURCES_DIR}:${CLASSPATH}
+export CLASSPATH=${CDAS_SCALA_DIR}:${CDAS_CACHE_DIR}:${CLASSPATH}

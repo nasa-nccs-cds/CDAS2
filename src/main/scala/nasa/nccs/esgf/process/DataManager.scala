@@ -7,7 +7,7 @@ import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime,
 import java.util.Formatter
 
 import nasa.nccs.cdapi.kernels.AxisIndices
-import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
+import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDDoubleArray, CDFloatArray}
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.nc2.time.{CalendarDate, CalendarDateRange}
@@ -73,15 +73,15 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   val logger = org.slf4j.LoggerFactory.getLogger("nasa.nccs.cds2.cdm.GridCoordSpec")
   private val range: ma2.Range = getAxisRange( variable, coordAxis, domainAxisOpt )
   private val _data = getCoordinateValues
-  val bounds: Array[Float] = getAxisBounds( coordAxis, domainAxisOpt)
-  def getData: ma2.Array = _data
+  val bounds: Array[Double] = getAxisBounds( coordAxis, domainAxisOpt)
+  def getData: Array[Double] = _data
   def getAxisType: AxisType = coordAxis.getAxisType
   def getCFAxisName: String = coordAxis.getAxisType.getCFAxisName.toLowerCase
   def getAxisName: String = coordAxis.getShortName
   def getIndexRange: ma2.Range = range
-  def getLength: Int = _data.getSize.toInt
-  def getStartValue: Float = bounds(0)
-  def getEndValue: Float = bounds(1)
+  def getLength: Int = _data.length
+  def getStartValue: Double = bounds(0)
+  def getEndValue: Double = bounds(1)
   def toXml: xml.Elem = <axis id={getAxisName} units={getUnits} cfName={getCFAxisName} type={getAxisType.toString} start={getStartValue.toString} end={getEndValue.toString} length={getLength.toString} > </axis>
 
   private def getAxisRange( variable: CDSVariable, coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): ma2.Range = domainAxisOpt match {
@@ -92,16 +92,16 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     }
     case None => new ma2.Range( getCFAxisName, 0, coordAxis.getShape(0)-1, 1 )
   }
-  private def getAxisBounds( coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): Array[Float] = domainAxisOpt match {
+  private def getAxisBounds( coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): Array[Double] = domainAxisOpt match {
     case Some( domainAxis ) =>  domainAxis.system match {
-      case asys if asys.startsWith("ind") => Array( _data.getFloat(0), _data.getFloat(_data.getSize.toInt-1), 1 )
-      case asys if asys.startsWith("val") => Array( domainAxis.start.toFloat, domainAxis.end.toFloat, 1 )
+      case asys if asys.startsWith("val") => Array( _data(0), _data(_data.length-1) )
+      case asys if asys.startsWith("ind") => Array( domainAxis.start.toDouble, domainAxis.end.toDouble, 1 )
       case _ => throw new IllegalStateException("CDSVariable: Illegal system value in axis bounds: " + domainAxis.system)
     }
-    case None => Array( coordAxis.getMinValue.toFloat, coordAxis.getMaxValue.toFloat )
+    case None => Array( coordAxis.getMinValue, coordAxis.getMaxValue )
   }
 
-  def getBounds( range: ma2.Range ): Array[Float] = Array( _data.getFloat(range.first), _data.getFloat(range.last ) )
+  def getBounds( range: ma2.Range ): Array[Double] = Array( _data(range.first), _data(range.last ) )
 
   def getBoundedCalDate(coordAxis1DTime: CoordinateAxis1DTime, caldate: CalendarDate, role: BoundsRole.Value, strict: Boolean = true): CalendarDate = {
     val date_range: CalendarDateRange = coordAxis1DTime.getCalendarDateRange
@@ -121,20 +121,26 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     } else caldate
   }
 
-
-  def getCoordinateValues: ma2.Array = coordAxis.getAxisType match {
+  def getCoordinateValues: Array[Double] = {
+    coordAxis.getAxisType match {
       case AxisType.Time =>
-        val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory( variable.dataset.ncDataset, coordAxis, new Formatter() )
-        val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
-        val timeZero = CalendarDate.of(timeCalValues.head.getCalendar, 1970, 1, 1, 1, 1, 1)
-        val time_values = for (index <- (range.first() to range.last() by range.stride()); calVal = timeCalValues(index)) yield calVal.getDifferenceInMsecs(timeZero).toFloat / 1000f
-        ma2.Array.factory( ma2.DataType.FLOAT, Array(time_values.length), time_values.toArray[Float] )
+        variable.dataset.getDatasetFileHeaders match {
+          case Some(datasetFileHeaders: DatasetFileHeaders) => datasetFileHeaders.getAggAxisValues
+          case None =>
+            val sec_in_day = 60 * 60 * 24
+            val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory(variable.dataset.ncDataset, coordAxis, new Formatter())
+            val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
+            val timeZero = CalendarDate.of(timeCalValues.head.getCalendar, 1970, 1, 1, 1, 1, 1)
+            val time_values = for (index <- (range.first() to range.last() by range.stride()); calVal = timeCalValues(index)) yield (calVal.getDifferenceInMsecs(timeZero) / 1000).toDouble / sec_in_day
+            time_values.toArray[Double]
+        }
       case x =>
-        coordAxis.read( List(range) )
+        CDDoubleArray.factory( coordAxis.read(List(range)) ).getArrayData
     }
+  }
 
   def getUnits: String =  coordAxis.getAxisType match {
-    case AxisType.Time => "seconds since 1970-1-1"
+    case AxisType.Time => "days since 1970-1-1"
     case x => coordAxis.getUnitsString
   }
 
@@ -221,7 +227,7 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
   def getAxisSpec( domainAxis: DomainAxis ): Option[GridCoordSpec] = axes.find( axis => domainAxis.matches(axis.getAxisType ) )
   def getAxisSpec( cfAxisName: String ): Option[GridCoordSpec] = axes.find( axis => axis.getCFAxisName.toLowerCase.equals(cfAxisName.toLowerCase) )
   def getRank = axes.length
-  def getBounds: Option[Array[Float]] = getAxisSpec("x").flatMap( xaxis => getAxisSpec("y").map( yaxis => Array( xaxis.bounds(0), yaxis.bounds(0), xaxis.bounds(1), yaxis.bounds(1) )) )
+  def getBounds: Option[Array[Double]] = getAxisSpec("x").flatMap( xaxis => getAxisSpec("y").map( yaxis => Array( xaxis.bounds(0), yaxis.bounds(0), xaxis.bounds(1), yaxis.bounds(1) )) )
   def toXml: xml.Elem = <grid> { axes.map(_.toXml) } </grid>
 
   def getSection: ma2.Section = new ma2.Section( axes.map( _.getIndexRange ): _* )
@@ -282,9 +288,9 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
     def getAxisIndex( cfAxisName: String, default_val: Int = -1 ): Int = grid.getAxisSpec( cfAxisName.toLowerCase ).map( gcs => gcs.index ).getOrElse( default_val )
     def getCFAxisName( dimension_index: Int ): String = grid.getAxisSpec( dimension_index ).getCFAxisName
 
-  def getBounds( section: ma2.Section ): Option[Array[Float]] = {
-    val xrangeOpt: Option[Array[Float]] = Option(section.find("x")).flatMap( (r: ma2.Range) => grid.getAxisSpec("x").map( (gs: GridCoordSpec) => gs.getBounds(r) ) )
-    val yrangeOpt: Option[Array[Float]] = Option(section.find("y")).flatMap( (r: ma2.Range) => grid.getAxisSpec("y").map( (gs: GridCoordSpec) => gs.getBounds(r) ) )
+  def getBounds( section: ma2.Section ): Option[Array[Double]] = {
+    val xrangeOpt: Option[Array[Double]] = Option(section.find("x")).flatMap( (r: ma2.Range) => grid.getAxisSpec("x").map( (gs: GridCoordSpec) => gs.getBounds(r) ) )
+    val yrangeOpt: Option[Array[Double]] = Option(section.find("y")).flatMap( (r: ma2.Range) => grid.getAxisSpec("y").map( (gs: GridCoordSpec) => gs.getBounds(r) ) )
     xrangeOpt.flatMap( xrange => yrangeOpt.map( yrange => Array( xrange(0), xrange(1), yrange(0), yrange(1) )) )
   }
 

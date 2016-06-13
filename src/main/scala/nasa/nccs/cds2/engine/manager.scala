@@ -35,11 +35,11 @@ class Counter(start: Int = 0) {
 }
 
 object MaskKey {
-  def apply( bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int] ): MaskKey = {
+  def apply( bounds: Array[Double], mask_shape: Array[Int], spatial_axis_indices: Array[Int] ): MaskKey = {
     new MaskKey( bounds, Array( mask_shape(spatial_axis_indices(0)), mask_shape(spatial_axis_indices(1) ) ) )
   }
 }
-class MaskKey( bounds: Array[Float], dimensions: Array[Int] ) {}
+class MaskKey( bounds: Array[Double], dimensions: Array[Int] ) {}
 
 class MetadataOnlyException extends Exception {}
 
@@ -234,7 +234,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
       case Failure(t) => p.failure(t)
     }
 
-  def produceMask(maskId: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int]): Option[CDByteArray] = {
+  def produceMask(maskId: String, bounds: Array[Double], mask_shape: Array[Int], spatial_axis_indices: Array[Int]): Option[CDByteArray] = {
     if (Masks.isMaskId(maskId)) {
       val maskFuture = getMaskFuture( maskId, bounds, mask_shape, spatial_axis_indices  )
       val result = Await.result( maskFuture, Duration.Inf )
@@ -245,14 +245,14 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     }
   }
 
-  private def getMaskFuture( maskId: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int]  ): Future[CDByteArray] = {
+  private def getMaskFuture( maskId: String, bounds: Array[Double], mask_shape: Array[Int], spatial_axis_indices: Array[Int]  ): Future[CDByteArray] = {
     val fkey = MaskKey(bounds, mask_shape, spatial_axis_indices)
     val maskFuture = maskCache( fkey ) { promiseMask( maskId, bounds, mask_shape, spatial_axis_indices ) _ }
     logger.info( ">>>>>>>>>>>>>>>> Put mask in cache: " + fkey.toString + ", keys = " + maskCache.keys.mkString("[",",","]") )
     maskFuture
   }
 
-  private def promiseMask( maskId: String, bounds: Array[Float], mask_shape: Array[Int], spatial_axis_indices: Array[Int] )(p: Promise[CDByteArray]): Unit =
+  private def promiseMask( maskId: String, bounds: Array[Double], mask_shape: Array[Int], spatial_axis_indices: Array[Int] )(p: Promise[CDByteArray]): Unit =
     try {
       Masks.getMask(maskId) match {
         case Some(mask) => mask.mtype match {

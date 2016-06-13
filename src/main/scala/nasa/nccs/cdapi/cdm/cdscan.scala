@@ -1,16 +1,18 @@
 package nasa.nccs.cdapi.cdm
 
 import java.io._
-import java.nio.file.{Paths, Path}
+import java.nio.file.{Path, Paths}
 import java.util.Formatter
 import java.util.concurrent.ArrayBlockingQueue
-import ucar.{nc2, ma2}
+
 import nasa.nccs.utilities.cdsutils
+import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
-import ucar.nc2.dataset.{NetcdfDataset, CoordinateAxis1DTime, VariableDS}
-import ucar.nc2.ncml.{NcMLWriter, Aggregation, AggregationExisting}
+import ucar.nc2.dataset.{CoordinateAxis1DTime, NetcdfDataset, VariableDS}
+import ucar.nc2.ncml.{Aggregation, AggregationExisting, NcMLWriter}
 import ucar.nc2.time.CalendarDate
-import ucar.nc2.util.{CancelTaskImpl, CancelTask, DiskCache2}
+import ucar.nc2.util.{CancelTask, CancelTaskImpl, DiskCache2}
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConversions._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -48,7 +50,8 @@ object NCMLWriter {
 
   def getFileHeaders( files: IndexedSeq[File], nReadProcessors: Int ): IndexedSeq[FileHeader] = {
     val groupSize = cdsutils.ceilDiv( files.length, nReadProcessors )
-    val fileHeaderFuts  = Future.sequence( for( fileGroup <- files sliding groupSize ) yield Future { FileHeader factory fileGroup } )
+    val fileGroups = files.sliding(groupSize).toIndexedSeq
+    val fileHeaderFuts  = Future.sequence( for( workerIndex <- fileGroups.indices; fileGroup = fileGroups(workerIndex) ) yield Future { FileHeader.factory( fileGroup, workerIndex ) } )
     Await.result( fileHeaderFuts, Duration.Inf ).foldLeft( IndexedSeq[FileHeader]() ) {_ ++ _} sortWith { ( afr0, afr1 ) =>  (afr0.startValue < afr1.startValue) }
   }
 }
@@ -61,7 +64,7 @@ class NCMLSerialWriter(val args: Iterator[String]) {
   def getNCML: xml.Node = {
     <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
       <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
-      <aggregation dimName="time" units="seconds since 1970-1-1" type="joinExisting">
+      <aggregation dimName="time" units="days since 1970-1-1" type="joinExisting">
         { for( fileHeader <- fileHeaders ) yield { <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString}> { fileHeader.axisValues.mkString(", ") } </netcdf> } }
       </aggregation>
     </netcdf>
@@ -109,7 +112,7 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 10) {
         </variable>
         }
       }
-      <aggregation dimName="time" units="seconds since 1970-1-1" type="joinExisting">
+      <aggregation dimName="time" units="days since 1970-1-1" type="joinExisting">
         { for( fileHeader <- fileHeaders ) yield { getAggDataset(fileHeader) } }
       </aggregation>
     </netcdf>
@@ -119,22 +122,25 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 10) {
 object FileHeader {
   def apply( file: File ): FileHeader = new FileHeader( file.getAbsolutePath, FileHeader.getTimeCoordValues(file) )
 
-  def factory( files: IndexedSeq[File] ): IndexedSeq[FileHeader] =
+  def factory( files: IndexedSeq[File], workerIndex: Int ): IndexedSeq[FileHeader] =
     for( iFile <- files.indices; file = files(iFile) ) yield {
+      val t0 = System.nanoTime()
       val fileHeader = FileHeader(file)
-      println("Processing file[%d] '%s', start = %d, ncoords = %d ".format( iFile, file.getAbsolutePath, fileHeader.startValue, fileHeader.nElem ) )
+      val t1 = System.nanoTime()
+      println("Worker[%d]: Processing file[%d] '%s', start = %d, ncoords = %d, time = %.4f ".format( workerIndex, iFile, file.getAbsolutePath, fileHeader.startValue, fileHeader.nElem, (t1-t0)/1.0E9 ) )
       fileHeader
     }
-  def getTimeValues( ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index : Int = 0, end_index : Int = -1, stride: Int = 1 ): Array[Long] = {
+  def getTimeValues( ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index : Int = 0, end_index : Int = -1, stride: Int = 1 ): Array[Double] = {
+    val sec_in_day = 60 * 60 * 24
     val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory( ncDataset, coordAxis, new Formatter())
     val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
     val timeZero = CalendarDate.of(timeCalValues.head.getCalendar, 1970, 1, 1, 1, 1, 1)
     val last_index = if ( end_index >= start_index ) end_index else ( timeCalValues.length - 1 )
-    val time_values = for (index <- (start_index to last_index by stride); calVal = timeCalValues(index)) yield calVal.getDifferenceInMsecs(timeZero) / 1000
-    time_values.toArray[Long]
+    val time_values = for (index <- (start_index to last_index by stride); calVal = timeCalValues(index)) yield (calVal.getDifferenceInMsecs(timeZero)/1000).toDouble/sec_in_day
+    time_values.toArray[Double]
   }
 
-  def getTimeCoordValues(ncFile: File): Array[Long] = {
+  def getTimeCoordValues(ncFile: File): Array[Double] = {
     val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( "file:"+ ncFile.getAbsolutePath )
     Option( ncDataset.findCoordinateAxis( AxisType.Time ) ) match {
       case Some( timeAxis ) =>
@@ -146,7 +152,7 @@ object FileHeader {
   }
 }
 
-class FileHeader( val path: String, val axisValues: Array[Long] ) {
+class FileHeader( val path: String, val axisValues: Array[Double] ) {
   def nElem = axisValues.length
   def startValue = axisValues(0)
   override def toString: String = " *** FileHeader { path='%s', nElem=%d, startValue=%d } ".format( path, nElem, startValue )
