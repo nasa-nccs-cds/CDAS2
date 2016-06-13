@@ -1,6 +1,7 @@
 package nasa.nccs.cds2.loaders
+import java.io.FileNotFoundException
 import java.net.URL
-import java.nio.file.{ Paths, Files }
+import java.nio.file.{Files, Paths}
 
 import nasa.nccs.cdapi.cdm.Collection
 import nasa.nccs.utilities.Loggable
@@ -21,11 +22,19 @@ class AxisNames( val nameMap: Map[Char,String]  ) {
 }
 
 trait XmlResource extends Loggable {
-  def getFilePath( resourcePath: String ) = {
-    val resource = getClass.getResource(resourcePath)
-    assert( resource != null, s"Resource $resourcePath does not exist!" )
-    resource.getPath
+
+  def getFilePath(resourcePath: String) = {
+    val rpath = Option( getClass.getResource(resourcePath) ) match {
+      case None => Option( getClass.getClassLoader.getResource(resourcePath) ) match {
+        case None => throw new Exception(s"Resource $resourcePath does not exist!")
+        case Some(r) => r.getPath
+      }
+      case Some(r) => r.getPath
+    }
+    logger.info( " $$$$$$$$$$$$$ Found Collection %s: path = %s ".format( resourcePath, rpath ) )
+    rpath
   }
+
   def attr( node: xml.Node, att_name: String ) = { node.attribute(att_name) match { case None => ""; case Some(x) => x.toString }}
   def normalize(sval: String): String = sval.stripPrefix("\"").stripSuffix("\"").toLowerCase
   def nospace( value: String ): String  = value.filter(_!=' ')
@@ -59,7 +68,7 @@ object Masks extends XmlResource {
 }
 
 object Collections extends XmlResource {
-  val datasets = loadCollectionXmlData( getFilePath("/collections.xml"), "~/.cdas2/collections.xml" )
+  val datasets = loadCollectionXmlData( getFilePath("/global_collections.xml"), getFilePath("/local_collections.xml") )
 
   def toXml: xml.Elem = {
     <collections> { for( (id,collection) <- datasets ) yield <collection id={id}> {collection.vars.mkString(",")} </collection>} </collections>

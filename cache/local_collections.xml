@@ -1,0 +1,4 @@
+<collections>
+    <collection id="merra2/mon/M2TMNXLND" ctype="file" url="file:/att/nobackup/tpmaxwel/data/MERRA2/M2TMNXLND.5.12.4.xml"> SFMC, GWETPROF, GWETROOT, GWETTOP </collection>
+    <collection id="merra300/hourly/asm_Cp" ctype="file" url="file:/usr/local/web/data/MERRA/MERRA300.prod.assim.inst3_3d_asm_Cp.xml"> t </collection>
+</collections>

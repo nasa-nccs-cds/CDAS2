@@ -4,7 +4,7 @@ import java.io._
 import java.nio.file.{Path, Paths}
 import java.util.Formatter
 import java.util.concurrent.ArrayBlockingQueue
-
+import nasa.nccs.utilities.Loggable
 import nasa.nccs.utilities.cdsutils
 import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
@@ -71,7 +71,7 @@ class NCMLSerialWriter(val args: Iterator[String]) {
   }
 }
 
-class NCMLWriter(args: Iterator[String], val maxCores: Int = 10) {
+class NCMLWriter(args: Iterator[String], val maxCores: Int = 20) {
   private val nReadProcessors = Math.min( Runtime.getRuntime.availableProcessors - 1, maxCores )
   private val files: IndexedSeq[File]  = NCMLWriter.getNcFiles( args ).toIndexedSeq
   private val nFiles = files.length
@@ -119,7 +119,9 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 10) {
   }
 }
 
-object FileHeader {
+object FileHeader extends Loggable {
+  val maxOpenAttempts = 10
+  val retryIntervalSecs = 2
   def apply( file: File ): FileHeader = new FileHeader( file.getAbsolutePath, FileHeader.getTimeCoordValues(file) )
 
   def factory( files: IndexedSeq[File], workerIndex: Int ): IndexedSeq[FileHeader] =
@@ -138,6 +140,18 @@ object FileHeader {
     val last_index = if ( end_index >= start_index ) end_index else ( timeCalValues.length - 1 )
     val time_values = for (index <- (start_index to last_index by stride); calVal = timeCalValues(index)) yield (calVal.getDifferenceInMsecs(timeZero)/1000).toDouble/sec_in_day
     time_values.toArray[Double]
+  }
+
+  def openNetCDFFile(ncFile: File, attempt: Int = 0): NetcdfDataset = try {
+    NetcdfDataset.openDataset("file:" + ncFile.getAbsolutePath)
+  } catch {
+    case ex: java.io.IOException =>
+      if (attempt == maxOpenAttempts) throw new Exception("Error opening file '%s' after %d attempts: '%s'".format(ncFile.getName, maxOpenAttempts, ex.getMessage))
+      else {
+        Thread.sleep( retryIntervalSecs * 1000 )
+        logger.warn( "Error opening file '%s' (retry %d): '%s'".format(ncFile.getName, attempt, ex.getMessage) )
+        openNetCDFFile(ncFile, attempt + 1)
+      }
   }
 
   def getTimeCoordValues(ncFile: File): Array[Double] = {
