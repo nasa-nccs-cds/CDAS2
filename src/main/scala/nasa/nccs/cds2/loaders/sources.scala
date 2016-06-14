@@ -35,7 +35,8 @@ trait XmlResource extends Loggable {
     rpath
   }
 
-  def attr( node: xml.Node, att_name: String ) = { node.attribute(att_name) match { case None => ""; case Some(x) => x.toString }}
+  def attr( node: xml.Node, att_name: String ): String = { node.attribute(att_name) match { case None => ""; case Some(x) => x.toString }}
+  def attrOpt( node: xml.Node, att_name: String ): Option[String] = node.attribute(att_name).map( _.toString )
   def normalize(sval: String): String = sval.stripPrefix("\"").stripSuffix("\"").toLowerCase
   def nospace( value: String ): String  = value.filter(_!=' ')
 }
@@ -93,7 +94,7 @@ object Collections extends XmlResource {
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
-  def getCollection( n: xml.Node ): Collection = { Collection( attr(n,"ctype"), attr(n,"url"), n.text.split(",").toList )}
+  def getCollection( n: xml.Node ): Collection = { Collection( attr(n,"ctype"), attr(n,"url"), attrOpt(n,"source"), n.text.split(",").toList )}
 
 
   def toXml( collectionId: String ): xml.Elem = {
@@ -117,8 +118,9 @@ object Collections extends XmlResource {
     parseUri(collection_uri) match {
       case (ctype, cpath) => ctype match {
         case "file" => Some(Collection(ctype = "file", url = collection_uri, vars = var_names))
+        case "dir" => Some(Collection(ctype = "file", url = collection_uri, vars = var_names))
         case "collection" =>
-          val collection_key = cpath.stripPrefix("/").stripSuffix(""""""").toLowerCase
+          val collection_key = cpath.stripPrefix("/").stripSuffix("\"").toLowerCase
           logger.info( " getCollection( %s ) ".format(collection_key) )
           datasets.get( collection_key )
       }

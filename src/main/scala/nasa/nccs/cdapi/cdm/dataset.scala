@@ -18,19 +18,20 @@ import scala.xml.XML
 // import scala.collection.JavaConverters._
 
 object Collection {
-  def apply( ctype: String, url: String, vars: List[String] = List() ) = {
-    new Collection(ctype,url,vars)
+  def apply( ctype: String, url: String, source: Option[String] = None, vars: List[String] = List() ) = {
+    new Collection(ctype,url,source,vars)
   }
 }
-class Collection( val ctype: String, val url: String, val vars: List[String] = List() ) {
+class Collection( val ctype: String, val url: String, val source: Option[String] = None, val vars: List[String] = List() ) {  //
   def getUri( varName: String = "" ) = {
     ctype match {
       case "dods" => s"$url/$varName.ncml"
       case "file" => url
+      case "dir" => url
       case _ => throw new Exception( s"Unrecognized collection type: $ctype")
     }
   }
-  override def toString = "Collection( type=%s, url=%s, vars=(%s))".format( ctype, url, vars.mkString(",") )
+  override def toString = "Collection( type=%s, url=%s, source=%s, vars=(%s))".format( ctype, url, source, vars.mkString(",") )
 }
 
 object DiskCacheFileMgr extends XmlResource {

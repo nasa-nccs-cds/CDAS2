@@ -1,10 +1,11 @@
 package nasa.nccs.cdapi.cdm
 
 import java.io._
-import java.nio.file.{Path, Paths}
+import java.nio.file.{FileSystems, Path, Paths}
 import java.util.Formatter
 
 import nasa.nccs.cdapi.tensors.CDDoubleArray
+import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.utilities.cdsutils
 import ucar.{ma2, nc2}
@@ -25,10 +26,12 @@ object NCMLWriter {
     val fname = file.getName.toLowerCase
     file.isFile && (fname.endsWith(".nc4") || fname.endsWith(".nc") || fname.endsWith(".hdf") )
   }
-  def getCacheDir: String = Option(getClass.getClassLoader.getResource("/local_collections.xml")) match {
-    case Some( url ) => new java.io.File( url.toURI ).getParent.stripSuffix("/")
-    case None => throw new Exception( "Can't find cache directory!" )
+  def getCacheDir: String = {
+    val collection_file_path = Collections.getFilePath("/local_collections.xml")
+    new java.io.File( collection_file_path ).getParent.stripSuffix("/")
   }
+
+  def getCachePath( subdir: String ): Path = {  FileSystems.getDefault().getPath( getCacheDir, subdir ) }
 
   def getNcFiles(file: File): Iterable[File] = {
     val children = new Iterable[File] {
@@ -112,7 +115,7 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
       <dimension name={dimension.getFullName} length={nElems.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString} isShared={dimension.isShared.toString}/>
   }
 
-  def getAggDataset(fileHeader: FileHeader): xml.Node = <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.mkString(", ")}/>
+  def getAggDataset(fileHeader: FileHeader): xml.Node = <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.map("%.4f".format(_)).mkString(", ")}/>
 
   def getVariable(variable: nc2.Variable): xml.Node = {
     val dimIndex = fileMetadata.getDimIndex(variable.getShortName)
@@ -128,7 +131,7 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
   def getData(variable: nc2.Variable, isRegular: Boolean): xml.Node = {
     val dataArray: Array[Double] = CDDoubleArray.factory(variable.read).getArrayData
     if (isRegular) {
-      <values start={"%.3f".format(dataArray(0))} increment={"%.3f".format(dataArray(1)-dataArray(0))}/>
+      <values start={"%.3f".format(dataArray(0))} increment={"%.6f".format(dataArray(1)-dataArray(0))}/>
     } else {
       <values>
         {dataArray.map(dv => "%.3f".format(dv)).mkString(" ")}
@@ -176,12 +179,7 @@ object FileHeader extends Loggable {
     val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
     val timeZero = CalendarDate.of(timeCalValues.head.getCalendar, 1970, 1, 1, 1, 1, 1)
     val last_index = if ( end_index >= start_index ) end_index else ( timeCalValues.length - 1 )
-    val time_values = for (index <- (start_index to last_index by stride); calVal = timeCalValues(index)) yield {
-      val msecDiff = calVal.getDifferenceInMsecs(timeZero)
-      val secDiff = (msecDiff/1000).toDouble
-      val dayDiff = secDiff/sec_in_day
-      dayDiff
-    }
+    val time_values = for (index <- (start_index to last_index by stride); calVal = timeCalValues(index)) yield (calVal.getDifferenceInMsecs(timeZero)/1000).toDouble/sec_in_day
     time_values.toArray[Double]
   }
 
@@ -231,8 +229,8 @@ class FileMetadata( val ncFile: File ) {
 
 object cdscan extends App {
   val t0 = System.nanoTime()
-  val file = new File( if( args(0).startsWith("/") ) args(0) else ( NCMLWriter.getCacheDir + "/NCML/" + args(0) ) )
-  assert( file.canWrite, "Error, can write to NCML file " + file.getAbsolutePath )
+  val file = NCMLWriter.getCachePath("NCML").resolve( args(0) ).toFile
+  assert( ( !file.exists && file.getParentFile.exists ) || file.canWrite, "Error, can't write to NCML file " + file.getAbsolutePath )
   val ncmlWriter = new NCMLWriter( args.tail.iterator )
   val ncmlNode = ncmlWriter.getNCML
   val bw = new BufferedWriter(new FileWriter( file ))
