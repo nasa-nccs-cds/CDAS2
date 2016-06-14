@@ -643,7 +643,14 @@ object SampleTaskRequests {
       "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
     TaskRequest( "CDS.anomaly", dataInputs )
   }
-
+  def getAnomalyTest1: TaskRequest = {
+    val dataInputs = Map(
+      "domain" ->  List(Map("name" -> "d0", "lat" -> Map("start" -> -7.0854263, "end" -> -7.0854263, "system" -> "values"), "lon" -> Map("start" -> 12.075, "end" -> 12.075, "system" -> "values"), "lev" -> Map("start" -> 100000, "end" -> 100000, "system" -> "values"))),
+      "variable" -> List(Map("uri" -> "collection://merra/mon/M2TMNXLND-2004", "name" -> "SFMC:v0", "domain" -> "d0")),
+      "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
+    TaskRequest( "CDS.anomaly", dataInputs )
+  }
+  
   def getAnomalyArrayTest: TaskRequest = {
     val dataInputs = Map(
       "domain" ->  List( Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
@@ -749,6 +756,14 @@ object execAnomalyTest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
   val run_args = Map( "async" -> "false" )
   val request = SampleTaskRequests.getAnomalyTest
+  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
+  val printer = new scala.xml.PrettyPrinter(200, 3)
+  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+}
+object execAnomalyTest1 extends App {
+  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+  val run_args = Map( "async" -> "false" )
+  val request = SampleTaskRequests.getAnomalyTest1
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )
