@@ -155,7 +155,7 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
 
 object FileHeader extends Loggable {
   val maxOpenAttempts = 10
-  val retryIntervalSecs = 2
+  val retryIntervalSecs = 25
   def apply( file: File ): FileHeader = new FileHeader( file.getAbsolutePath, FileHeader.getTimeCoordValues(file) )
 
   def factory( files: IndexedSeq[File], workerIndex: Int ): IndexedSeq[FileHeader] =
@@ -194,7 +194,7 @@ object FileHeader extends Loggable {
   }
 
   def getTimeCoordValues(ncFile: File): Array[Double] = {
-    val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( "file:"+ ncFile.getAbsolutePath )
+    val ncDataset: NetcdfDataset = openNetCDFFile( ncFile )
     Option( ncDataset.findCoordinateAxis( AxisType.Time ) ) match {
       case Some( timeAxis ) =>
         val values = getTimeValues( ncDataset, timeAxis )
@@ -216,7 +216,7 @@ object FileMetadata {
 }
 
 class FileMetadata( val ncFile: File ) {
-  private val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( "file:"+ ncFile.getAbsolutePath )
+  private val ncDataset: NetcdfDataset = FileHeader.openNetCDFFile( ncFile )
   val coordinateAxes = ncDataset.getCoordinateAxes.toList
   val dimensions: List[nc2.Dimension] = ncDataset.getDimensions.toList
   val variables = ncDataset.getVariables.toList
