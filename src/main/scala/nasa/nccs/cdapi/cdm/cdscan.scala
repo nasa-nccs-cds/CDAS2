@@ -25,6 +25,10 @@ object NCMLWriter {
     val fname = file.getName.toLowerCase
     file.isFile && (fname.endsWith(".nc4") || fname.endsWith(".nc") || fname.endsWith(".hdf") )
   }
+  def getCacheDir: String = Option(getClass.getClassLoader.getResource("/local_collections.xml")) match {
+    case Some( url ) => new java.io.File( url.toURI ).getParent.stripSuffix("/")
+    case None => throw new Exception( "Can't find cache directory!" )
+  }
 
   def getNcFiles(file: File): Iterable[File] = {
     val children = new Iterable[File] {
@@ -227,13 +231,12 @@ class FileMetadata( val ncFile: File ) {
 
 object cdscan extends App {
   val t0 = System.nanoTime()
-  val ofile = args(0)
+  val file = new File( if( args(0).startsWith("/") ) args(0) else ( NCMLWriter.getCacheDir + "/NCML/" + args(0) ) )
+  assert( file.canWrite, "Error, can write to NCML file " + file.getAbsolutePath )
   val ncmlWriter = new NCMLWriter( args.tail.iterator )
   val ncmlNode = ncmlWriter.getNCML
-  val file = new File( ofile )
-  val bw = new BufferedWriter(new FileWriter(file))
-  val nodeStr = ncmlNode.toString
-  bw.write( nodeStr )
+  val bw = new BufferedWriter(new FileWriter( file ))
+  bw.write( ncmlNode.toString )
   bw.close()
   val t1 = System.nanoTime()
   println( "Writing NcML to file '%s', time = %.4f".format( file.getAbsolutePath, (t1-t0)/1.0E9)  )
