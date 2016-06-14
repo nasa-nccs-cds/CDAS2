@@ -185,7 +185,8 @@ case class DatasetFileHeaders( val aggDim: String, val aggFileMap: Seq[FileHeade
     assert( !aggFileMap.isEmpty, "Error, aggregated dataset has no files!" )
     return aggFileMap.head.nElem
   }
-  def getAggAxisValues: Array[Double] = aggFileMap.map(_.axisValues).foldLeft(Array[Double]()) { _ ++ _ }
+  def getAggAxisValues: Array[Double] =
+    aggFileMap.map(_.axisValues).foldLeft(Array[Double]()) { _ ++ _ }
 }
 
 class CDSDatasetRec( val dsetName: String, val uri: String, val varName: String ) extends Serializable {}

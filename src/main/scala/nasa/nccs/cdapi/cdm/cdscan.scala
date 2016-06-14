@@ -71,7 +71,7 @@ class NCMLSerialWriter(val args: Iterator[String]) {
   }
 }
 
-class NCMLWriter(args: Iterator[String], val maxCores: Int = 20) {
+class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
   private val nReadProcessors = Math.min( Runtime.getRuntime.availableProcessors - 1, maxCores )
   private val files: IndexedSeq[File]  = NCMLWriter.getNcFiles( args ).toIndexedSeq
   private val nFiles = files.length
@@ -138,14 +138,19 @@ object FileHeader extends Loggable {
     val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
     val timeZero = CalendarDate.of(timeCalValues.head.getCalendar, 1970, 1, 1, 1, 1, 1)
     val last_index = if ( end_index >= start_index ) end_index else ( timeCalValues.length - 1 )
-    val time_values = for (index <- (start_index to last_index by stride); calVal = timeCalValues(index)) yield (calVal.getDifferenceInMsecs(timeZero)/1000).toDouble/sec_in_day
+    val time_values = for (index <- (start_index to last_index by stride); calVal = timeCalValues(index)) yield {
+      val msecDiff = calVal.getDifferenceInMsecs(timeZero)
+      val secDiff = (msecDiff/1000).toDouble
+      val dayDiff = secDiff/sec_in_day
+      dayDiff
+    }
     time_values.toArray[Double]
   }
 
   def openNetCDFFile(ncFile: File, attempt: Int = 0): NetcdfDataset = try {
     NetcdfDataset.openDataset("file:" + ncFile.getAbsolutePath)
   } catch {
-    case ex: java.io.IOException =>
+    case ex: Throwable =>
       if (attempt == maxOpenAttempts) throw new Exception("Error opening file '%s' after %d attempts: '%s'".format(ncFile.getName, maxOpenAttempts, ex.getMessage))
       else {
         Thread.sleep( retryIntervalSecs * 1000 )
