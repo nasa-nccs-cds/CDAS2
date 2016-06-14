@@ -186,7 +186,7 @@ case class DatasetFileHeaders( val aggDim: String, val aggFileMap: Seq[FileHeade
     return aggFileMap.head.nElem
   }
   def getAggAxisValues: Array[Double] =
-    aggFileMap.map(_.axisValues).foldLeft(Array[Double]()) { _ ++ _ }
+    aggFileMap.foldLeft(Array[Double]()) { _ ++ _.axisValues }
 }
 
 class CDSDatasetRec( val dsetName: String, val uri: String, val varName: String ) extends Serializable {}

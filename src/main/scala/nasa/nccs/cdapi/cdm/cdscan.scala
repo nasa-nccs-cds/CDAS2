@@ -3,15 +3,14 @@ package nasa.nccs.cdapi.cdm
 import java.io._
 import java.nio.file.{Path, Paths}
 import java.util.Formatter
-import java.util.concurrent.ArrayBlockingQueue
+
+import nasa.nccs.cdapi.tensors.CDDoubleArray
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.utilities.cdsutils
 import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
-import ucar.nc2.dataset.{CoordinateAxis1DTime, NetcdfDataset, VariableDS}
-import ucar.nc2.ncml.{Aggregation, AggregationExisting, NcMLWriter}
+import ucar.nc2.dataset.{CoordinateAxis1D, CoordinateAxis1DTime, NetcdfDataset, VariableDS}
 import ucar.nc2.time.CalendarDate
-import ucar.nc2.util.{CancelTask, CancelTaskImpl, DiskCache2}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConversions._
@@ -56,65 +55,100 @@ object NCMLWriter {
   }
 }
 
-class NCMLSerialWriter(val args: Iterator[String]) {
-  val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
-  val nFiles = files.length
-  val fileHeaders = NCMLWriter.getFileHeadersSerial(files)
-
-  def getNCML: xml.Node = {
-    <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
-      <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
-      <aggregation dimName="time" units="days since 1970-1-1" type="joinExisting">
-        { for( fileHeader <- fileHeaders ) yield { <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString}> { fileHeader.axisValues.mkString(", ") } </netcdf> } }
-      </aggregation>
-    </netcdf>
-  }
-}
+//class NCMLSerialWriter(val args: Iterator[String]) {
+//  val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
+//  val nFiles = files.length
+//  val fileHeaders = NCMLWriter.getFileHeadersSerial(files)
+//
+//  def getNCML: xml.Node = {
+//    <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
+//      <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
+//      <aggregation dimName="time" units="days since 1970-1-1" type="joinExisting">
+//        { for( fileHeader <- fileHeaders ) yield { <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString}> { fileHeader.axisValues.mkString(", ") } </netcdf> } }
+//      </aggregation>
+//    </netcdf>
+//  }
+//}
 
 class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
-  private val nReadProcessors = Math.min( Runtime.getRuntime.availableProcessors - 1, maxCores )
-  private val files: IndexedSeq[File]  = NCMLWriter.getNcFiles( args ).toIndexedSeq
+  private val nReadProcessors = Math.min(Runtime.getRuntime.availableProcessors - 1, maxCores)
+  private val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
   private val nFiles = files.length
-  val ncmlWriter = new NcMLWriter()
-  val fileHeaders = NCMLWriter.getFileHeaders( files, nReadProcessors )
+  val fileHeaders = NCMLWriter.getFileHeaders(files, nReadProcessors)
   val fileMetadata = FileMetadata(files.head)
+  val outerDimensionSize: Int = fileHeaders.foldLeft(0)(_ + _.nElem)
+  val ignored_attributes = List( "comments" )
 
-  def getAttribute( attribute: nc2.Attribute ): xml.Node =
-    if( attribute.getDataType == ma2.DataType.STRING ) {
-      if( attribute.getLength > 1 ) {
+  def isIgnored( attribute: nc2.Attribute, isOuterDim: Boolean ): Boolean = { ignored_attributes.contains(attribute.getShortName) || ( isOuterDim && attribute.getShortName.equalsIgnoreCase("units") ) }
+
+  def getAttribute(attribute: nc2.Attribute): xml.Node =
+    if (attribute.getDataType == ma2.DataType.STRING) {
+      if (attribute.getLength > 1) {
         val sarray: IndexedSeq[String] = (0 until attribute.getLength).map(i => attribute.getStringValue(i).filter(ch => org.jdom2.Verifier.isXMLCharacter(ch)))
           <attribute name={attribute.getShortName} value={sarray.mkString("|")} separator="|"/>
       } else {
-          <attribute name={attribute.getShortName} value={attribute.getStringValue(0)} />
+          <attribute name={attribute.getShortName} value={attribute.getStringValue(0)}/>
       }
     } else {
-      if( attribute.getLength > 1 ) {
-          val sarray: IndexedSeq[String] = (0 until attribute.getLength).map( i => attribute.getNumericValue(i).toString )
+      if (attribute.getLength > 1) {
+        val sarray: IndexedSeq[String] = (0 until attribute.getLength).map(i => attribute.getNumericValue(i).toString)
           <attribute name={attribute.getShortName} type={attribute.getDataType.toString} value={sarray.mkString(" ")}/>
       } else {
           <attribute name={attribute.getShortName} type={attribute.getDataType.toString} value={attribute.getNumericValue(0).toString}/>
       }
     }
 
-  def getDims( variable: nc2.Variable ): String = variable.getDimensions.map( dim => if (dim.isShared) dim.getShortName else if (dim.isVariableLength) "*" else dim.getLength.toString ).toArray.mkString(" ")
-  def getDimension( dimension: nc2.Dimension ): xml.Node = <dimension name={dimension.getFullName} length={dimension.getLength.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString}/>
-  def getAggDataset( fileHeader: FileHeader ): xml.Node = <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString} coordValue={ fileHeader.axisValues.mkString(", ") }/>
+  def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) dim.getShortName else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
+
+  def getDimension(dimension: nc2.Dimension): xml.Node = {
+    val nElems = fileMetadata.getDimIndex(dimension.getShortName) match {
+      case 0 => outerDimensionSize;
+      case _ => dimension.getLength
+    }
+      <dimension name={dimension.getFullName} length={nElems.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString} isShared={dimension.isShared.toString}/>
+  }
+
+  def getAggDataset(fileHeader: FileHeader): xml.Node = <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.mkString(", ")}/>
+
+  def getVariable(variable: nc2.Variable): xml.Node = {
+    val dimIndex = fileMetadata.getDimIndex(variable.getShortName)
+    <variable name={variable.getShortName} shape={getDims(variable)} type={variable.getDataType.toString}>
+    { for (attribute <- variable.getAttributes; if( !isIgnored( attribute, (dimIndex==0) ) ) ) yield getAttribute(attribute) }
+    { if( dimIndex > 0) variable match {
+        case coordVar: CoordinateAxis1D => getData(variable, coordVar.isRegular)
+        case _ => getData(variable, false)
+    }}
+    </variable>
+  }
+
+  def getData(variable: nc2.Variable, isRegular: Boolean): xml.Node = {
+    val dataArray: Array[Double] = CDDoubleArray.factory(variable.read).getArrayData
+    if (isRegular) {
+      <values start={"%.3f".format(dataArray(0))} increment={"%.3f".format(dataArray(1)-dataArray(0))}/>
+    } else {
+      <values>
+        {dataArray.map(dv => "%.3f".format(dv)).mkString(" ")}
+      </values>
+    }
+  }
+
+  def getAggregation: xml.Node = {
+    <aggregation dimName="time" units="days since 1970-1-1" type="joinExisting">
+      { for( fileHeader <- fileHeaders ) yield { getAggDataset(fileHeader) } }
+    </aggregation>
+  }
 
   def getNCML: xml.Node = {
     println("Processing %d files with %d workers".format( nFiles, nReadProcessors) )
     <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
+      <explicit/>
       <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
+
       { for( attribute <- fileMetadata.attributes ) yield getAttribute(attribute) }
       { for (dimension <- fileMetadata.dimensions) yield getDimension(dimension) }
-      { for (variable <- fileMetadata.variables) yield {
-        <variable name={variable.getShortName} shape={getDims(variable)} type={variable.getDataType.toString}>
-        { for (attribute <- variable.getAttributes) yield getAttribute(attribute) }
-        </variable>
-        }
-      }
-      <aggregation dimName="time" units="days since 1970-1-1" type="joinExisting">
-        { for( fileHeader <- fileHeaders ) yield { getAggDataset(fileHeader) } }
-      </aggregation>
+      { for (variable <- fileMetadata.variables) yield getVariable( variable ) }
+      { getAggregation }
+
     </netcdf>
   }
 }
@@ -187,6 +221,8 @@ class FileMetadata( val ncFile: File ) {
   val dimensions: List[nc2.Dimension] = ncDataset.getDimensions.toList
   val variables = ncDataset.getVariables.toList
   val attributes = ncDataset.getGlobalAttributes
+  val dimNames = dimensions.map( _.getShortName )
+  def getDimIndex( dimName: String ) = dimNames.indexOf( dimName )
 }
 
 object cdscan extends App {
