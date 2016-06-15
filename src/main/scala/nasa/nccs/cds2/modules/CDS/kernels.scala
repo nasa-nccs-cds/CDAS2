@@ -28,7 +28,7 @@ class CDS extends KernelModule with KernelTools {
       val max_val_masked: CDFloatArray = input_array.max( axes.toArray )
       val t11 = System.nanoTime
       logger.info("Max_val_masked, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, max_val_masked.toString ) )
-      val variable = serverCx.getVariable( inputVar.getSpec )
+      val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
       val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
       if(async) {
         new AsyncExecutionResult( saveResult( max_val_masked, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
@@ -51,7 +51,7 @@ class CDS extends KernelModule with KernelTools {
       val max_val_masked: CDFloatArray = ( input_array := sval.toFloat )
       val t11 = System.nanoTime
       logger.info("Constant op, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, max_val_masked.toString ) )
-      val variable = serverCx.getVariable( inputVar.getSpec )
+      val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
       val section = inputVar.getSpec.getReducedSection(Set())
       if(async) {
         new AsyncExecutionResult( saveResult( max_val_masked, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
@@ -75,7 +75,7 @@ class CDS extends KernelModule with KernelTools {
       val max_val_masked: CDFloatArray = input_array.min( axes.toArray )
       val t11 = System.nanoTime
       logger.info("Mean_val_masked, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, max_val_masked.toString ) )
-      val variable = serverCx.getVariable( inputVar.getSpec )
+      val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
       val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
       if(async) {
         new AsyncExecutionResult( saveResult( max_val_masked, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
@@ -99,7 +99,7 @@ class CDS extends KernelModule with KernelTools {
       val max_val_masked: CDFloatArray = input_array.sum( axes.toArray )
       val t11 = System.nanoTime
       logger.info("Mean_val_masked, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, max_val_masked.toString ) )
-      val variable = serverCx.getVariable( inputVar.getSpec )
+      val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
       val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
       if(async) {
         new AsyncExecutionResult( saveResult( max_val_masked, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
@@ -130,7 +130,7 @@ class CDS extends KernelModule with KernelTools {
       val mean_val_masked: CDFloatArray = input_array.mean( axes.toArray, weightsOpt )
       val t11 = System.nanoTime
       logger.info("Mean_val_masked, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, mean_val_masked.toString ) )
-      val variable = serverCx.getVariable( inputVar.getSpec )
+      val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
       val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
       if(async) {
         new AsyncExecutionResult( saveResult( mean_val_masked, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
@@ -153,7 +153,7 @@ class CDS extends KernelModule with KernelTools {
           serverCx.getSubset( inputVar.dataFragment.fragmentSpec,  requestCx.getDomain( domainId ) )
       }
       val async = requestCx.config("async", "false").toBoolean
-      val variable = serverCx.getVariable( inputVar.getSpec )
+      val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
       val section = resultFragment.fragmentSpec.roi
       if(async) {
         new AsyncExecutionResult( saveResult( resultFragment.data, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
@@ -172,12 +172,16 @@ class CDS extends KernelModule with KernelTools {
       val result: (String, xml.Node) = requestCx.inputs.headOption match {
         case None => ("Collection", Collections.toXml)
         case Some((key, inputSpec)) =>
-          inputSpec.data.collection match {
+          inputSpec.data.collection.url match {
             case "" => ("Collection", Collections.toXml)
-            case collection =>
-              inputSpec.data.varname match {
-                case "" => (collection, Collections.toXml(collection))
-                case vname => (collection + ":" + vname, serverCx.getVariable(collection, vname).toXml)
+            case collectionUrl =>
+              Collections.findCollection( collectionUrl ) match {
+                case Some( collection ) =>
+                  inputSpec.data.varname match {
+                    case "" => ( collectionUrl, collection.toXml )
+                    case vname => ( collectionUrl + ":" + vname, serverCx.getVariable(collection, vname).toXml)
+                  }
+                case None => ( "Collection", Collections.toXml )
               }
           }
       }
@@ -236,7 +240,7 @@ class CDS extends KernelModule with KernelTools {
       val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
       val optargs: Map[String, String] = operationCx.getConfiguration
       val input_array: CDFloatArray = inputVar.dataFragment.data
-      val cdsVariable = serverCx.getVariable(inputVar.getSpec)
+      val cdsVariable = serverCx.getVariable(inputVar.getSpec.collection, inputVar.getSpec.varname)
       val axisSpecs = inputVar.axisIndices
       val async = requestCx.config("async", "false").toBoolean
       val axes = requestCx.targetGrid.getAxisIndices("t")
@@ -258,7 +262,7 @@ class CDS extends KernelModule with KernelTools {
       }
       val t11 = System.nanoTime
       logger.info("Binned array, time = %.4f s, result = %s".format((t11 - t10) / 1.0E9, binned_array.toString))
-      val variable = serverCx.getVariable(inputVar.getSpec)
+      val variable = serverCx.getVariable(inputVar.getSpec.collection, inputVar.getSpec.varname)
       val section = inputVar.getSpec.getReducedSection(Set(axes(0)), binned_array.getShape(axes(0)))
       if (async) {
         new AsyncExecutionResult(saveResult(binned_array, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx)))
@@ -286,7 +290,7 @@ class CDS extends KernelModule with KernelTools {
         case wtype => serverCx.getAxisData( inputVar.getSpec, 'y' ).map( axis_data => input_array.computeWeights( wtype, Map( 'y' ->  axis_data ) ) )
       }
       val anomaly_result: CDFloatArray = input_array.anomaly( axes.toArray, weightsOpt )
-      val variable = serverCx.getVariable( inputVar.getSpec )
+      val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
       val section = inputVar.getSpec.roi
       val t11 = System.nanoTime
       logger.info("Anomaly, time = %.4f s".format( (t11-t10)/1.0E9 ) )

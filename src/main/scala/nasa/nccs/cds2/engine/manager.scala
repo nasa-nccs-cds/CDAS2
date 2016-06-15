@@ -2,7 +2,7 @@ package nasa.nccs.cds2.engine
 import java.io.{IOException, PrintWriter, StringWriter}
 import java.nio.FloatBuffer
 
-import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
+import nasa.nccs.cdapi.cdm.{Collection, PartitionedFragment, _}
 import nasa.nccs.cds2.loaders.{Collections, Masks}
 import nasa.nccs.esgf.process._
 import org.slf4j.{Logger, LoggerFactory}
@@ -98,12 +98,12 @@ trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {
 
 
   def findEnclosingFragSpecs(keys: Set[DataFragmentKey], fkey: DataFragmentKey, admitEquality: Boolean = true): Set[DataFragmentKey] = {
-    val variableFrags = getFragSpecsForVariable(keys, fkey.collection, fkey.varname)
+    val variableFrags = getFragSpecsForVariable(keys, fkey.collectionUrl, fkey.varname)
     variableFrags.filter(fkeyParent => fkeyParent.contains(fkey, admitEquality))
   }
 
   def findEnclosedFragSpecs(keys: Set[DataFragmentKey], fkeyParent: DataFragmentKey, admitEquality: Boolean = false): Set[DataFragmentKey] = {
-    val variableFrags = getFragSpecsForVariable(keys, fkeyParent.collection, fkeyParent.varname)
+    val variableFrags = getFragSpecsForVariable(keys, fkeyParent.collectionUrl, fkeyParent.varname)
     variableFrags.filter(fkey => fkeyParent.contains(fkey, admitEquality))
   }
 
@@ -134,27 +134,24 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     case None => throw new Exception(s"Error getting cache value $key")
   }
 
-  def getDatasetFuture(collection: String, varName: String): Future[CDSDataset] =
-    datasetCache(makeKey(collection, varName)) { produceDataset(collection, varName) _ }
+  def getDatasetFuture(collection: Collection, varName: String): Future[CDSDataset] =
+    datasetCache(makeKey(collection.url, varName)) { produceDataset(collection, varName) _ }
 
-  def getDataset(collection: String, varName: String): CDSDataset = {
+  def getDataset(collection: Collection, varName: String): CDSDataset = {
     val futureDataset: Future[CDSDataset] = getDatasetFuture(collection, varName)
     Await.result(futureDataset, Duration.Inf)
   }
 
-  private def produceDataset(collection_uri: String, varName: String)(p: Promise[CDSDataset]): Unit =
-    Collections.getCollection( collection_uri ) match {
-      case Some(collection) =>
-        val t0 = System.nanoTime()
-        val dataset = CDSDataset.load(collection_uri, collection, varName)
-        val t1 = System.nanoTime()
-        logger.info(" Completed reading dataset (%s:%s), T: %.4f ".format( collection, varName, (t1-t0)/1.0E9 ))
-        p.success(dataset)
-      case None => p.failure(new Exception("Undefined collection for dataset " + varName + ", collection = " + collection_uri + ".  Current collections = " + Collections.getCollectionKeys.mkString("[ " ,", ", " ]") ))
-    }
+  private def produceDataset(collection: Collection, varName: String)(p: Promise[CDSDataset]): Unit = {
+    val t0 = System.nanoTime()
+    val dataset = CDSDataset.load(collection, varName)
+    val t1 = System.nanoTime()
+    logger.info(" Completed reading dataset (%s:%s), T: %.4f ".format( collection, varName, (t1-t0)/1.0E9 ))
+    p.success(dataset)
+  }
 
 
-  private def promiseVariable(collection: String, varName: String)(p: Promise[CDSVariable]): Unit =
+  private def promiseVariable(collection: Collection, varName: String)(p: Promise[CDSVariable]): Unit =
     getDatasetFuture(collection, varName) onComplete {
       case Success(dataset) =>
         try {
@@ -170,11 +167,11 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
       case Failure(t) => p.failure(t)
     }
 
-  def getVariableFuture(collection: String, varName: String): Future[CDSVariable] = variableCache(makeKey(collection, varName)) {
+  def getVariableFuture(collection: Collection, varName: String): Future[CDSVariable] = variableCache(makeKey(collection.url, varName)) {
     promiseVariable(collection, varName) _
   }
 
-  def getVariable(collection: String, varName: String): CDSVariable = {
+  def getVariable(collection: Collection, varName: String): CDSVariable = {
     val futureVariable: Future[CDSVariable] = getVariableFuture(collection, varName)
     Await.result(futureVariable, Duration.Inf)
   }
@@ -505,12 +502,15 @@ object SampleTaskRequests {
     writer.close()
     println( "Writing result to file '%s'".format(resultFile) )
   }
+  def getCollection( id: String ): Collection = {
+    Collections.findCollection(id) match { case Some(collection) => collection; case None=> throw new Exception(s"Unknown Collection: $id" )}
+  }
 
 
   def getAveTimeseries: TaskRequest = {
     import nasa.nccs.esgf.process.DomainAxis.Type._
     val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", rid = "ivar#1", inputs = List("v0"), Map("axis" -> "t") ) ) ) )
-    val variableMap = Map[String,DataContainer]( "v0" -> new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) ) )
+    val variableMap = Map[String,DataContainer]( "v0" -> new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0" ) ) ) )
     val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Z,1,1), DomainAxis(Y,100,100), DomainAxis(X,100,100) ), None ) )
     new TaskRequest( "CDS.average", variableMap, domainMap, workflows, Map( "id" -> "v0" ) )
   }
@@ -596,6 +596,13 @@ object SampleTaskRequests {
     TaskRequest( "util.cache", dataInputs )
   }
 
+  def getAggregateAndCacheRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List( Map("name" -> "d0",  "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://merra300/hourly/aggTest", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/", "name" -> "t:v0", "domain" -> "d0")) )
+    TaskRequest( "util.cache", dataInputs )
+  }
+
   def getSpatialAve(collection: String, varname: String, weighting: String, level_index: Int = 0, time_index: Int = 0): TaskRequest = {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
@@ -670,7 +677,7 @@ object SampleTaskRequests {
   def getAveArray: TaskRequest = {
     import nasa.nccs.esgf.process.DomainAxis.Type._
     val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", rid = "ivar#1", inputs = List("v0"), Map("axis" -> "xy")  ) ) ) )
-    val variableMap = Map[String,DataContainer]( "v0" -> new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) ) )
+    val variableMap = Map[String,DataContainer]( "v0" -> new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0" ) ) ) )
     val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Z,4,4), DomainAxis(Y,100,100) ), None ) )
     new TaskRequest( "CDS.average", variableMap, domainMap, workflows, Map( "id" -> "v0" ) )
   }
@@ -733,10 +740,11 @@ object executionTest extends App {
   }
 }
 
-object execCacheTest extends App {
+
+object execAggregateAndCacheTest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
   val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getCacheRequest
+  val request = SampleTaskRequests.getAggregateAndCacheRequest
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )

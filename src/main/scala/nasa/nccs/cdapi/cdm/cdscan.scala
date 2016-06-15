@@ -12,6 +12,7 @@ import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset.{CoordinateAxis1D, CoordinateAxis1DTime, NetcdfDataset, VariableDS}
 import ucar.nc2.time.CalendarDate
+import collection.mutable.ListBuffer
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConversions._
@@ -42,17 +43,6 @@ object NCMLWriter {
 
   def getNcFiles(args: Iterator[String]): Iterator[File] =
     args.map( (arg: String) => NCMLWriter.getNcFiles(new File(arg))).foldLeft(Iterator[File]())(_ ++ _)
-
-  def getFileHeadersSerial( files: IndexedSeq[File] ): IndexedSeq[FileHeader] = {
-    println( "NCMLSerialWriter--> Processing %d files:".format(files.length) )
-    val fileHeaders: IndexedSeq[FileHeader] = for ( iFile <- files.indices; file = files(iFile) ) yield {
-      val fileHeader = FileHeader(file)
-      println("  >> Processing file[%d] '%s', start = %d, ncoords = %d ".format(iFile, file.getAbsolutePath, fileHeader.startValue, fileHeader.nElem))
-      cdsutils.printHeapUsage
-      fileHeader
-    }
-    fileHeaders.sortWith((afr0, afr1) => (afr0.startValue < afr1.startValue))
-  }
 
   def getFileHeaders( files: IndexedSeq[File], nReadProcessors: Int ): IndexedSeq[FileHeader] = {
     val groupSize = cdsutils.ceilDiv( files.length, nReadProcessors )
@@ -161,18 +151,28 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
 }
 
 object FileHeader extends Loggable {
-  val maxOpenAttempts = 10
-  val retryIntervalSecs = 25
+  val maxOpenAttempts = 4
+  val retryIntervalSecs = 30
   def apply( file: File ): FileHeader = new FileHeader( file.getAbsolutePath, FileHeader.getTimeCoordValues(file) )
 
-  def factory( files: IndexedSeq[File], workerIndex: Int ): IndexedSeq[FileHeader] =
-    for( iFile <- files.indices; file = files(iFile) ) yield {
-      val t0 = System.nanoTime()
-      val fileHeader = FileHeader(file)
-      val t1 = System.nanoTime()
-      println("Worker[%d]: Processing file[%d] '%s', start = %.3f, ncoords = %d, time = %.4f ".format( workerIndex, iFile, file.getAbsolutePath, fileHeader.startValue, fileHeader.nElem, (t1-t0)/1.0E9 ) )
-      fileHeader
+  def factory( files: IndexedSeq[File], workerIndex: Int ): IndexedSeq[FileHeader] = {
+    var retryFiles = new ListBuffer[File]()
+    val firstPass = for (iFile <- files.indices; file = files(iFile)) yield {
+      try {
+        val t0 = System.nanoTime()
+        val fileHeader = FileHeader(file)
+        val t1 = System.nanoTime()
+        println("Worker[%d]: Processing file[%d] '%s', start = %.3f, ncoords = %d, time = %.4f ".format(workerIndex, iFile, file.getAbsolutePath, fileHeader.startValue, fileHeader.nElem, (t1 - t0) / 1.0E9))
+        Some(fileHeader)
+      } catch { case err: Exception =>  retryFiles += file; None }
     }
+    val secondPass = for (iFile <- retryFiles.indices; file = retryFiles(iFile)) yield {
+      println("Worker[%d]: Reprocessing file[%d] '%s'".format(workerIndex, iFile, file.getAbsolutePath))
+      FileHeader(file)
+    }
+    firstPass.flatten ++ secondPass
+  }
+
   def getTimeValues( ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index : Int = 0, end_index : Int = -1, stride: Int = 1 ): Array[Double] = {
     val sec_in_day = 60 * 60 * 24
     val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory( ncDataset, coordAxis, new Formatter())
@@ -187,10 +187,9 @@ object FileHeader extends Loggable {
     NetcdfDataset.openDataset("file:" + ncFile.getAbsolutePath)
   } catch {
     case ex: Throwable =>
-      if (attempt == maxOpenAttempts) throw new Exception("Error opening file '%s' after %d attempts: '%s'".format(ncFile.getName, maxOpenAttempts, ex.getMessage))
+      if (attempt == maxOpenAttempts) throw new Exception("Error opening file '%s' after %d attempts (will retry later): '%s'".format(ncFile.getName, maxOpenAttempts, ex.getMessage))
       else {
         Thread.sleep( retryIntervalSecs * 1000 )
-        logger.warn( "Error opening file '%s' (retry %d): '%s'".format(ncFile.getName, attempt, ex.getMessage) )
         openNetCDFFile(ncFile, attempt + 1)
       }
   }

@@ -1,11 +1,15 @@
 package nasa.nccs.cds2.loaders
 import java.io.FileNotFoundException
 import java.net.URL
-import java.nio.file.{Files, Paths}
-
-import nasa.nccs.cdapi.cdm.Collection
+import java.nio.file.{Files, Path, Paths}
+import collection.JavaConverters._
+import scala.collection.JavaConversions._
+import collection.mutable
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
+import nasa.nccs.cdapi.cdm.{Collection, NCMLWriter}
 import nasa.nccs.utilities.Loggable
 
+import scala.concurrent.Future
 import scala.xml.XML
 
 object AxisNames {
@@ -23,17 +27,13 @@ class AxisNames( val nameMap: Map[Char,String]  ) {
 
 trait XmlResource extends Loggable {
 
-  def getFilePath(resourcePath: String) = {
-    val rpath = Option( getClass.getResource(resourcePath) ) match {
+  def getFilePath(resourcePath: String) = Option( getClass.getResource(resourcePath) ) match {
       case None => Option( getClass.getClassLoader.getResource(resourcePath) ) match {
         case None => throw new Exception(s"Resource $resourcePath does not exist!")
         case Some(r) => r.getPath
       }
       case Some(r) => r.getPath
     }
-    logger.info( " $$$$$$$$$$$$$ Found Collection %s: path = %s ".format( resourcePath, rpath ) )
-    rpath
-  }
 
   def attr( node: xml.Node, att_name: String ): String = { node.attribute(att_name) match { case None => ""; case Some(x) => x.toString }}
   def attrOpt( node: xml.Node, att_name: String ): Option[String] = node.attribute(att_name).map( _.toString )
@@ -69,63 +69,87 @@ object Masks extends XmlResource {
 }
 
 object Collections extends XmlResource {
-  val datasets = loadCollectionXmlData( getFilePath("/global_collections.xml"), getFilePath("/local_collections.xml") )
+  val maxCapacity: Int=100000
+  val initialCapacity: Int=250
+  val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( getFilePath("/global_collections.xml"), getFilePath("/local_collections.xml") )
 
   def toXml: xml.Elem = {
-    <collections> { for( (id,collection) <- datasets ) yield <collection id={id}> {collection.vars.mkString(",")} </collection>} </collections>
-  }
-  def loadCollectionTextData(url:URL): Map[String,Collection] = {
-    val lines = scala.io.Source.fromURL( url ).getLines
-    val mapItems = for( line <- lines; toks =  line.split(';')) yield  nospace(toks(0)) -> Collection( ctype=nospace(toks(1)), url=nospace(toks(2)), vars=getVarList(toks(3)) )
-    mapItems.toMap
+    <collections> { for( ( id: String, collection:Collection ) <- datasets ) yield collection.toXml } </collections>
   }
 
-  def loadCollectionXmlData(filePaths:String*): Map[String,Collection] = {
-    var elems = Seq[(String,Collection)]()
+  def uriToFile( uri: String ): String = {
+    uri.toLowerCase.split(":").last.stripPrefix("/").stripPrefix("/").replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ".xml"
+  }
+
+  def addCollection( uri: String, path: String, fileFilter: String, vars: List[String]  ): Collection = {
+    val ncml_dir_path = NCMLWriter.getCachePath("NCML")
+    val ncml_file_path = ncml_dir_path.resolve( uriToFile(uri) )
+    val url = "file:" + ncml_file_path
+    val id = uri.split(":").last.stripPrefix("/").stripPrefix("/").toLowerCase
+    val collection = Collection( id, url, path, fileFilter, vars )
+    datasets.put(uri,collection)
+//    val local_file_path = getFilePath("/local_collections.xml")
+//    XML.loadFile(local_file_path).child += collection.toXml  TODO: persist new collections
+    collection
+  }
+
+//  def loadCollectionTextData(url:URL): Map[String,Collection] = {
+//    val lines = scala.io.Source.fromURL( url ).getLines
+//    val mapItems = for( line <- lines; toks =  line.split(';')) yield
+//      nospace(toks(0)) -> Collection( url=nospace(toks(1)), url=nospace(toks(1)), vars=getVarList(toks(3)) )
+//    mapItems.toMap
+//  }
+
+  def isChild( subDir: String,  parentDir: String ): Boolean = Paths.get( subDir ).toAbsolutePath.startsWith( Paths.get( parentDir ).toAbsolutePath )
+  def findCollectionByPath( subDir: String ): Option[Collection] = datasets.values.toList.find { case collection => if( collection.path.isEmpty) { false } else { isChild( subDir, collection.path ) } }
+
+  def loadCollectionXmlData(filePaths:String*): ConcurrentLinkedHashMap[String,Collection] = {
+    val maxCapacity: Int=100000
+    val initialCapacity: Int=250
+    val datasets = new ConcurrentLinkedHashMap.Builder[String, Collection].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).build()
     for ( filePath <- filePaths; if Files.exists( Paths.get(filePath) ) ) {
       try {
-        elems ++= XML.loadFile(filePath).child.flatMap(node => node.attribute("id") match {
+        XML.loadFile(filePath).child.foreach( node => node.attribute("id") match {
           case None => None;
-          case Some(id) => Some(id.toString.toLowerCase -> getCollection(node));
+          case Some(id) => datasets.put(id.toString.toLowerCase, getCollection(node))
         })
       } catch { case err: java.io.IOException => throw new Exception( "Error opening collection data file {%s}: %s".format( filePath, err.getMessage) ) }
     }
-    Map[String,Collection](elems:_*)
+    datasets
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
-  def getCollection( n: xml.Node ): Collection = { Collection( attr(n,"ctype"), attr(n,"url"), attrOpt(n,"source"), n.text.split(",").toList )}
+  def getCollection( n: xml.Node ): Collection = { Collection( attr(n,"id"), attr(n,"url"), attr(n,"path"), attr(n,"fileFilter"), n.text.split(",").toList )}
 
+  def findCollection( collectionId: String ): Option[Collection] = Option( datasets.get( collectionId ) )
 
   def toXml( collectionId: String ): xml.Elem = {
-    datasets.get( collectionId ) match {
-      case Some(collection) => <collection id={collectionId}> { collection.vars.mkString(",") } </collection>
+    Option( datasets.get( collectionId ) ) match {
+      case Some( collection: Collection ) => collection.toXml
       case None => <error> { "Invalid collection id:" + collectionId } </error>
     }
   }
   def parseUri( uri: String ): ( String, String ) = {
     if (uri.isEmpty) ("", "")
     else {
-      val recognizedUrlTypes = List("file", "collection")
       val uri_parts = uri.split(":/")
       val url_type = normalize(uri_parts.head)
-      if (recognizedUrlTypes.contains(url_type) && (uri_parts.length == 2)) (url_type, uri_parts.last)
+      if(uri_parts.length == 2) (url_type, uri_parts.last)
       else throw new Exception("Unrecognized uri format: " + uri + ", type = " + uri_parts.head + ", nparts = " + uri_parts.length.toString + ", value = " + uri_parts.last)
     }
   }
 
-  def getCollection(collection_uri: String, var_names: List[String] = List()): Option[Collection] = {
-    parseUri(collection_uri) match {
-      case (ctype, cpath) => ctype match {
-        case "file" => Some(Collection(ctype = "file", url = collection_uri, vars = var_names))
-        case "dir" => Some(Collection(ctype = "file", url = collection_uri, vars = var_names))
-        case "collection" =>
-          val collection_key = cpath.stripPrefix("/").stripSuffix("\"").toLowerCase
-          logger.info( " getCollection( %s ) ".format(collection_key) )
-          datasets.get( collection_key )
-      }
-    }
-  }
+//  def getCollection(collection_uri: String, var_names: List[String] = List()): Option[Collection] = {
+//    parseUri(collection_uri) match {
+//      case (ctype, cpath) => ctype match {
+//        case "file" => Some(Collection( url = collection_uri, vars = var_names ))
+//        case "collection" =>
+//          val collection_key = cpath.stripPrefix("/").stripSuffix("\"").toLowerCase
+//          logger.info( " getCollection( %s ) ".format(collection_key) )
+//          datasets.get( collection_key )
+//      }
+//    }
+//  }
 
   def getCollectionKeys: Array[String] = datasets.keys.toArray
 
@@ -133,12 +157,19 @@ object Collections extends XmlResource {
 
 
 object TestCollection extends App {
-  println( Collections.datasets.toString )
+  println( Collections.isChild( "/tmp",  "/tmp" ) )
 }
 
 object TestMasks extends App {
   println( Masks.masks.toString )
 }
+
+object TestReplace extends App {
+  val s0 = "/x-one!"
+  println(s0.replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X"))
+}
+
+
 
 
 

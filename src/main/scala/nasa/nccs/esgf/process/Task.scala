@@ -1,6 +1,7 @@
 package nasa.nccs.esgf.process
 
 import nasa.nccs.cdapi.cdm.{CDSDataset, CDSVariable, Collection, PartitionedFragment}
+import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
 
 import scala.collection.JavaConversions._
@@ -105,7 +106,7 @@ object TaskRequest {
   val logger = LoggerFactory.getLogger( this.getClass )
   def apply(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]]) = {
     logger.info( "TaskRequest--> process_name: %s, datainputs: %s".format( process_name, datainputs.toString ) )
-    val data_list: List[DataContainer] = datainputs.getOrElse("variable", List() ).map(DataContainer(_)).toList
+    val data_list: List[DataContainer] = datainputs.getOrElse("variable", List() ).flatMap(DataContainer.factory(_)).toList
     val domain_list: List[DomainContainer] = datainputs.getOrElse("domain", List()).map(DomainContainer(_)).toList
     val operation_list: List[WorkflowContainer] = datainputs.getOrElse("operation", List() ).map(WorkflowContainer( process_name, data_list.map(_.uid), _ ) ).toList
     val variableMap = buildVarMap( data_list, operation_list )
@@ -197,17 +198,17 @@ class PartitionSpec( val axisIndex: Int, val nPart: Int, val partIndex: Int = 0 
   override def toString =  s"PartitionSpec { axis = $axisIndex, nPart = $nPart, partIndex = $partIndex }"
 }
 
-class DataSource(val name: String, val collection: String, val domain: String ) {
+class DataSource(val name: String, val collection: Collection, val domain: String ) {
   def this( dsource: DataSource ) = this( dsource.name, dsource.collection, dsource.domain )
-  override def toString =  s"DataSource { name = $name, collection = $collection, domain = $domain }"
-  def toXml = <dataset name={name} collection={collection.toString} domain={domain.toString}/>
+  override def toString =  s"DataSource { name = $name, collection = %s, domain = $domain }".format( collection.toString )
+  def toXml = <dataset name={name} domain={domain}>{ collection.toXml }</dataset>
   def isDefined = ( !collection.isEmpty && !name.isEmpty )
   def isReadable = ( !collection.isEmpty && !name.isEmpty && !domain.isEmpty )
 }
 
-class DataFragmentKey( val varname: String, val collection: String, val origin: Array[Int], val shape: Array[Int] ) extends Serializable {
-  override def toString =  "DataFragmentKey{ name = %s, collection = %s, origin = [ %s ], shape = [ %s ] }".format( varname, collection, origin.mkString(", "), shape.mkString(", "))
-  def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
+class DataFragmentKey( val varname: String, val collectionUrl: String, val origin: Array[Int], val shape: Array[Int] ) extends Serializable {
+  override def toString =  "DataFragmentKey{ name = %s, collection = %s, origin = [ %s ], shape = [ %s ] }".format( varname, collectionUrl, origin.mkString(", "), shape.mkString(", "))
+  def sameVariable( otherCollectionUrl: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collectionUrl == otherCollectionUrl) }
   def getRoi: ma2.Section = new ma2.Section(origin,shape)
   def equalRoi( df: DataFragmentKey ): Boolean = ( shape.sameElements(df.shape) && origin.sameElements(df.origin ) )
   def getSize: Int = shape.product
@@ -237,13 +238,13 @@ object DataFragmentSpec {
   }
 }
 
-class DataFragmentSpec( val varname: String="", val collection: String="", val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="", val longname: String="", val roi: ma2.Section = new ma2.Section(), val mask: Option[String] = None, val partitions: Array[PartitionSpec]= Array() )  {
+class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="", val longname: String="", val roi: ma2.Section = new ma2.Section(), val mask: Option[String] = None, val partitions: Array[PartitionSpec]= Array() )  {
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s, partitions = [ %s ] }".format( varname, collection, dimensions, units, longname, roi.toString, partitions.map(_.toString).mkString(", "))
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
     mask match {
-      case None => <input collection={collection} varname={varname} longname={longname} units={units} roi={roi.toString} />
-      case Some(maskId) => <input collection={collection} varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} />
+      case None => <input varname={varname} longname={longname} units={units} roi={roi.toString} >{collection.toXml}</input>
+      case Some(maskId) => <input varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
 
@@ -279,7 +280,7 @@ class DataFragmentSpec( val varname: String="", val collection: String="", val t
   def getAxes: List[DomainAxis] = roi.getRanges.map( (range: ma2.Range) => new  DomainAxis( DomainAxis.fromCFAxisName(range.getName), range.first, range.last, "indices" ) ).toList
 
   def getKey: DataFragmentKey = {
-    new DataFragmentKey( varname, collection, roi.getOrigin, roi.getShape )
+    new DataFragmentKey( varname, collection.url, roi.getOrigin, roi.getShape )
   }
   def getSize: Int = roi.getShape.product
 
@@ -304,7 +305,7 @@ class DataFragmentSpec( val varname: String="", val collection: String="", val t
     var v: CDSVariable =  serverContext.getVariable( collection, varname )
     v.attributes ++ Map( "description" -> new nc2.Attribute("description",v.description), "units"->new nc2.Attribute("units",v.units),
       "fullname"->new nc2.Attribute("fullname",v.fullname), "axes" -> new nc2.Attribute("axes",dimensions),
-      "varname" -> new nc2.Attribute("varname",varname), "collection" -> new nc2.Attribute("collection",collection) )
+      "varname" -> new nc2.Attribute("varname",varname), "collection" -> new nc2.Attribute("collection",collection.url) )
   }
 
   def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = {
@@ -384,14 +385,36 @@ object DataContainer extends ContainerBase {
   def apply( operation: OperationContext ): DataContainer = {
       new DataContainer( uid=operation.rid, operation=Some(operation) )
   }
-  def apply(metadata: Map[String, Any]): DataContainer = {
+  def absPath( path: String ): String = new java.io.File(path).getAbsolutePath
+
+  def getCollection(metadata: Map[String, Any]): Collection = {
+    val uri = metadata.getOrElse("uri","").toString
+    val varsList: List[String] = metadata.getOrElse("name","").toString.split(",").map( item => stripQuotes( item.split(':').head ) ).toList
+    val path =  metadata.getOrElse("path","").toString
+    val fileFilter = metadata.getOrElse("fileFilter","").toString
+    if (uri.startsWith("collection"))
+      Collections.findCollection(uri) match {
+        case Some(collection) =>
+          if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.path)), "Collection %s already exists and does not corresponde to teh specified path".format(collection.id) ) }
+          collection
+        case None =>
+          if (path.isEmpty) throw new Exception(s"Unrecognized collection: $uri")
+          else Collections.addCollection( uri, path, fileFilter, varsList )
+      } else Collection(uri, uri, path, fileFilter)
+  }
+
+  def factory(metadata: Map[String, Any]): Array[DataContainer] = {
     try {
-      val uri = filterMap(metadata, key_equals("uri")) match { case None => ""; case Some(x) => x.toString }
       val fullname = filterMap(metadata, key_equals("name")) match { case None => ""; case Some(x) => x.toString }
       val domain = filterMap(metadata, key_equals("domain")) match { case None => ""; case Some(x) => x.toString }
-      val name_items = fullname.toString.split(':')
-      val dsource = new DataSource( stripQuotes(name_items.head), uri, normalize(domain) )
-      new DataContainer(normalize(name_items.last), source = Some(dsource) )
+      val var_names = fullname.toString.split(',')
+      val collection = getCollection(metadata)
+
+      for( name <- var_names) yield {
+        val name_items = name.split(':')
+        val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain))
+        new DataContainer(normalize(name_items.last), source = Some(dsource))
+      }
     } catch {
       case e: Exception =>
         logger.error("Error creating DataContainer: " + e.getMessage  )

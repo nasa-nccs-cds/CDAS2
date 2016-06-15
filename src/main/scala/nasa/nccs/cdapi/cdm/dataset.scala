@@ -1,9 +1,10 @@
 package nasa.nccs.cdapi.cdm
 
 import java.nio.channels.{FileChannel, NonReadableChannelException}
+
 import ucar.nc2
-import java.nio.file.{Paths, Files}
-import java.io.{FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, Serializable, RandomAccessFile}
+import java.nio.file.{Files, Paths}
+import java.io.{FileWriter, _}
 import java.nio._
 
 import nasa.nccs.cds2.loaders.XmlResource
@@ -18,20 +19,40 @@ import scala.xml.XML
 // import scala.collection.JavaConverters._
 
 object Collection {
-  def apply( ctype: String, url: String, source: Option[String] = None, vars: List[String] = List() ) = {
-    new Collection(ctype,url,source,vars)
+  def apply( id: String, url: String, path: String = "", fileFilter: String = "", vars: List[String] = List() ) = {
+    new Collection(id,url,path,fileFilter,vars)
   }
 }
-class Collection( val ctype: String, val url: String, val source: Option[String] = None, val vars: List[String] = List() ) {  //
+class Collection( val id: String="",  val url: String="", val path: String = "", val fileFilter: String = "", val vars: List[String] = List() ) extends Serializable {
+  val ctype: String = url.split(":").head
+  val ncmlFile = new File( url )
+  override def toString = "Collection( id=%s, url=%s, path=%s, fileFilter=%s )".format( id, url, path, fileFilter )
+  def isEmpty = url.isEmpty
+  def isFileCached = ncmlFile.exists
+
   def getUri( varName: String = "" ) = {
     ctype match {
-      case "dods" => s"$url/$varName.ncml"
-      case "file" => url
-      case "dir" => url
-      case _ => throw new Exception( s"Unrecognized collection type: $ctype")
+      case "http" => s"$url/$varName.ncml"
+      case _ => url
     }
   }
-  override def toString = "Collection( type=%s, url=%s, source=%s, vars=(%s))".format( ctype, url, source, vars.mkString(",") )
+
+  def toXml: xml.Elem =
+    if(path.isEmpty) <collection url={url}> {vars.mkString(",")} </collection>
+    else if(fileFilter.isEmpty)  <collection url={url} path={path}> {vars.mkString(",")} </collection>
+    else  <collection url={url} path={path} fileFilter={fileFilter}> {vars.mkString(",")} </collection>
+
+
+  def copyIntoFileCache: CDSDataset = {
+    assert( ( !ncmlFile.exists && ncmlFile.getParentFile.exists ) || ncmlFile.canWrite, "Error, can't write to NCML file " + ncmlFile.getAbsolutePath )
+    val ncmlWriter = new NCMLWriter( Array(ncmlFile.getAbsolutePath).iterator )
+    val ncmlNode = ncmlWriter.getNCML
+    val bw = new BufferedWriter(new FileWriter( ncmlFile ))
+    bw.write( ncmlNode.toString )
+    bw.close()
+    new CDSDataset(null,null,null,null,null)  // TODO - complete data cache
+  }
+
 }
 
 object DiskCacheFileMgr extends XmlResource {
@@ -138,25 +159,26 @@ object CDSDataset extends DiskCachable  {
   def getCacheType: String = CDSDataset.cacheType
 
 
-  def load( dsetName: String, collection: Collection, varName: String ): CDSDataset = {
-    val uri = collection.getUri(varName)
-    load(dsetName, uri, varName)
+  def load( collection: Collection, varName: String ): CDSDataset = {
+    if( !collection.isFileCached ) collection.copyIntoFileCache
+    else load(collection.url, collection, varName)
   }
 
   def restore( cache_rec_id: String ): CDSDataset = {
     val rec: CDSDatasetRec = objectFromDisk[CDSDatasetRec](cache_rec_id)
-    load( rec.dsetName, rec.uri, rec.varName )
+    load( rec.dsetName, rec.collection, rec.varName )
   }
   def persist( dset: CDSDataset ): String = objectToDisk( dset.getSerializable )
 
-  def load( dsetName: String, uri: String, varName: String ): CDSDataset = {
+  def load( dsetName: String, collection: Collection, varName: String ): CDSDataset = {
     val t0 = System.nanoTime
+    val uri = collection.getUri(varName)
     val ncDataset: NetcdfDataset = loadNetCDFDataSet( uri )
     val coordSystems: List[CoordinateSystem] = ncDataset.getCoordinateSystems.toList
     if( coordSystems.size > 1 ) logger.warn( "Multiple coordinate systems for one dataset:" )
     for(coordSystem <- coordSystems ) { logger.warn( "\t-->" + coordSystem.toString ) }
     if(coordSystems.isEmpty) throw new IllegalStateException("Error creating coordinate system for variable " + varName )
-    val rv = new CDSDataset( dsetName, uri, ncDataset, varName, coordSystems.head )
+    val rv = new CDSDataset( dsetName, collection, ncDataset, varName, coordSystems.head )
     val t1 = System.nanoTime
     logger.info( "loadDataset(%s)T> %.4f,  ".format( uri, (t1-t0)/1.0E9 ) )
     rv
@@ -190,9 +212,11 @@ case class DatasetFileHeaders( val aggDim: String, val aggFileMap: Seq[FileHeade
     aggFileMap.foldLeft(Array[Double]()) { _ ++ _.axisValues }
 }
 
-class CDSDatasetRec( val dsetName: String, val uri: String, val varName: String ) extends Serializable {}
+class CDSDatasetRec( val dsetName: String, val collection: Collection, val varName: String ) extends Serializable {
+  def getUri: String = collection.getUri(varName)
+}
 
-class CDSDataset( val name: String, val uri: String, val ncDataset: NetcdfDataset, val varName: String, val coordSystem: CoordinateSystem ) {
+class CDSDataset( val name: String, val collection: Collection, val ncDataset: NetcdfDataset, val varName: String, val coordSystem: CoordinateSystem ) {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val attributes: List[nc2.Attribute] = ncDataset.getGlobalAttributes.map( a => { new nc2.Attribute( name + "--" + a.getFullName, a ) } ).toList
   val coordAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
@@ -200,10 +224,11 @@ class CDSDataset( val name: String, val uri: String, val ncDataset: NetcdfDatase
 
 
   def getCoordinateAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
-  def getFilePath = CDSDataset.urlToPath(uri)
-  def getSerializable = new CDSDatasetRec( name, uri, varName )
+  def getFilePath = CDSDataset.urlToPath(collection.url)
+  def getSerializable = new CDSDatasetRec( name, collection, varName )
 
   def getDatasetFileHeaders: Option[DatasetFileHeaders] = {
+    val uri = collection.getUri(varName)
     if( uri.startsWith("http:" ) ) { None }
     else if( uri.endsWith(".xml" ) || uri.endsWith(".ncml" ) ) {
       val aggregation = XML.loadFile(getFilePath) \ "aggregation"
