@@ -603,6 +603,13 @@ object SampleTaskRequests {
     TaskRequest( "util.cache", dataInputs )
   }
 
+  def getAggregateAndCacheRequest1: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List( Map("name" -> "d0",  "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://merra2/hourly/M2T1NXLND-2004", "path" -> "/att/pubrepo/MERRA/remote/MERRA2/M2T1NXLND.5.12.4/2004", "name" -> "SFMC", "domain" -> "d0")) )
+    TaskRequest( "util.cache", dataInputs )
+  }
+
   def getSpatialAve(collection: String, varname: String, weighting: String, level_index: Int = 0, time_index: Int = 0): TaskRequest = {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
@@ -745,6 +752,16 @@ object execAggregateAndCacheTest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
   val run_args = Map( "async" -> "false" )
   val request = SampleTaskRequests.getAggregateAndCacheRequest
+  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
+  val printer = new scala.xml.PrettyPrinter(200, 3)
+  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+  FragmentPersistence.blockUntilDone()
+}
+
+object execAggregateAndCacheTest1 extends App {
+  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+  val run_args = Map( "async" -> "false" )
+  val request = SampleTaskRequests.getAggregateAndCacheRequest1
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )
