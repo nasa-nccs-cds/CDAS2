@@ -407,8 +407,8 @@ object DataContainer extends ContainerBase {
     try {
       val fullname = filterMap(metadata, key_equals("name")) match { case None => ""; case Some(x) => x.toString }
       val domain = filterMap(metadata, key_equals("domain")) match { case None => ""; case Some(x) => x.toString }
-      val var_names = fullname.toString.split(',')
       val collection = getCollection(metadata)
+      val var_names: Array[String] = if( fullname.equals("*") ) collection.vars.toArray else fullname.toString.split(',')
 
       for( name <- var_names) yield {
         val name_items = name.split(':')

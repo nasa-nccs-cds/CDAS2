@@ -23,6 +23,8 @@ import scala.xml.XML
 
 object NCMLWriter {
 
+  def apply( path: String ): NCMLWriter = { new NCMLWriter( Array(path).iterator ) }
+
   def isNcFile( file: File ): Boolean = {
     val fname = file.getName.toLowerCase
     file.isFile && (fname.endsWith(".nc4") || fname.endsWith(".nc") || fname.endsWith(".hdf") )
@@ -147,6 +149,12 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
       { getAggregation }
 
     </netcdf>
+  }
+
+  def writeNCML( ncmlFile: File ) = {
+    val bw = new BufferedWriter(new FileWriter( ncmlFile ))
+    bw.write( getNCML.toString )
+    bw.close()
   }
 }
 

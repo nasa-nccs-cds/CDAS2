@@ -71,10 +71,14 @@ object Masks extends XmlResource {
 object Collections extends XmlResource {
   val maxCapacity: Int=100000
   val initialCapacity: Int=250
-  val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( getFilePath("/global_collections.xml"), getFilePath("/local_collections.xml") )
+  val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( Map( "global" -> getFilePath("/global_collections.xml"), "local" -> getFilePath("/local_collections.xml") ) )
 
   def toXml: xml.Elem = {
     <collections> { for( ( id: String, collection:Collection ) <- datasets ) yield collection.toXml } </collections>
+  }
+
+  def toXml( scope: String ): xml.Elem = {
+    <collections> { for( ( id: String, collection:Collection ) <- datasets; if collection.scope.equalsIgnoreCase(scope) ) yield collection.toXml } </collections>
   }
 
   def uriToFile( uri: String ): String = {
@@ -82,14 +86,11 @@ object Collections extends XmlResource {
   }
 
   def addCollection( uri: String, path: String, fileFilter: String, vars: List[String]  ): Collection = {
-    val ncml_dir_path = NCMLWriter.getCachePath("NCML")
-    val ncml_file_path = ncml_dir_path.resolve( uriToFile(uri) )
-    val url = "file:" + ncml_file_path
+    val url = "file:" + NCMLWriter.getCachePath("NCML").resolve( uriToFile(uri) )
     val id = uri.split(":").last.stripPrefix("/").stripPrefix("/").toLowerCase
-    val collection = Collection( id, url, path, fileFilter, vars )
-    datasets.put(uri,collection)
-//    val local_file_path = getFilePath("/local_collections.xml")
-//    XML.loadFile(local_file_path).child += collection.toXml  TODO: persist new collections
+    val collection = Collection( id, url, path, fileFilter, "local", vars )
+    datasets.put( uri, collection  )
+    XML.save( getFilePath("/local_collections.xml"), toXml("local") )
     collection
   }
 
@@ -103,15 +104,15 @@ object Collections extends XmlResource {
   def isChild( subDir: String,  parentDir: String ): Boolean = Paths.get( subDir ).toAbsolutePath.startsWith( Paths.get( parentDir ).toAbsolutePath )
   def findCollectionByPath( subDir: String ): Option[Collection] = datasets.values.toList.find { case collection => if( collection.path.isEmpty) { false } else { isChild( subDir, collection.path ) } }
 
-  def loadCollectionXmlData(filePaths:String*): ConcurrentLinkedHashMap[String,Collection] = {
+  def loadCollectionXmlData( filePaths: Map[String,String] ): ConcurrentLinkedHashMap[String,Collection] = {
     val maxCapacity: Int=100000
     val initialCapacity: Int=250
     val datasets = new ConcurrentLinkedHashMap.Builder[String, Collection].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).build()
-    for ( filePath <- filePaths; if Files.exists( Paths.get(filePath) ) ) {
+    for ( ( scope, filePath ) <- filePaths.iterator; if Files.exists( Paths.get(filePath) ) ) {
       try {
         XML.loadFile(filePath).child.foreach( node => node.attribute("id") match {
           case None => None;
-          case Some(id) => datasets.put(id.toString.toLowerCase, getCollection(node))
+          case Some(id) => datasets.put(id.toString.toLowerCase, getCollection(node,scope))
         })
       } catch { case err: java.io.IOException => throw new Exception( "Error opening collection data file {%s}: %s".format( filePath, err.getMessage) ) }
     }
@@ -119,11 +120,11 @@ object Collections extends XmlResource {
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
-  def getCollection( n: xml.Node ): Collection = { Collection( attr(n,"id"), attr(n,"url"), attr(n,"path"), attr(n,"fileFilter"), n.text.split(",").toList )}
+  def getCollection( n: xml.Node, scope: String ): Collection = { Collection( attr(n,"id"), attr(n,"url"), attr(n,"path"), attr(n,"fileFilter"), scope, n.text.split(",").toList )}
 
   def findCollection( collectionId: String ): Option[Collection] = Option( datasets.get( collectionId ) )
 
-  def toXml( collectionId: String ): xml.Elem = {
+  def getCollectionXml( collectionId: String ): xml.Elem = {
     Option( datasets.get( collectionId ) ) match {
       case Some( collection: Collection ) => collection.toXml
       case None => <error> { "Invalid collection id:" + collectionId } </error>

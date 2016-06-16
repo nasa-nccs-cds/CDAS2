@@ -19,16 +19,15 @@ import scala.xml.XML
 // import scala.collection.JavaConverters._
 
 object Collection {
-  def apply( id: String, url: String, path: String = "", fileFilter: String = "", vars: List[String] = List() ) = {
-    new Collection(id,url,path,fileFilter,vars)
+  def apply( id: String, url: String, path: String = "", fileFilter: String = "", scope: String="", vars: List[String] = List() ) = {
+    new Collection(id,url,path,fileFilter,scope,vars)
   }
 }
-class Collection( val id: String="",  val url: String="", val path: String = "", val fileFilter: String = "", val vars: List[String] = List() ) extends Serializable {
+class Collection( val id: String="",  val url: String="", val path: String = "", val fileFilter: String = "", val scope: String="", val vars: List[String] = List() ) extends Serializable {
   val ctype: String = url.split(":").head
-  val ncmlFile = new File( url )
+  val ncmlFile = new File( url.split(":").last )
   override def toString = "Collection( id=%s, url=%s, path=%s, fileFilter=%s )".format( id, url, path, fileFilter )
   def isEmpty = url.isEmpty
-  def isFileCached = ncmlFile.exists
 
   def getUri( varName: String = "" ) = {
     ctype match {
@@ -43,14 +42,11 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
     else  <collection url={url} path={path} fileFilter={fileFilter}> {vars.mkString(",")} </collection>
 
 
-  def copyIntoFileCache: CDSDataset = {
-    assert( ( !ncmlFile.exists && ncmlFile.getParentFile.exists ) || ncmlFile.canWrite, "Error, can't write to NCML file " + ncmlFile.getAbsolutePath )
-    val ncmlWriter = new NCMLWriter( Array(ncmlFile.getAbsolutePath).iterator )
-    val ncmlNode = ncmlWriter.getNCML
-    val bw = new BufferedWriter(new FileWriter( ncmlFile ))
-    bw.write( ncmlNode.toString )
-    bw.close()
-    new CDSDataset(null,null,null,null,null)  // TODO - complete data cache
+  def createNCML( recreate: Boolean = false ) = {
+    if( !ncmlFile.exists || recreate ) {
+      val ncmlWriter = NCMLWriter(path)
+      ncmlWriter.writeNCML(ncmlFile)
+    }
   }
 
 }
@@ -160,8 +156,8 @@ object CDSDataset extends DiskCachable  {
 
 
   def load( collection: Collection, varName: String ): CDSDataset = {
-    if( !collection.isFileCached ) collection.copyIntoFileCache
-    else load(collection.url, collection, varName)
+    collection.createNCML()
+    load(collection.url, collection, varName)
   }
 
   def restore( cache_rec_id: String ): CDSDataset = {
