@@ -114,8 +114,7 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
   def getVariable(variable: nc2.Variable): xml.Node = {
     val dimIndex = fileMetadata.getDimIndex(variable.getShortName)
     <variable name={variable.getShortName} shape={getDims(variable)} type={variable.getDataType.toString}>
-    { if( dimIndex > 0) for (attribute <- variable.getAttributes; if( !isIgnored( attribute ) ) ) yield getAttribute(attribute) }
-      { if( dimIndex == 0) <attribute name="_CoordinateAxisType" value="Time"/> }
+    { if( dimIndex == 0) <attribute name="_CoordinateAxisType" value="Time"/> else for (attribute <- variable.getAttributes; if( !isIgnored( attribute ) ) ) yield getAttribute(attribute) }
     { if( dimIndex > 0) variable match {
         case coordVar: CoordinateAxis1D => getData(variable, coordVar.isRegular)
         case _ => getData(variable, false)
