@@ -1,7 +1,9 @@
 package nasa.nccs.cds2.loaders
-import java.io.FileNotFoundException
+import java.io.{FileNotFoundException, FileOutputStream}
 import java.net.URL
+import java.nio.channels.Channels
 import java.nio.file.{Files, Path, Paths}
+
 import collection.JavaConverters._
 import scala.collection.JavaConversions._
 import collection.mutable
@@ -26,7 +28,19 @@ class AxisNames( val nameMap: Map[Char,String]  ) {
 }
 
 trait XmlResource extends Loggable {
+  val Encoding = "UTF-8"
 
+  def saveXML( fileName: String, node: xml.Node ) = {
+    val pp = new xml.PrettyPrinter( 800, 2 )
+    val fos = new FileOutputStream(fileName)
+    val writer = Channels.newWriter(fos.getChannel(), Encoding)
+    try {
+      writer.write("<?xml version='1.0' encoding='" + Encoding + "'?>\n")
+      writer.write(pp.format(node))
+    } finally {
+      writer.close()
+    }
+  }
   def getFilePath(resourcePath: String) = Option( getClass.getResource(resourcePath) ) match {
       case None => Option( getClass.getClassLoader.getResource(resourcePath) ) match {
         case None => throw new Exception(s"Resource $resourcePath does not exist!")
@@ -74,11 +88,17 @@ object Collections extends XmlResource {
   val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( Map( "global" -> getFilePath("/global_collections.xml"), "local" -> getFilePath("/local_collections.xml") ) )
 
   def toXml: xml.Elem = {
-    <collections> { for( ( id: String, collection:Collection ) <- datasets ) yield collection.toXml } </collections>
+    <collections>
+      { for( ( id: String, collection:Collection ) <- datasets ) yield collection.toXml }
+    </collections>
   }
 
+  def idSet: Set[String] = datasets.keySet.toSet
+
   def toXml( scope: String ): xml.Elem = {
-    <collections> { for( ( id: String, collection:Collection ) <- datasets; if collection.scope.equalsIgnoreCase(scope) ) yield collection.toXml } </collections>
+    <collections>
+      { for( ( id: String, collection:Collection ) <- datasets; if collection.scope.equalsIgnoreCase(scope) ) yield collection.toXml }
+    </collections>
   }
 
   def uriToFile( uri: String ): String = {
@@ -86,11 +106,13 @@ object Collections extends XmlResource {
   }
 
   def addCollection( uri: String, path: String, fileFilter: String, vars: List[String]  ): Collection = {
+    val prettyPrint = true
     val url = "file:" + NCMLWriter.getCachePath("NCML").resolve( uriToFile(uri) )
     val id = uri.split(":").last.stripPrefix("/").stripPrefix("/").toLowerCase
     val collection = Collection( id, url, path, fileFilter, "local", vars )
     datasets.put( uri, collection  )
-    XML.save( getFilePath("/local_collections.xml"), toXml("local") )
+    if(prettyPrint) saveXML( getFilePath("/local_collections.xml"), toXml("local") )
+    else XML.save( getFilePath("/local_collections.xml"), toXml("local") )
     collection
   }
 

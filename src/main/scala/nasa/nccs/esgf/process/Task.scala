@@ -392,13 +392,14 @@ object DataContainer extends ContainerBase {
     val varsList: List[String] = metadata.getOrElse("name","").toString.split(",").map( item => stripQuotes( item.split(':').head ) ).toList
     val path =  metadata.getOrElse("path","").toString
     val fileFilter = metadata.getOrElse("fileFilter","").toString
+    val id = parseUri(uri)
     if (uri.startsWith("collection"))
-      Collections.findCollection(uri) match {
+      Collections.findCollection( id ) match {
         case Some(collection) =>
-          if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.path)), "Collection %s already exists and does not corresponde to teh specified path".format(collection.id) ) }
+          if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.path)), "Collection %s already exists and does not corresponde to the specified path".format(collection.id) ) }
           collection
         case None =>
-          if (path.isEmpty) throw new Exception(s"Unrecognized collection: $uri")
+          if (path.isEmpty) throw new Exception(s"Unrecognized collection: '$id', current collections: " + Collections.idSet.mkString(", ") )
           else Collections.addCollection( uri, path, fileFilter, varsList )
       } else Collection(uri, uri, path, fileFilter)
   }
@@ -426,10 +427,12 @@ object DataContainer extends ContainerBase {
   def parseUri( uri: String ): String = {
     if(uri.isEmpty) "" else {
       val recognizedUrlTypes = List( "file", "collection" )
-      val uri_parts = uri.split("://")
+      val uri_parts = uri.split(":")
       val url_type = normalize(uri_parts.head)
-      if ( recognizedUrlTypes.contains(url_type) && (uri_parts.length == 2) ) uri_parts.last
-      else throw new Exception("Unrecognized uri format: " + uri + ", type = " + uri_parts.head + ", nparts = " + uri_parts.length.toString + ", value = " + uri_parts.last)
+      if ( recognizedUrlTypes.contains(url_type) && (uri_parts.length == 2) ) {
+        val value = uri_parts.last.toLowerCase
+        if( url_type.equals("collection") ) value.stripPrefix("/").stripPrefix("/") else value
+      } else throw new Exception("Unrecognized uri format: " + uri + ", type = " + uri_parts.head + ", nparts = " + uri_parts.length.toString + ", value = " + uri_parts.last)
     }
   }
 }

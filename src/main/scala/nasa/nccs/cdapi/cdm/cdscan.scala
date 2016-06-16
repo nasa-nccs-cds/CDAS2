@@ -107,7 +107,9 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
       <dimension name={dimension.getFullName} length={nElems.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString} isShared={dimension.isShared.toString}/>
   }
 
-  def getAggDataset(fileHeader: FileHeader): xml.Node = <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.map("%.4f".format(_)).mkString(", ")}/>
+  def getAggDataset(fileHeader: FileHeader): xml.Node =
+      <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.map("%.4f".format(_)).mkString(", ")}>
+      </netcdf>
 
   def getVariable(variable: nc2.Variable): xml.Node = {
     val dimIndex = fileMetadata.getDimIndex(variable.getShortName)

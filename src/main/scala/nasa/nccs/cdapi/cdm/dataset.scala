@@ -37,10 +37,19 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
   }
 
   def toXml: xml.Elem =
-    if(path.isEmpty) <collection url={url}> {vars.mkString(",")} </collection>
-    else if(fileFilter.isEmpty)  <collection url={url} path={path}> {vars.mkString(",")} </collection>
-    else  <collection url={url} path={path} fileFilter={fileFilter}> {vars.mkString(",")} </collection>
-
+    if(path.isEmpty) {
+      <collection id={id} url={url}>
+        {vars.mkString(",")}
+      </collection>
+    } else if(fileFilter.isEmpty) {
+      <collection id={id} url={url} path={path}>
+        {vars.mkString(",")}
+      </collection>
+    } else {
+      <collection id={id} url={url} path={path} fileFilter={fileFilter}>
+        {vars.mkString(",")}
+      </collection>
+    }
 
   def createNCML( recreate: Boolean = false ) = {
     if( !ncmlFile.exists || recreate ) {

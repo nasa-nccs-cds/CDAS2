@@ -646,7 +646,7 @@ object SampleTaskRequests {
   def getAnomalyTest: TaskRequest = {
     val dataInputs = Map(
       "domain" ->  List(Map("name" -> "d0", "lat" -> Map("start" -> -7.0854263, "end" -> -7.0854263, "system" -> "values"), "lon" -> Map("start" -> 12.075, "end" -> 12.075, "system" -> "values"), "lev" -> Map("start" -> 1000, "end" -> 1000, "system" -> "values"))),
-      "variable" -> List(Map("uri" -> "collection://merra300/hourly/asm_Cp", "name" -> "t:v0", "domain" -> "d0")),
+      "variable" -> List(Map("uri" -> "collection://merra300/hourly/aggTest", "name" -> "t:v0", "domain" -> "d0")),  // collection://merra300/hourly/asm_Cp
       "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
     TaskRequest( "CDS.anomaly", dataInputs )
   }

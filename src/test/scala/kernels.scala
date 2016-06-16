@@ -98,14 +98,14 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Spatial Average")
   }
 
-  test("Variable Metadata") {
-    val dataInputs = getMetaDataInputs( "collection://MERRA/mon/atmos", "ta" )
-    val result_node = computeXmlNode("CDS.metadata", dataInputs)
-    result_node.attribute("shape") match {
-      case Some( shape_attr ) => assert( shape_attr.text == "[432 42 361 540]", " Incorrect shape attribute, should be [432 42 361 540]: " + shape_attr.text )
-      case None => fail( " Missing 'shape' attribute in result: " + result_node.toString )
-    }
-  }
+//  test("Variable Metadata") {
+//    val dataInputs = getMetaDataInputs( "collection://MERRA/mon/atmos", "ta" )
+//    val result_node = computeXmlNode("CDS.metadata", dataInputs)
+//    result_node.attribute("shape") match {
+//      case Some( shape_attr ) => assert( shape_attr.text == "[432 42 361 540]", " Incorrect shape attribute, should be [432 42 361 540]: " + shape_attr.text )
+//      case None => fail( " Missing 'shape' attribute in result: " + result_node.toString )
+//    }
+//  }
 
   test("Weighted Spatial Average") {
     val nco_verified_result = 275.4043
