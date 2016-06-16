@@ -100,9 +100,13 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
   def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) dim.getShortName else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
 
   def getDimension(dimension: nc2.Dimension): xml.Node = {
-    val nElems = fileMetadata.getDimIndex(dimension.getShortName) match {
-      case 0 => outerDimensionSize;
-      case _ => dimension.getLength
+    val axis = fileMetadata.getCoordinateAxis(dimension.getShortName)
+    val nElems = axis match {
+      case Some( coordAxis ) => coordAxis match {
+          case coordVar: CoordinateAxis1D => if( coordVar.getAxisType == AxisType.Time ) outerDimensionSize else dimension.getLength
+          case _ => dimension.getLength
+        }
+      case None => dimension.getLength
     }
       <dimension name={dimension.getFullName} length={nElems.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString} isShared={dimension.isShared.toString}/>
   }
@@ -112,10 +116,10 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
       </netcdf>
 
   def getVariable(variable: nc2.Variable): xml.Node = {
-    val dimIndex = fileMetadata.getDimIndex(variable.getShortName)
+    val axisType = fileMetadata.getAxisType(variable)
     <variable name={variable.getShortName} shape={getDims(variable)} type={variable.getDataType.toString}>
-    { if( dimIndex == 0) <attribute name="_CoordinateAxisType" value="Time"/> else for (attribute <- variable.getAttributes; if( !isIgnored( attribute ) ) ) yield getAttribute(attribute) }
-    { if( dimIndex > 0) variable match {
+    { if( axisType == AxisType.Time ) <attribute name="_CoordinateAxisType" value="Time"/> else for (attribute <- variable.getAttributes; if( !isIgnored( attribute ) ) ) yield getAttribute(attribute) }
+    { if( (axisType != AxisType.Time) && (axisType != AxisType.RunTime) ) variable match {
         case coordVar: CoordinateAxis1D => getData(variable, coordVar.isRegular)
         case _ => getData(variable, false)
     }}
@@ -233,7 +237,12 @@ class FileMetadata( val ncFile: File ) {
   val variables = ncDataset.getVariables.toList
   val attributes = ncDataset.getGlobalAttributes
   val dimNames = dimensions.map( _.getShortName )
-  def getDimIndex( dimName: String ) = dimNames.indexOf( dimName )
+  def getCoordinateAxis( name: String ): Option[nc2.dataset.CoordinateAxis] = coordinateAxes.find( p => p.getShortName.equalsIgnoreCase(name) )
+
+  def getAxisType( variable: nc2.Variable ): AxisType = variable match {
+    case coordVar: CoordinateAxis1D => coordVar.getAxisType;
+    case _ => AxisType.RunTime
+  }
 }
 
 object cdscan extends App {
