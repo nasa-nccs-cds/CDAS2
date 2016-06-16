@@ -8,6 +8,7 @@ import java.io.{FileWriter, _}
 import java.nio._
 
 import nasa.nccs.cds2.loaders.XmlResource
+import nasa.nccs.utilities.Loggable
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateSystem, NetcdfDataset}
 
@@ -23,7 +24,7 @@ object Collection {
     new Collection(id,url,path,fileFilter,scope,vars)
   }
 }
-class Collection( val id: String="",  val url: String="", val path: String = "", val fileFilter: String = "", val scope: String="", val vars: List[String] = List() ) extends Serializable {
+class Collection( val id: String="",  val url: String="", val path: String = "", val fileFilter: String = "", val scope: String="", val vars: List[String] = List() ) extends Serializable with Loggable {
   val ctype: String = url.split(":").head
   val ncmlFile = new File( url.split(":").last )
   override def toString = "Collection( id=%s, url=%s, path=%s, fileFilter=%s )".format( id, url, path, fileFilter )
@@ -53,6 +54,7 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
 
   def createNCML( recreate: Boolean = false ) = {
     if( !ncmlFile.exists || recreate ) {
+      logger.info( "Aggregating NetCDF files under directory '%s' to create a new dataset '%s' defined by NCML file '%s'".format( path, id, ncmlFile.getAbsolutePath ) )
       val ncmlWriter = NCMLWriter(path)
       ncmlWriter.writeNCML(ncmlFile)
     }

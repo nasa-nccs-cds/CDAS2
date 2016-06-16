@@ -606,7 +606,7 @@ object SampleTaskRequests {
   def getAggregateAndCacheRequest1: TaskRequest = {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0",  "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra2/hourly/M2T1NXLND-2004", "path" -> "/att/pubrepo/MERRA/remote/MERRA2/M2T1NXLND.5.12.4/2004", "name" -> "SFMC", "domain" -> "d0")) )
+      "variable" -> List(Map("uri" -> "collection://merra2/hourly/M2T1NXLND-2004-04", "path" -> "/att/pubrepo/MERRA/remote/MERRA2/M2T1NXLND.5.12.4/2004/04", "name" -> "SFMC", "domain" -> "d0")) )
     TaskRequest( "util.cache", dataInputs )
   }
 
