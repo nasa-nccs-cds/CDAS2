@@ -78,7 +78,7 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
   val outerDimensionSize: Int = fileHeaders.foldLeft(0)(_ + _.nElem)
   val ignored_attributes = List( "comments" )
 
-  def isIgnored( attribute: nc2.Attribute, isOuterDim: Boolean ): Boolean = { ignored_attributes.contains(attribute.getShortName) || ( isOuterDim && attribute.getShortName.equalsIgnoreCase("units") ) }
+  def isIgnored( attribute: nc2.Attribute ): Boolean = { ignored_attributes.contains(attribute.getShortName) }
 
   def getAttribute(attribute: nc2.Attribute): xml.Node =
     if (attribute.getDataType == ma2.DataType.STRING) {
@@ -114,7 +114,8 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
   def getVariable(variable: nc2.Variable): xml.Node = {
     val dimIndex = fileMetadata.getDimIndex(variable.getShortName)
     <variable name={variable.getShortName} shape={getDims(variable)} type={variable.getDataType.toString}>
-    { for (attribute <- variable.getAttributes; if( !isIgnored( attribute, (dimIndex==0) ) ) ) yield getAttribute(attribute) }
+    { if( dimIndex > 0) for (attribute <- variable.getAttributes; if( !isIgnored( attribute ) ) ) yield getAttribute(attribute) }
+      { if( dimIndex == 0) <attribute name="_CoordinateAxisType" value="Time"/> }
     { if( dimIndex > 0) variable match {
         case coordVar: CoordinateAxis1D => getData(variable, coordVar.isRegular)
         case _ => getData(variable, false)
