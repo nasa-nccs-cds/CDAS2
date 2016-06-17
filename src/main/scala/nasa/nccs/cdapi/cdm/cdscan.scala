@@ -10,7 +10,7 @@ import nasa.nccs.utilities.Loggable
 import nasa.nccs.utilities.cdsutils
 import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
-import ucar.nc2.dataset.{CoordinateAxis1D, CoordinateAxis1DTime, NetcdfDataset, VariableDS}
+import ucar.nc2.dataset.{CoordinateAxis1D, CoordinateAxis, CoordinateAxis1DTime, NetcdfDataset, VariableDS}
 import ucar.nc2.time.CalendarDate
 import collection.mutable.ListBuffer
 
@@ -99,16 +99,14 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
 
   def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) dim.getShortName else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
 
-  def getDimension(dimension: nc2.Dimension): xml.Node = {
-    val axis = fileMetadata.getCoordinateAxis(dimension.getShortName)
-    val nElems = axis match {
-      case Some( coordAxis ) => coordAxis match {
-          case coordVar: CoordinateAxis1D => if( coordVar.getAxisType == AxisType.Time ) outerDimensionSize else dimension.getLength
-          case _ => dimension.getLength
-        }
-      case None => dimension.getLength
+  def getDimension(axis: CoordinateAxis ): xml.Node = {
+    axis match {
+      case coordAxis: CoordinateAxis1D =>
+        val nElems = if( coordAxis.getAxisType == AxisType.Time ) outerDimensionSize else coordAxis.getSize
+        val dimension = coordAxis.getDimension(0)
+          <dimension name={dimension.getFullName} length={nElems.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString} isShared={dimension.isShared.toString}/>
+      case _ => throw new Exception( "Multidimensional coord axes not currently supported")
     }
-      <dimension name={dimension.getFullName} length={nElems.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString} isShared={dimension.isShared.toString}/>
   }
 
   def getAggDataset(fileHeader: FileHeader): xml.Node =
@@ -150,7 +148,7 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
       <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
 
       { for( attribute <- fileMetadata.attributes ) yield getAttribute(attribute) }
-      { for (dimension <- fileMetadata.dimensions) yield getDimension(dimension) }
+      { for (coordAxis <- fileMetadata.coordinateAxes) yield getDimension(coordAxis) }
       { for (variable <- fileMetadata.variables) yield getVariable( variable ) }
       { getAggregation }
 
