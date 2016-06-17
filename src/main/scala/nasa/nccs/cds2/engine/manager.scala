@@ -603,6 +603,13 @@ object SampleTaskRequests {
     TaskRequest( "util.cache", dataInputs )
   }
 
+  def getAggregateAndCacheRequest2: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List( Map("name" -> "d0",  "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://merra/daily/aggTest", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY", "name" -> "t", "domain" -> "d0")) )
+    TaskRequest( "util.cache", dataInputs )
+  }
+
   def getAggregateAndCacheRequest1: TaskRequest = {
     val dataInputs = Map(
       "domain" -> List( Map("name" -> "d0",  "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
@@ -664,7 +671,13 @@ object SampleTaskRequests {
       "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
     TaskRequest( "CDS.anomaly", dataInputs )
   }
-
+  def getAnomalyTest2: TaskRequest = {
+    val dataInputs = Map(
+      "domain" ->  List(Map("name" -> "d0", "lat" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"), "lon" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"), "level" -> Map("start" -> 10, "end" -> 10, "system" -> "indices") )),
+      "variable" -> List(Map("uri" -> "collection://merra/daily/aggTest", "name" -> "t:v0", "domain" -> "d0")),
+      "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
+    TaskRequest( "CDS.anomaly", dataInputs )
+  }
   def getAnomalyArrayTest: TaskRequest = {
     val dataInputs = Map(
       "domain" ->  List( Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
@@ -768,6 +781,16 @@ object execAggregateAndCacheTest1 extends App {
   FragmentPersistence.blockUntilDone()
 }
 
+object execAggregateAndCacheTest2 extends App {
+  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+  val run_args = Map( "async" -> "false" )
+  val request = SampleTaskRequests.getAggregateAndCacheRequest2
+  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
+  val printer = new scala.xml.PrettyPrinter(200, 3)
+  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+  FragmentPersistence.blockUntilDone()
+}
+
 object execMetadataTest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
   val run_args = Map( "async" -> "false" )
@@ -793,6 +816,14 @@ object execAnomalyTest1 extends App {
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )
 }
+object execAnomalyTest2 extends App {
+  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+  val run_args = Map( "async" -> "false" )
+  val request = SampleTaskRequests.getAnomalyTest2
+  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
+  val printer = new scala.xml.PrettyPrinter(200, 3)
+  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+}
 
 object displayFragmentMap extends App {
   val entries: Seq[(DataFragmentKey,String)] = FragmentPersistence.getEntries
@@ -806,25 +837,6 @@ object execAnomalyNcMLTest extends App {
   val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
   val printer = new scala.xml.PrettyPrinter(200, 3)
   println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-}
-
-
-
-object execAnomalyTest2 extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getAnomalyArrayTest
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-
-//  val cache_request = SampleTaskRequests.getCacheRequest
-//  cds2ExecutionManager.blockingExecute(cache_request, run_args)
-
-  val final_result0 = cds2ExecutionManager.blockingExecute(request, run_args)
-  println( ">>>> Final Result0: " + printer.format(final_result0.toXml) )
-
-  val final_result1 = cds2ExecutionManager.blockingExecute(request, run_args)
-  println( ">>>> Final Result1: " + printer.format(final_result1.toXml) )
-
 }
 
 object execCreateVRequest extends App {
