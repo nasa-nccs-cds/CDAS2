@@ -116,8 +116,8 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
 
   def getStore(): ConcurrentLinkedHashMap[K, Future[V]] = {
     val hmap = new ConcurrentLinkedHashMap.Builder[K, Future[V]].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).build()
-    restore match {
-      case Some( entrySeq ) => entrySeq.foreach { case (key,value) => hmap.put(key,Future(value)) }
+    if(persistent) restore match {
+      case Some( entryArray ) => entryArray.foreach { case (key,value) => hmap.put(key,Future(value)) }
       case None => Unit
     }
     hmap
@@ -136,19 +136,20 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
   def persist(): Unit = {
     Files.createDirectories( Paths.get(cacheFile).getParent )
     val ostr = new ObjectOutputStream ( new FileOutputStream( cacheFile ) )
-    val entries = for( entry: java.util.Map.Entry[K,Future[V]] <- store.entrySet.toSet ) yield entry.getValue.value match  {
-      case Some(Success(value))  ⇒ Some(  entry.getKey -> value  )
-      case x ⇒ None
-    }
-    ostr.writeObject( getEntries )
+    val entries = getEntries.toArray
+    logger.info( " ***Persisting cache %s to file '%s', entries: [ %s ]".format( cname, cacheFile, entries.mkString(",") ) )      // TODO:  Why is this not working???
+    ostr.writeObject( entries )
   }
 
-  protected def restore: Option[Seq[(K,V)]] = {
+  protected def restore: Option[ Array[(K,V)] ] = {
     try {
       val istr = new ObjectInputStream(new FileInputStream(cacheFile))
-      Some( istr.readObject.asInstanceOf[Seq[(K,V)]] )
+      logger.info(s"Restoring $cname cache map from: " + cacheFile);
+      Some( istr.readObject.asInstanceOf[Array[(K,V)]] )
     } catch {
-      case err: Throwable => logger.warn("Can't load cache map: " + cacheFile); None
+      case err: Throwable =>
+        logger.warn("Can't load persisted cache file '" + cacheFile + "' due to error: " + err.toString );
+        None
     }
   }
 
@@ -161,9 +162,13 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
         val future = genValue()
         future.onComplete { value ⇒
           promise.complete(value)
-          // in case of exceptions we remove the cache entry (i.e. try again later)
-          if (value.isFailure) store.remove(key, promise.future)
-          else if(persistent) persist
+          if (value.isFailure) {
+            logger.info(s"Failed to add element %s to cache $cname:$ctype due to error %s".format( key.toString, value.failed.get.getMessage ))
+            store.remove(key, promise.future)
+          } else if(persistent) {
+            logger.info(s"Adding element %s to cache $cname:$ctype ".format(key.toString))
+            persist()
+          }
         }
         future
       case existingFuture ⇒ existingFuture

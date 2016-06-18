@@ -109,18 +109,20 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
     }
   }
 
-  def getAggDataset(fileHeader: FileHeader): xml.Node =
-      <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.map("%.4f".format(_)).mkString(", ")}>
-      </netcdf>
+  def getAggDataset(fileHeader: FileHeader, timeRegular: Boolean ): xml.Node =
+    if( timeRegular ) <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString}/>
+    else <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.map("%.4f".format(_)).mkString(", ")}/>
 
-  def getVariable(variable: nc2.Variable): xml.Node = {
+
+  def getVariable( variable: nc2.Variable, timeRegularSpecs: Option[(Double,Double)] ): xml.Node = {
     val axisType = fileMetadata.getAxisType(variable)
     <variable name={variable.getShortName} shape={getDims(variable)} type={variable.getDataType.toString}>
-    { if( axisType == AxisType.Time ) <attribute name="_CoordinateAxisType" value="Time"/> else for (attribute <- variable.getAttributes; if( !isIgnored( attribute ) ) ) yield getAttribute(attribute) }
-    { if( (axisType != AxisType.Time) && (axisType != AxisType.RunTime) ) variable match {
+      { if( axisType == AxisType.Time ) <attribute name="_CoordinateAxisType" value="Time"/> else for (attribute <- variable.getAttributes; if( !isIgnored( attribute ) ) ) yield getAttribute(attribute) }
+      { if( axisType == AxisType.Time ) timeRegularSpecs match { case None => Unit; case Some((t0,dt)) => <values start={"%.3f".format(t0)} increment={"%.6f".format(dt)}/> } }
+      { if( (axisType != AxisType.Time) && (axisType != AxisType.RunTime) ) variable match {
         case coordVar: CoordinateAxis1D => getData(variable, coordVar.isRegular)
         case _ => getData(variable, false)
-    }}
+      }}
     </variable>
   }
 
@@ -135,13 +137,20 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
     }
   }
 
-  def getAggregation: xml.Node = {
+  def getTimeSpecs: Option[(Double,Double)] = {
+    val t0 = fileHeaders.head.startValue
+    val dt = if(fileHeaders.head.nElem > 1) { fileHeaders.head.axisValues(1)-fileHeaders.head.axisValues(0) } else { fileHeaders(1).startValue - fileHeaders(0).startValue }
+    Some( t0 -> dt )
+  }
+
+  def getAggregation(timeRegular: Boolean ): xml.Node = {
     <aggregation dimName="time" units="days since 1970-1-1" type="joinExisting">
-      { for( fileHeader <- fileHeaders ) yield { getAggDataset(fileHeader) } }
+      { for( fileHeader <- fileHeaders ) yield { getAggDataset(fileHeader,timeRegular) } }
     </aggregation>
   }
 
   def getNCML: xml.Node = {
+    val timeRegularSpecs= None // getTimeSpecs
     println("Processing %d files with %d workers".format( nFiles, nReadProcessors) )
     <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
       <explicit/>
@@ -149,8 +158,8 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
 
       { for( attribute <- fileMetadata.attributes ) yield getAttribute(attribute) }
       { for (coordAxis <- fileMetadata.coordinateAxes) yield getDimension(coordAxis) }
-      { for (variable <- fileMetadata.variables) yield getVariable( variable ) }
-      { getAggregation }
+      { for (variable <- fileMetadata.variables) yield getVariable( variable, timeRegularSpecs ) }
+      { getAggregation( timeRegularSpecs.isDefined ) }
 
     </netcdf>
   }
@@ -165,14 +174,19 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
 object FileHeader extends Loggable {
   val maxOpenAttempts = 4
   val retryIntervalSecs = 30
-  def apply( file: File ): FileHeader = new FileHeader( file.getAbsolutePath, FileHeader.getTimeCoordValues(file) )
+  def apply( file: File, timeRegular: Boolean ): FileHeader = {
+    val axisValues: Array[Double] = FileHeader.getTimeCoordValues(file)
+    val path: String = file.getAbsolutePath
+    new FileHeader( path, axisValues, timeRegular )
+  }
 
   def factory( files: IndexedSeq[File], workerIndex: Int ): IndexedSeq[FileHeader] = {
     var retryFiles = new ListBuffer[File]()
+    val timeRegular = false // getTimeAxisRegularity( files.head )
     val firstPass = for (iFile <- files.indices; file = files(iFile)) yield {
       try {
         val t0 = System.nanoTime()
-        val fileHeader = FileHeader(file)
+        val fileHeader = FileHeader( file, timeRegular )
         val t1 = System.nanoTime()
         println("Worker[%d]: Processing file[%d] '%s', start = %.3f, ncoords = %d, time = %.4f ".format(workerIndex, iFile, file.getAbsolutePath, fileHeader.startValue, fileHeader.nElem, (t1 - t0) / 1.0E9))
         Some(fileHeader)
@@ -180,9 +194,22 @@ object FileHeader extends Loggable {
     }
     val secondPass = for (iFile <- retryFiles.indices; file = retryFiles(iFile)) yield {
       println("Worker[%d]: Reprocessing file[%d] '%s'".format(workerIndex, iFile, file.getAbsolutePath))
-      FileHeader(file)
+      FileHeader(file,timeRegular)
     }
     firstPass.flatten ++ secondPass
+  }
+
+  def getTimeAxisRegularity(ncFile: File): Boolean = {
+    val ncDataset: NetcdfDataset = openNetCDFFile( ncFile )
+    try {
+      Option(ncDataset.findCoordinateAxis(AxisType.Time)) match {
+        case Some(coordAxis) => coordAxis match {
+          case coordAxis: CoordinateAxis1D => coordAxis.isRegular
+          case _ => throw new Exception("Multidimensional coord axes not currently supported")
+        }
+        case None => throw new Exception("ncFile does not have a time axis: " + ncFile.getAbsolutePath)
+      }
+    } finally { ncDataset.close() }
   }
 
   def getTimeValues( ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index : Int = 0, end_index : Int = -1, stride: Int = 1 ): Array[Double] = {
@@ -218,7 +245,16 @@ object FileHeader extends Loggable {
   }
 }
 
-class FileHeader( val path: String, val axisValues: Array[Double] ) {
+class DatasetFileHeaders( val aggDim: String, val aggFileMap: Seq[FileHeader] ) {
+  def getNElems(): Int = {
+    assert( !aggFileMap.isEmpty, "Error, aggregated dataset has no files!" )
+    return aggFileMap.head.nElem
+  }
+  def getAggAxisValues: Array[Double] =
+    aggFileMap.foldLeft(Array[Double]()) { _ ++ _.axisValues }
+}
+
+class FileHeader( val path: String, val axisValues: Array[Double], val timeRegular: Boolean ) {
   def nElem = axisValues.length
   def startValue = axisValues(0)
   override def toString: String = " *** FileHeader { path='%s', nElem=%d, startValue=%d } ".format( path, nElem, startValue )

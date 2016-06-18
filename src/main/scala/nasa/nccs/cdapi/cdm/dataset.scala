@@ -210,15 +210,6 @@ object CDSDataset extends DiskCachable  {
   }
 }
 
-case class DatasetFileHeaders( val aggDim: String, val aggFileMap: Seq[FileHeader] ) {
-  def getNElems(): Int = {
-    assert( !aggFileMap.isEmpty, "Error, aggregated dataset has no files!" )
-    return aggFileMap.head.nElem
-  }
-  def getAggAxisValues: Array[Double] =
-    aggFileMap.foldLeft(Array[Double]()) { _ ++ _.axisValues }
-}
-
 class CDSDatasetRec( val dsetName: String, val collection: Collection, val varName: String ) extends Serializable {
   def getUri: String = collection.getUri(varName)
 }
@@ -240,7 +231,7 @@ class CDSDataset( val name: String, val collection: Collection, val ncDataset: N
     else if( uri.endsWith(".xml" ) || uri.endsWith(".ncml" ) ) {
       val aggregation = XML.loadFile(getFilePath) \ "aggregation"
       val aggDim = (aggregation \ "@dimName").text
-      val fileNodes = ( aggregation \ "netcdf" ).map( node => new FileHeader(  (node \ "@location").text,  (node \ "@coordValue").text.split(",").map( _.trim.toDouble )  ) )
+      val fileNodes = ( aggregation \ "netcdf" ).map( node => new FileHeader(  (node \ "@location").text,  (node \ "@coordValue").text.split(",").map( _.trim.toDouble ), false  ) )
       Some( new DatasetFileHeaders( aggDim, fileNodes ) )
     } else {
       None

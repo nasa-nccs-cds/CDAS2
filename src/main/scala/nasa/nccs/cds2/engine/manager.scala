@@ -47,7 +47,10 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   private val fragmentIdCache: Cache[DataFragmentKey,String] = new FutureCache("CacheIdMap","fragment",true)
   def getCacheType = "fragment"
 
-  def persist( fragSpec: DataFragmentSpec, frag: PartitionedFragment ): Future[String] = fragmentIdCache(fragSpec.getKey) { promiseCacheId(frag) _ }
+  def persist( fragSpec: DataFragmentSpec, frag: PartitionedFragment ): Future[String] = {
+    logger.info( "Persisting Fragment ID for fragment cache recovery: " + fragSpec.toString )
+    fragmentIdCache(fragSpec.getKey) { promiseCacheId(frag) _ }
+  }
 
   def getEntries: Seq[(DataFragmentKey,String)] = fragmentIdCache.getEntries
 
@@ -58,7 +61,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   def restore( cache_id: String, size: Int ): Option[FloatBuffer] = bufferFromDiskFloat( cache_id, size )
   def restore( fragKey: DataFragmentKey ): Option[FloatBuffer] =  fragmentIdCache.get(fragKey).flatMap( restore( _, fragKey.getSize ) )
   def restore( cache_id_future: Future[String], size: Int ): Option[FloatBuffer] = restore( Await.result(cache_id_future, Duration.Inf), size )
-  def blockUntilDone(): Unit = fragmentIdCache.values.foreach( Await.result(_, Duration.Inf) )
+  def blockUntilDone(): Unit = Future.sequence( fragmentIdCache.values )
 
   def deleteEnclosing( fragSpec: DataFragmentSpec ) =
     findEnclosingFragSpecs(  fragmentIdCache.keys, fragSpec.getKey ).foreach( delete )
@@ -269,10 +272,10 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     fragFuture onComplete {
       case Success(fragment) =>
         clearRedundantFragments( fragSpec )
-        if( dataAccessMode == DataAccessMode.Read ) FragmentPersistence.persist( fragSpec, fragment )
+        if( dataAccessMode == DataAccessMode.Cache ) FragmentPersistence.persist( fragSpec, fragment )
       case Failure(t) => Unit
     }
-    logger.info( ">>>>>>>>>>>>>>>> Put frag in cache: " + fragSpec.toString + ", keys = " + fragmentCache.keys.mkString("[",",","]") )
+    logger.info( ">>>>>>>>>>>>>>>> Put frag in cache: " + fragSpec.toString + ", keys = " + fragmentCache.keys.mkString("[",",","]") + ", dataAccessMode = " + dataAccessMode.toString )
     fragFuture
   }
 
