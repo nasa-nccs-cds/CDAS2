@@ -270,10 +270,14 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   private def getFragmentFuture( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode  ): Future[PartitionedFragment] = {
     val fragFuture = fragmentCache( fragSpec.getKey ) { promiseFragment( fragSpec, dataAccessMode ) _ }
     fragFuture onComplete {
-      case Success(fragment) =>
-        clearRedundantFragments( fragSpec )
-        if( dataAccessMode == DataAccessMode.Cache ) FragmentPersistence.persist( fragSpec, fragment )
-      case Failure(t) => Unit
+      case Success(fragment) => try {
+          logger.info( " Persisting fragment spec: " + fragSpec.getKey.toString )
+          clearRedundantFragments(fragSpec)
+          if (dataAccessMode == DataAccessMode.Cache) FragmentPersistence.persist(fragSpec, fragment)
+        } catch {
+          case err: Throwable =>  logger.warn( " Failed to persist fragment list due to error: " + err.getMessage )
+        }
+      case Failure(err) => logger.warn( " Failed to generate fragment due to error: " + err.getMessage )
     }
     logger.info( ">>>>>>>>>>>>>>>> Put frag in cache: " + fragSpec.toString + ", keys = " + fragmentCache.keys.mkString("[",",","]") + ", dataAccessMode = " + dataAccessMode.toString )
     fragFuture
