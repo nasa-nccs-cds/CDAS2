@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <collections>
-  <collection id="merra300/hourly/aggtest" url="file:/usr/local/web/WPS/CDAS2/cache/NCML/merra300_hourly_aggtest.xml" path="/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/"> t </collection>
+  <collection id="merra_1/hourly/aggtest" url="file:/usr/local/web/WPS/CDAS2/cache/NCML/merra_1_hourly_aggtest.xml" path="/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/"> t </collection>
   <collection id="merra/daily/aggtest" url="file:/Users/tpmaxwel/Development/WPS/CDAS2/cache/NCML/merra_daily_aggtest.xml" path="/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY"> t </collection>
   <collection id="MERRA2.M2TMNXLND" url="file:/att/nobackup/tpmaxwel/data/MERRA2/M2TMNXLND.5.12.4.xml"> SFMC, GWETPROF, GWETROOT, GWETTOP </collection>
 </collections>

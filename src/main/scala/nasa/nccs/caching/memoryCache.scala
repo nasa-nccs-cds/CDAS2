@@ -2,18 +2,14 @@ package nasa.nccs.caching
 
 import java.io._
 import java.nio.file.{Files, Paths}
-
+import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.utilities.{Loggable, Timestamp}
-import java.util.AbstractMap
-
 import nasa.nccs.cdapi.cdm.DiskCacheFileMgr
 import nasa.nccs.cds2.engine.FragmentPersistence._
-
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
@@ -145,7 +141,7 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
     try {
       val istr = new ObjectInputStream(new FileInputStream(cacheFile))
       logger.info(s"Restoring $cname cache map from: " + cacheFile);
-      Some( istr.readObject.asInstanceOf[Array[(K,V)]] )
+      Some( istr.readObject.asInstanceOf[ mutable.ArrayBuffer[(K,V)] ].toArray )
     } catch {
       case err: Throwable =>
         logger.warn("Can't load persisted cache file '" + cacheFile + "' due to error: " + err.toString );
