@@ -1,8 +1,9 @@
 package nasa.nccs.cds2.engine.spark
 
+import nasa.nccs.caching.CollectionDataCacheMgr
 import nasa.nccs.cdapi.cdm
 import nasa.nccs.cdapi.cdm.PartitionedFragment
-import nasa.nccs.cds2.engine.{CollectionDataCacheMgr, SampleTaskRequests, CDS2ExecutionManager}
+import nasa.nccs.cds2.engine.{CDS2ExecutionManager, SampleTaskRequests}
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.cdsutils
 import org.apache.spark.rdd.RDD

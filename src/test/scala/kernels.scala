@@ -1,6 +1,7 @@
+import nasa.nccs.caching.{ FragmentPersistence, collectionDataCache }
 import nasa.nccs.cdapi.kernels.{BlockingExecutionResult, ErrorExecutionResult}
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.engine.{FragmentPersistence, CDS2ExecutionManager, collectionDataCache}
+import nasa.nccs.cds2.engine.CDS2ExecutionManager
 import nasa.nccs.esgf.process.{OperationInputSpec, RequestContext, TaskRequest}
 import org.scalatest._
 

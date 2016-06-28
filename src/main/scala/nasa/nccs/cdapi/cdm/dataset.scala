@@ -109,12 +109,13 @@ trait DiskCachable extends XmlResource {
     val cache_file = "a" + System.nanoTime.toHexString
     try {
       val t0 = System.nanoTime()
-      val channel = new RandomAccessFile(DiskCacheFileMgr.getDiskCacheFilePath(getCacheType, cache_file),"rw").getChannel()
+      val cache_file_path = DiskCacheFileMgr.getDiskCacheFilePath(getCacheType, cache_file)
+      val channel = new RandomAccessFile( cache_file_path, "rw" ).getChannel()
       val buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, 0, memsize )
       buffer.asFloatBuffer.put(data)
       channel.close
       val t1 = System.nanoTime()
-      logger.info( s"Persisted cache data to file '%s', memsize = %d, time = %.2f".format( cache_file, memsize, (t1-t0)/1.0E9))
+      logger.info( s"Persisted cache data to file '%s', memsize = %d, time = %.2f".format( cache_file_path, memsize, (t1-t0)/1.0E9))
       cache_file
     } catch {
       case err: Throwable => logError(err, s"Error writing data to disk, size = $memsize" ); ""

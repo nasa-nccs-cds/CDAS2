@@ -2,14 +2,9 @@ package nasa.nccs.cdapi.cdm
 
 import nasa.nccs.cdapi.kernels.AxisIndices
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray, CDIndexMap}
-import nasa.nccs.cds2.engine.FragmentPersistence
-import nasa.nccs.utilities.cdsutils
-import ucar.nc2.time.{CalendarDate, CalendarDateRange}
 import nasa.nccs.esgf.process._
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
-import ucar.nc2.constants.AxisType
-
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.xml.XML

@@ -2,17 +2,18 @@ package nasa.nccs.caching
 
 import java.io._
 import java.nio.file.{Files, Paths}
+
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.utilities.{Loggable, Timestamp}
 import nasa.nccs.cdapi.cdm.DiskCacheFileMgr
-import nasa.nccs.cds2.engine.FragmentPersistence._
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.control.NonFatal
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 trait Cache[K,V] { cache ⇒
 
@@ -62,6 +63,8 @@ trait Cache[K,V] { cache ⇒
     * Clears the cache by removing all entries.
     */
   def clear()
+
+  def persist()
 
   /**
     * Returns the set of keys in the cache, in no particular order
@@ -122,14 +125,15 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
   def get(key: K) = Option(store.get(key))
 
   def getEntries: Seq[(K,V)] = {
-    val entries = for (entry: java.util.Map.Entry[K, Future[V]] <- store.entrySet.toSet) yield entry.getValue.value match {
-      case Some(Success(value)) ⇒ Some( entry.getKey -> value )
-      case x ⇒ None
+    val entrySet = store.entrySet.toSet
+    val entries = for (entry: java.util.Map.Entry[K, Future[V]] <- entrySet ) yield entry.getValue.value match {
+      case Some(value) ⇒ Some( entry.getKey -> value.get )
+      case None => None
     }
     entries.flatten.toSeq
   }
 
-  def persist(): Unit = {
+  def persist(): Unit = if( persistent ) {
     Files.createDirectories( Paths.get(cacheFile).getParent )
     val ostr = new ObjectOutputStream ( new FileOutputStream( cacheFile ) )
     val entries = getEntries.toArray
@@ -155,18 +159,13 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
     val promise = Promise[V]()
     store.putIfAbsent(key, promise.future) match {
       case null ⇒
-        val future = genValue()
-        future.onComplete { value ⇒
-          promise.complete(value)
-          if (value.isFailure) {
-            logger.info(s"Failed to add element %s to cache $cname:$ctype due to error %s".format( key.toString, value.failed.get.getMessage ))
-            store.remove(key, promise.future)
-          } else if(persistent) {
-            logger.info(s"Adding element %s to cache $cname:$ctype ".format(key.toString))
-            persist()
-          }
-        }
-        future
+        genValue() andThen {
+        case Success(value) =>
+          promise.complete( Success(value) )
+        case Failure(e) =>
+          logger.info(s"Failed to add element %s to cache $cname:$ctype due to error %s".format(key.toString, e.getMessage) )
+          store.remove(key, promise.future)
+      }
       case existingFuture ⇒ existingFuture
     }
   }

@@ -25,6 +25,8 @@ import nasa.nccs.cds2.utilities.GeoTools
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
+import java.util.concurrent._
+
 
 class Counter(start: Int = 0) {
   private val index = new AtomicReference(start)
@@ -34,304 +36,26 @@ class Counter(start: Int = 0) {
   }
 }
 
-object MaskKey {
-  def apply( bounds: Array[Double], mask_shape: Array[Int], spatial_axis_indices: Array[Int] ): MaskKey = {
-    new MaskKey( bounds, Array( mask_shape(spatial_axis_indices(0)), mask_shape(spatial_axis_indices(1) ) ) )
-  }
-}
-class MaskKey( bounds: Array[Double], dimensions: Array[Int] ) {}
-
-class MetadataOnlyException extends Exception {}
-
-object FragmentPersistence extends DiskCachable with FragSpecKeySet {
-  private val fragmentIdCache: Cache[DataFragmentKey,String] = new FutureCache("CacheIdMap","fragment",true)
-  def getCacheType = "fragment"
-
-  def persist( fragSpec: DataFragmentSpec, frag: PartitionedFragment ): Future[String] = {
-    logger.info( "Persisting Fragment ID for fragment cache recovery: " + fragSpec.toString )
-    fragmentIdCache(fragSpec.getKey) { promiseCacheId(frag) _ }
-  }
-
-  def getEntries: Seq[(DataFragmentKey,String)] = fragmentIdCache.getEntries
-
-  def promiseCacheId( frag: PartitionedFragment )(p: Promise[String]): Unit =
-    try { p.success( bufferToDiskFloat( frag.data.getSectionData ) ) }
-    catch { case err: Throwable => logError( err, "Error writing cache data to disk:"); p.failure(err) }
-
-  def restore( cache_id: String, size: Int ): Option[FloatBuffer] = bufferFromDiskFloat( cache_id, size )
-  def restore( fragKey: DataFragmentKey ): Option[FloatBuffer] =  fragmentIdCache.get(fragKey).flatMap( restore( _, fragKey.getSize ) )
-  def restore( cache_id_future: Future[String], size: Int ): Option[FloatBuffer] = restore( Await.result(cache_id_future, Duration.Inf), size )
-  def blockUntilDone(): Unit = Future.sequence( fragmentIdCache.values )
-
-  def deleteEnclosing( fragSpec: DataFragmentSpec ) =
-    findEnclosingFragSpecs(  fragmentIdCache.keys, fragSpec.getKey ).foreach( delete )
-
-  def delete( fragKey: DataFragmentKey ) = {
-    fragmentIdCache.get(fragKey) match {
-      case Some( cache_id_future ) =>
-        val path = DiskCacheFileMgr.getDiskCacheFilePath( getCacheType, Await.result( cache_id_future, Duration.Inf ) )
-        fragmentIdCache.remove( fragKey )
-        if(new java.io.File(path).delete()) logger.info( s"Deleting persisted fragment file '$path', frag: " + fragKey.toString )
-        else logger.warn( s"Failed to delete persisted fragment file '$path'" )
-      case None => logger.warn( "No Cache ID found for Fragment: " + fragKey.toString )
-    }
-  }
-
-  def getEnclosingFragmentData( fragSpec: DataFragmentSpec ): Option[ ( DataFragmentKey, FloatBuffer ) ] = {
-    val fragKeys = findEnclosingFragSpecs(  fragmentIdCache.keys, fragSpec.getKey )
-    fragKeys.headOption match {
-      case Some( fkey ) => restore(fkey) match {
-        case Some(array) => Some( (fkey->array) )
-        case None => None
-      }
-      case None => None
-    }
-  }
-  def getFragmentData( fragSpec: DataFragmentSpec ): Option[ FloatBuffer ] = restore( fragSpec.getKey )
-}
-
-
-trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {
-
-  def getFragSpecsForVariable(keys: Set[DataFragmentKey], collection: String, varName: String): Set[DataFragmentKey] = keys.filter(
-    _ match {
-      case fkey: DataFragmentKey => fkey.sameVariable(collection, varName)
-      case x => logger.warn("Unexpected fragment key type: " + x.getClass.getName); false
-    }).map(_ match { case fkey: DataFragmentKey => fkey })
-
-
-  def findEnclosingFragSpecs(keys: Set[DataFragmentKey], fkey: DataFragmentKey, admitEquality: Boolean = true): Set[DataFragmentKey] = {
-    val variableFrags = getFragSpecsForVariable(keys, fkey.collectionUrl, fkey.varname)
-    variableFrags.filter(fkeyParent => fkeyParent.contains(fkey, admitEquality))
-  }
-
-  def findEnclosedFragSpecs(keys: Set[DataFragmentKey], fkeyParent: DataFragmentKey, admitEquality: Boolean = false): Set[DataFragmentKey] = {
-    val variableFrags = getFragSpecsForVariable(keys, fkeyParent.collectionUrl, fkeyParent.varname)
-    variableFrags.filter(fkey => fkeyParent.contains(fkey, admitEquality))
-  }
-
-  def findEnclosingFragSpec(keys: Set[DataFragmentKey], fkeyChild: DataFragmentKey, selectionCriteria: FragmentSelectionCriteria.Value, admitEquality: Boolean = true): Option[DataFragmentKey] = {
-    val enclosingFragments = findEnclosingFragSpecs(keys, fkeyChild, admitEquality)
-    if (enclosingFragments.isEmpty) None
-    else Some(selectionCriteria match {
-      case FragmentSelectionCriteria.Smallest => enclosingFragments.minBy(_.getRoi.computeSize())
-      case FragmentSelectionCriteria.Largest => enclosingFragments.maxBy(_.getRoi.computeSize())
-    })
-  }
-}
-
-class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with FragSpecKeySet {
-  private val fragmentCache: Cache[DataFragmentKey,PartitionedFragment] = new FutureCache("Store","fragment",false)
-  private val datasetCache: Cache[String,CDSDataset] = new FutureCache("Store","dataset",false)
-  private val variableCache: Cache[String,CDSVariable] = new FutureCache("Store","variable",false)
-  private val maskCache: Cache[MaskKey,CDByteArray] = new FutureCache("Store","mask",false)
-  def clearFragmentCache() = fragmentCache.clear
-
-  def makeKey(collection: String, varName: String) = collection + ":" + varName
-
-  def extractFuture[T](key: String, result: Option[Try[T]]): T = result match {
-    case Some(tryVal) => tryVal match {
-      case Success(x) => x;
-      case Failure(t) => throw t
-    }
-    case None => throw new Exception(s"Error getting cache value $key")
-  }
-
-  def getDatasetFuture(collection: Collection, varName: String): Future[CDSDataset] =
-    datasetCache(makeKey(collection.url, varName)) { produceDataset(collection, varName) _ }
-
-  def getDataset(collection: Collection, varName: String): CDSDataset = {
-    val futureDataset: Future[CDSDataset] = getDatasetFuture(collection, varName)
-    Await.result(futureDataset, Duration.Inf)
-  }
-
-  private def produceDataset(collection: Collection, varName: String)(p: Promise[CDSDataset]): Unit = {
-    val t0 = System.nanoTime()
-    val dataset = CDSDataset.load(collection, varName)
-    val t1 = System.nanoTime()
-    logger.info(" Completed reading dataset (%s:%s), T: %.4f ".format( collection, varName, (t1-t0)/1.0E9 ))
-    p.success(dataset)
-  }
-
-
-  private def promiseVariable(collection: Collection, varName: String)(p: Promise[CDSVariable]): Unit =
-    getDatasetFuture(collection, varName) onComplete {
-      case Success(dataset) =>
-        try {
-          val t0 = System.nanoTime()
-          val variable = dataset.loadVariable(varName)
-          val t1 = System.nanoTime()
-          logger.info(" Completed reading variable %s, T: %.4f".format( varName, (t1-t0)/1.0E9 ) )
-          p.success(variable)
-        }
-        catch {
-          case e: Exception => p.failure(e)
-        }
-      case Failure(t) => p.failure(t)
-    }
-
-  def getVariableFuture(collection: Collection, varName: String): Future[CDSVariable] = variableCache(makeKey(collection.url, varName)) {
-    promiseVariable(collection, varName) _
-  }
-
-  def getVariable(collection: Collection, varName: String): CDSVariable = {
-    val futureVariable: Future[CDSVariable] = getVariableFuture(collection, varName)
-    Await.result(futureVariable, Duration.Inf)
-  }
-
-  def getVariable(fragSpec: DataFragmentSpec): CDSVariable = getVariable(fragSpec.collection, fragSpec.varname)
-
-  private def cutExistingFragment( fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f ): Option[PartitionedFragment] = {
-    val fragOpt = findEnclosingFragSpec( fragmentCache.keys, fragSpec.getKey, FragmentSelectionCriteria.Smallest) match {
-      case Some(fkey: DataFragmentKey) => getExistingFragment(fkey) match {
-        case Some(fragmentFuture) =>
-          if (!fragmentFuture.isCompleted && (fkey.getSize * abortSizeFraction > fragSpec.getSize)) {
-            logger.info("Cache Chunk[%s] found but not yet ready, abandoning cache access attempt".format(fkey.shape.mkString(",")))
-            None
-          } else {
-            val fragment = Await.result(fragmentFuture, Duration.Inf)
-            Some(fragment.cutNewSubset(fragSpec.roi))
-          }
-        case None => cutExistingFragment(fragSpec, abortSizeFraction)
-      }
-      case None => None
-    }
-    fragOpt match {
-      case None =>
-        FragmentPersistence.getEnclosingFragmentData(fragSpec) match {
-          case Some((fkey, fltBuffer)) =>
-            val cdvar: CDSVariable = getVariable(fragSpec.collection, fragSpec.varname )
-            val newFragSpec = fragSpec.reSection(fkey)
-            val maskOpt = newFragSpec.mask.flatMap( maskId => produceMask( maskId, newFragSpec.getBounds, newFragSpec.getGridShape, cdvar.getTargetGrid( newFragSpec ).getAxisIndices("xy") ) )
-            val fragment = new PartitionedFragment( new CDFloatArray( newFragSpec.getShape, fltBuffer, cdvar.missing ), maskOpt, newFragSpec )
-            fragmentCache.put( fkey, fragment )
-            Some(fragment.cutNewSubset(fragSpec.roi))
-          case None => None
-        }
-      case x => x
-    }
-  }
-
-  private def promiseFragment( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode )(p: Promise[PartitionedFragment]): Unit =
-    getVariableFuture( fragSpec.collection, fragSpec.varname )  onComplete {
-      case Success(variable) =>
-        try {
-          val t0 = System.nanoTime()
-          val result = fragSpec.targetGridOpt match {
-            case Some( targetGrid ) =>
-               val maskOpt = fragSpec.mask.flatMap( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy") ) )
-               targetGrid.loadRoi( variable, fragSpec, maskOpt, dataAccessMode )
-             case None =>
-               val targetGrid = new TargetGrid( variable, Some(fragSpec.getAxes) )
-               val maskOpt = fragSpec.mask.flatMap( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy")  ) )
-               targetGrid.loadRoi( variable, fragSpec, maskOpt, dataAccessMode )
-          }
-          logger.info("Completed variable (%s:%s) subset data input in time %.4f sec, section = %s ".format(fragSpec.collection, fragSpec.varname, (System.nanoTime()-t0)/1.0E9, fragSpec.roi ))
-          //          logger.info("Data column = [ %s ]".format( ( 0 until result.shape(0) ).map( index => result.getValue( Array(index,0,100,100) ) ).mkString(", ") ) )
-          p.success( result )
-
-        } catch { case e: Exception => p.failure(e) }
-      case Failure(t) => p.failure(t)
-    }
-
-  def produceMask(maskId: String, bounds: Array[Double], mask_shape: Array[Int], spatial_axis_indices: Array[Int]): Option[CDByteArray] = {
-    if (Masks.isMaskId(maskId)) {
-      val maskFuture = getMaskFuture( maskId, bounds, mask_shape, spatial_axis_indices  )
-      val result = Await.result( maskFuture, Duration.Inf )
-      logger.info("Loaded mask (%s) data".format( maskId ))
-      Some(result)
-    } else {
-      None
-    }
-  }
-
-  private def getMaskFuture( maskId: String, bounds: Array[Double], mask_shape: Array[Int], spatial_axis_indices: Array[Int]  ): Future[CDByteArray] = {
-    val fkey = MaskKey(bounds, mask_shape, spatial_axis_indices)
-    val maskFuture = maskCache( fkey ) { promiseMask( maskId, bounds, mask_shape, spatial_axis_indices ) _ }
-    logger.info( ">>>>>>>>>>>>>>>> Put mask in cache: " + fkey.toString + ", keys = " + maskCache.keys.mkString("[",",","]") )
-    maskFuture
-  }
-
-  private def promiseMask( maskId: String, bounds: Array[Double], mask_shape: Array[Int], spatial_axis_indices: Array[Int] )(p: Promise[CDByteArray]): Unit =
-    try {
-      Masks.getMask(maskId) match {
-        case Some(mask) => mask.mtype match {
-          case "shapefile" =>
-            val geotools = new GeoTools()
-            p.success( geotools.produceMask( mask.getPath, bounds, mask_shape, spatial_axis_indices ) )
-          case x => p.failure(new Exception(s"Unrecognized Mask type: $x"))
-        }
-        case None => p.failure(new Exception(s"Unrecognized Mask ID: $maskId: options are %s".format(Masks.getMaskIds)))
-      }
-    } catch { case e: Exception => p.failure(e) }
-
-  private def clearRedundantFragments( fragSpec: DataFragmentSpec ) = findEnclosedFragSpecs( fragmentCache.keys, fragSpec.getKey ).foreach( fragmentCache.remove )
-
-  private def getFragmentFuture( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode  ): Future[PartitionedFragment] = {
-    val fragFuture = fragmentCache( fragSpec.getKey ) { promiseFragment( fragSpec, dataAccessMode ) _ }
-    fragFuture onComplete {
-      case Success(fragment) => try {
-          logger.info( " Persisting fragment spec: " + fragSpec.getKey.toString )
-          clearRedundantFragments(fragSpec)
-          if (dataAccessMode == DataAccessMode.Cache) FragmentPersistence.persist(fragSpec, fragment)
-        } catch {
-          case err: Throwable =>  logger.warn( " Failed to persist fragment list due to error: " + err.getMessage )
-        }
-      case Failure(err) => logger.warn( " Failed to generate fragment due to error: " + err.getMessage )
-    }
-    logger.info( ">>>>>>>>>>>>>>>> Put frag in cache: " + fragSpec.toString + ", keys = " + fragmentCache.keys.mkString("[",",","]") + ", dataAccessMode = " + dataAccessMode.toString )
-    fragFuture
-  }
-
-  def getFragment( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode, abortSizeFraction: Float=0f  ): PartitionedFragment = {
-    cutExistingFragment(fragSpec, abortSizeFraction) getOrElse {
-      val fragmentFuture = getFragmentFuture(fragSpec, dataAccessMode)
-      val result = Await.result(fragmentFuture, Duration.Inf)
-      logger.info("Loaded variable (%s:%s) subset data, section = %s ".format(fragSpec.collection, fragSpec.varname, fragSpec.roi))
-      result
-    }
-  }
-
-  def getFragmentAsync( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode  ): Future[PartitionedFragment] =
-    cutExistingFragment(fragSpec) match {
-      case Some(fragment) => Future { fragment }
-      case None => getFragmentFuture(fragSpec, dataAccessMode)
-    }
-
-
-//  def loadOperationInputFuture( dataContainer: DataContainer, domain_container: DomainContainer ): Future[OperationInputSpec] = {
-//    val variableFuture = getVariableFuture(dataContainer.getSource.collection, dataContainer.getSource.name)
-//    variableFuture.flatMap( variable => {
-//      val section = variable.getSubSection(domain_container.axes)
-//      val fragSpec = variable.createFragmentSpec( section, domain_container.mask )
-//      val axisSpecs: AxisIndices = variable.getAxisIndices(dataContainer.getOpSpecs)
-//      for (frag <- getFragmentFuture(fragSpec)) yield new OperationInputSpec( fragSpec, axisSpecs)
-//    })
+//object ExecutionLoopManager {
+//  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+//  private val executionCache: Cache[TaskRequest,ExecutionResults] = new FutureCache("Store","execution",false)
+//
+//  def execute() = {
+//    taskQueue.
 //  }
 //
-//  def loadDataFragmentFuture( dataContainer: DataContainer, domain_container: DomainContainer ): Future[PartitionedFragment] = {
-//    val variableFuture = getVariableFuture(dataContainer.getSource.collection, dataContainer.getSource.name)
-//    variableFuture.flatMap( variable => {
-//      val section = variable.getSubSection(domain_container.axes)
-//      val fragSpec = variable.createFragmentSpec( section, domain_container.mask )
-//      for (frag <- getFragmentFuture(fragSpec)) yield frag
-//    })
-//  }
+//  def addRequest( reqest: TaskRequest ) = taskQueue.add( reqest )
+//
+//
+////    val run_args = Map( "async" -> "false" )
+////    val request = SampleTaskRequests.getSubsetRequest
+////    val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
+////    val printer = new scala.xml.PrettyPrinter(200, 3)
+////    println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+////  }
+//}
 
-  def getExistingMask( fkey: MaskKey  ): Option[Future[CDByteArray]] = {
-    val rv: Option[Future[CDByteArray]] = maskCache.get( fkey )
-    logger.info( ">>>>>>>>>>>>>>>> Get mask from cache: search key = " + fkey.toString + ", existing keys = " + maskCache.keys.mkString("[",",","]") + ", Success = " + rv.isDefined.toString )
-    rv
-  }
-
-  def getExistingFragment( fkey: DataFragmentKey  ): Option[Future[PartitionedFragment]] = {
-    val rv: Option[Future[PartitionedFragment]] = fragmentCache.get( fkey )
-    logger.info( ">>>>>>>>>>>>>>>> Get frag from cache: search key = " + fkey.toString + ", existing keys = " + fragmentCache.keys.mkString("[",",","]") + ", Success = " + rv.isDefined.toString )
-    rv
-  }
-}
-
-object collectionDataCache extends CollectionDataCacheMgr()
+class MetadataOnlyException extends Exception {}
 
 class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   val serverContext = new ServerContext( collectionDataCache, serverConfiguration )
@@ -509,120 +233,6 @@ object SampleTaskRequests {
     writer.close()
     println( "Writing result to file '%s'".format(resultFile) )
   }
-  def getCollection( id: String ): Collection = {
-    Collections.findCollection(id) match { case Some(collection) => collection; case None=> throw new Exception(s"Unknown Collection: $id" )}
-  }
-
-
-  def getAveTimeseries: TaskRequest = {
-    import nasa.nccs.esgf.process.DomainAxis.Type._
-    val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", rid = "ivar#1", inputs = List("v0"), Map("axis" -> "t") ) ) ) )
-    val variableMap = Map[String,DataContainer]( "v0" -> new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0" ) ) ) )
-    val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Z,1,1), DomainAxis(Y,100,100), DomainAxis(X,100,100) ), None ) )
-    new TaskRequest( "CDS.average", variableMap, domainMap, workflows, Map( "id" -> "v0" ) )
-  }
-
-  def getTimeAveSlice: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lon" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lev" -> Map("start" -> 8, "end" -> 8, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "hur:v0", "domain" -> "d0")),
-      "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
-      TaskRequest( "CDS.average", dataInputs )
-  }
-
-  def getYearlyCycleSlice: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List( Map( "input"->"v0", "period"->1, "unit"->"month", "mod"->12  ) ))
-    TaskRequest( "CDS.bin", dataInputs )
-  }
-
-  def getCreateVRequest: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
-                        Map("name" -> "d1", "time" -> Map("start" -> "2010-01-16T12:00:00", "end" -> "2010-01-16T12:00:00", "system" -> "values") ) ),
-      "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
-      "operation" -> List(  Map( "input"->"v0", "axes"->"t", "name"->"CDS.anomaly" ), Map( "input"->"v0", "period"->1, "unit"->"month", "mod"->12, "name"->"CDS.timeBin"  ), Map( "input"->"v0", "domain"->"d1", "name"->"CDS.subset" ) ) )
-    TaskRequest( "CDS.workflow", dataInputs )
-  }
-
-  def getYearlyCycleRequest: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
-      "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
-      "operation" -> List( Map( "input"->"v0", "period"->1, "unit"->"month", "mod"->12 ) ))
-    TaskRequest( "CDS.timeBin", dataInputs )
-  }
-
-  def getSeasonalCycleRequest: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "time" -> Map("start" -> 0, "end" -> 36, "system" -> "indices"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
-      "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
-      "operation" -> List( Map( "input"->"v0", "period"->3, "unit"->"month", "mod"->4, "offset"->2  ) ))
-    TaskRequest( "CDS.timeBin", dataInputs )
-  }
-
-  def getYearlyMeansRequest: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
-      "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
-      "operation" -> List( Map( "input"->"v0", "period"->12, "unit"->"month" ) ))
-    TaskRequest( "CDS.timeBin", dataInputs )
-  }
-
-  def getSubsetRequest: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
-        Map("name" -> "d1", "time" -> Map("start" -> 3, "end" -> 3, "system" -> "indices") ) ),
-      "variable" -> List( Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0") ),
-      "operation" -> List( Map( "input"->"v0", "domain"->"d1" ) ))
-    TaskRequest( "CDS.subset", dataInputs )
-  }
-
-  def getTimeSliceAnomaly: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0", "lat" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lon" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lev" -> Map("start" -> 8, "end" -> 8, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
-    TaskRequest( "CDS.anomaly", dataInputs )
-  }
-
-  def getMetadataRequest( level: Int ): TaskRequest = {
-    val dataInputs: Map[String, Seq[Map[String, Any]]] = level match {
-      case 0 => Map()
-      case 1 => Map( "variable" -> List ( Map( "uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0" ) ) )
-    }
-    TaskRequest( "CDS.metadata", dataInputs )
-  }
-
-  def getCacheRequest: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0",  "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra300/hourly/asm_Cp", "name" -> "t:v0", "domain" -> "d0")) )
-    TaskRequest( "util.cache", dataInputs )
-  }
-
-  def getAggregateAndCacheRequest: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0",  "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggTest", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/", "name" -> "t", "domain" -> "d0")) )
-    TaskRequest( "util.cache", dataInputs )
-  }
-
-  def getAggregateAndCacheRequest2: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0",  "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra/daily/aggTest", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY", "name" -> "t", "domain" -> "d0")) )
-    TaskRequest( "util.cache", dataInputs )
-  }
-
-  def getAggregateAndCacheRequest1: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0",  "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra2/hourly/M2T1NXLND-2004-04", "path" -> "/att/pubrepo/MERRA/remote/MERRA2/M2T1NXLND.5.12.4/2004/04", "name" -> "SFMC", "domain" -> "d0")) )
-    TaskRequest( "util.cache", dataInputs )
-  }
 
   def getSpatialAve(collection: String, varname: String, weighting: String, level_index: Int = 0, time_index: Int = 0): TaskRequest = {
     val dataInputs = Map(
@@ -648,65 +258,12 @@ object SampleTaskRequests {
     TaskRequest( "CDS.const", dataInputs )
   }
 
-  def getMax: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0", "lev" -> Map("start" -> 20, "end" -> 20, "system" -> "indices"), "time" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List( Map( "input"->"v0", "axes"->"xy" ) ))
-    TaskRequest( "CDS.max", dataInputs )
-  }
-
-  def getMin: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List( Map("name" -> "d0", "lev" -> Map("start" -> 20, "end" -> 20, "system" -> "indices"), "time" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List( Map( "input"->"v0", "axes"->"xy" ) ))
-    TaskRequest( "CDS.min", dataInputs )
-  }
-
   def getAnomalyTest: TaskRequest = {
     val dataInputs = Map(
       "domain" ->  List(Map("name" -> "d0", "lat" -> Map("start" -> -7.0854263, "end" -> -7.0854263, "system" -> "values"), "lon" -> Map("start" -> 12.075, "end" -> 12.075, "system" -> "values"), "lev" -> Map("start" -> 1000, "end" -> 1000, "system" -> "values"))),
       "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggtest", "name" -> "t:v0", "domain" -> "d0")),  // collection://merra300/hourly/asm_Cp
       "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
     TaskRequest( "CDS.anomaly", dataInputs )
-  }
-  def getAnomalyTest1: TaskRequest = {
-    val dataInputs = Map(
-      "domain" ->  List(Map("name" -> "d0", "lat" -> Map("start" -> 20.0, "end" -> 20.0, "system" -> "values"), "lon" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"))),
-      "variable" -> List(Map("uri" -> "collection://merra2/hourly/m2t1nxlnd-2004-04", "name" -> "SFMC:v0", "domain" -> "d0")),
-      "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
-    TaskRequest( "CDS.anomaly", dataInputs )
-  }
-  def getAnomalyTest2: TaskRequest = {
-    val dataInputs = Map(
-      "domain" ->  List(Map("name" -> "d0", "lat" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"), "lon" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"), "level" -> Map("start" -> 10, "end" -> 10, "system" -> "indices") )),
-      "variable" -> List(Map("uri" -> "collection://merra/daily/aggTest", "name" -> "t:v0", "domain" -> "d0")),
-      "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
-    TaskRequest( "CDS.anomaly", dataInputs )
-  }
-  def getAnomalyArrayTest: TaskRequest = {
-    val dataInputs = Map(
-      "domain" ->  List( Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List( Map( "input"->"v0", "axes"->"t", "name"->"CDS.anomaly" ), Map( "input"->"v0", "domain"->"d1", "name"->"CDS.subset" )) )
-    TaskRequest( "CDS.workflow", dataInputs )
-  }
-
-  def getAnomalyArrayNcMLTest: TaskRequest = {
-    val dataInputs = Map(
-      "domain" ->  List( Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "file://Users/tpmaxwel/data/AConaty/comp-ECMWF/ecmwf.xml", "name" -> "Temperature:v0", "domain" -> "d0")),
-      "operation" -> List( Map( "input"->"v0", "axes"->"t", "name"->"CDS.anomaly" ), Map( "input"->"v0", "domain"->"d1", "name"->"CDS.subset" )) )
-    TaskRequest( "CDS.workflow", dataInputs )
-  }
-
-  def getAveArray: TaskRequest = {
-    import nasa.nccs.esgf.process.DomainAxis.Type._
-    val workflows = List[WorkflowContainer]( new WorkflowContainer( operations = List( new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", rid = "ivar#1", inputs = List("v0"), Map("axis" -> "xy")  ) ) ) )
-    val variableMap = Map[String,DataContainer]( "v0" -> new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0" ) ) ) )
-    val domainMap = Map[String,DomainContainer]( "d0" -> new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Z,4,4), DomainAxis(Y,100,100) ), None ) )
-    new TaskRequest( "CDS.average", variableMap, domainMap, workflows, Map( "id" -> "v0" ) )
   }
 }
 
@@ -767,69 +324,238 @@ object executionTest extends App {
   }
 }
 
-
-object execAggregateAndCacheTest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getAggregateAndCacheRequest
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
+abstract class SyncExecutor {
   val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-  FragmentPersistence.blockUntilDone()
-}
 
-object execAggregateAndCacheTest1 extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getAggregateAndCacheRequest1
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-  FragmentPersistence.blockUntilDone()
+  def main(args: Array[String]) {
+    val executionManager = getExecutionManager
+    val final_result = getExecutionManager.blockingExecute( getTaskRequest, getRunArgs )
+    println(">>>> Final Result: " + printer.format(final_result.toXml))
+    FragmentPersistence.close()
+  }
+
+  def getTaskRequest(): TaskRequest
+  def getRunArgs = Map("async" -> "false")
+  def getExecutionManager = new CDS2ExecutionManager(Map.empty)
+  def getCollection( id: String ): Collection = Collections.findCollection(id) match { case Some(collection) => collection; case None=> throw new Exception(s"Unknown Collection: $id" ) }
 }
 
-object execAggregateAndCacheTest2 extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getAggregateAndCacheRequest2
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-  FragmentPersistence.blockUntilDone()
+object TimeAveSliceTask extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lon" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lev" -> Map("start" -> 8, "end" -> 8, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "hur:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
+    TaskRequest("CDS.average", dataInputs)
+  }
 }
 
-object execMetadataTest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getMetadataRequest(1)
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+object YearlyCycleSliceTask extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12)))
+    TaskRequest("CDS.bin", dataInputs)
+  }
 }
 
-object execAnomalyTest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getAnomalyTest
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+object AveTimeseries extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    import nasa.nccs.esgf.process.DomainAxis.Type._
+    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List(new OperationContext(identifier = "CDS.average~ivar#1", name = "CDS.average", rid = "ivar#1", inputs = List("v0"), Map("axis" -> "t")))))
+    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0"))))
+    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 1, 1), DomainAxis(Y, 100, 100), DomainAxis(X, 100, 100)), None))
+    new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
+  }
 }
-object execAnomalyTest1 extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getAnomalyTest1
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+
+object CreateVTask extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
+        Map("name" -> "d1", "time" -> Map("start" -> "2010-01-16T12:00:00", "end" -> "2010-01-16T12:00:00", "system" -> "values"))),
+      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDS.anomaly"), Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12, "name" -> "CDS.timeBin"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDS.subset")))
+    TaskRequest("CDS.workflow", dataInputs)
+  }
 }
-object execAnomalyTest2 extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getAnomalyTest2
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+
+object YearlyCycleTask extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12)))
+    TaskRequest("CDS.timeBin", dataInputs)
+  }
+}
+
+object SeasonalCycleRequest extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "time" -> Map("start" -> 0, "end" -> 36, "system" -> "indices"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "period" -> 3, "unit" -> "month", "mod" -> 4, "offset" -> 2)))
+    TaskRequest("CDS.timeBin", dataInputs)
+  }
+}
+
+object YearlyMeansRequest extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "period" -> 12, "unit" -> "month")))
+    TaskRequest("CDS.timeBin", dataInputs)
+  }
+}
+
+object SubsetRequest extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
+        Map("name" -> "d1", "time" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "domain" -> "d1")))
+    TaskRequest("CDS.subset", dataInputs)
+  }
+}
+
+object TimeSliceAnomaly extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lon" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lev" -> Map("start" -> 8, "end" -> 8, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
+    TaskRequest("CDS.anomaly", dataInputs)
+  }
+}
+
+object MetadataRequest extends SyncExecutor {
+  val level = 1
+  def getTaskRequest: TaskRequest = {
+    val dataInputs: Map[String, Seq[Map[String, Any]]] = level match {
+      case 0 => Map()
+      case 1 => Map("variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0")))
+    }
+    TaskRequest("CDS.metadata", dataInputs)
+  }
+}
+
+object CacheRequest extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://merra300/hourly/asm_Cp", "name" -> "t:v0", "domain" -> "d0")))
+    TaskRequest("util.cache", dataInputs)
+  }
+}
+
+object AggregateAndCacheRequest extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggTest", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/", "name" -> "t", "domain" -> "d0")))
+    TaskRequest("util.cache", dataInputs)
+  }
+}
+
+object AggregateAndCacheRequest2 extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://merra/daily/aggTest", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY", "name" -> "t", "domain" -> "d0")))
+    TaskRequest("util.cache", dataInputs)
+  }
+}
+
+object AggregateAndCacheRequest1 extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://merra2/hourly/M2T1NXLND-2004-04", "path" -> "/att/pubrepo/MERRA/remote/MERRA2/M2T1NXLND.5.12.4/2004/04", "name" -> "SFMC", "domain" -> "d0")))
+    TaskRequest("util.cache", dataInputs)
+  }
+}
+
+object Max extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 20, "end" -> 20, "system" -> "indices"), "time" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://merra/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "axes" -> "xy")))
+    TaskRequest("CDS.max", dataInputs)
+  }
+}
+
+object Min extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 20, "end" -> 20, "system" -> "indices"), "time" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://merra/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "axes" -> "xy")))
+    TaskRequest("CDS.min", dataInputs)
+  }
+}
+
+object AnomalyTest extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> -7.0854263, "end" -> -7.0854263, "system" -> "values"), "lon" -> Map("start" -> 12.075, "end" -> 12.075, "system" -> "values"), "lev" -> Map("start" -> 1000, "end" -> 1000, "system" -> "values"))),
+      "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggtest", "name" -> "t:v0", "domain" -> "d0")), // collection://merra300/hourly/asm_Cp
+      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
+    TaskRequest("CDS.anomaly", dataInputs)
+  }
+}
+
+object AnomalyTest1 extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 20.0, "end" -> 20.0, "system" -> "values"), "lon" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"))),
+      "variable" -> List(Map("uri" -> "collection://merra2/hourly/m2t1nxlnd-2004-04", "name" -> "SFMC:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
+    TaskRequest("CDS.anomaly", dataInputs)
+  }
+}
+object AnomalyTest2 extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"), "lon" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"), "level" -> Map("start" -> 10, "end" -> 10, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://merra/daily/aggTest", "name" -> "t:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
+    TaskRequest("CDS.anomaly", dataInputs)
+  }
+}
+
+object AnomalyArrayTest extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDS.anomaly"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDS.subset")))
+    TaskRequest("CDS.workflow", dataInputs)
+  }
+}
+
+object AnomalyArrayNcMLTest extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map(
+      "domain" -> List(Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
+      "variable" -> List(Map("uri" -> "file://Users/tpmaxwel/data/AConaty/comp-ECMWF/ecmwf.xml", "name" -> "Temperature:v0", "domain" -> "d0")),
+      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDS.anomaly"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDS.subset")))
+    TaskRequest("CDS.workflow", dataInputs)
+  }
+}
+
+object AveArray extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    import nasa.nccs.esgf.process.DomainAxis.Type._
+    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List(new OperationContext(identifier = "CDS.average~ivar#1", name = "CDS.average", rid = "ivar#1", inputs = List("v0"), Map("axis" -> "xy")))))
+    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0"))))
+    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 4, 4), DomainAxis(Y, 100, 100)), None))
+    new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
+  }
 }
 
 object displayFragmentMap extends App {
@@ -837,80 +563,10 @@ object displayFragmentMap extends App {
   entries.foreach { case (dkey, cache_id) => println( "%s => %s".format( cache_id, dkey.toString ))}
 }
 
-object execAnomalyNcMLTest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getAnomalyArrayNcMLTest
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
+object SpatialAve1 extends SyncExecutor {
+  def getTaskRequest: TaskRequest = SampleTaskRequests.getSpatialAve("/MERRA/mon/atmos", "ta", "cosine")
 }
 
-object execCreateVRequest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getCreateVRequest
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-}
-
-object execYearlyCycleRequest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getYearlyCycleRequest
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val result_xml = final_result.toXml
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(result_xml) )
-}
-
-object execSeasonalCycleRequest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getSeasonalCycleRequest
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val result_xml = final_result.toXml
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(result_xml) )
-}
-
-object execYearlyMeansRequest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getYearlyMeansRequest
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val result_xml = final_result.toXml
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(result_xml) )
-}
-
-object execSubsetRequest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getSubsetRequest
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-}
-
-object execSpatialAveTest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getSpatialAve(  "/MERRA/mon/atmos", "ta", "cosine"  )
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-}
-
-object execMaskedSpatialAveTest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getMaskedSpatialAve( "/MERRA/mon/atmos", "ta", "cosine" )
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-}
 
 object execConstantTest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
@@ -934,47 +590,6 @@ object execConstantTest extends App {
 
 object execTestDataCreation extends App {
   SampleTaskRequests.createTestData
-}
-
-object execMaxTest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getMax
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-}
-
-object execMinTest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-  val request = SampleTaskRequests.getMin
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-}
-
-object execAnomalyWithCacheTest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val run_args = Map( "async" -> "false" )
-
-  println( ">>>>>>>>>>>>>>>>>>>>>>>>>> Start CACHE REQUEST "  )
-  val t1 = System.nanoTime
-  val cache_request = SampleTaskRequests.getCacheRequest
-  val cache_result = cds2ExecutionManager.blockingExecute(cache_request, run_args)
-  val t2 = System.nanoTime
-  println( ">>>>>>>>>>>>>>>>>>>>>>>>>> Cache1: %.4f".format((t2-t1)/1.0E9) )
-
-  val cache_request1 = SampleTaskRequests.getCacheRequest
-  val cache_result1 = cds2ExecutionManager.blockingExecute(cache_request, run_args)
-  val t3 = System.nanoTime
-  println( ">>>>>>>>>>>>>>>>>>>>>>>>>> Cache2: %.4f".format((t3-t2)/1.0E9) )
-
-
-  val request = SampleTaskRequests.getAnomalyTest
-  val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  println( ">>>> Final Result: " + printer.format(final_result.toXml) )
 }
 
 object parseTest extends App {
