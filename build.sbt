@@ -30,6 +30,9 @@ libraryDependencies ++= Dependencies.geo
 
 externalDependencyClasspath in Runtime += baseDirectory.value / "cache"
 
+fork in run:= false
+fork in test:= false
+
 javaOptions in run ++= Seq( "-Xmx2G", "-Xms512M")
 
 

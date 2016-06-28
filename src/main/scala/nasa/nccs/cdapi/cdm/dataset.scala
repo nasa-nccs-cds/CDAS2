@@ -65,11 +65,12 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
 object DiskCacheFileMgr extends XmlResource {
   val diskCacheMap = loadDiskCacheMap
 
-  def getDiskCacheFilePath( cachetype: String, cache_file: String ): String = {
-    val cacheFilePath = Array( getDiskCache(), cachetype, cache_file ).mkString("/")
-    Files.createDirectories( Paths.get(cacheFilePath).getParent )
-    cacheFilePath
-  }
+  def getDiskCacheFilePath(cachetype: String, cache_file: String): String =
+    if (cache_file.startsWith("/")) {cache_file} else {
+      val cacheFilePath = Array(getDiskCache(), cachetype, cache_file).mkString("/")
+      Files.createDirectories(Paths.get(cacheFilePath).getParent)
+      cacheFilePath
+    }
 
   protected def getDiskCache( id: String = "main" ) = diskCacheMap.get(id) match {
     case None => throw new Exception( "No disk cache defined: " + id )
