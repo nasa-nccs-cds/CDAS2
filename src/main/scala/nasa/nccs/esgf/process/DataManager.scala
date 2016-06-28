@@ -1,7 +1,7 @@
 package nasa.nccs.esgf.process
 import java.util.Formatter
 
-import nasa.nccs.caching.FileToCacheStream
+import nasa.nccs.caching.{FileToCacheStream, FragmentPersistence}
 import nasa.nccs.cdapi.cdm._
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, VariableDS}
 import java.util.Formatter
@@ -325,8 +325,11 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
 
   def loadRoiViaCache( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
     val cacheStream = new FileToCacheStream( data_variable, fragmentSpec, maskOpt )
-    val cdArray: CDFloatArray = cacheStream.cacheFloatData( data_variable.getCacheChunkSize  )
-    new PartitionedFragment( cdArray, maskOpt, fragmentSpec )
+    cacheStream.cacheFloatData( data_variable.getCacheChunkSize  ) match { case ( cache_id: String, cdArray: CDFloatArray ) =>
+        val pfrag = new PartitionedFragment(cdArray, maskOpt, fragmentSpec)
+        FragmentPersistence.put( fragmentSpec.getKey, cache_id )
+        pfrag
+    }
   }
 }
 

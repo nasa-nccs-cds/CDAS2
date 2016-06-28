@@ -265,6 +265,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   protected def getData: FloatBuffer = floatStorage
   override def getSectionData: FloatBuffer = super.getSectionData.asInstanceOf[FloatBuffer]
   def getStorageData: FloatBuffer = floatStorage
+  def isMapped: Boolean = !floatStorage.hasArray
 
   def getStorageArray: Array[Float] = CDFloatArray.toArray( floatStorage )
   def getSectionArray: Array[Float] = CDFloatArray.toArray( getSectionData )

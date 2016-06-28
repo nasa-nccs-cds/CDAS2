@@ -75,6 +75,8 @@ class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray]
   }
   def data: CDFloatArray = array
 
+  def isMapped: Boolean = array.isMapped
+
 //  def data: CDFloatArray = dataStore match {
 //    case Some( array ) => array
 //    case None => restore match {

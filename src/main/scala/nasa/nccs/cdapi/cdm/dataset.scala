@@ -146,7 +146,7 @@ trait DiskCachable extends XmlResource {
         val data: FloatBuffer = buffer.asFloatBuffer
         channel.close
         val t1 = System.nanoTime()
-        logger.info( s"Restored persisted data to cache '%s', memsize = %d, time = %.2f".format( cache_id, size, (t1-t0)/1.0E9))
+        logger.info( s"Restored persisted data from cache file '%s', memsize = %d, time = %.2f".format( DiskCacheFileMgr.getDiskCacheFilePath(getCacheType, cache_id), size, (t1-t0)/1.0E9))
         Some(data)
       }
     } catch { case err: Throwable => logError(err,"Error retreiving persisted cache data"); None }

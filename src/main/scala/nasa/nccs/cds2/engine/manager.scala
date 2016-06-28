@@ -267,38 +267,6 @@ object SampleTaskRequests {
   }
 }
 
-//object exeSyncTest extends App {
-//  import nasa.nccs.esgf.process.DomainAxis.Type._
-//  val operationContainer =  new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "xy") )
-//  val dataContainer = new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) )
-//  val domainContainer = new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Z,6,6) ), None )
-//  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-//  val t0 = System.nanoTime
-//  val partitionedFragmentOpt = SampleTaskRequests.getFragmentSync( dataContainer, domainContainer )
-//  val t1 = System.nanoTime
-//  partitionedFragmentOpt match {
-//    case Some( partitionedFragment ) => println( "Got Value, time = %.4f: %s: ".format( (t1-t0)/1.0E9, partitionedFragment.toString ) )
-//    case None => println( "Error" )
-//  }
-//}
-//
-//object exeConcurrencyTest extends App {
-//  import nasa.nccs.esgf.process.DomainAxis.Type._
-//  val operationContainer =  new OperationContext( identifier = "CDS.average~ivar#1",  name ="CDS.average", result = "ivar#1", inputs = List("v0"), Map("axis" -> "xy") )
-//  val dataContainer = new DataContainer( uid="v0", source = Some(new DataSource( name = "hur", collection = "merra/mon/atmos", domain = "d0" ) ) )
-//  val domainContainer = new DomainContainer( name = "d0", axes = cdsutils.flatlist( DomainAxis(Z,10,10) ), None )
-//  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-//  cds2ExecutionManager.serverContext.dataLoader.getVariable( dataContainer.getSource.collection, dataContainer.getSource.name )
-//  val t0 = System.nanoTime
-////  val futurePartitionedFragment: Future[PartitionedFragment] = cds2ExecutionManager.serverContext.dataLoader.loadDataFragmentFuture( dataContainer, domainContainer )
-//  val futurePartitionedFragment: Future[PartitionedFragment]  = SampleTaskRequests.getFragmentSyncFuture( dataContainer, domainContainer )
-//  val t1 = System.nanoTime
-//  println("Got Future, time = %.4f".format((t1-t0)/1.0E9))
-//  val partitionedFragment: PartitionedFragment = Await.result( futurePartitionedFragment, Duration.Inf )
-//  val t2 = System.nanoTime
-//  println( "Got Value, time = %.4f (%.4f): %s: ".format( (t2-t1)/1.0E9, (t2-t0)/1.0E9,partitionedFragment.toString ) )
-//}
-
 object executionTest extends App {
   val request = SampleTaskRequests.getAnomalyTest
   val async = false
@@ -559,7 +527,7 @@ object AveArray extends SyncExecutor {
 }
 
 object displayFragmentMap extends App {
-  val entries: Seq[(DataFragmentKey,String)] = FragmentPersistence.getEntries
+  val entries: Seq[(DataFragmentKey,String)] = FragmentPersistence.getEntries.map { case (key, value) => ( DataFragmentKey(key), value ) }
   entries.foreach { case (dkey, cache_id) => println( "%s => %s".format( cache_id, dkey.toString ))}
 }
 

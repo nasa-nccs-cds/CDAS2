@@ -208,6 +208,7 @@ class DataSource(val name: String, val collection: Collection, val domain: Strin
 
 class DataFragmentKey( val varname: String, val collectionUrl: String, val origin: Array[Int], val shape: Array[Int] ) extends Serializable {
   override def toString =  "DataFragmentKey{ name = %s, collection = %s, origin = [ %s ], shape = [ %s ] }".format( varname, collectionUrl, origin.mkString(", "), shape.mkString(", "))
+  def toStrRep =  "%s|%s|%s|%s".format( varname, collectionUrl, origin.mkString(","), shape.mkString(","))
   def sameVariable( otherCollectionUrl: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collectionUrl == otherCollectionUrl) }
   def getRoi: ma2.Section = new ma2.Section(origin,shape)
   def equalRoi( df: DataFragmentKey ): Boolean = ( shape.sameElements(df.shape) && origin.sameElements(df.origin ) )
@@ -220,11 +221,11 @@ class DataFragmentKey( val varname: String, val collectionUrl: String, val origi
 object DataFragmentKey {
   def parseArray( arrStr: String ): Array[Int] = { arrStr.split(',').map( _.toInt) }
   def apply( fkeyStr: String ): DataFragmentKey = {
-    val toks = fkeyStr.split(':')
+    val toks = fkeyStr.split('|')
     new DataFragmentKey( toks(0), toks(1), parseArray(toks(2)), parseArray(toks(3)) )
   }
   def sameVariable( fkeyStr: String, otherCollection: String, otherVarName: String ): Boolean = {
-    val toks = fkeyStr.split(':')
+    val toks = fkeyStr.split('|')
     (toks(0) == otherVarName) && (toks(1) == otherCollection)
   }
 }

@@ -136,7 +136,7 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
   def persist(): Unit = if( persistent ) {
     Files.createDirectories( Paths.get(cacheFile).getParent )
     val ostr = new ObjectOutputStream ( new FileOutputStream( cacheFile ) )
-    val entries = getEntries.toArray
+    val entries = getEntries.toList
     logger.info( " ***Persisting cache %s to file '%s', entries: [ %s ]".format( cname, cacheFile, entries.mkString(",") ) )      // TODO:  Why is this not working???
     ostr.writeObject( entries )
   }
@@ -145,7 +145,7 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
     try {
       val istr = new ObjectInputStream(new FileInputStream(cacheFile))
       logger.info(s"Restoring $cname cache map from: " + cacheFile);
-      Some( istr.readObject.asInstanceOf[ mutable.ArrayBuffer[(K,V)] ].toArray )
+      Some( istr.readObject.asInstanceOf[ List[(K,V)] ].toArray )
     } catch {
       case err: Throwable =>
         logger.warn("Can't load persisted cache file '" + cacheFile + "' due to error: " + err.toString );
