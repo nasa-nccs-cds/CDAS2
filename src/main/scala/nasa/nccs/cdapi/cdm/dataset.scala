@@ -149,7 +149,7 @@ trait DiskCachable extends XmlResource {
         logger.info( s"Restored persisted data from cache file '%s', memsize = %d, time = %.2f".format( DiskCacheFileMgr.getDiskCacheFilePath(getCacheType, cache_id), size, (t1-t0)/1.0E9))
         Some(data)
       }
-    } catch { case err: Throwable => logError(err,"Error retreiving persisted cache data"); None }
+    } catch { case err: Throwable => logError(err, s"Error-1 retreiving persisted cache data for cache_id '$cache_id'"); None }
   }
 
   protected def arrayFromDiskByte( cache_id: String  ): Option[ByteBuffer] = {
@@ -157,7 +157,7 @@ trait DiskCachable extends XmlResource {
         channel.close
         Some(buffer)
       }
-    } catch { case err: Throwable => logError(err,"Error retreiving persisted cache data"); None }
+    } catch { case err: Throwable => logError(err,s"Error-2 retreiving persisted cache data for cache_id '$cache_id'"); None }
   }
 
 }
