@@ -36,25 +36,6 @@ class Counter(start: Int = 0) {
   }
 }
 
-//object ExecutionLoopManager {
-//  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-//  private val executionCache: Cache[TaskRequest,ExecutionResults] = new FutureCache("Store","execution",false)
-//
-//  def execute() = {
-//    taskQueue.
-//  }
-//
-//  def addRequest( reqest: TaskRequest ) = taskQueue.add( reqest )
-//
-//
-////    val run_args = Map( "async" -> "false" )
-////    val request = SampleTaskRequests.getSubsetRequest
-////    val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-////    val printer = new scala.xml.PrettyPrinter(200, 3)
-////    println( ">>>> Final Result: " + printer.format(final_result.toXml) )
-////  }
-//}
-
 class MetadataOnlyException extends Exception {}
 
 class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
@@ -401,7 +382,7 @@ object TimeSliceAnomaly extends SyncExecutor {
 }
 
 object MetadataRequest extends SyncExecutor {
-  val level = 1
+  val level = 0
   def getTaskRequest: TaskRequest = {
     val dataInputs: Map[String, Seq[Map[String, Any]]] = level match {
       case 0 => Map()
@@ -565,7 +546,6 @@ object parseTest extends App {
   val r = axes.split(",").map(_.head).toList
   println( r )
 }
-
 
 
 

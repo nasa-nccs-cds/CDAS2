@@ -28,8 +28,6 @@ libraryDependencies ++= Dependencies.cache
 
 libraryDependencies ++= Dependencies.geo
 
-externalDependencyClasspath in Runtime += baseDirectory.value / "cache"
-
 fork in run:= false
 fork in test:= false
 
@@ -74,6 +72,13 @@ cdasLocalCollectionsFile :=  {
   collections_file
 }
 
+externalDependencyClasspath in Runtime += cdas_cache_dir.value
+
+//lazy val md = taskKey[Unit]("Prints 'Hello World'")
+//
+//md := {
+//  import nasa.nccs.cds2.engine.MetadataPrinter
+//}
 
 
 
