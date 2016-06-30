@@ -103,10 +103,10 @@ object CommandExecutables {
                 interactionHandler = Some( new CommandInterationHandler(
                   List( "Collection id:", "Dataset url or file path:" ), ( responses: List[String] ) => Collections.addCollection( responses(0), responses(1) ) ) )
                 true
-              case 's' =>
-                interactionHandler = Some( new CommandInterationHandler(
-                  List( Collections.indexedCollectionList ), ( responses: List[String] ) => Collections.addCollection( responses(0), responses(1) ) ) )
-                true
+//              case 's' =>
+//                interactionHandler = Some( new CommandInterationHandler(
+//                  List( Collections.indexedCollectionList ), ( responses: List[String] ) => Collections.addCollection( responses(0), responses(1) ) ) )
+//                true
               case x =>
                 println("Unrecognized <operation> argument: " + operation)
                 false
