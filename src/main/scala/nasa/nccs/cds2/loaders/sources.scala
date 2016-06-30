@@ -43,7 +43,9 @@ trait XmlResource extends Loggable {
   }
   def getFilePath(resourcePath: String) = Option( getClass.getResource(resourcePath) ) match {
       case None => Option( getClass.getClassLoader.getResource(resourcePath) ) match {
-        case None => throw new Exception(s"Resource $resourcePath does not exist!")
+        case None =>
+          logger.error(s"Resource $resourcePath does not exist!")
+          throw new Exception(s"Resource $resourcePath does not exist!")
         case Some(r) => r.getPath
       }
       case Some(r) => r.getPath
@@ -94,6 +96,7 @@ object Collections extends XmlResource {
   }
 
   def idSet: Set[String] = datasets.keySet.toSet
+  def values: Iterator[Collection] = datasets.valuesIterator
 
   def toXml( scope: String ): xml.Elem = {
     <collections>
@@ -105,7 +108,7 @@ object Collections extends XmlResource {
     uri.toLowerCase.split(":").last.stripPrefix("/").stripPrefix("/").replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ".xml"
   }
 
-  def addCollection( uri: String, path: String, fileFilter: String, vars: List[String]  ): Collection = {
+  def addCollection( uri: String, path: String, fileFilter: String="", vars: List[String] = List.empty[String] ): Collection = {
     val prettyPrint = true
     val url = "file:" + NCMLWriter.getCachePath("NCML").resolve( uriToFile(uri) )
     val id = uri.split(":").last.stripPrefix("/").stripPrefix("/").toLowerCase

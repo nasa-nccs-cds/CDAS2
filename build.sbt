@@ -72,7 +72,10 @@ cdasLocalCollectionsFile :=  {
   collections_file
 }
 
-externalDependencyClasspath in Runtime += cdas_cache_dir.value
+unmanagedClasspath in Compile += cdas_cache_dir.value
+unmanagedClasspath in Runtime += cdas_cache_dir.value
+unmanagedClasspath in Test += cdas_cache_dir.value
+
 
 //lazy val md = taskKey[Unit]("Prints 'Hello World'")
 //

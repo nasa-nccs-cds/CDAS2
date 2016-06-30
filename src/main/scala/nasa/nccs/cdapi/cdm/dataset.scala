@@ -55,6 +55,7 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
   def createNCML( recreate: Boolean = false ) = {
     if( !ncmlFile.exists || recreate ) {
       logger.info( "Aggregating NetCDF files under directory '%s' to create a new dataset '%s' defined by NCML file '%s'".format( path, id, ncmlFile.getAbsolutePath ) )
+      ncmlFile.getParentFile.mkdirs
       val ncmlWriter = NCMLWriter(path)
       ncmlWriter.writeNCML(ncmlFile)
     }
