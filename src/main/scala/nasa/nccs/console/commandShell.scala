@@ -7,8 +7,101 @@ import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.esgf.process.TaskRequest
 
 import collection.mutable
+import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Future
+
+
+trait CommandHandler {
+  def process( command: String ): ExecuteResponse
+}
+
+object ExecuteResponse {
+  def apply( prompt: String, handler:CommandHandler ) = { new ExecuteResponse( Some(prompt), Some(handler) ) }
+  def empty = new ExecuteResponse( None, None)
+}
+class ExecuteResponse( val prompt: Option[String], val handler: Option[CommandHandler] ) {}
+
+class CommandShell( val basePrompt: String, val baseHandler: CommandHandler) {
+  protected val console = System.console()
+
+  @tailrec
+  private def execute( response: ExecuteResponse, history: Array[String]= Array.empty[String] ): Unit = {
+    val command: String = console.readLine( getPrompt(response) )
+    if( !quitRequested(command) ) execute( getHandler(response).process(command), history :+ command   )
+  }
+
+  protected def getPrompt( response: ExecuteResponse ): String = response.prompt match { case None => basePrompt; case Some( prompt ) => response.handler match { case None => prompt + "\n" + basePrompt; case Some( handler ) => prompt } }
+  protected def getHandler( response: ExecuteResponse ): CommandHandler = response.handler match { case None => baseHandler; case Some( handler ) => handler }
+  protected def quitRequested( command: String ): Boolean = command.toLowerCase().startsWith("quit")
+
+  def run = execute( ExecuteResponse( basePrompt, baseHandler) )
+
+}
+
+class MultiStepCommandHandler( val prompts: Array[String], val validators: Array[String], val executor: (Array[String]) => Unit, val inputs: Array[String] = Array.empty[String]  ) extends CommandHandler {
+
+  def process(command: String): ExecuteResponse = {
+    if( valid( command, validators.head ) ) {
+      val accum_inputs = inputs :+ command
+      if ( prompts.length > 1 ) {
+        ExecuteResponse( prompts.tail.head, new MultiStepCommandHandler(prompts.tail, validators.tail, executor, accum_inputs ))
+      } else {
+        executor( accum_inputs )
+        ExecuteResponse.empty
+      }
+    } else {
+      ExecuteResponse("Invalid response, please try again: ", this )
+    }
+  }
+  def getPrompt = prompts.head
+
+  private def valid( command: String, validator: String ): Boolean = {
+    true
+  }
+}
+
+object testEchoHandler extends CommandHandler {
+  def process( command: String ): ExecuteResponse = new ExecuteResponse( Some("Executing command: " + command ), None )
+}
+
+object testBaseHandler extends CommandHandler {
+  def process( command: String ): ExecuteResponse = {
+    if(command.startsWith("c")) {
+      val handler = new MultiStepCommandHandler( Array("Enter one >> ", "Enter two >> ", "Enter three >> "), Array("i1", "i2", "i3"), (vals) => println( vals.mkString(",") ) ) {}
+      ExecuteResponse( handler.getPrompt, handler )
+    }
+    else new ExecuteResponse( Some("Executing command: " + command ), None )
+  }
+}
+
+//  def process(command: String ): ExecuteResponse = {
+//    if( command.startsWith("t") ) {
+//      ExecuteResponse
+//    }
+//  }
+//}
+
+object consoleTest extends App {
+  val shell = new CommandShell( ">>", testBaseHandler )
+  shell.run
+}
+
+//class ListSelectionCommandHandler( choices: Array[String], executor: (String) => Unit ) extends CommandHandler {
+//
+//  def process(command: String): ExecuteResponse = {
+//
+//  }
+//
+
+
+
+
+
+
+
+/*
+
 
 object ArrowType {
   sealed abstract class Value( val index: Byte ) { def compare( index1: Byte ): Boolean = { index == index1 } }
@@ -47,79 +140,6 @@ abstract class CommandExecutable( val name: String, val description: String, val
   }
 }
 
-object CommandExecutables {
-  private val domainMap = new ConcurrentLinkedHashMap.Builder[String, Map[String,String]].initialCapacity(100).maximumWeightedCapacity(10000).build()
-  private var currentDomain: String = "d0"
-  domainMap.put( currentDomain, Map.empty[String,String] )
-
-  def getDomain( domId: String = currentDomain ): Option[Map[String,String]] = Option(domainMap.get(domId))
-  def putDomain( domId: String, domain: Map[String,String] ) = domainMap.put( domId, domain )
-
-  private val values: List[CommandExecutable] = List(
-
-    new CommandExecutable("[t]est", "Test exe", "") {
-      def execute(command: String, callIndex: Int ): Boolean = {
-        println("---> Executing command: " + command + ", call index = " + callIndex );
-        false
-      }
-    },
-    new CommandExecutable("[he]lp", "Lists available commands", "") {
-      def execute(command: String, callIndex: Int ): Boolean = {
-        println( "------ Commands --------" )
-        for( cmdExe <- CommandExecutables.getCommandsAlpha ) {
-          println( "  --> %s %s: %s ".format( cmdExe.name, cmdExe.args, cmdExe.description) )
-        }
-        false
-      }
-    },
-    new CommandExecutable("[ca]che", "Cache variable from NetCDF dataset", "<collection_id> <variable> <domain> <dataset_path>") {
-      def execute(command: String, callIndex: Int ): Boolean = {
-        println( "------ Commands --------" )
-        for( cmdExe <- CommandExecutables.getCommandsAlpha ) {
-          println( "  --> %s %s: %s ".format( cmdExe.name, cmdExe.args, cmdExe.description) )
-        }
-        false
-      }
-    },
-    new CommandExecutable("[co]llections", "Collection Operations: [l]ist, [d]efine, [s]electCurrent", "<operation:(l/d/s)>") {
-      def execute(command: String, callIndex: Int ): Boolean = {
-        interactionHandler match {
-          case None =>
-            val cmdArgs = command.split(' ')
-            val operation = if (cmdArgs.length > 1) {
-              cmdArgs(1)
-            } else {
-              "list"
-            }.toLowerCase.head
-            operation match {
-              case 'l' =>
-                println("------ Collections --------")
-                for (collId <- Collections.idSet) Collections.findCollection(collId) match {
-                  case Some(collection) => println("  --> id: %s vars: (%s), url: %s, path: %s ".format(collId, collection.url, collection.vars.mkString(","), collection.path))
-                  case None => Unit
-                }
-                false
-              case 'd' =>
-                interactionHandler = Some( new CommandInterationHandler(
-                  List( "Collection id:", "Dataset url or file path:" ), ( responses: List[String] ) => Collections.addCollection( responses(0), responses(1) ) ) )
-                true
-//              case 's' =>
-//                interactionHandler = Some( new CommandInterationHandler(
-//                  List( Collections.indexedCollectionList ), ( responses: List[String] ) => Collections.addCollection( responses(0), responses(1) ) ) )
-//                true
-              case x =>
-                println("Unrecognized <operation> argument: " + operation)
-                false
-            }
-          case Some( handler ) =>
-            handler.process( command )
-        }
-      }
-    }
-  )
-  val getCommands: List[CommandExecutable] = values.sortWith(_.len > _.len)
-  val getCommandsAlpha: List[CommandExecutable] = values.sortWith( _.key < _.key )
-}
 
 object commandProcessor {
   private val cursor = ">> "
@@ -145,7 +165,7 @@ object commandProcessor {
   }
 }
 
-object commandShell {
+object commandShell1 {
   private val console = System.console()
 
   def run = Iterator.continually( console.readLine( commandProcessor.getCursor ) ).takeWhile(!_.startsWith("quit")).foreach( command => commandProcessor.process( command ) )
@@ -153,9 +173,10 @@ object commandShell {
 }
 
 object consoleTest extends App {
-  commandShell.run
+  commandShell1.run
 }
 
+*/
 
 
 
