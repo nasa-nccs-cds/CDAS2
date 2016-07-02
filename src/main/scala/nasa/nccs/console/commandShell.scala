@@ -11,36 +11,50 @@ import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Future
 
-trait CommandHandler {
-  def process( command: String ): Option[CommandHandler]
-  def getPrompt: String
+object ParseHelp {
+  def isInt( value: String ): Boolean = try { value.toInt; true } catch { case t: Throwable => false }
 }
+
+abstract class CommandHandler( val name: String, val description: String ) {
+  val id: String = extractMatchId
+  def process( command: String, state: ShellState ): CommandHandler
+  def getPrompt: String
+  def matches( command: String ): Boolean = { command.toLowerCase.startsWith(id) }
+  def extractMatchId = {
+    val s0 = name.toLowerCase
+    val s1 = s0.split('[')
+    val s2 = s1.last.split(']')
+    s2.head
+  }
+}
+
+class ShellState( val history: Array[String], val baseHandler: CommandHandler ) {}
 
 class CommandShell( val baseHandler: CommandHandler) {
   protected val console = System.console()
 
   @tailrec
-  private def execute( handlerOpt: Option[CommandHandler], history: Array[String]= Array.empty[String] ): Unit = {
-    val handler = handlerOpt match { case None => baseHandler; case Some(new_handler) => new_handler }
+  private def execute( handler: CommandHandler, history: Array[String]= Array.empty[String] ): Unit = {
     val command: String = console.readLine( handler.getPrompt )
-    if( !quitRequested(command) ) execute( handler.process(command), history :+ command   )
+    if( !quitRequested(command) ) execute( handler.process(command, new ShellState(history,baseHandler) ), history :+ command   )
   }
 
   protected def quitRequested( command: String ): Boolean = command.toLowerCase().startsWith("quit")
-  def run = execute( Some(baseHandler) )
+  def run = execute( baseHandler )
 }
 
-class MultiStepCommandHandler( val prompts: Array[String], val validators: Array[String], val executor: (Array[String]) => Unit, val inputs: Array[String] = Array.empty[String]  ) extends CommandHandler {
+final class MultiStepCommandHandler( name: String, description: String, val prompts: Array[String], val validators: Array[String], val executor: (Array[String]) => Unit, val inputs: Array[String] = Array.empty[String]  )
+  extends CommandHandler(name,description) {
 
-  def process(command: String): Option[CommandHandler] = {
+  def process(command: String, state: ShellState): CommandHandler = {
     if( valid( command, validators.head ) ) {
       if ( prompts.length > 1 ) {
-        Some( new MultiStepCommandHandler(prompts.tail, validators.tail, executor, inputs :+ command ) )
+        new MultiStepCommandHandler(name, description, prompts.tail, validators.tail, executor, inputs :+ command )
       } else {
         executor( inputs :+ command )
-        None
+        state.baseHandler
       }
-    } else { Some(this) }
+    } else { this }
   }
   def getPrompt = prompts.head
 
@@ -49,23 +63,41 @@ class MultiStepCommandHandler( val prompts: Array[String], val validators: Array
   }
 }
 
-object echoHandler extends CommandHandler {
-  def process( command: String ): Option[CommandHandler] = { println( "Executing: " + command ); None }
-  def getPrompt: String = "Command >> "
+final class ListSelectionCommandHandler( name: String, description: String, val getChoices: () => Array[String], val executor: (String) => Unit, var errorState: Boolean = false) extends CommandHandler(name,description) {
+  def this( name: String, description: String, choices: Array[String], executor: (String) => Unit, errorState: Boolean = false ) = this( name, description, () => choices, executor, errorState )
+  val choices: Array[String] = getChoices()
+  val selectionList: String = choices.zipWithIndex.map { case (v, i) => s"\t $i: $v" } mkString ("\n")
+
+  def process(command: String, state: ShellState): CommandHandler = {
+    if (command.isEmpty) { state.baseHandler }
+    else try {
+      executor(choices(command.toInt));
+      state.baseHandler
+    } catch {
+      case t: Throwable => new ListSelectionCommandHandler(name, description, choices, executor, true)
+    }
+  }
+
+  def getPrompt = if (errorState) "   Invalid entry, please try again: " else s"Options:\n$selectionList\n > Enter index of choice: "
 }
 
-object testBaseHandler extends CommandHandler {
-  def process( command: String ):  Option[CommandHandler] = {
-    if(command.startsWith("c")) {
-      Some( new MultiStepCommandHandler( Array("Enter one >> ", "Enter two >> ", "Enter three >> "), Array("i1", "i2", "i3"), (vals) => println( vals.mkString(",") ) ) {} )
-    }
-    else Some(echoHandler)
-  }
-  def getPrompt: String = ">> "
+class SelectionCommandHandler( name: String, description: String, val prompt: String, val handlers: Array[CommandHandler] ) extends CommandHandler(name,description) {
+  def getPrompt = prompt
+  def process( command: String, state: ShellState ):  Option[CommandHandler] = handlers.find( _.matches(command) )
+}
+
+class EchoHandler(name: String, description: String, val prompt: String ) extends CommandHandler(name,description)  {
+  def process( command: String, state: ShellState ): Option[CommandHandler] = { println( "Executing: " + command ); None }
+  def getPrompt: String = prompt
 }
 
 object consoleTest extends App {
-  val shell = new CommandShell( testBaseHandler )
+  val testHandlers = Array(
+    new MultiStepCommandHandler( "[m]ultistep", "MultiStepCommandHandler", Array("Enter one >> ", "Enter two >> ", "Enter three >> "), Array("i1", "i2", "i3"), (vals) => println( vals.mkString(",") ) ),
+    new ListSelectionCommandHandler( "[s]election", "ListSelectionCommandHandler", Array("value1", "value2", "value3"),  (value: String) => println( s"Selection: $value" )  ),
+    new EchoHandler( "[e]cho", "EchoHandler", "Input Command >> " )
+  )
+  val shell = new CommandShell( new SelectionCommandHandler( "selection", "BaseHandler", ">> ", testHandlers ) )
   shell.run
 }
 
