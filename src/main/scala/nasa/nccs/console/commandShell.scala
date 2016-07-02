@@ -11,48 +11,36 @@ import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Future
 
-
 trait CommandHandler {
-  def process( command: String ): ExecuteResponse
+  def process( command: String ): Option[CommandHandler]
+  def getPrompt: String
 }
 
-object ExecuteResponse {
-  def apply( prompt: String, handler:CommandHandler ) = { new ExecuteResponse( Some(prompt), Some(handler) ) }
-  def empty = new ExecuteResponse( None, None)
-}
-class ExecuteResponse( val prompt: Option[String], val handler: Option[CommandHandler] ) {}
-
-class CommandShell( val basePrompt: String, val baseHandler: CommandHandler) {
+class CommandShell( val baseHandler: CommandHandler) {
   protected val console = System.console()
 
   @tailrec
-  private def execute( response: ExecuteResponse, history: Array[String]= Array.empty[String] ): Unit = {
-    val command: String = console.readLine( getPrompt(response) )
-    if( !quitRequested(command) ) execute( getHandler(response).process(command), history :+ command   )
+  private def execute( handlerOpt: Option[CommandHandler], history: Array[String]= Array.empty[String] ): Unit = {
+    val handler = handlerOpt match { case None => baseHandler; case Some(new_handler) => new_handler }
+    val command: String = console.readLine( handler.getPrompt )
+    if( !quitRequested(command) ) execute( handler.process(command), history :+ command   )
   }
 
-  protected def getPrompt( response: ExecuteResponse ): String = response.prompt match { case None => basePrompt; case Some( prompt ) => response.handler match { case None => prompt + "\n" + basePrompt; case Some( handler ) => prompt } }
-  protected def getHandler( response: ExecuteResponse ): CommandHandler = response.handler match { case None => baseHandler; case Some( handler ) => handler }
   protected def quitRequested( command: String ): Boolean = command.toLowerCase().startsWith("quit")
-
-  def run = execute( ExecuteResponse( basePrompt, baseHandler) )
-
+  def run = execute( Some(baseHandler) )
 }
 
 class MultiStepCommandHandler( val prompts: Array[String], val validators: Array[String], val executor: (Array[String]) => Unit, val inputs: Array[String] = Array.empty[String]  ) extends CommandHandler {
 
-  def process(command: String): ExecuteResponse = {
+  def process(command: String): Option[CommandHandler] = {
     if( valid( command, validators.head ) ) {
-      val accum_inputs = inputs :+ command
       if ( prompts.length > 1 ) {
-        ExecuteResponse( prompts.tail.head, new MultiStepCommandHandler(prompts.tail, validators.tail, executor, accum_inputs ))
+        Some( new MultiStepCommandHandler(prompts.tail, validators.tail, executor, inputs :+ command ) )
       } else {
-        executor( accum_inputs )
-        ExecuteResponse.empty
+        executor( inputs :+ command )
+        None
       }
-    } else {
-      ExecuteResponse("Invalid response, please try again: ", this )
-    }
+    } else { Some(this) }
   }
   def getPrompt = prompts.head
 
@@ -61,19 +49,31 @@ class MultiStepCommandHandler( val prompts: Array[String], val validators: Array
   }
 }
 
-object testEchoHandler extends CommandHandler {
-  def process( command: String ): ExecuteResponse = new ExecuteResponse( Some("Executing command: " + command ), None )
+object echoHandler extends CommandHandler {
+  def process( command: String ): Option[CommandHandler] = { println( "Executing: " + command ); None }
+  def getPrompt: String = "Command >> "
 }
 
 object testBaseHandler extends CommandHandler {
-  def process( command: String ): ExecuteResponse = {
+  def process( command: String ):  Option[CommandHandler] = {
     if(command.startsWith("c")) {
-      val handler = new MultiStepCommandHandler( Array("Enter one >> ", "Enter two >> ", "Enter three >> "), Array("i1", "i2", "i3"), (vals) => println( vals.mkString(",") ) ) {}
-      ExecuteResponse( handler.getPrompt, handler )
+      Some( new MultiStepCommandHandler( Array("Enter one >> ", "Enter two >> ", "Enter three >> "), Array("i1", "i2", "i3"), (vals) => println( vals.mkString(",") ) ) {} )
     }
-    else new ExecuteResponse( Some("Executing command: " + command ), None )
+    else Some(echoHandler)
   }
+  def getPrompt: String = ">> "
 }
+
+object consoleTest extends App {
+  val shell = new CommandShell( testBaseHandler )
+  shell.run
+}
+
+
+
+
+
+
 
 //  def process(command: String ): ExecuteResponse = {
 //    if( command.startsWith("t") ) {
@@ -82,10 +82,6 @@ object testBaseHandler extends CommandHandler {
 //  }
 //}
 
-object consoleTest extends App {
-  val shell = new CommandShell( ">>", testBaseHandler )
-  shell.run
-}
 
 //class ListSelectionCommandHandler( choices: Array[String], executor: (String) => Unit ) extends CommandHandler {
 //
