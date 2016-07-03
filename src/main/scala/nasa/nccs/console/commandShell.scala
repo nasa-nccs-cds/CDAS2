@@ -63,7 +63,7 @@ final class MultiStepCommandHandler( name: String, description: String, val prom
   }
 }
 
-final class ListSelectionCommandHandler( name: String, description: String, val getChoices: () => Array[String], val executor: (String) => Unit, var errorState: Boolean = false) extends CommandHandler(name,description) {
+final class ListSelectionCommandHandler( name: String, description: String, val getChoices: () => Array[String], val executor: (String) => Unit, var errorState: Boolean) extends CommandHandler(name,description) {
   def this( name: String, description: String, choices: Array[String], executor: (String) => Unit, errorState: Boolean = false ) = this( name, description, () => choices, executor, errorState )
   val choices: Array[String] = getChoices()
   val selectionList: String = choices.zipWithIndex.map { case (v, i) => s"\t $i: $v" } mkString ("\n")
