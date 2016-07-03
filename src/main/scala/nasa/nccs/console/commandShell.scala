@@ -17,44 +17,48 @@ object ParseHelp {
 
 abstract class CommandHandler( val name: String, val description: String ) {
   val id: String = extractMatchId
-  def process( command: String, state: ShellState ): CommandHandler
+  def process( state: ShellState ): ShellState
   def getPrompt: String
-  def matches( command: String ): Boolean = { command.toLowerCase.startsWith(id) }
-  def extractMatchId = {
-    val s0 = name.toLowerCase
-    val s1 = s0.split('[')
-    val s2 = s1.last.split(']')
-    s2.head
-  }
+  def matches( command: String ): Boolean = command.toLowerCase.startsWith(id)
+  def extractMatchId = name.toLowerCase.split('[').last.split(']').head
 }
 
-class ShellState( val history: Array[String], val baseHandler: CommandHandler ) {}
+class ShellState( val handlerStack: Vector[CommandHandler], val history: Array[String]= Array.empty[String]  ) {
+  def pushHandler( handler: CommandHandler ): ShellState = { new ShellState( handlerStack :+ handler, history ) }
+  def updateHandler( handler: CommandHandler ): ShellState = { new ShellState( handlerStack.dropRight(1) :+ handler, history ) }
+  def popHandler: ShellState = { new ShellState( handlerStack.dropRight(1), history ) }
+  def handleCommand( command: String ): ShellState = handlerStack.last.process( new ShellState( handlerStack, history :+ command ) )   // handlerStack.dropRight(1)
+  def getPrompt = handlerStack.last.getPrompt
+  def getTopCommand = history.last
+  def getStackStr = handlerStack.map( _.id ).mkString( "( ",", "," )")
+}
 
 class CommandShell( val baseHandler: CommandHandler) {
   protected val console = System.console()
 
   @tailrec
-  private def execute( handler: CommandHandler, history: Array[String]= Array.empty[String] ): Unit = {
-    val command: String = console.readLine( handler.getPrompt )
-    if( !quitRequested(command) ) execute( handler.process(command, new ShellState(history,baseHandler) ), history :+ command   )
+  private def execute( state: ShellState ): Unit = {
+    val command: String = console.readLine( state.getPrompt )
+    if( !quitRequested(command) ) execute( state.handleCommand( command ) )
   }
 
   protected def quitRequested( command: String ): Boolean = command.toLowerCase().startsWith("quit")
-  def run = execute( baseHandler )
+  def run = execute( new ShellState( Vector(baseHandler) ) )
 }
 
 final class MultiStepCommandHandler( name: String, description: String, val prompts: Array[String], val validators: Array[String], val executor: (Array[String]) => Unit, val inputs: Array[String] = Array.empty[String]  )
   extends CommandHandler(name,description) {
 
-  def process(command: String, state: ShellState): CommandHandler = {
+  def process( state: ShellState ): ShellState = {
+    val command = state.getTopCommand
     if( valid( command, validators.head ) ) {
       if ( prompts.length > 1 ) {
-        new MultiStepCommandHandler(name, description, prompts.tail, validators.tail, executor, inputs :+ command )
+        state.updateHandler( new MultiStepCommandHandler(name, description, prompts.tail, validators.tail, executor, inputs :+ command ) )
       } else {
         executor( inputs :+ command )
-        state.baseHandler
+        state.popHandler
       }
-    } else { this }
+    } else state.popHandler
   }
   def getPrompt = prompts.head
 
@@ -68,13 +72,14 @@ final class ListSelectionCommandHandler( name: String, description: String, val 
   val choices: Array[String] = getChoices()
   val selectionList: String = choices.zipWithIndex.map { case (v, i) => s"\t $i: $v" } mkString ("\n")
 
-  def process(command: String, state: ShellState): CommandHandler = {
-    if (command.isEmpty) { state.baseHandler }
+  def process( state: ShellState): ShellState = {
+    val command = state.getTopCommand
+    if (command.isEmpty) { state.popHandler }
     else try {
       executor(choices(command.toInt));
-      state.baseHandler
+      state.popHandler
     } catch {
-      case t: Throwable => new ListSelectionCommandHandler(name, description, choices, executor, true)
+      case t: Throwable => state.pushHandler( new ListSelectionCommandHandler(name, description, choices, executor, true) )
     }
   }
 
@@ -83,11 +88,13 @@ final class ListSelectionCommandHandler( name: String, description: String, val 
 
 class SelectionCommandHandler( name: String, description: String, val prompt: String, val handlers: Array[CommandHandler] ) extends CommandHandler(name,description) {
   def getPrompt = prompt
-  def process( command: String, state: ShellState ):  Option[CommandHandler] = handlers.find( _.matches(command) )
+  def process( state: ShellState ):  ShellState = {
+    handlers.find( _.matches( state.getTopCommand ) ) match { case Some(handler) => state.pushHandler( handler ); case None => state.popHandler }
+  }
 }
 
 class EchoHandler(name: String, description: String, val prompt: String ) extends CommandHandler(name,description)  {
-  def process( command: String, state: ShellState ): Option[CommandHandler] = { println( "Executing: " + command ); None }
+  def process( state: ShellState ): ShellState = { println( "Executing: " + state.getTopCommand  ); state.popHandler }
   def getPrompt: String = prompt
 }
 
@@ -97,7 +104,7 @@ object consoleTest extends App {
     new ListSelectionCommandHandler( "[s]election", "ListSelectionCommandHandler", Array("value1", "value2", "value3"),  (value: String) => println( s"Selection: $value" )  ),
     new EchoHandler( "[e]cho", "EchoHandler", "Input Command >> " )
   )
-  val shell = new CommandShell( new SelectionCommandHandler( "selection", "BaseHandler", ">> ", testHandlers ) )
+  val shell = new CommandShell( new SelectionCommandHandler( "base", "BaseHandler", ">> ", testHandlers ) )
   shell.run
 }
 
