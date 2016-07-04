@@ -438,7 +438,7 @@ object DataContainer extends ContainerBase {
   }
 }
 
-class DomainContainer( val name: String, val axes: List[DomainAxis], val mask: Option[String] ) extends ContainerBase {
+class DomainContainer( val name: String, val axes: List[DomainAxis] = List.empty[DomainAxis], val mask: Option[String]=None ) extends ContainerBase {
   override def toString = {
     s"DomainContainer { name = $name, axes = $axes }"
   }
@@ -522,6 +522,8 @@ object DomainContainer extends ContainerBase {
         throw new Exception( e.getMessage, e )
     }
   }
+
+  def empty( name: String ):  DomainContainer = new DomainContainer( name )
 }
 
 class WorkflowContainer(val operations: Iterable[OperationContext] = List() ) extends ContainerBase {

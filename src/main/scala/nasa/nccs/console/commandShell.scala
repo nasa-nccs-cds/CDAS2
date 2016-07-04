@@ -21,6 +21,7 @@ abstract class CommandHandler( val name: String, val description: String ) {
   def getPrompt( state: ShellState ): String
   def matches( command: String ): Boolean = command.toLowerCase.startsWith(id)
   def extractMatchId = name.toLowerCase.split('[').last.split(']').head
+  def help: String = { s" * '$name': $description"}
 }
 
 class ShellState( val handlerStack: Vector[CommandHandler], val history: Array[String]= Array.empty[String]  ) {
@@ -46,19 +47,23 @@ class CommandShell( val baseHandler: CommandHandler) {
   def run = execute( new ShellState( Vector(baseHandler) ) )
 }
 
-final class MultiStepCommandHandler( name: String, description: String, val prompts: Array[String], val validators: Array[String], val executor: (Array[String]) => Unit, val inputs: Array[String] = Array.empty[String]  )
+final class MultiStepCommandHandler( name: String, description: String, val prompts: Array[String], val validators: Array[(String)=>Option[String]], val executor: (Array[String]) => Unit, val inputs: Array[String] = Array.empty[String]  )
   extends CommandHandler(name,description) {
 
   def process( state: ShellState ): ShellState = {
-    val command = state.getTopCommand
-    if( valid( command, validators.head ) ) {
-      if ( prompts.length > 1 ) {
-        state.updateHandler( new MultiStepCommandHandler(name, description, prompts.tail, validators.tail, executor, inputs :+ command ) )
-      } else {
-        executor( inputs :+ command )
-        state.popHandler()
-      }
-    } else state.popHandler()
+    val command = state.getTopCommand.replace(","," ")
+    validators.head( command ) match {
+      case None =>
+        if ( prompts.length > 1 ) {
+          state.updateHandler( new MultiStepCommandHandler(name, description, prompts.tail, validators.tail, executor, inputs :+ command ) )
+        } else {
+          executor( inputs :+ command )
+          state.popHandler()
+        }
+      case Some( errorMsg ) =>
+        val new_prompts = s"Invalid input($errorMsg), please try again: " +: prompts.drop(1)
+        state.updateHandler( new MultiStepCommandHandler(name, description, new_prompts, validators, executor, inputs ) )
+    }
   }
   def getPrompt( state: ShellState ) = prompts.head
 
@@ -91,11 +96,17 @@ class SelectionCommandHandler( name: String, description: String, val prompt: St
   def process( state: ShellState ):  ShellState = {
     handlers.find( _.matches( state.getTopCommand ) ) match { case Some(handler) => state.pushHandler( handler ); case None => state.popHandler() }
   }
+  override def help: String = { s"Commands: \n" + handlers.map( _.help ).mkString("\n") }
 }
 
 class EchoHandler(name: String, description: String, val prompt: String ) extends CommandHandler(name,description)  {
   def process( state: ShellState ): ShellState = { println( "Executing: " + state.getTopCommand  ); state.popHandler() }
   def getPrompt( state: ShellState ): String = prompt
+}
+
+class HelpHandler(name: String, description: String ) extends CommandHandler(name,description)  {
+  def process( state: ShellState ): ShellState = { state.popHandler() }
+  def getPrompt( state: ShellState ): String = state.handlerStack.head.help + "\n"
 }
 
 class HistoryHandler( name: String, val executor: (String) => Unit, var errorState: Boolean = false ) extends CommandHandler( name, "Displays and (optionally) executes commands from the shell history" )  {
@@ -118,10 +129,11 @@ class HistoryHandler( name: String, val executor: (String) => Unit, var errorSta
 
 object consoleTest extends App {
   val testHandlers = Array(
-    new MultiStepCommandHandler( "[m]ultistep", "MultiStepCommandHandler", Array("Enter one >> ", "Enter two >> ", "Enter three >> "), Array("i1", "i2", "i3"), (vals) => println( vals.mkString(",") ) ),
+    new MultiStepCommandHandler( "[m]ultistep", "MultiStepCommandHandler", Array("Enter one >> ", "Enter two >> ", "Enter three >> "), Array( (x)=>None, (x)=>None, (x)=>None ), (vals) => println( vals.mkString(",") ) ),
     new ListSelectionCommandHandler( "[s]election", "ListSelectionCommandHandler", Array("value1", "value2", "value3"),  (value: String) => println( s"Selection: $value" )  ),
     new EchoHandler( "[e]cho", "EchoHandler", "Input Command >> " ),
-    new HistoryHandler( "[h]istory",  (value: String) => println( s"History Selection: $value" )  )
+    new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
+    new HelpHandler( "[h]elp", "Command Help" )
   )
   val shell = new CommandShell( new SelectionCommandHandler( "base", "BaseHandler", ">> ", testHandlers ) )
   shell.run
