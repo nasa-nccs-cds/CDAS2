@@ -61,7 +61,7 @@ final class MultiStepCommandHandler( name: String, description: String, val prom
           state.popHandler()
         }
       case Some( errorMsg ) =>
-        val new_prompts = s"Invalid input($errorMsg), please try again: " +: prompts.drop(1)
+        val new_prompts = s"Input error: $errorMsg, please try again: " +: prompts.drop(1)
         state.updateHandler( new MultiStepCommandHandler(name, description, new_prompts, validators, executor, inputs ) )
     }
   }
