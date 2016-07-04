@@ -51,7 +51,7 @@ final class MultiStepCommandHandler( name: String, description: String, val prom
   extends CommandHandler(name,description) {
 
   def process( state: ShellState ): ShellState = {
-    val command = state.getTopCommand.replace(","," ")
+    val command = state.getTopCommand
     validators.head( command ) match {
       case None =>
         if ( prompts.length > 1 ) {
