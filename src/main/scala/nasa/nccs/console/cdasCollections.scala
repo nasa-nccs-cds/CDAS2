@@ -7,7 +7,8 @@ import nasa.nccs.cdapi.kernels.ExecutionResults
 import nasa.nccs.cds2.engine.CDS2ExecutionManager
 import nasa.nccs.esgf.process.TaskRequest
 
-class cdasCollections( executionManager: CDS2ExecutionManager ) {
+class CdasCollections( executionManager: CDS2ExecutionManager ) {
+  val printer = new xml.PrettyPrinter(200, 3)
 
   def generateAggregation(inputs: Vector[String]): Unit = {
     val uri: String = "collection:/" + inputs(0)
@@ -50,6 +51,25 @@ class cdasCollections( executionManager: CDS2ExecutionManager ) {
     )
   }
 
-  def executeTask( taskRequest: TaskRequest, runArgs: Map[String,String] = Map.empty[String,String] ): ExecutionResults = executionManager.blockingExecute(taskRequest, runArgs)
+  def getListCollectionsCommand: ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[lc]ollections", "List available collections", Collections.getCollectionKeys, (cids:Array[String]) => cids.foreach( cid => printCollectionMetadata( cid ) ) )
+  }
 
+  def executeTask( taskRequest: TaskRequest, runArgs: Map[String,String] = Map.empty[String,String] ): ExecutionResults = executionManager.blockingExecute(taskRequest, runArgs)
+  def printCollectionMetadata( collectionId: String  ): Unit = println( printer.format( Collections.getCollectionXml( collectionId ) ) )
 }
+
+object collectionsConsoleTest extends App {
+  val cdasCollections = new CdasCollections( new CDS2ExecutionManager(Map.empty) )
+  val handlers = Array(
+    cdasCollections.getAggregateCommand,
+    cdasCollections.getListCollectionsCommand,
+    new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
+    new HelpHandler( "[h]elp", "Command Help" )
+  )
+  val shell = new CommandShell( new SelectionCommandHandler( "base", "BaseHandler", ">> ", handlers ) )
+  shell.run
+}
+
+// nasa.nccs.console.collectionsConsoleTest
+

@@ -1,5 +1,5 @@
 package nasa.nccs.console
-import java.io.Console
+import java.io.{Console, PrintWriter, StringWriter}
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.cds2.engine.MetadataPrinter
@@ -52,22 +52,23 @@ class CommandShell( val baseHandler: CommandHandler) {
   def run = execute( new ShellState( Vector(baseHandler) ) )
 }
 
-final class MultiStepCommandHandler( name: String, description: String, val prompts: Vector[String], val validators: Vector[(String)=>Option[String]], val executor: (Vector[String]) => Unit  )
+final class MultiStepCommandHandler( name: String, description: String, val prompts: Vector[String], val validators: Vector[(String)=>Option[String]], val executor: (Vector[String]) => Unit, val length: Int = -1  )
   extends CommandHandler(name,description) {
+  val _length = if( length > 0 ) length else prompts.length
 
   def process( state: ShellState ): ShellState = {
     val command = state.getTopCommand
     validators.head( command ) match {
       case None =>
         if ( prompts.length > 1 ) {
-          state.updateHandler( new MultiStepCommandHandler(name, description, prompts.tail, validators.tail, executor ) )
+          state.updateHandler( new MultiStepCommandHandler(name, description, prompts.tail, validators.tail, executor, _length ) )
         } else {
-          executor( state.history.takeRight(prompts.length) )
+          executor( state.history.takeRight(_length) )
           state.popHandler()
         }
       case Some( errorMsg ) =>
         val new_prompts = s"Input error: $errorMsg, please try again: " +: prompts.drop(1)
-        state.updateHandler( new MultiStepCommandHandler(name, description, new_prompts, validators, executor ) )
+        state.updateHandler( new MultiStepCommandHandler(name, description, new_prompts, validators, executor, _length ) )
     }
   }
   def getPrompt( state: ShellState ) = prompts.head
@@ -105,10 +106,14 @@ final class ListSelectionCommandHandler( name: String, description: String, val 
     if (command.isEmpty) { state.popHandler() }
     else try {
       val args = getArgs(command)
-      executor( args.map( arg => choices(arg.toInt) ));
+      executor( args.map( arg => choices(arg.toInt) ))
       state.popHandler()
     } catch {
-      case t: Throwable => state.updateHandler( new ListSelectionCommandHandler(name, description, choices, executor, true) )
+      case t: Throwable =>
+        val sw = new StringWriter
+        t.printStackTrace(new PrintWriter(sw))
+        printf( sw.toString )
+        state.updateHandler( new ListSelectionCommandHandler(name, description, choices, executor, true) )
     }
   }
 
@@ -116,7 +121,7 @@ final class ListSelectionCommandHandler( name: String, description: String, val 
     try{ getArgs(command).foreach( sval => assertBounds( sval.toInt, 0, choices.length-1 )  ); None } catch { case ex: Throwable => Some("Entry error: " + ex.getMessage) }
   }
 
-  def getPrompt( state: ShellState ) = if (errorState) "   Invalid entry, please try again: " else s"Options:\n$selectionList\n > Enter index of choice: "
+  def getPrompt( state: ShellState ) = if (errorState) "   Invalid entry, please try again: " else s"Options:\n$selectionList\n > Enter index(es) of choice(s): "
 }
 
 class SelectionCommandHandler( name: String, description: String, val prompt: String, val cmd_handlers: Array[CommandHandler] ) extends CommandHandler(name,description) {
