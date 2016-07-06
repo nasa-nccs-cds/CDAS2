@@ -1,5 +1,5 @@
 package nasa.nccs.cds2.loaders
-import java.io.{FileNotFoundException, FileOutputStream}
+import java.io.{File, FileNotFoundException, FileOutputStream}
 import java.net.URL
 import java.nio.channels.Channels
 import java.nio.file.{Files, Path, Paths}
@@ -9,7 +9,9 @@ import scala.collection.JavaConversions._
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.cdapi.cdm.{Collection, NCMLWriter}
+import nasa.nccs.console.ShellState
 import nasa.nccs.utilities.Loggable
+import ucar.nc2.dataset.NetcdfDataset
 
 import scala.concurrent.Future
 import scala.xml.XML
@@ -108,15 +110,40 @@ object Collections extends XmlResource {
     uri.toLowerCase.split(":").last.stripPrefix("/").stripPrefix("/").replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ".xml"
   }
 
+  def removeCollection( collectionId: String ) = {
+    findCollection( collectionId: String ) match {
+      case Some( collection ) =>
+        datasets.remove(collectionId)
+        if( collection.ctype.equals("file") ) { collection.ncmlFile.delete() }
+        persistLocalCollections()
+      case None =>
+        logger.error( "Attempt to delete collection that does not exist: " + collectionId )
+    }
+  }
+
   def addCollection( uri: String, path: String, fileFilter: String="", vars: List[String] = List.empty[String] ): Collection = {
-    val prettyPrint = true
     val url = "file:" + NCMLWriter.getCachePath("NCML").resolve( uriToFile(uri) )
     val id = uri.split(":").last.stripPrefix("/").stripPrefix("/").toLowerCase
-    val collection = Collection( id, url, path, fileFilter, "local", vars )
-    datasets.put( uri, collection  )
-    if(prettyPrint) saveXML( getFilePath("/local_collections.xml"), toXml("local") )
-    else XML.save( getFilePath("/local_collections.xml"), toXml("local") )
+    val cvars = if(vars.isEmpty) getVariableList( path ) else vars
+    val collection = Collection( id, url, path, fileFilter, "local", cvars )
+    datasets.put( id, collection  )
+    persistLocalCollections()
     collection
+  }
+
+  def findNcFile(file: File): Option[File] = {
+    file.listFiles foreach { f => if (NCMLWriter.isNcFile(f)) return Some(f) }
+    file.listFiles foreach { f => if (f.isDirectory) { findNcFile(f) match { case Some(f) => return Some(f); case None => Unit } } }
+    None
+  }
+
+  def getVariableList( path: String ): List[String] = {
+    findNcFile( new File(path) ) match {
+      case Some(f) =>
+        val dset: NetcdfDataset = NetcdfDataset.openDataset( f.getAbsolutePath )
+        dset.getVariables.toList.flatMap( v => if(v.isCoordinateVariable) None else Some(v.getShortName) )
+      case None => throw new Exception( "Can't find any nc files in dataset path: " + path )
+    }
   }
 
 //  def loadCollectionTextData(url:URL): Map[String,Collection] = {
@@ -142,6 +169,10 @@ object Collections extends XmlResource {
       } catch { case err: java.io.IOException => throw new Exception( "Error opening collection data file {%s}: %s".format( filePath, err.getMessage) ) }
     }
     datasets
+  }
+  def persistLocalCollections(prettyPrint: Boolean = true) = {
+    if(prettyPrint) saveXML( getFilePath("/local_collections.xml"), toXml("local") )
+    else XML.save( getFilePath("/local_collections.xml"), toXml("local") )
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
@@ -177,13 +208,13 @@ object Collections extends XmlResource {
 //    }
 //  }
 
-  def getCollectionKeys: Array[String] = datasets.keys.toArray
-
+  def getCollectionKeys( state: ShellState ): Array[String] = getCollectionKeys()
+  def getCollectionKeys(): Array[String] = datasets.keys.toArray
 }
 
 
 object TestCollection extends App {
-  println( Collections.isChild( "/tmp",  "/tmp" ) )
+  println( Collections.findNcFile( new File("/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY") ) )
 }
 
 object TestMasks extends App {
