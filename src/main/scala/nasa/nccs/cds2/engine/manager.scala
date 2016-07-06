@@ -143,7 +143,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     if(resultFile.exists) Some(resultFile.getAbsolutePath) else None
   }
 
-  def executeAsync( request: TaskRequest, run_args: Map[String,String] ): ( String, Future[ExecutionResults] ) = {
+  def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): ( String, Future[ExecutionResults] ) = {
     logger.info("Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
     val async = run_args.getOrElse("async", "false").toBoolean
     val resultId = "r" + counter.get.toString
@@ -255,7 +255,7 @@ object executionTest extends App {
   val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
   val t0 = System.nanoTime
   if(async) {
-    cds2ExecutionManager.executeAsync(request, run_args) match {
+    cds2ExecutionManager.asyncExecute(request, run_args) match {
       case ( resultId: String, futureResult: Future[ExecutionResults] ) =>
         val t1 = System.nanoTime
         println ("Initial Result, time = %.4f ".format ((t1 - t0) / 1.0E9) )
@@ -523,7 +523,7 @@ object execConstantTest extends App {
   val run_args = Map( "async" -> async.toString )
   val request = SampleTaskRequests.getConstant( "/MERRA/mon/atmos", "ta", 10 )
   if(async) {
-    cds2ExecutionManager.executeAsync(request, run_args) match {
+    cds2ExecutionManager.asyncExecute(request, run_args) match {
       case ( resultId: String, futureResult: Future[ExecutionResults] ) =>
         val result = Await.result (futureResult, Duration.Inf)
         println(">>>> Async Result: " + result )
