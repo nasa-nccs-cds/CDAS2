@@ -1,6 +1,7 @@
 package nasa.nccs.console
 import java.nio.file.{Files, Paths}
 
+import nasa.nccs.caching.collectionDataCache
 import nasa.nccs.cdapi.cdm.Collection
 import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.cdapi.kernels.ExecutionResults
@@ -76,7 +77,7 @@ class CdasCollections( executionManager: CDS2ExecutionManager ) {
   def validDomainId( domId: String ): Option[String] = { None }
   def validVariables( vars: String ): Option[String] = { None }
 
-  def getAggregateCommand: MultiStepCommandHandler = {
+  def aggregateDatasetCommand: MultiStepCommandHandler = {
     new MultiStepCommandHandler("[ag]gregate", "Create collection by defining aggregated dataset",
       Vector( "Enter collection id >>", "Enter path to dataset directory >>" ),
       Vector( validCollectionId(false) _, validDirecory ),
@@ -84,9 +85,9 @@ class CdasCollections( executionManager: CDS2ExecutionManager ) {
     )
   }
 
-  def getCacheCommand: SequentialCommandHandler = {
+  def cacheFragmentCommand: SequentialCommandHandler = {
     new SequentialCommandHandler("[ca]che", "Cache variable[s] from a collection",
-      Vector( getSelectCollectionsCommand, cdasDomainManager.getSelectDomainCommand, getSelectVariablesCommand  ),
+      Vector( selectCollectionsCommand, cdasDomainManager.selectDomainCommand, selectVariablesCommand  ),
       cacheVariables
     )
   }
@@ -103,16 +104,16 @@ class CdasCollections( executionManager: CDS2ExecutionManager ) {
     }
   }
 
-  def getListCollectionsCommand: ListSelectionCommandHandler = {
+  def listCollectionsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[lc]ollections", "List collection metadata", Collections.getCollectionKeys, (cids:Array[String],state) => { cids.foreach( cid => printCollectionMetadata( cid ) ); state } )
   }
-  def getDeleteCollectionsCommand: ListSelectionCommandHandler = {
+  def deleteCollectionsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[dc]ollections", "Delete specified collections", Collections.getCollectionKeys, (cids:Array[String],state) => { cids.foreach( cid => Collections.removeCollection( cid ) ); state } )
   }
-  def getSelectCollectionsCommand: ListSelectionCommandHandler = {
+  def selectCollectionsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", Collections.getCollectionKeys, ( cids:Array[String], state ) => state :+ Map( "collections" -> cids )  )
   }
-  def getSelectVariablesCommand: ListSelectionCommandHandler = {
+  def selectVariablesCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sv]ariables", "Select variables from selected collection(s)", getVariableList, (cids:Array[String],state) => { state :+ Map( "variables" -> cids ) } )
   }
 
@@ -123,11 +124,13 @@ class CdasCollections( executionManager: CDS2ExecutionManager ) {
 object collectionsConsoleTest extends App {
   val cdasCollections = new CdasCollections( new CDS2ExecutionManager(Map.empty) )
   val handlers = Array(
-    cdasCollections.getAggregateCommand,
-    cdasCollections.getCacheCommand,
-    cdasCollections.getListCollectionsCommand,
-    cdasCollections.getDeleteCollectionsCommand,
-    cdasDomainManager.getDefineDomainHandler,
+    cdasCollections.aggregateDatasetCommand,
+    cdasCollections.cacheFragmentCommand,
+    cdasCollections.listCollectionsCommand,
+    cdasCollections.deleteCollectionsCommand,
+    collectionDataCache.listFragmentsCommand,
+    collectionDataCache.deleteFragmentsCommand,
+    cdasDomainManager.defineDomainHandler,
     new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
     new HelpHandler( "[h]elp", "Command Help" )
   )

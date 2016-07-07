@@ -68,10 +68,10 @@ object cdasDomainManager {
     None
   }
 
-  def getDefineDomainHandler: MultiStepCommandHandler = new MultiStepCommandHandler( "[d]omain", "Define new domain", Vector("Lon","Lat","Level","Time").map(_+" bounds: <[i]ndex/[v]alue>, <bound0>, (<bound1>) >> "),
+  def defineDomainHandler: MultiStepCommandHandler = new MultiStepCommandHandler( "[d]omain", "Define new domain", Vector("Lon","Lat","Level","Time").map(_+" bounds: <[i]ndex/[v]alue>, <bound0>, (<bound1>) >> "),
         Vector(X,Y,Z,T).map(domainAxisValidator(_) _ ), (vals,state) => { createDomain( vals ); state } )
 
-  def getSelectDomainCommand: ListSelectionCommandHandler = {
+  def selectDomainCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sd]omain", "Select domain(s)", getDomainSelectionList, ( cids:Array[String], state ) => { state :+ Map( "domains" -> cids.map( _.split(':')(0).trim ) ) } )
   }
 

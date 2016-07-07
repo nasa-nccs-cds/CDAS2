@@ -248,6 +248,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
       case Some(maskId) => <input varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
+  def toBoundsString = targetGridOpt.map( _.toBoundsString ).getOrElse("")
 
   def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
     case Some( array ) => array
@@ -491,11 +492,8 @@ class DomainAxis( val axistype: DomainAxis.Type.Value, val start: GenericNumber,
   val name =   axistype.toString
   def getCFAxisName: String = axistype match { case X => "X"; case Y => "Y"; case Z => "Z"; case T => "T" }
   def getCoordAxisName: String = DomainAxis.coordAxisName(axistype)
-
-  override def toString = {
-    s"DomainAxis { name = $name, start = $start, end = $end, system = $system, bounds = $bounds }"
-  }
-
+  override def toString = s"DomainAxis { name = $name, start = $start, end = $end, system = $system, bounds = $bounds }"
+  def toBoundsString = s"$name:[$start,$end,$system]"
   def toDataInput: (String,Map[String,String]) = (getCoordAxisName -> Map("start" -> start.toString, "end" -> end.toString, "system" -> system) )
 
   override def toXml = {

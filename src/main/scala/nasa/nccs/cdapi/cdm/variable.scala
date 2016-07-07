@@ -66,6 +66,7 @@ class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray]
 //  private val invalid: Float = array.getInvalid
 
   def this() = this( CDFloatArray( Array(0), Array.emptyFloatArray, Float.MaxValue ), None, new DataFragmentSpec )
+  def toBoundsString = fragmentSpec.toBoundsString
 
   def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] = {
     fragmentSpec.getVariableMetadata(serverContext) ++ Map( metaData.map( item => (item._1 -> new nc2.Attribute(item._1,item._2)) ) :_* )

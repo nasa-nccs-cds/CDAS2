@@ -127,6 +127,7 @@ final class ListSelectionCommandHandler( name: String, description: String, val 
     if (command.isEmpty) { state.popHandler() }
     else try {
       val args = getArgs(command)
+      // printf( "Processing args: " + args.mkString(",") )
       executor( args.map( arg => getChoices(state)(arg.toInt) ), state ).popHandler()
     } catch {
       case t: Throwable =>

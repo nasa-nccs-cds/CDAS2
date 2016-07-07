@@ -8,6 +8,7 @@ import nasa.nccs.cdapi.cdm.{Collection, _}
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
 import nasa.nccs.cds2.loaders.Masks
 import nasa.nccs.cds2.utilities.GeoTools
+import nasa.nccs.console.{ListSelectionCommandHandler, ShellState}
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.Loggable
 import ucar.ma2
@@ -220,6 +221,9 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   private val maskCache: Cache[MaskKey,CDByteArray] = new FutureCache("Store","mask",false)
   def clearFragmentCache() = fragmentCache.clear
 
+  def getFragmentList( state: ShellState ): Array[String] =  fragmentCache.getEntries.map
+    { case (key,frag) => "%s, bounds:%s".format( key.toStrRep, frag.toBoundsString ) } toArray
+
   def makeKey(collection: String, varName: String) = collection + ":" + varName
 
   def extractFuture[T](key: String, result: Option[Try[T]]): T = result match {
@@ -229,6 +233,12 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     }
     case None => throw new Exception(s"Error getting cache value $key")
   }
+
+  def printFragmentMetadata( fragId: String ) = {
+    val futFrag = getExistingFragment( constructKey(fragId) ).getOrElse("")
+  }
+  def deleteFragment( fragId: String ): Option[Future[PartitionedFragment]] = deleteFragment( constructKey(fragId) )
+  def constructKey( fragId: String  ): DataFragmentKey = DataFragmentKey( fragId.split(',')(0).trim )
 
   def getDatasetFuture(collection: Collection, varName: String): Future[CDSDataset] =
     datasetCache(makeKey(collection.url, varName)) { produceDataset(collection, varName) _ }
@@ -422,9 +432,22 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     logger.info( ">>>>>>>>>>>>>>>> Get frag from cache: search key = " + fkey.toString + ", existing keys = " + fragmentCache.keys.mkString("[",",","]") + ", Success = " + rv.isDefined.toString )
     rv
   }
+
+  def deleteFragment( fkey: DataFragmentKey  ): Option[Future[PartitionedFragment]] = fragmentCache.remove(fkey)
+
+  def listFragmentsCommand: ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[lf]ragments", "List cached data fragments", getFragmentList, (cids:Array[String],state) => { cids.foreach( cid => printFragmentMetadata( cid ) ); state } )
+  }
+  def deleteFragmentsCommand: ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[df]ragments", "Delete specified data fragments from the cache", getFragmentList, (cids:Array[String],state) => { cids.foreach( cid => deleteFragment( cid ) ); state } )
+  }
+
 }
 
 object collectionDataCache extends CollectionDataCacheMgr()
+
+
+
 //object cacheWriterTest extends App {
 //  val data_file = "/usr/local/web/data/MERRA/MERRA300.prod.assim.inst3_3d_asm_Cp.xml"
 //  val netcdfDataset = NetcdfDataset.openDataset( data_file )
