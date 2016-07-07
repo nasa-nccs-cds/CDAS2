@@ -25,16 +25,35 @@ abstract class CommandHandler( val name: String, val description: String ) {
   def help: String = { s" * '$name': $description"}
   def getArgs( command: String ) = command.trim.replace(","," ").split("\\s+")
   def assertBounds( ival: Int, b0: Int, b1: Int ): Unit = if( (ival<b0) || (ival>b1) ) throw new Exception( "Index out of bounds" )
+  override def toString = s"{$id}"
 }
 
 class ShellState( val handlerStack: Vector[CommandHandler], val history: Vector[String]= Vector.empty[String], val props: Map[String,Array[String]]=Map.empty[String,Array[String]] ) {
-  def pushHandler( handler: CommandHandler ): ShellState = { new ShellState( handlerStack :+ handler, history, props ) }
-  def updateHandler( handler: CommandHandler ): ShellState = { new ShellState( handlerStack.dropRight(1) :+ handler, history, props ) }
-  def popHandler( preserveBase: Boolean = true ): ShellState = { new ShellState( if( (handlerStack.length > 1) || !preserveBase ) handlerStack.dropRight(1) else handlerStack, history, props ) }
+  def pushHandler( handler: CommandHandler ): ShellState = {
+//    println( " push <<<< topHandler: %s".format( handlerStack.map(_.toString).mkString("{ ",", "," }") ) )
+    val handlers: Vector[CommandHandler] = handlerStack :+ handler
+//    println( " push >>>> topHandler: %s".format( handlers.map(_.toString).mkString("{ ",", "," }") ) )
+    new ShellState( handlers, history, props )
+  }
+  def updateHandler( handler: CommandHandler ): ShellState = {
+//    println( " update <<<< topHandler: %s".format( handlerStack.map(_.toString).mkString("{ ",", "," }") ) )
+    val handlers: Vector[CommandHandler] = handlerStack.dropRight(1) :+ handler
+//    println( " update >>>> topHandler: %s".format( handlers.map(_.toString).mkString("{ ",", "," }") ) )
+    new ShellState( handlers, history, props )
+  }
+  def popHandler( preserveBase: Boolean = true ): ShellState = {
+//    println( " pop <<<< topHandler: %s".format( handlerStack.map(_.toString).mkString("{ ",", "," }") ) )
+    val handlers: Vector[CommandHandler] = if( (handlerStack.length > 1) || !preserveBase ) handlerStack.dropRight(1) else handlerStack
+//    println( " pop>>>> topHandler: %s".format( handlers.map(_.toString).mkString("{ ",", "," }") ) )
+    new ShellState( handlers, history, props )
+  }
   def handleCommand( command: String ): ShellState = { handlerStack.last.process( new ShellState( handlerStack, history :+ command, props ) )   }
+  def delegate( handler: CommandHandler ): ShellState = {  handler.process( pushHandler(handler) )  }
   def getPrompt = { handlerStack.last.getPrompt( this ) }
   def getTopCommand = history.last
+  def getTopHandler = handlerStack.last
   def getStackStr = handlerStack.map( _.id ).mkString( "( ",", "," )")
+  def sameHandler( handler: ShellState ): Boolean = { getTopHandler == handler.getTopHandler }
   def getProp( name: String ): Option[Array[String]] = props.get( name )
   def :+ ( new_props: Map[String,Array[String]] ): ShellState = new ShellState( handlerStack, history, props ++ new_props )
 }
@@ -74,19 +93,30 @@ final class MultiStepCommandHandler( name: String, description: String, val prom
 final class SequentialCommandHandler( name: String, description: String, val handlers: Vector[CommandHandler], val executor: (ShellState) => ShellState, val errMsg: String = ""  )
   extends CommandHandler(name,description) {
 
-  def process( base_state: ShellState ): ShellState = {
-    val command = base_state.getTopCommand
-    val handler = handlers.head
-    handler.validate( command, base_state ) match {
-      case None =>
-        val state = handler.process(base_state)
-        if ( handlers.length > 1 )  state.updateHandler(new SequentialCommandHandler(name, description, handlers.tail, executor))
-        else                        executor( state ).popHandler()
-      case Some( errorMsg ) =>
-        base_state.updateHandler( new SequentialCommandHandler(name, description, handlers, executor, s"Input error: $errorMsg, please try again:\n" ) )
+//  def process( base_state: ShellState ): ShellState = {
+//    val command = base_state.getTopCommand
+//    val handler = handlers.head
+//    handler.validate( command, base_state ) match {
+//      case None =>
+//        val state = handler.process(base_state)
+//        if (handlers.length > 1) state.pushHandler(new SequentialCommandHandler(name, description, handlers.tail, executor))
+//        else executor(state).popHandler()
+//      case Some( errorMsg ) =>
+//        base_state.updateHandler( new SequentialCommandHandler(name, description, handlers, executor, s"Input error: $errorMsg, please try again:\n" ) )
+//    }
+//  }
+
+  def process( state: ShellState ): ShellState = {
+    if (handlers.length > 1) {
+      handlers.head.validate( state.history.last, state ) match {
+        case None => state.updateHandler(new SequentialCommandHandler(name, description, handlers.tail, executor)).delegate(handlers.head)
+        case Some(errMsg) => state.updateHandler( new SequentialCommandHandler( name, description, handlers, executor, errMsg ) )
+      }
     }
+    else { executor( handlers.head.process(state) ).popHandler() }
   }
   def getPrompt( state: ShellState ) = errMsg + handlers.head.getPrompt( state )
+  override def toString = s"{$id:%s}".format( if(handlers.isEmpty) "" else handlers.head.id )
 }
 
 final class ListSelectionCommandHandler( name: String, description: String, val getChoices:(ShellState) => Array[String], val executor: (Array[String],ShellState) => ShellState, var errorState: Boolean = false) extends CommandHandler(name,description) {
@@ -109,7 +139,7 @@ final class ListSelectionCommandHandler( name: String, description: String, val 
 
   override def validate( command: String, state: ShellState ): Option[String] = {
     if( command.isEmpty ) None
-    else try{ getArgs(command).foreach( sval => assertBounds( sval.toInt, 0, getChoices(state).length-1 )  ); None } catch { case ex: Throwable => Some("Entry error: " + ex.getMessage) }
+    else try{ getArgs(command).foreach( sval => assertBounds( sval.toInt, 0, getChoices(state).length-1 )  ); None } catch { case ex: Throwable => Some("Entry error: %s\n".format(ex.getMessage)) }
   }
 
   def getPrompt( state: ShellState ) = if (errorState) "   Invalid entry, please try again: " else s"$description:\n%s\n > Enter index(es) of choice(s): ".format( getSelectionList(state: ShellState) )

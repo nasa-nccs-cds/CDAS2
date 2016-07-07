@@ -1,27 +1,36 @@
-
 package nasa.nccs.console
+
+import java.util
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.cds2.loaders.Collections
-import nasa.nccs.esgf.process.{DomainContainer, DomainAxis}
+import nasa.nccs.esgf.process.DomainAxis.Type._
+import nasa.nccs.esgf.process.{DomainAxis, DomainContainer}
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
-import ucar.nc2.time.{ CalendarDate, Calendar }
+import ucar.nc2.time.{Calendar, CalendarDate}
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
-object cdas {
+object cdasDomainManager {
   import DomainAxis.Type._
 
   private val domainMap = new ConcurrentLinkedHashMap.Builder[String, DomainContainer ].initialCapacity(100).maximumWeightedCapacity(10000).build()
-  private var currentDomain: String = "d0"
-  domainMap.put( currentDomain, DomainContainer.empty( currentDomain ) )
-  def getDomain(domId: String = currentDomain): Option[DomainContainer] = Option(domainMap.get(domId))
+  domainMap.put( "d0", DomainContainer.empty( "d0" ) )
+  def getDomain(domId: String ): Option[DomainContainer] = Option(domainMap.get(domId))
   def putDomain(domId: String, domain: DomainContainer ) = domainMap.put(domId, domain)
 
-  def createDomain( inputs: Array[String] ) = {
-    currentDomain = "d" + domainMap.size
+  def createDomain( inputs: Vector[String] ) = {
+    val domainId = "d" + domainMap.size
     val domainAxes = inputs zip List( X, Y, Z, T ) map { case ( input: String, atype ) => createDomainAxis( atype, input ) }
-    val domain = new DomainContainer( currentDomain, domainAxes.flatten.toList )
-    putDomain( currentDomain, domain )
-    println( "Created Domain %s: %s".format( currentDomain, domain.toString ) )
+    val domain = new DomainContainer( domainId, domainAxes.flatten.toList )
+    putDomain( domainId, domain )
+    println( "Created Domain %s: %s".format( domainId, domain.toString ) )
+  }
+
+  def getDomains: IndexedSeq[DomainContainer] = domainMap.values.toIndexedSeq
+
+  def getDomainSelectionList( state: ShellState  ): Array[String] = {
+    getDomains.map( (dc: DomainContainer) => dc.name + ": " + dc.axes.mkString("{",", ","}") ).toArray
   }
 
   def createDomainAxis( atype: DomainAxis.Type.Value, input: String ): Option[DomainAxis] = {
@@ -34,7 +43,7 @@ object cdas {
       }
       val b0 = getNumber( atype, vtype, args(1) )
       val b1 = if (args.length < 3) b0 else getNumber( atype, vtype, args(2) )
-      Some(new DomainAxis(atype, b0, b1, vtype))
+      Some(new DomainAxis( atype, b0, b1, vtype) )
     }
   }
 
@@ -59,14 +68,11 @@ object cdas {
     None
   }
 
-  def getBaseHandler: SelectionCommandHandler = {
-    val commandHandlers = Array(
-      new HelpHandler( "[h]elp", "Command Help" ),
-      new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
-     new MultiStepCommandHandler( "[d]omain", "Define new domain", Array("Lon","Lat","Level","Time").map(_+" bounds: <[i]ndex/[v]alue>, <bound0>, (<bound1>) >> "),
-       Array(X,Y,Z,T).map(domainAxisValidator(_) _ ), (vals) => createDomain( vals ) )
-    )
-    new SelectionCommandHandler( "base", "Base command handler for CDAS shell", "cdas> ", commandHandlers )
+  def getDefineDomainHandler: MultiStepCommandHandler = new MultiStepCommandHandler( "[d]omain", "Define new domain", Vector("Lon","Lat","Level","Time").map(_+" bounds: <[i]ndex/[v]alue>, <bound0>, (<bound1>) >> "),
+        Vector(X,Y,Z,T).map(domainAxisValidator(_) _ ), (vals,state) => { createDomain( vals ); state } )
+
+  def getSelectDomainCommand: ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[sd]omain", "Select domain(s)", getDomainSelectionList, ( cids:Array[String], state ) => { state :+ Map( "domains" -> cids.map( _.split(':')(0).trim ) ) } )
   }
 
   def validFloat( input: String ): Boolean = try { input.toFloat; true } catch { case ex: Throwable => false }
@@ -76,26 +82,7 @@ object cdas {
   def getNumber( atype: DomainAxis.Type.Value, vtype: String, value: String ): GenericNumber = GenericNumber( if ( vtype.equals("indices") ) value.toInt else if(atype == T) value else value.toFloat)
 }
 
-object cdasConsole extends App {
-  val shell = new CommandShell( cdas.getBaseHandler )
-  shell.run
-}
-
-object splitTest extends App {
-  val value = "2  3"
-  println( value.split(" +").mkString("(",",",")"))
-}
-
-
-
 /*
-/**
-  * Created by tpmaxwel on 7/1/16.
-  */
-class cdas {
-
-}
-
 object CommandExecutables {
   private val domainMap = new ConcurrentLinkedHashMap.Builder[String, Map[String,String]].initialCapacity(100).maximumWeightedCapacity(10000).build()
   private var currentDomain: String = "d0"

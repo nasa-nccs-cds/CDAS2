@@ -442,6 +442,8 @@ class DomainContainer( val name: String, val axes: List[DomainAxis] = List.empty
   override def toString = {
     s"DomainContainer { name = $name, axes = $axes }"
   }
+  def toDataInput: Map[ String, Any ] = Map( axes.map(_.toDataInput):_* ) ++ Map( ("name" -> name) )
+
   override def toXml = {
     <domain name={name}>
       <axes> { axes.map( _.toXml ) } </axes>
@@ -453,6 +455,11 @@ class DomainContainer( val name: String, val axes: List[DomainAxis] = List.empty
 object DomainAxis extends ContainerBase {
   object Type extends Enumeration { val X, Y, Z, T = Value }
   def fromCFAxisName( cfName: String ): Type.Value = cfName.toLowerCase match { case "x" => Type.X; case "y" => Type.Y; case "z" => Type.Z; case "t" => Type.T; }
+
+  def coordAxisName(axistype: DomainAxis.Type.Value): String = {
+    import DomainAxis.Type._
+    axistype match { case X => "lon"; case Y => "lat"; case Z => "level"; case T => "time" }
+  }
 
   def apply( axistype: Type.Value, start: Int, end: Int ): Option[DomainAxis] = {
     Some( new DomainAxis(  axistype, start, end, "indices" ) )
@@ -482,11 +489,14 @@ object DomainAxis extends ContainerBase {
 class DomainAxis( val axistype: DomainAxis.Type.Value, val start: GenericNumber, val end: GenericNumber, val system: String, val bounds: String = "" ) extends ContainerBase  {
   import DomainAxis.Type._
   val name =   axistype.toString
-  def getCFAxisName(): String = axistype match { case X => "X"; case Y => "Y"; case Z => "Z"; case T => "T" }
+  def getCFAxisName: String = axistype match { case X => "X"; case Y => "Y"; case Z => "Z"; case T => "T" }
+  def getCoordAxisName: String = DomainAxis.coordAxisName(axistype)
 
   override def toString = {
     s"DomainAxis { name = $name, start = $start, end = $end, system = $system, bounds = $bounds }"
   }
+
+  def toDataInput: (String,Map[String,String]) = (getCoordAxisName -> Map("start" -> start.toString, "end" -> end.toString, "system" -> system) )
 
   override def toXml = {
     <axis name={name} start={start.toString} end={end.toString} system={system} bounds={bounds} />

@@ -1,11 +1,11 @@
 package nasa.nccs.console
 import java.nio.file.{Files, Paths}
+
 import nasa.nccs.cdapi.cdm.Collection
 import nasa.nccs.cds2.loaders.Collections
-
 import nasa.nccs.cdapi.kernels.ExecutionResults
 import nasa.nccs.cds2.engine.CDS2ExecutionManager
-import nasa.nccs.esgf.process.TaskRequest
+import nasa.nccs.esgf.process.{DomainContainer, TaskRequest}
 
 class CdasCollections( executionManager: CDS2ExecutionManager ) {
   val printer = new xml.PrettyPrinter(200, 3)
@@ -19,14 +19,25 @@ class CdasCollections( executionManager: CDS2ExecutionManager ) {
     state
   }
 
+  def primaryDomain( state: ShellState ): Option[DomainContainer] = state.getProp("domains") match {
+    case Some(domids) =>
+      if(domids.isEmpty) None else cdasDomainManager.getDomain(domids(0))
+    case None => None
+  }
+
   def cacheVariables( state: ShellState ): ShellState = {
+    println( " cacheVariables, prop vals = " + state.props.values.map( _.mkString(",") ).mkString(" -- ") )
+    val domain: DomainContainer = primaryDomain(state).getOrElse( DomainContainer.empty("d0") )
     state.getProp("variables")  match {
       case Some(varRecs) =>
         val results: Array[ExecutionResults] = varRecs.map( (varRec) => {
           val vtoks = varRec.split(':').map(_.trim)
           val varname = vtoks(1)
           val uri: String = "collection:/" + vtoks(0)
-          val dataInputs = Map("variable" -> List(Map("uri" -> uri, "name" -> varname, "domain" -> "d0")))
+          val dataInputs = Map(
+            "domain" -> List( domain.toDataInput ),
+            "variable" -> List(Map("uri" -> uri, "name" -> varname, "domain" -> domain.name ))
+          )
           executeTask(TaskRequest("util.cache", dataInputs))
         })
         state :+ Map( "results" -> Array.empty[String] )
@@ -75,7 +86,7 @@ class CdasCollections( executionManager: CDS2ExecutionManager ) {
 
   def getCacheCommand: SequentialCommandHandler = {
     new SequentialCommandHandler("[ca]che", "Cache variable[s] from a collection",
-      Vector( getSelectCollectionsCommand, getSelectVariablesCommand  ),
+      Vector( getSelectCollectionsCommand, cdasDomainManager.getSelectDomainCommand, getSelectVariablesCommand  ),
       cacheVariables
     )
   }
@@ -116,6 +127,7 @@ object collectionsConsoleTest extends App {
     cdasCollections.getCacheCommand,
     cdasCollections.getListCollectionsCommand,
     cdasCollections.getDeleteCollectionsCommand,
+    cdasDomainManager.getDefineDomainHandler,
     new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
     new HelpHandler( "[h]elp", "Command Help" )
   )
