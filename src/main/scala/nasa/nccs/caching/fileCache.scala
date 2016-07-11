@@ -124,6 +124,8 @@ class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragment
 object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   private val fragmentIdCache: Cache[String,String] = new FutureCache("CacheIdMap","fragment",true)
   def getCacheType = "fragment"
+  def keys: Set[String] = fragmentIdCache.keys
+  def values: Iterable[Future[String]] = fragmentIdCache.values
 
   def persist(fragSpec: DataFragmentSpec, frag: PartitionedFragment): Future[String] = {
     val keyStr =  fragSpec.getKey.toStrRep
@@ -134,6 +136,35 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
         logger.info("Persisting Fragment ID for fragment cache recovery: " + fragSpec.toString)
         fragmentIdCache(keyStr) { promiseCacheId(frag) _ }
     }
+  }
+
+  def expandKey( fragKey: String ): String = {
+    val bounds = collectionDataCache.getExistingFragment(DataFragmentKey(fragKey)) match {
+      case Some( fragFut ) => Await.result( fragFut, Duration.Inf ).toBoundsString
+      case None => ""
+    }
+    val toks = fragKey.split('|')
+    "variable= %s; origin= (%s); shape= (%s); url= %s; bounds= %s".format(toks(0),toks(2),toks(3),toks(1),bounds)
+  }
+
+  def contractKey( fragDescription: String ): String = {
+    val tok = fragDescription.split(';').map( _.split('=')(1).trim.stripPrefix("(").stripSuffix(")"))
+    Array( tok(0),tok(3),tok(1),tok(2) ).mkString("|")
+  }
+
+  def getFragmentList( state: ShellState ): Array[String] =  {
+    fragmentIdCache.keys.map(k => expandKey(k)).toArray
+//    fragmentIdCache.values.flatMap( fragFut => fragFut.value match {
+//      case Some(Success(cacheId))     ⇒ Some( frag.fragmentSpec )
+//      case Some(Failure(exception)) ⇒ None
+//      case None                     ⇒ None
+//    })
+//    fragmentIdCache.getEntries.flatMap {
+//      case (key, value) => collectionDataCache.getExistingFragment(DataFragmentKey(key)) match {
+//        case Some( fragFut: Future[PartitionedFragment] ) => Some( "%s: %s, Bounds: %s".format (key, value, Await.result( fragFut, Duration.Inf ) .toBoundsString) )
+//        case None => None
+//      }
+//    } toArray
   }
 
   def put( key: DataFragmentKey, cache_id: String ) = fragmentIdCache.put( key.toStrRep, cache_id )
@@ -225,6 +256,8 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     { case (key,frag) => "%s, bounds:%s".format( key.toStrRep, frag.toBoundsString ) } toArray
 
   def makeKey(collection: String, varName: String) = collection + ":" + varName
+  def keys: Set[DataFragmentKey] = fragmentCache.keys
+  def values: Iterable[Future[PartitionedFragment]] = fragmentCache.values
 
   def extractFuture[T](key: String, result: Option[Try[T]]): T = result match {
     case Some(tryVal) => tryVal match {
@@ -234,12 +267,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     case None => throw new Exception(s"Error getting cache value $key")
   }
 
-  def printFragmentMetadata( fragId: String ) = {
-    val futFrag = getExistingFragment( constructKey(fragId) ).getOrElse("")
-  }
-  def deleteFragment( fragId: String ): Option[Future[PartitionedFragment]] = deleteFragment( constructKey(fragId) )
-  def constructKey( fragId: String  ): DataFragmentKey = DataFragmentKey( fragId.split(',')(0).trim )
-
+  def deleteFragment( fragId: String ): Option[Future[PartitionedFragment]] = deleteFragment( DataFragmentKey(fragId) )
   def getDatasetFuture(collection: Collection, varName: String): Future[CDSDataset] =
     datasetCache(makeKey(collection.url, varName)) { produceDataset(collection, varName) _ }
 
@@ -436,12 +464,23 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   def deleteFragment( fkey: DataFragmentKey  ): Option[Future[PartitionedFragment]] = fragmentCache.remove(fkey)
 
   def listFragmentsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[lf]ragments", "List cached data fragments", getFragmentList, (cids:Array[String],state) => { cids.foreach( cid => printFragmentMetadata( cid ) ); state } )
+    new ListSelectionCommandHandler("[lf]ragments", "List cached data fragments", FragmentPersistence.getFragmentList, (fragEntries:Array[String],state) => { fragEntries.foreach( fragDesc => printFragmentMetadata( FragmentPersistence.contractKey(fragDesc) ) ); state } )
   }
   def deleteFragmentsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[df]ragments", "Delete specified data fragments from the cache", getFragmentList, (cids:Array[String],state) => { cids.foreach( cid => deleteFragment( cid ) ); state } )
+    new ListSelectionCommandHandler("[df]ragments", "Delete specified data fragments from the cache", FragmentPersistence.getFragmentList, (cids:Array[String],state) => { cids.foreach( cid => deleteFragment( cid ) ); state } )
   }
 
+  def printFragmentMetadata( fragKeyStr: String ) = {
+    println( "XXX: " + fragKeyStr )
+    val fragKey = DataFragmentKey( fragKeyStr )
+    FragmentPersistence.restore( fragKey )
+    val bounds = collectionDataCache.getExistingFragment(fragKey) match {
+      case Some( fragFut ) =>
+        val fragSpec = Await.result( fragFut, Duration.Inf ).fragmentSpec
+        " Variable %s(%s), units: %s, bounds: (%s)".format( fragSpec.longname, fragSpec.dimensions, fragSpec.units, fragSpec.toBoundsString )
+      case None => ""
+    }
+  }
 }
 
 object collectionDataCache extends CollectionDataCacheMgr()

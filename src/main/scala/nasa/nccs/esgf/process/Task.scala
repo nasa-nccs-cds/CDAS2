@@ -248,7 +248,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
       case Some(maskId) => <input varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
-  def toBoundsString = targetGridOpt.map( _.toBoundsString ).getOrElse("")
+  def toBoundsString = { printf("XXX"); targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
   def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
     case Some( array ) => array

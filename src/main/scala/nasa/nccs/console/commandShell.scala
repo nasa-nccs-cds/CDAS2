@@ -93,27 +93,16 @@ final class MultiStepCommandHandler( name: String, description: String, val prom
 final class SequentialCommandHandler( name: String, description: String, val handlers: Vector[CommandHandler], val executor: (ShellState) => ShellState, val errMsg: String = ""  )
   extends CommandHandler(name,description) {
 
-//  def process( base_state: ShellState ): ShellState = {
-//    val command = base_state.getTopCommand
-//    val handler = handlers.head
-//    handler.validate( command, base_state ) match {
-//      case None =>
-//        val state = handler.process(base_state)
-//        if (handlers.length > 1) state.pushHandler(new SequentialCommandHandler(name, description, handlers.tail, executor))
-//        else executor(state).popHandler()
-//      case Some( errorMsg ) =>
-//        base_state.updateHandler( new SequentialCommandHandler(name, description, handlers, executor, s"Input error: $errorMsg, please try again:\n" ) )
-//    }
-//  }
+  def process(state: ShellState): ShellState = {
+    handlers.head.validate(state.history.last, state) match {
+      case None =>
+        val lastCommand = ( handlers.length == 1 )
+        val updatedState = if(!lastCommand) { state.updateHandler(new SequentialCommandHandler(name, description, handlers.tail, executor)) } else state
+        val processedState = updatedState.delegate(handlers.head)
+        if( lastCommand ) { executor(processedState).popHandler() } else { processedState }
+      case Some(errMsg) => state.updateHandler( new SequentialCommandHandler(name, description, handlers, executor, errMsg) )
 
-  def process( state: ShellState ): ShellState = {
-    if (handlers.length > 1) {
-      handlers.head.validate( state.history.last, state ) match {
-        case None => state.updateHandler(new SequentialCommandHandler(name, description, handlers.tail, executor)).delegate(handlers.head)
-        case Some(errMsg) => state.updateHandler( new SequentialCommandHandler( name, description, handlers, executor, errMsg ) )
-      }
     }
-    else { executor( handlers.head.process(state) ).popHandler() }
   }
   def getPrompt( state: ShellState ) = errMsg + handlers.head.getPrompt( state )
   override def toString = s"{$id:%s}".format( if(handlers.isEmpty) "" else handlers.head.id )
