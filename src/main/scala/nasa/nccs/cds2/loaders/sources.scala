@@ -9,7 +9,6 @@ import scala.collection.JavaConversions._
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.cdapi.cdm.{Collection, NCMLWriter}
-import nasa.nccs.console.ShellState
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.dataset.NetcdfDataset
 
@@ -208,7 +207,6 @@ object Collections extends XmlResource {
 //    }
 //  }
 
-  def getCollectionKeys( state: ShellState ): Array[String] = getCollectionKeys()
   def getCollectionKeys(): Array[String] = datasets.keys.toArray
 }
 

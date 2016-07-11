@@ -28,10 +28,12 @@ libraryDependencies ++= Dependencies.cache
 
 libraryDependencies ++= Dependencies.geo
 
+libraryDependencies ++= Dependencies.netcdf
+
 fork in run:= false
 fork in test:= false
 
-javaOptions in run ++= Seq( "-Xmx2G", "-Xms512M")
+javaOptions in run ++= Seq( "-Xmx1.5G", "-Xms512M")
 
 import java.util.Properties
 

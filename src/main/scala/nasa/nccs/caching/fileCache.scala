@@ -8,7 +8,6 @@ import nasa.nccs.cdapi.cdm.{Collection, _}
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
 import nasa.nccs.cds2.loaders.Masks
 import nasa.nccs.cds2.utilities.GeoTools
-import nasa.nccs.console.{ListSelectionCommandHandler, ShellState}
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.Loggable
 import ucar.ma2
@@ -152,7 +151,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     Array( tok(0),tok(3),tok(1),tok(2) ).mkString("|")
   }
 
-  def getFragmentList( state: ShellState ): Array[String] =  {
+  def getFragmentList(): Array[String] =  {
     fragmentIdCache.keys.map(k => expandKey(k)).toArray
 //    fragmentIdCache.values.flatMap( fragFut => fragFut.value match {
 //      case Some(Success(cacheId))     ⇒ Some( frag.fragmentSpec )
@@ -252,7 +251,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   private val maskCache: Cache[MaskKey,CDByteArray] = new FutureCache("Store","mask",false)
   def clearFragmentCache() = fragmentCache.clear
 
-  def getFragmentList( state: ShellState ): Array[String] =  fragmentCache.getEntries.map
+  def getFragmentList: Array[String] =  fragmentCache.getEntries.map
     { case (key,frag) => "%s, bounds:%s".format( key.toStrRep, frag.toBoundsString ) } toArray
 
   def makeKey(collection: String, varName: String) = collection + ":" + varName
@@ -462,13 +461,6 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   }
 
   def deleteFragment( fkey: DataFragmentKey  ): Option[Future[PartitionedFragment]] = fragmentCache.remove(fkey)
-
-  def listFragmentsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[lf]ragments", "List cached data fragments", FragmentPersistence.getFragmentList, (fragEntries:Array[String],state) => { fragEntries.foreach( fragDesc => printFragmentMetadata( FragmentPersistence.contractKey(fragDesc) ) ); state } )
-  }
-  def deleteFragmentsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[df]ragments", "Delete specified data fragments from the cache", FragmentPersistence.getFragmentList, (cids:Array[String],state) => { cids.foreach( cid => deleteFragment( cid ) ); state } )
-  }
 
   def printFragmentMetadata( fragKeyStr: String ) = {
     println( "XXX: " + fragKeyStr )
