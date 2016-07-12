@@ -167,7 +167,18 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 
   def describeProcess( kernelName: String ): xml.Elem = getKernel( kernelName ).toXml
 
-  def listProcesses(): xml.Elem = kernelManager.toXml
+  def getCapabilities( identifier: String ): xml.Elem = identifier match {
+    case x if x.startsWith("proc") => kernelManager.toXml
+    case x if x.startsWith("frag") => FragmentPersistence.getFragmentListXml
+    case x if x.startsWith("coll") => Collections.toXml
+    case x if x.startsWith("var") => {
+      println( "getCapabilities->identifier: " + identifier )
+      val cidToks = identifier.split('!')
+      if( cidToks.length < 2 ) <error> {"Missing collection id in identifier, format: var_<collID>"} </error>
+      Collections.getVariableListXml(cidToks.tail )
+    }
+    case _ => kernelManager.toXml
+  }
 
   def executeWorkflows( request: TaskRequest, requestCx: RequestContext ): ExecutionResults = {
     new ExecutionResults( request.workflows.flatMap(workflow => workflow.operations.map( operationExecution( _, requestCx ))) )

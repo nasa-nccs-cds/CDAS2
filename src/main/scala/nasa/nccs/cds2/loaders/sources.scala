@@ -8,6 +8,7 @@ import collection.JavaConverters._
 import scala.collection.JavaConversions._
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
+import nasa.nccs.caching.collectionDataCache
 import nasa.nccs.cdapi.cdm.{Collection, NCMLWriter}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.dataset.NetcdfDataset
@@ -90,9 +91,18 @@ object Collections extends XmlResource {
   val initialCapacity: Int=250
   val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( Map( "global" -> getFilePath("/global_collections.xml"), "local" -> getFilePath("/local_collections.xml") ) )
 
-  def toXml: xml.Elem = {
+  def toXml: xml.Elem =
     <collections>
       { for( ( id: String, collection:Collection ) <- datasets ) yield collection.toXml }
+    </collections>
+
+
+  def getVariableListXml(cids: Array[String]): xml.Elem = {
+    <collections>
+      { for (cid <- cids) yield Collections.findCollection(cid) match {
+      case Some(collection) => <variables cid={collection.url}> {collection.vars.map(varName => collectionDataCache.getVariable(collection, varName).toXml)} </variables>
+      case None => <error> {"Unknown collection id in identifier: " + cid } </error>
+    }}
     </collections>
   }
 

@@ -137,19 +137,28 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     }
   }
 
+  def getBounds( fragKey: String ): String =  collectionDataCache.getExistingFragment(DataFragmentKey(fragKey)) match {
+    case Some( fragFut ) => Await.result( fragFut, Duration.Inf ).toBoundsString
+    case None => ""
+  }
+
   def expandKey( fragKey: String ): String = {
-    val bounds = collectionDataCache.getExistingFragment(DataFragmentKey(fragKey)) match {
-      case Some( fragFut ) => Await.result( fragFut, Duration.Inf ).toBoundsString
-      case None => ""
-    }
+    val bounds = getBounds(fragKey)
     val toks = fragKey.split('|')
     "variable= %s; origin= (%s); shape= (%s); url= %s; bounds= %s".format(toks(0),toks(2),toks(3),toks(1),bounds)
+  }
+
+  def expandKeyXml( fragKey: String ):  xml.Elem = {
+    val toks = fragKey.split('|')
+     <fragment variable={toks(0)} origin={toks(2)} shape={toks(3)} url={toks(1)}> { getBounds(fragKey) } </fragment>
   }
 
   def contractKey( fragDescription: String ): String = {
     val tok = fragDescription.split(';').map( _.split('=')(1).trim.stripPrefix("(").stripSuffix(")"))
     Array( tok(0),tok(3),tok(1),tok(2) ).mkString("|")
   }
+
+  def getFragmentListXml(): xml.Elem = <fragments> { for(fkey <- fragmentIdCache.keys) yield expandKeyXml(fkey) } </fragments>
 
   def getFragmentList(): Array[String] =  {
     fragmentIdCache.keys.map(k => expandKey(k)).toArray
