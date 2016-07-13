@@ -119,14 +119,16 @@ object Collections extends XmlResource {
     uri.toLowerCase.split(":").last.stripPrefix("/").stripPrefix("/").replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ".xml"
   }
 
-  def removeCollection( collectionId: String ) = {
+  def removeCollection( collectionId: String ): Option[String]= {
     findCollection( collectionId: String ) match {
       case Some( collection ) =>
         datasets.remove(collectionId)
         if( collection.ctype.equals("file") ) { collection.ncmlFile.delete() }
         persistLocalCollections()
+        Some( collection.id )
       case None =>
         logger.error( "Attempt to delete collection that does not exist: " + collectionId )
+        None
     }
   }
 
@@ -136,6 +138,12 @@ object Collections extends XmlResource {
     val cvars = if(vars.isEmpty) getVariableList( path ) else vars
     val collection = Collection( id, url, path, fileFilter, "local", cvars )
     datasets.put( id, collection  )
+    persistLocalCollections()
+    collection
+  }
+
+  def updateCollection( collection: Collection ): Collection = {
+    datasets.put( collection.id, collection  )
     persistLocalCollections()
     collection
   }

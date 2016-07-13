@@ -24,8 +24,9 @@ import nasa.nccs.cds2.utilities.GeoTools
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-
 import java.util.concurrent._
+
+import ucar.nc2.dataset.NetcdfDataset
 
 
 class Counter(start: Int = 0) {
@@ -99,10 +100,36 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     rv
   }
 
+  def executeUtilityRequest(util_id: String, request: TaskRequest, run_args: Map[String, String]): ExecutionResults = util_id match {
+    case "agg" =>
+      val collectionNodes =  request.variableMap.values.map( ds => {
+        val col = ds.getSource.collection
+        col.createNCML()
+        val dataset = NetcdfDataset.openDataset( col.ncmlFile.toString )
+        val vars = dataset.getVariables.filter( !_.isCoordinateVariable ).map( _.getShortName ).toList
+        val newCollection = Collection(col.id,col.url,col.path,col.fileFilter,col.scope,vars)
+        Collections.updateCollection( newCollection )
+        newCollection.toXml
+      })
+      new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
+    case "cache" =>
+      val targetGrid: TargetGrid = createTargetGrid(request)
+      val requestContext = loadInputData(request, targetGrid, run_args)
+      new ExecutionResults(List(new UtilityExecutionResult("cache", <cache/> )))
+    case "dcol" =>
+      val deletedCollections = request.variableMap.values.flatMap( ds => Collections.removeCollection(ds.getSource.collection.id) )
+      new ExecutionResults(List(new UtilityExecutionResult("dcol", <deleted collections={deletedCollections.mkString(",")}/> )))
+  }
+
   def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[ExecutionResults] = Future {
-    val targetGrid: TargetGrid = createTargetGrid( request )
-    val requestContext = loadInputData( request, targetGrid, run_args )
-    executeWorkflows( request, requestContext )
+    val req_ids = request.name.split(".")
+    req_ids(0) match {
+      case "util" => executeUtilityRequest(req_ids(1), request, run_args)
+      case _ =>
+        val targetGrid: TargetGrid = createTargetGrid(request)
+        val requestContext = loadInputData(request, targetGrid, run_args)
+        executeWorkflows(request, requestContext)
+    }
   }
 
   def getRequestContext( request: TaskRequest, run_args: Map[String,String] ): RequestContext = loadInputData( request, createTargetGrid( request ), run_args )
@@ -111,14 +138,22 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     logger.info("Blocking Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
     val t0 = System.nanoTime
     try {
-      val targetGrid: TargetGrid = createTargetGrid( request )
-      val t1 = System.nanoTime
-      val requestContext = loadInputData( request, targetGrid, run_args )
-      val t2 = System.nanoTime
-      val rv = executeWorkflows( request, requestContext )
-      val t3 = System.nanoTime
-      logger.info( "Execute Completed: CreateTargetGrid> %.4f, LoadVariablesT> %.4f, ExecuteWorkflowT> %.4f, totalT> %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, (t3-t0)/1.0E9 ) )
-      rv
+      val req_ids = request.name.split('.')
+      req_ids(0) match {
+        case "util" =>
+          logger.info("Executing utility request " + req_ids(1) )
+          executeUtilityRequest( req_ids(1), request, run_args )
+        case _ =>
+          logger.info("Executing task request " + request.name )
+          val targetGrid: TargetGrid = createTargetGrid (request)
+          val t1 = System.nanoTime
+          val requestContext = loadInputData (request, targetGrid, run_args)
+          val t2 = System.nanoTime
+          val rv = executeWorkflows (request, requestContext)
+          val t3 = System.nanoTime
+          logger.info ("Execute Completed: CreateTargetGrid> %.4f, LoadVariablesT> %.4f, ExecuteWorkflowT> %.4f, totalT> %.4f ".format ((t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t3 - t2) / 1.0E9, (t3 - t0) / 1.0E9) )
+          rv
+      }
     } catch {
       case err: MetadataOnlyException => executeMetadataWorkflows( request )
       case err: Exception => new ExecutionResults(err)
@@ -418,6 +453,13 @@ object AggregateAndCacheRequest extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggTest", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/", "name" -> "t", "domain" -> "d0")))
     TaskRequest("util.cache", dataInputs)
+  }
+}
+
+object AggregateRequest extends SyncExecutor {
+  def getTaskRequest: TaskRequest = {
+    val dataInputs = Map( "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggTest37", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/" ) ) )
+    TaskRequest("util.agg", dataInputs)
   }
 }
 

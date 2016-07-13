@@ -34,6 +34,9 @@ trait ExecutionResult {
   def toXml: xml.Elem
 }
 
+class UtilityExecutionResult( val id: String, val response: xml.Elem )  extends ExecutionResult {
+  def toXml = <result id={id}> {response} </result>
+}
 class BlockingExecutionResult( val id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray ) extends ExecutionResult {
   def toXml = {
     val idToks = id.split('~')

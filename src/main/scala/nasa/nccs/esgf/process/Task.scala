@@ -361,7 +361,7 @@ class DataContainer(val uid: String, private val source : Option[DataSource] = N
     val embedded_xml = if ( source.isDefined ) source.get.toXml else operation.get.toXml
     <dataset uid={uid}> embedded_xml </dataset>
   }
-  def isSource = source.isDefined && source.get.isDefined
+  def isSource = source.isDefined
 
   def isOperation = operation.isDefined
   def getSource = {
