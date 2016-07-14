@@ -43,10 +43,22 @@ trait XmlResource extends Loggable {
       writer.close()
     }
   }
+
+  def getCacheFilePath( resourcePath: String ): String =
+    try {
+      getFilePath(resourcePath)
+    } catch {
+      case ex: Exception =>
+        sys.env.get("CDAS_CACHE_DIR") match {
+          case Some( cache_path ) => Paths.get( cache_path, resourcePath ).toString
+          case None => throw new Exception(s"Can't find resource $resourcePath, may need to set CDAS_CACHE_DIR in shell env!")
+        }
+
+    }
+
   def getFilePath(resourcePath: String) = Option( getClass.getResource(resourcePath) ) match {
       case None => Option( getClass.getClassLoader.getResource(resourcePath) ) match {
         case None =>
-          logger.error(s"Resource $resourcePath does not exist!")
           throw new Exception(s"Resource $resourcePath does not exist!")
         case Some(r) => r.getPath
       }
@@ -64,12 +76,12 @@ object Mask  {
 }
 class Mask( val mtype: String, val resource: String ) extends XmlResource {
   override def toString = "Mask( mtype=%s, resource=%s )".format( mtype, resource )
-  def getPath: String = getFilePath( resource )
+  def getPath: String = getCacheFilePath( resource )
 }
 
 object Masks extends XmlResource {
   val mid_prefix: Char = '#'
-  val masks = loadMaskXmlData(getFilePath("/masks.xml"))
+  val masks = loadMaskXmlData(getCacheFilePath("/masks.xml"))
 
   def isMaskId( maskId: String ): Boolean = (maskId(0) == mid_prefix )
 
@@ -89,7 +101,7 @@ object Masks extends XmlResource {
 object Collections extends XmlResource {
   val maxCapacity: Int=100000
   val initialCapacity: Int=250
-  val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( Map( "global" -> getFilePath("/global_collections.xml"), "local" -> getFilePath("/local_collections.xml") ) )
+  val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( Map( "global" -> getFilePath("/global_collections.xml"), "local" -> getCacheFilePath("/local_collections.xml") ) )
 
   def toXml: xml.Elem =
     <collections>
@@ -119,17 +131,19 @@ object Collections extends XmlResource {
     uri.toLowerCase.split(":").last.stripPrefix("/").stripPrefix("/").replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ".xml"
   }
 
-  def removeCollection( collectionId: String ): Option[String]= {
-    findCollection( collectionId: String ) match {
-      case Some( collection ) =>
-        datasets.remove(collectionId)
-        if( collection.ctype.equals("file") ) { collection.ncmlFile.delete() }
-        persistLocalCollections()
-        Some( collection.id )
-      case None =>
-        logger.error( "Attempt to delete collection that does not exist: " + collectionId )
-        None
-    }
+  def removeCollections( collectionIds: Array[String] ): Array[String] = {
+    val removedCids = collectionIds.flatMap( collectionId =>
+      findCollection(collectionId: String) match {
+        case Some(collection) =>
+          logger.info( "Removing collection: " + collectionId )
+          datasets.remove(collectionId)
+          if (collection.ctype.equals("file")) { collection.ncmlFile.delete() }
+          Some(collection.id)
+        case None => logger.error("Attempt to delete collection that does not exist: " + collectionId); None
+      }
+    )
+    persistLocalCollections()
+    removedCids
   }
 
   def addCollection( uri: String, path: String, fileFilter: String="", vars: List[String] = List.empty[String] ): Collection = {
@@ -188,8 +202,8 @@ object Collections extends XmlResource {
     datasets
   }
   def persistLocalCollections(prettyPrint: Boolean = true) = {
-    if(prettyPrint) saveXML( getFilePath("/local_collections.xml"), toXml("local") )
-    else XML.save( getFilePath("/local_collections.xml"), toXml("local") )
+    if(prettyPrint) saveXML( getCacheFilePath("/local_collections.xml"), toXml("local") )
+    else XML.save( getCacheFilePath("/local_collections.xml"), toXml("local") )
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList

@@ -15,6 +15,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.esgf.utilities.wpsNameMatchers
+import scala.util.Random
 
 case class ErrorReport(severity: String, message: String) {
   override def toString = {
@@ -105,7 +106,7 @@ class TaskRequest(val name: String, val variableMap : Map[String,DataContainer],
 object TaskRequest {
   val logger = LoggerFactory.getLogger( this.getClass )
   def apply(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]]) = {
-    logger.info( "TaskRequest--> process_name: %s, datainputs: %s".format( process_name, datainputs.toString ) )
+//    logger.info( "TaskRequest--> process_name: %s, datainputs: %s".format( process_name, datainputs.toString ) )
     val data_list: List[DataContainer] = datainputs.getOrElse("variable", List() ).flatMap(DataContainer.factory(_)).toList
     val domain_list: List[DomainContainer] = datainputs.getOrElse("domain", List()).map(DomainContainer(_)).toList
     val operation_list: List[WorkflowContainer] = datainputs.getOrElse("operation", List() ).map(WorkflowContainer( process_name, data_list.map(_.uid), _ ) ).toList
@@ -120,7 +121,7 @@ object TaskRequest {
     var data_var_items = for( data_container <- data ) yield ( data_container.uid -> data_container )
     var op_var_items = for( workflow_container<- workflow; operation<-workflow_container.operations; if !operation.rid.isEmpty ) yield ( operation.rid -> DataContainer(operation) )
     val var_map = Map( op_var_items ++ data_var_items: _* )
-    logger.info( "Created Variable Map: " + var_map.toString )
+//    logger.info( "Created Variable Map: " + var_map.toString + " from data containers: " + data.map( data_container => ( "id:" + data_container.uid ) ).mkString("[ ",", "," ]") )
     for( workflow_container<- workflow; operation<-workflow_container.operations; vid<-operation.inputs; if(!vid.isEmpty)  ) var_map.get( vid ) match {
       case Some(data_container) => data_container.addOpSpec( operation )
       case None => throw new Exception( "Unrecognized variable %s in varlist [%s]".format( vid, var_map.keys.mkString(",") ) )
@@ -130,7 +131,7 @@ object TaskRequest {
 
   def buildDomainMap( domain_containers: List[DomainContainer] ): Map[String,DomainContainer] = {
     val domain_map = domain_containers.map( domain_container => domain_container.name -> domain_container ).toMap
-    logger.info( "Created Domain Map: " + domain_map.toString )
+//    logger.info( "Created Domain Map: " + domain_map.toString )
     domain_map
   }
 }
@@ -384,6 +385,8 @@ class DataContainer(val uid: String, private val source : Option[DataSource] = N
 }
 
 object DataContainer extends ContainerBase {
+  private val random = new Random( System.currentTimeMillis )
+
   def apply( operation: OperationContext ): DataContainer = {
       new DataContainer( uid=operation.rid, operation=Some(operation) )
   }
@@ -412,11 +415,13 @@ object DataContainer extends ContainerBase {
       val domain = filterMap(metadata, key_equals("domain")) match { case None => ""; case Some(x) => x.toString }
       val collection = getCollection(metadata)
       val var_names: Array[String] = if( fullname.equals("*") ) collection.vars.toArray else fullname.toString.split(',')
+      val base_index = random.nextInt(Integer.MAX_VALUE)
 
-      for( name <- var_names) yield {
+      for( ( name, index ) <- var_names.zipWithIndex) yield {
         val name_items = name.split(':')
         val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain))
-        new DataContainer(normalize(name_items.last), source = Some(dsource))
+        val vid = normalize(name_items.last)
+        new DataContainer( if(vid.isEmpty) s"c-$base_index$index" else vid, source = Some(dsource) )
       }
     } catch {
       case e: Exception =>

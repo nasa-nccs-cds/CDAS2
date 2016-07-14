@@ -3,7 +3,7 @@ package nasa.nccs.caching
 import java.io.{FileInputStream, RandomAccessFile}
 import java.nio.channels.FileChannel
 import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
-
+import nasa.nccs.cds2.utilities.runtime
 import nasa.nccs.cdapi.cdm.{Collection, _}
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
 import nasa.nccs.cds2.loaders.Masks
@@ -109,14 +109,15 @@ class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragment
     chunkCache.get(iChunk) match {
       case Some( cacheChunkFut: Future[CacheChunk] ) =>
         val cacheChunk = Await.result( cacheChunkFut, Duration.Inf )
-//        logger.info( "Writing chunk %d, size = %d, position = %d ".format( iChunk, cacheChunk.byteSize, buffer.position ) )
+        logger.info( "Writing chunk %d, size = %d, position = %d ".format( iChunk, cacheChunk.byteSize, buffer.position ) )
         buffer.put( cacheChunk.data )
+        chunkCache.remove( iChunk )
+        runtime.printMemoryUsage(logger)
       case None =>
         Thread.sleep( 200 )
         processChunkFromReader( iChunk, buffer )
     }
   }
-
 
 }
 
@@ -125,15 +126,13 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   def getCacheType = "fragment"
   def keys: Set[String] = fragmentIdCache.keys
   def values: Iterable[Future[String]] = fragmentIdCache.values
+  private var unsafe = false
 
   def persist(fragSpec: DataFragmentSpec, frag: PartitionedFragment): Future[String] = {
     val keyStr =  fragSpec.getKey.toStrRep
     fragmentIdCache.get(keyStr) match {
-      case Some(fragIdFuture) =>
-        fragIdFuture
-      case None =>
-        logger.info("Persisting Fragment ID for fragment cache recovery: " + fragSpec.toString)
-        fragmentIdCache(keyStr) { promiseCacheId(frag) _ }
+      case Some(fragIdFut) => fragIdFut
+      case None => fragmentIdCache(keyStr) { unsafe = true; promiseCacheId(frag) _ }
     }
   }
 
@@ -162,6 +161,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
   def getFragmentList(): Array[String] =  {
     fragmentIdCache.keys.map(k => expandKey(k)).toArray
+
 //    fragmentIdCache.values.flatMap( fragFut => fragFut.value match {
 //      case Some(Success(cacheId))     ⇒ Some( frag.fragmentSpec )
 //      case Some(Failure(exception)) ⇒ None
@@ -175,7 +175,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 //    } toArray
   }
 
-  def put( key: DataFragmentKey, cache_id: String ) = fragmentIdCache.put( key.toStrRep, cache_id )
+  def put( key: DataFragmentKey, cache_id: String ) = { unsafe = true; fragmentIdCache.put( key.toStrRep, cache_id ) }
 
   def getEntries: Seq[(String,String)] = fragmentIdCache.getEntries
 
@@ -194,7 +194,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
   def close(): Unit = {
     Await.result( Future.sequence( fragmentIdCache.values ), Duration.Inf )
-    fragmentIdCache.persist()
+    if( unsafe ) { unsafe = false; fragmentIdCache.persist() }
   }
 
   def deleteEnclosing( fragSpec: DataFragmentSpec ) =
@@ -407,12 +407,16 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   private def clearRedundantFragments( fragSpec: DataFragmentSpec ) = findEnclosedFragSpecs( fragmentCache.keys, fragSpec.getKey ).foreach( fragmentCache.remove )
 
   private def getFragmentFuture( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode  ): Future[PartitionedFragment] = {
+    logger.info( " getFragmentFuture: Start => dataAccessMode = " + dataAccessMode )
     val fragFuture = fragmentCache( fragSpec.getKey ) { promiseFragment( fragSpec, dataAccessMode ) _ }
     fragFuture onComplete {
       case Success(fragment) => try {
-        logger.info( " Persisting fragment spec: " + fragSpec.getKey.toString )
+        logger.info( " getFragmentFuture: Success => dataAccessMode = " + dataAccessMode )
         //          clearRedundantFragments(fragSpec)
-        if (dataAccessMode == DataAccessMode.Cache) FragmentPersistence.persist(fragSpec, fragment)
+        if (dataAccessMode == DataAccessMode.Cache) {
+          logger.info( " Persisting fragment spec: " + fragSpec.getKey.toString )
+          FragmentPersistence.persist(fragSpec, fragment)
+        }
       } catch {
         case err: Throwable =>  logger.warn( " Failed to persist fragment list due to error: " + err.getMessage )
       }

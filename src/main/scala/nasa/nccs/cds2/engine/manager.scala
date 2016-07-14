@@ -115,9 +115,11 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     case "cache" =>
       val targetGrid: TargetGrid = createTargetGrid(request)
       val requestContext = loadInputData(request, targetGrid, run_args)
+      FragmentPersistence.close()
       new ExecutionResults(List(new UtilityExecutionResult("cache", <cache/> )))
     case "dcol" =>
-      val deletedCollections = request.variableMap.values.flatMap( ds => Collections.removeCollection(ds.getSource.collection.id) )
+      val colIds = request.variableMap.values.map( _.getSource.collection.id )
+      val deletedCollections = Collections.removeCollections( colIds.toArray )
       new ExecutionResults(List(new UtilityExecutionResult("dcol", <deleted collections={deletedCollections.mkString(",")}/> )))
   }
 
@@ -216,8 +218,11 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   }
 
   def executeWorkflows( request: TaskRequest, requestCx: RequestContext ): ExecutionResults = {
-    new ExecutionResults( request.workflows.flatMap(workflow => workflow.operations.map( operationExecution( _, requestCx ))) )
+    val results = new ExecutionResults( request.workflows.flatMap(workflow => workflow.operations.map( operationExecution( _, requestCx ))) )
+    FragmentPersistence.close()
+    results
   }
+
   def executeMetadataWorkflows( request: TaskRequest ): ExecutionResults = {
     new ExecutionResults( request.workflows.flatMap(workflow => workflow.operations.map( metadataExecution )) )
   }
@@ -326,7 +331,6 @@ abstract class SyncExecutor {
     val executionManager = getExecutionManager
     val final_result = getExecutionManager.blockingExecute( getTaskRequest, getRunArgs )
     println(">>>> Final Result: " + printer.format(final_result.toXml))
-    FragmentPersistence.close()
   }
 
   def getTaskRequest(): TaskRequest
@@ -451,7 +455,7 @@ object AggregateAndCacheRequest extends SyncExecutor {
   def getTaskRequest: TaskRequest = {
     val dataInputs = Map(
       "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggTest", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/", "name" -> "t", "domain" -> "d0")))
+      "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggTest3", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/", "name" -> "t", "domain" -> "d0")))
     TaskRequest("util.cache", dataInputs)
   }
 }
