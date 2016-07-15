@@ -213,6 +213,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     case x if x.startsWith("proc") => kernelManager.toXml
     case x if x.startsWith("frag") => FragmentPersistence.getFragmentListXml
     case x if x.startsWith("coll") => Collections.toXml
+    case x if x.startsWith("op") => kernelManager.getModulesXml
     case x if x.startsWith("var") => {
       println( "getCapabilities->identifier: " + identifier )
       val cidToks = identifier.split('!')

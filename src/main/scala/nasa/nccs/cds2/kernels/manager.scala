@@ -1,6 +1,6 @@
 package nasa.nccs.cds2.kernels
 import java.util.jar.JarFile
-import nasa.nccs.cdapi.kernels.KernelModule
+import nasa.nccs.cdapi.kernels.{ KernelModule, Kernel }
 import nasa.nccs.utilities.cdsutils
 import collection.mutable
 import scala.collection.JavaConversions._
@@ -20,6 +20,8 @@ class KernelMgr(  ) {
     for( cls <- cdsutils.getClassesFromJar(jarFile); if cls.getSuperclass.getName == "nasa.nccs.cdapi.kernels.KernelModule") yield cls.getDeclaredConstructors()(0).newInstance().asInstanceOf[KernelModule]
 
   def toXml = <modules>{ kernelModules.values.map( _.toXml ) } </modules>
+
+  def getModulesXml = <kernels>{ kernelModules.values.map( _.getKernelObjects.map(_.toXml) ).foldLeft(List.empty[xml.Elem])(_ ++ _) }</kernels>
 
   def collectKernelModules(): Map[String, KernelModule] = {
     val kernelModules = new mutable.HashMap[String, KernelModule]()
