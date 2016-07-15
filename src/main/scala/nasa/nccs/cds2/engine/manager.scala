@@ -121,6 +121,11 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       val colIds = request.variableMap.values.map( _.getSource.collection.id )
       val deletedCollections = Collections.removeCollections( colIds.toArray )
       new ExecutionResults(List(new UtilityExecutionResult("dcol", <deleted collections={deletedCollections.mkString(",")}/> )))
+    case "dfrag" =>
+      val fragIds: Iterable[String] = request.variableMap.values.map( ds => Array( ds.getSource.name, ds.getSource.collection.url, ds.getSource.domain ).mkString("|") )
+      logger.info( "Deleting frags: " + fragIds.mkString(", ") + "; Current Frags = " + FragmentPersistence.getFragmentIdList.mkString(", ") )
+      fragIds.foreach( fragId => FragmentPersistence.delete( DataFragmentKey(fragId) ) )
+      new ExecutionResults(List(new UtilityExecutionResult("dfrag", <deleted fragments={fragIds.mkString(",")}/> )))
   }
 
   def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[ExecutionResults] = Future {

@@ -12,6 +12,7 @@ import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.Loggable
 import ucar.ma2
 
+import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
@@ -38,7 +39,7 @@ class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val
 class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragmentSpec, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
   private val ncVariable = cdVariable.ncVariable
   private val chunkCache: Cache[Int,CacheChunk] = new FutureCache("Store",cacheType,false)
-  private val nReadProcessors = Runtime.getRuntime.availableProcessors - 1
+  private val nReadProcessors = 4
   private val roi: ma2.Section = fragSpec.roi
   private val baseShape = roi.getShape
   private val dType: ma2.DataType  = ncVariable.getDataType
@@ -105,7 +106,8 @@ class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragment
     cacheFilePath
   }
 
-  def processChunkFromReader( iChunk: Int, buffer: MappedByteBuffer ): Unit = {
+  @tailrec
+  final def processChunkFromReader( iChunk: Int, buffer: MappedByteBuffer ): Unit = {
     chunkCache.get(iChunk) match {
       case Some( cacheChunkFut: Future[CacheChunk] ) =>
         val cacheChunk = Await.result( cacheChunkFut, Duration.Inf )
@@ -158,7 +160,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   }
 
   def getFragmentListXml(): xml.Elem = <fragments> { for(fkey <- fragmentIdCache.keys) yield expandKeyXml(fkey) } </fragments>
-
+  def getFragmentIdList(): Array[String] = fragmentIdCache.keys.toArray
   def getFragmentList(): Array[String] =  {
     fragmentIdCache.keys.map(k => expandKey(k)).toArray
 
@@ -489,8 +491,6 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
 }
 
 object collectionDataCache extends CollectionDataCacheMgr()
-
-
 
 //object cacheWriterTest extends App {
 //  val data_file = "/usr/local/web/data/MERRA/MERRA300.prod.assim.inst3_3d_asm_Cp.xml"

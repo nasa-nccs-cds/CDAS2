@@ -58,7 +58,7 @@ class TaskRequest(val name: String, val variableMap : Map[String,DataContainer],
 
   def validate() = {
     for( variable <- inputVariables; if variable.isSource; domid = variable.getSource.domain; vid=variable.getSource.name; if !domid.isEmpty ) {
-      if ( !domainMap.contains(domid) ) {
+      if ( !domainMap.contains(domid) && !domid.contains("|") ) {
         var keylist = domainMap.keys.mkString("[",",","]")
         logger.error( s"Error, No $domid in $keylist in variable $vid" )
         throw new Exception( s"Error, Missing domain $domid in variable $vid" )

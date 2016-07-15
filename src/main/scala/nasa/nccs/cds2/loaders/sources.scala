@@ -51,7 +51,9 @@ trait XmlResource extends Loggable {
       case ex: Exception =>
         sys.env.get("CDAS_CACHE_DIR") match {
           case Some( cache_path ) => Paths.get( cache_path, resourcePath ).toString
-          case None => throw new Exception(s"Can't find resource $resourcePath, may need to set CDAS_CACHE_DIR in shell env!")
+          case None =>
+            val home = System.getProperty("user.home")
+            Paths.get( home, ".cdas", "cache", resourcePath ).toString
         }
 
     }
