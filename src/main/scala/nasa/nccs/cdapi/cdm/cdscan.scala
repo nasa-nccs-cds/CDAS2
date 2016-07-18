@@ -6,14 +6,15 @@ import java.util.Formatter
 
 import nasa.nccs.cdapi.tensors.CDDoubleArray
 import nasa.nccs.cds2.loaders.Collections
+import nasa.nccs.cds2.utilities.runtime
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.utilities.cdsutils
 import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
-import ucar.nc2.dataset.{CoordinateAxis1D, CoordinateAxis, CoordinateAxis1DTime, NetcdfDataset, VariableDS}
+import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, NetcdfDataset, VariableDS}
 import ucar.nc2.time.CalendarDate
-import collection.mutable.ListBuffer
 
+import collection.mutable.ListBuffer
 import scala.collection.JavaConversions._
 import scala.collection.JavaConversions._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -21,7 +22,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import scala.xml.XML
 
-object NCMLWriter {
+object NCMLWriter extends Loggable {
 
   def apply( path: String ): NCMLWriter = { new NCMLWriter( Array(path).iterator ) }
 
@@ -48,6 +49,7 @@ object NCMLWriter {
 
   def getFileHeaders( files: IndexedSeq[File], nReadProcessors: Int ): IndexedSeq[FileHeader] = {
     val groupSize = cdsutils.ceilDiv( files.length, nReadProcessors )
+    logger.info( " Processing %d files in %d groups with %d processors".format( files.length, groupSize, nReadProcessors) )
     val fileGroups = files.grouped(groupSize).toIndexedSeq
     val fileHeaderFuts  = Future.sequence( for( workerIndex <- fileGroups.indices; fileGroup = fileGroups(workerIndex) ) yield Future { FileHeader.factory( fileGroup, workerIndex ) } )
     Await.result( fileHeaderFuts, Duration.Inf ).foldLeft( IndexedSeq[FileHeader]() ) {_ ++ _} sortWith { ( afr0, afr1 ) =>  (afr0.startValue < afr1.startValue) }
@@ -69,8 +71,8 @@ object NCMLWriter {
 //  }
 //}
 
-class NCMLWriter(args: Iterator[String], val maxCores: Int = 30) {
-  private val nReadProcessors = Math.min(Runtime.getRuntime.availableProcessors - 1, maxCores)
+class NCMLWriter(args: Iterator[String], val maxCores: Int = 4) {
+  private val nReadProcessors = 1 // Math.min(Runtime.getRuntime.availableProcessors - 1, maxCores)
   private val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
   private val nFiles = files.length
   val fileHeaders = NCMLWriter.getFileHeaders(files, nReadProcessors)
@@ -189,6 +191,7 @@ object FileHeader extends Loggable {
         val fileHeader = FileHeader( file, timeRegular )
         val t1 = System.nanoTime()
         println("Worker[%d]: Processing file[%d] '%s', start = %.3f, ncoords = %d, time = %.4f ".format(workerIndex, iFile, file.getAbsolutePath, fileHeader.startValue, fileHeader.nElem, (t1 - t0) / 1.0E9))
+        if( (iFile % 5) == 0 ) runtime.printMemoryUsage(logger)
         Some(fileHeader)
       } catch { case err: Exception =>  retryFiles += file; None }
     }
