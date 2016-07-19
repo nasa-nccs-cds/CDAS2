@@ -390,7 +390,7 @@ object DataContainer extends ContainerBase {
   def apply( operation: OperationContext ): DataContainer = {
       new DataContainer( uid=operation.rid, operation=Some(operation) )
   }
-  def absPath( path: String ): String = new java.io.File(path).getAbsolutePath
+  def absPath( path: String ): String = new java.io.File(path).getAbsolutePath.toLowerCase
 
   def getCollection(metadata: Map[String, Any]): Collection = {
     val uri = metadata.getOrElse("uri","").toString
@@ -401,7 +401,7 @@ object DataContainer extends ContainerBase {
     if (uri.startsWith("collection"))
       Collections.findCollection( id ) match {
         case Some(collection) =>
-          if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.path)), "Collection %s already exists and its path (%s) does not corresponde to the specified path (%s)".format(collection.id,collection.path,path) ) }
+          if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.path)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id,collection.path,path) ) }
           collection
         case None =>
           if (path.isEmpty) throw new Exception(s"Unrecognized collection: '$id', current collections: " + Collections.idSet.mkString(", ") )

@@ -3,6 +3,7 @@ package nasa.nccs.caching
 import java.io.{FileInputStream, RandomAccessFile}
 import java.nio.channels.FileChannel
 import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
+
 import nasa.nccs.cds2.utilities.runtime
 import nasa.nccs.cdapi.cdm.{Collection, _}
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
@@ -10,7 +11,7 @@ import nasa.nccs.cds2.loaders.Masks
 import nasa.nccs.cds2.utilities.GeoTools
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.Loggable
-import ucar.ma2
+import ucar.{ma2, nc2}
 
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -36,11 +37,9 @@ class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val
 //  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
-class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragmentSpec, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
-  private val ncVariable = cdVariable.ncVariable
+class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
   private val chunkCache: Cache[Int,CacheChunk] = new FutureCache("Store",cacheType,false)
   private val nReadProcessors = 4
-  private val roi: ma2.Section = fragSpec.roi
   private val baseShape = roi.getShape
   private val dType: ma2.DataType  = ncVariable.getDataType
   private val elemSize = ncVariable.getElementSize
@@ -80,14 +79,14 @@ class FileToCacheStream( val cdVariable: CDSVariable, val fragSpec: DataFragment
     writeChunks(nChunks,chunkSize)
   }
 
-  def cacheFloatData( chunkSize: Int  ): ( String, CDFloatArray ) = {
-    assert( dType == ma2.DataType.FLOAT, "Attempting to cache %s data as float: %s".format(dType.toString,cdVariable.name) )
+  def cacheFloatData( chunkSize: Int, missing_value: Float  ): ( String, CDFloatArray ) = {
+    assert( dType == ma2.DataType.FLOAT, "Attempting to cache %s data as float".format( dType.toString ) )
     val cache_id = execute( chunkSize )
     getReadBuffer(cache_id) match {
       case (channel, buffer) =>
         val storage: FloatBuffer = buffer.asFloatBuffer
         channel.close
-        ( cache_id -> new CDFloatArray( fragSpec.getShape, storage, cdVariable.missing ) )
+        ( cache_id -> new CDFloatArray( roi.getShape, storage, missing_value ) )
     }
   }
 

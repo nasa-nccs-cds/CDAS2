@@ -165,10 +165,15 @@ object Collections extends XmlResource {
   }
 
   def findNcFile(file: File): Option[File] = {
-    file.listFiles foreach { f => if (NCMLWriter.isNcFile(f)) return Some(f) }
-    file.listFiles foreach { f => if (f.isDirectory) { findNcFile(f) match { case Some(f) => return Some(f); case None => Unit } } }
+    file.listFiles.filter( _.isFile ) foreach {
+      f =>  if( f.getName.startsWith(".") ) return None
+            else if (NCMLWriter.isNcFile(f)) return Some(f)
+    }
+    file.listFiles.filter( _.isDirectory ) foreach { f => findNcFile(f) match { case Some(f) => return Some(f); case None => Unit } }
     None
   }
+
+  def hasChildNcFile(file: File): Boolean = { findNcFile(file).isDefined }
 
   def getVariableList( path: String ): List[String] = {
     findNcFile( new File(path) ) match {
