@@ -107,7 +107,7 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 4) {
         val nElems = if( coordAxis.getAxisType == AxisType.Time ) outerDimensionSize else coordAxis.getSize
         val dimension = coordAxis.getDimension(0)
           <dimension name={dimension.getFullName} length={nElems.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString} isShared={dimension.isShared.toString}/>
-      case _ => throw new Exception( "Multidimensional coord axes not currently supported")
+      case x => throw new Exception( "Multidimensional coord axes not currently supported: " + x.getClass.getName + " for axis " + axis.getNameAndDimensions(true) )
     }
   }
 
