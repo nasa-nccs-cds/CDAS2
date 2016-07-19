@@ -49,7 +49,7 @@ object NCMLWriter extends Loggable {
 
   def getFileHeaders( files: IndexedSeq[File], nReadProcessors: Int ): IndexedSeq[FileHeader] = {
     val groupSize = cdsutils.ceilDiv( files.length, nReadProcessors )
-    logger.info( " Processing %d files in %d groups with %d processors".format( files.length, groupSize, nReadProcessors) )
+    logger.info( " Processing %d files with %d files/group with %d processors".format( files.length, groupSize, nReadProcessors) )
     val fileGroups = files.grouped(groupSize).toIndexedSeq
     val fileHeaderFuts  = Future.sequence( for( workerIndex <- fileGroups.indices; fileGroup = fileGroups(workerIndex) ) yield Future { FileHeader.factory( fileGroup, workerIndex ) } )
     Await.result( fileHeaderFuts, Duration.Inf ).foldLeft( IndexedSeq[FileHeader]() ) {_ ++ _} sortWith { ( afr0, afr1 ) =>  (afr0.startValue < afr1.startValue) }
@@ -71,7 +71,7 @@ object NCMLWriter extends Loggable {
 //  }
 //}
 
-class NCMLWriter(args: Iterator[String], val maxCores: Int = 4) {
+class NCMLWriter(args: Iterator[String], val maxCores: Int = 4) extends Loggable {
   private val nReadProcessors = 1 // Math.min(Runtime.getRuntime.availableProcessors - 1, maxCores)
   private val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
   private val nFiles = files.length
@@ -101,13 +101,16 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 4) {
 
   def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) dim.getShortName else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
 
-  def getDimension(axis: CoordinateAxis ): xml.Node = {
+  def getDimension(axis: CoordinateAxis ): Option[xml.Node] = {
     axis match {
       case coordAxis: CoordinateAxis1D =>
         val nElems = if( coordAxis.getAxisType == AxisType.Time ) outerDimensionSize else coordAxis.getSize
         val dimension = coordAxis.getDimension(0)
-          <dimension name={dimension.getFullName} length={nElems.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString} isShared={dimension.isShared.toString}/>
-      case x => throw new Exception( "Multidimensional coord axes not currently supported: " + x.getClass.getName + " for axis " + axis.getNameAndDimensions(true) )
+          val node = <dimension name={dimension.getFullName} length={nElems.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString} isShared={dimension.isShared.toString}/>
+        Some(node)
+      case x =>
+        logger.warn( "Multidimensional coord axes not currently supported: " + x.getClass.getName + " for axis " + axis.getNameAndDimensions(true) )
+        None
     }
   }
 
@@ -159,7 +162,7 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 4) {
       <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
 
       { for( attribute <- fileMetadata.attributes ) yield getAttribute(attribute) }
-      { for (coordAxis <- fileMetadata.coordinateAxes) yield getDimension(coordAxis) }
+      { (for (coordAxis <- fileMetadata.coordinateAxes) yield getDimension(coordAxis)).flatten }
       { for (variable <- fileMetadata.variables) yield getVariable( variable, timeRegularSpecs ) }
       { getAggregation( timeRegularSpecs.isDefined ) }
 
