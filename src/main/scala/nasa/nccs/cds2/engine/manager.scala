@@ -126,10 +126,27 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       logger.info( "Deleting frags: " + fragIds.mkString(", ") + "; Current Frags = " + FragmentPersistence.getFragmentIdList.mkString(", ") )
       fragIds.foreach( fragId => FragmentPersistence.delete( DataFragmentKey(fragId) ) )
       new ExecutionResults(List(new UtilityExecutionResult("dfrag", <deleted fragments={fragIds.mkString(",")}/> )))
+    case "dres" =>
+      val resIds: Iterable[String] = request.variableMap.values.map( ds => ds.uid )
+      logger.info( "Deleting results: " + resIds.mkString(", ") + "; Current Results = " + collectionDataCache.getResultIdList.mkString(", ") )
+      resIds.foreach( resId => collectionDataCache.deleteResult( resId ) )
+      new ExecutionResults(List(new UtilityExecutionResult("dres", <deleted results={resIds.mkString(",")}/> )))
+    case x if x.startsWith("gres") =>
+      val resId: String = request.variableMap.values.head.uid
+      collectionDataCache.getExistingResult( resId ) match {
+        case None => new ExecutionResults( List( new ErrorExecutionResult( new Exception("Unrecognized resId: " + resId )) ) )
+        case Some( resultFut ) =>
+          val result = Await.result( resultFut, Duration.Inf  )
+          x.split(':')(1) match {
+            case "xml" => new ExecutionResults( List( new UtilityExecutionResult( resId, result.toXml(resId) ) ))
+            case "netcdf" => new ExecutionResults( List( new UtilityExecutionResult( resId, result.toXml(resId) ) ))
+          }
+      }
   }
 
   def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[ExecutionResults] = Future {
-    val req_ids = request.name.split(".")
+    logger.info("Executing task request " + request.name )
+    val req_ids = request.name.split('.')
     req_ids(0) match {
       case "util" => executeUtilityRequest(req_ids(1), request, run_args)
       case _ =>
@@ -212,6 +229,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   def getCapabilities( identifier: String ): xml.Elem = identifier match {
     case x if x.startsWith("proc") => kernelManager.toXml
     case x if x.startsWith("frag") => FragmentPersistence.getFragmentListXml
+    case x if x.startsWith("res") => collectionDataCache.getResultListXml
     case x if x.startsWith("coll") => Collections.toXml
     case x if x.startsWith("op") => kernelManager.getModulesXml
     case x if x.startsWith("var") => {
@@ -368,7 +386,7 @@ object YearlyCycleSliceTask extends SyncExecutor {
 object AveTimeseries extends SyncExecutor {
   def getTaskRequest(args: Array[String]): TaskRequest = {
     import nasa.nccs.esgf.process.DomainAxis.Type._
-    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List(new OperationContext(identifier = "CDS.average~ivar#1", name = "CDS.average", rid = "ivar#1", inputs = List("v0"), Map("axis" -> "t")))))
+    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "t")))))
     val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0"))))
     val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 1, 1), DomainAxis(Y, 100, 100), DomainAxis(X, 100, 100)), None))
     new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
@@ -574,7 +592,8 @@ object AnomalyArrayNcMLTest extends SyncExecutor {
 object AveArray extends SyncExecutor {
   def getTaskRequest(args: Array[String]): TaskRequest = {
     import nasa.nccs.esgf.process.DomainAxis.Type._
-    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List(new OperationContext(identifier = "CDS.average~ivar#1", name = "CDS.average", rid = "ivar#1", inputs = List("v0"), Map("axis" -> "xy")))))
+
+    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "xy")))))
     val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0"))))
     val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 4, 4), DomainAxis(Y, 100, 100)), None))
     new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))

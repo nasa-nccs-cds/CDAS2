@@ -8,7 +8,7 @@ import collection.JavaConverters._
 import scala.collection.JavaConversions._
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
-import nasa.nccs.caching.collectionDataCache
+import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
 import nasa.nccs.cdapi.cdm.{Collection, NCMLWriter}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.dataset.NetcdfDataset
@@ -119,6 +119,8 @@ object Collections extends XmlResource {
     }}
     </collections>
   }
+
+  def getPersistedVariableListXml: xml.Elem = FragmentPersistence.getFragmentListXml
 
   def idSet: Set[String] = datasets.keySet.toSet
   def values: Iterator[Collection] = datasets.valuesIterator

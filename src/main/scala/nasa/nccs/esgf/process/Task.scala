@@ -3,6 +3,7 @@ package nasa.nccs.esgf.process
 import nasa.nccs.cdapi.cdm.{CDSDataset, CDSVariable, Collection, PartitionedFragment}
 import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
+import org.joda.time.{ DateTime, DateTimeZone }
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -564,6 +565,7 @@ object WorkflowContainer extends ContainerBase {
 
 class OperationContext( val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext  {
   def getConfiguration = configuration
+
   override def toString = {
     s"OperationContext { id = $identifier,  name = $name, rid = $rid, inputs = $inputs, configurations = $configuration }"
   }
@@ -573,6 +575,7 @@ class OperationContext( val identifier: String, val name: String, val rid: Strin
 }
 
 object OperationContext extends ContainerBase  {
+  private val random = new Random( System.currentTimeMillis )
   var resultIndex = 0
   def apply( process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
     val op_inputs: List[String] = metadata.get( "input" ) match {
@@ -582,9 +585,14 @@ object OperationContext extends ContainerBase  {
       case x => throw new Exception ( "Unrecognized input in operation spec: " + x.toString )
     }
     val op_name = metadata.getOrElse( "name", process_name ).toString.trim.toLowerCase
-    val op_rid = metadata.getOrElse( "rid", generateResultId ).toString.trim.toLowerCase
     val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim.toLowerCase )
-    new OperationContext( identifier = op_rid + "~" + op_name, name=op_name, rid = op_rid, inputs = op_inputs, optargs )
+    val input = metadata.getOrElse("input","").toString
+    val opLongName = op_name + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(",",",")")
+    val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
+    val op_rid: String = Array( opLongName, dt.toString("MM.dd:hh.mm.ss") ).mkString("-")
+
+
+    new OperationContext( identifier = op_rid, name=op_name, rid = op_rid, inputs = op_inputs, optargs )
   }
   def generateResultId: String = { resultIndex += 1; "$v"+resultIndex.toString }
 }

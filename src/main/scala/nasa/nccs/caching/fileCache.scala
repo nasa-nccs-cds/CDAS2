@@ -6,6 +6,7 @@ import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
 
 import nasa.nccs.cds2.utilities.runtime
 import nasa.nccs.cdapi.cdm.{Collection, _}
+import nasa.nccs.cdapi.kernels.TransientFragment
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
 import nasa.nccs.cds2.loaders.Masks
 import nasa.nccs.cds2.utilities.GeoTools
@@ -256,6 +257,7 @@ trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {
 
 class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with FragSpecKeySet {
   private val fragmentCache: Cache[DataFragmentKey,PartitionedFragment] = new FutureCache("Store","fragment",false)
+  private val transientFragmentCache: Cache[String,TransientFragment] = new FutureCache("Store","result",false)
   private val datasetCache: Cache[String,CDSDataset] = new FutureCache("Store","dataset",false)
   private val variableCache: Cache[String,CDSVariable] = new FutureCache("Store","variable",false)
   private val maskCache: Cache[MaskKey,CDByteArray] = new FutureCache("Store","mask",false)
@@ -293,6 +295,15 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     p.success(dataset)
   }
 
+  def getExistingResult( resultId: String  ): Option[Future[TransientFragment]] = {
+    val result: Option[Future[TransientFragment]] = transientFragmentCache.get( resultId )
+    logger.info( ">>>>>>>>>>>>>>>> Get result from cache: search key = " + resultId + ", existing keys = " + transientFragmentCache.keys.mkString("[",",","]") + ", Success = " + result.isDefined.toString )
+    result
+  }
+  def deleteResult( resultId: String  ): Option[Future[TransientFragment]] = transientFragmentCache.remove(resultId)
+  def putResult( resultId: String, result: TransientFragment  ) = transientFragmentCache.put(resultId,result)
+  def getResultListXml(): xml.Elem = <results> { for(rkey <- transientFragmentCache.keys) yield <result id={rkey} /> } </results>
+  def getResultIdList: Set[String] = transientFragmentCache.keys
 
   private def promiseVariable(collection: Collection, varName: String)(p: Promise[CDSVariable]): Unit =
     getDatasetFuture(collection, varName) onComplete {

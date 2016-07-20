@@ -6,7 +6,9 @@ import nasa.nccs.esgf.process._
 import org.slf4j.LoggerFactory
 import java.io.{File, IOException, PrintWriter, StringWriter}
 
+import nasa.nccs.caching.collectionDataCache
 import ucar.{ma2, nc2}
+import scala.util.Random
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -197,8 +199,18 @@ abstract class Kernel {
       }
     }
   }
-//
-  def saveResult( maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, targetGrid: TargetGrid, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
+
+  def cacheResult( maskedTensor: CDFloatArray, operation: OperationContext, request: RequestContext, server: ServerContext, resultGrid: TargetGrid, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
+    try {
+      val result: TransientFragment = new TransientFragment(maskedTensor, request, varMetadata, dsetMetadata)
+      collectionDataCache.putResult(operation.rid, result)
+      Some(operation.rid)
+    } catch {
+      case ex: Exception => logger.error( "Can't cache result: " + ex.getMessage ); None
+    }
+  }
+
+  def saveResultToFile( maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, targetGrid: TargetGrid, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
     request.config("resultId") match {
       case None => logger.warn("Missing resultId: this probably means you are executing synchronously with 'async' = true ")
       case Some(resultId) =>
@@ -287,5 +299,12 @@ class KernelModule {
       <kernels> { kernelMap.values.map( _.toXmlHeader ) } </kernels>
     </kernelModule>
   }
+}
+
+class TransientFragment( val data: CDFloatArray, val request: RequestContext, val varMetadata: Map[String,nc2.Attribute], val dsetMetadata: List[nc2.Attribute] ) {
+  def toXml(id: String): xml.Elem = {
+    <result id={id} missing_value={data.getInvalid.toString}> { data.toDataString } </result>
+  }
+
 }
 
