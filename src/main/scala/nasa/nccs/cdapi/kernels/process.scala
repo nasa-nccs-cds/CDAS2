@@ -8,6 +8,7 @@ import java.io.{File, IOException, PrintWriter, StringWriter}
 
 import nasa.nccs.caching.collectionDataCache
 import nasa.nccs.utilities.Loggable
+import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
 import scala.util.Random
@@ -305,8 +306,7 @@ class KernelModule {
 class TransientFragment( val data: CDFloatArray, val request: RequestContext, val varMetadata: Map[String,nc2.Attribute], val dsetMetadata: List[nc2.Attribute] ) extends Loggable {
   def toXml(id: String): xml.Elem = {
     val units = varMetadata.get("units") match { case Some(attr) => attr.getStringValue; case None => "" }
-    val long_name = varMetadata.getOrElse("long_name",varMetadata.getOrElse("fullname",varMetadata.get("varname"))) match {
-      case Some(attr:nc2.Attribute) => attr.getStringValue; case None => "" }
+    val long_name = varMetadata.getOrElse("long_name",varMetadata.getOrElse("fullname",varMetadata.getOrElse("varname", new Attribute("varname","UNDEF")))).getStringValue
     val description = varMetadata.get("description") match { case Some(attr) => attr.getStringValue; case None => "" }
     val axes = varMetadata.get("axes") match { case Some(attr) => attr.getStringValue; case None => "" }
     <result id={id} missing_value={data.getInvalid.toString} shape={data.getShape.mkString("(",",",")")} units={units} long_name={long_name} description={description} axes={axes}>  </result> // { data.getSectionArray.mkString(", ") }
