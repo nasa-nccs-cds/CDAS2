@@ -304,8 +304,11 @@ class KernelModule {
 
 class TransientFragment( val data: CDFloatArray, val request: RequestContext, val varMetadata: Map[String,nc2.Attribute], val dsetMetadata: List[nc2.Attribute] ) extends Loggable {
   def toXml(id: String): xml.Elem = {
-    logger.info( " CREATE TransientFragment\n ** varMetadata = " + varMetadata.keys.mkString(",") + "\n ** dsetMetadata: " + dsetMetadata.map( _.toString ))
-    <result id={id} missing_value={data.getInvalid.toString} shape={data.getShape.mkString("(",",",")")}> { data.getSectionArray.mkString(", ") } </result>
+    val units = varMetadata.getOrElse("units","").toString
+    val long_name = varMetadata.getOrElse("long_name",varMetadata.getOrElse("fullname",varMetadata.getOrElse("varname",""))).toString
+    val description = varMetadata.getOrElse("description","").toString
+    val axes = varMetadata.getOrElse("axes","").toString
+    <result id={id} missing_value={data.getInvalid.toString} shape={data.getShape.mkString("(",",",")")} units={units} long_name={long_name} description={description} axes={axes}>  </result> // { data.getSectionArray.mkString(", ") }
   }
 
 }

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
 import nasa.nccs.caching._
 import ucar.{ma2, nc2}
-import nasa.nccs.cds2.utilities.GeoTools
+import nasa.nccs.cds2.utilities.{GeoTools, runtime}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -159,6 +159,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 
   def blockingExecute( request: TaskRequest, run_args: Map[String,String] ): ExecutionResults =  {
     logger.info("Blocking Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
+    runtime.printMemoryUsage(logger)
     val t0 = System.nanoTime
     try {
       val req_ids = request.name.split('.')
@@ -203,6 +204,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 
   def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): ( String, Future[ExecutionResults] ) = {
     logger.info("Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
+    runtime.printMemoryUsage(logger)
     val jobId = collectionDataCache.addJob( request.getJobRec(run_args) )
     val async = run_args.getOrElse("async", "false").toBoolean
     val futureResult = this.futureExecute( request, Map( "jobId" -> jobId ) ++ run_args )
