@@ -7,9 +7,10 @@ import org.slf4j.LoggerFactory
 import java.io.{File, IOException, PrintWriter, StringWriter}
 
 import nasa.nccs.caching.collectionDataCache
+import nasa.nccs.utilities.Loggable
 import ucar.{ma2, nc2}
-import scala.util.Random
 
+import scala.util.Random
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -301,9 +302,10 @@ class KernelModule {
   }
 }
 
-class TransientFragment( val data: CDFloatArray, val request: RequestContext, val varMetadata: Map[String,nc2.Attribute], val dsetMetadata: List[nc2.Attribute] ) {
+class TransientFragment( val data: CDFloatArray, val request: RequestContext, val varMetadata: Map[String,nc2.Attribute], val dsetMetadata: List[nc2.Attribute] ) extends Loggable {
   def toXml(id: String): xml.Elem = {
-    <result id={id} missing_value={data.getInvalid.toString}> { data.toDataString } </result>
+    logger.info( " CREATE TransientFragment\n ** varMetadata = " + varMetadata.keys.mkString(",") + "\n ** dsetMetadata: " + dsetMetadata.map( _.toString ))
+    <result id={id} missing_value={data.getInvalid.toString} shape={data.getShape.mkString("(",",",")")}> { data.getSectionArray.mkString(", ") } </result>
   }
 
 }

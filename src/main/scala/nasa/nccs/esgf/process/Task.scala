@@ -1,9 +1,10 @@
 package nasa.nccs.esgf.process
 
+import nasa.nccs.caching.JobRecord
 import nasa.nccs.cdapi.cdm.{CDSDataset, CDSVariable, Collection, PartitionedFragment}
 import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
-import org.joda.time.{ DateTime, DateTimeZone }
+import org.joda.time.{DateTime, DateTimeZone}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -16,6 +17,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.esgf.utilities.wpsNameMatchers
+
 import scala.util.Random
 
 case class ErrorReport(severity: String, message: String) {
@@ -38,6 +40,11 @@ class TaskRequest(val name: String, val variableMap : Map[String,DataContainer],
     val error_rep = ErrorReport(severity, message)
     logger.error(error_rep.toString)
     errorReports += error_rep
+  }
+
+  def getJobRec( run_args: Map[String,String] ): JobRecord = {
+    val jobIds = for( workflow <- workflows; operation <- workflow.operations ) yield operation.rid
+    new JobRecord( jobIds.mkString("-"))
   }
 
   def isMetadataRequest: Boolean = name.split('.').last.toLowerCase().equals("metadata")
@@ -589,7 +596,7 @@ object OperationContext extends ContainerBase  {
     val input = metadata.getOrElse("input","").toString
     val opLongName = op_name + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(",",",")")
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
-    val op_rid: String = Array( opLongName, dt.toString("MM.dd:hh.mm.ss") ).mkString("-")
+    val op_rid: String = Array( opLongName, dt.toString("MM.dd-hh.mm.ss") ).mkString("-")
 
 
     new OperationContext( identifier = op_rid, name=op_name, rid = op_rid, inputs = op_inputs, optargs )

@@ -105,8 +105,8 @@ object ValueMagnet {
   * the longest time are evicted first.
   */
 final class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boolean ) extends Cache[K,V] with Loggable {
-  val maxCapacity: Int=1000
-  val initialCapacity: Int=32
+  val maxCapacity: Int=10000
+  val initialCapacity: Int=64
   val cacheFile = DiskCacheFileMgr.getDiskCacheFilePath( cname, ctype )
   require(maxCapacity >= 0, "maxCapacity must not be negative")
   require(initialCapacity <= maxCapacity, "initialCapacity must be <= maxCapacity")

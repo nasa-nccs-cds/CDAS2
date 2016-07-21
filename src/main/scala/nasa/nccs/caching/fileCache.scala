@@ -4,6 +4,7 @@ import java.io.{FileInputStream, RandomAccessFile}
 import java.nio.channels.FileChannel
 import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.cds2.utilities.runtime
 import nasa.nccs.cdapi.cdm.{Collection, _}
 import nasa.nccs.cdapi.kernels.TransientFragment
@@ -13,7 +14,8 @@ import nasa.nccs.cds2.utilities.GeoTools
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.Loggable
 import ucar.{ma2, nc2}
-
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -255,13 +257,22 @@ trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {
   }
 }
 
+class JobRecord( val id: String ) {
+  override def toString: String = s"ExecutionRecord[id=$id]"
+  def toXml: xml.Elem = <job id={id} />
+}
+
 class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with FragSpecKeySet {
   private val fragmentCache: Cache[DataFragmentKey,PartitionedFragment] = new FutureCache("Store","fragment",false)
-  private val transientFragmentCache: Cache[String,TransientFragment] = new FutureCache("Store","result",false)
+  private val transientFragmentCache = new ConcurrentLinkedHashMap.Builder[ String, TransientFragment ].initialCapacity(64).maximumWeightedCapacity(10000).build()
+  private val execJobCache = new ConcurrentLinkedHashMap.Builder[ String, JobRecord ].initialCapacity(64).maximumWeightedCapacity(10000).build()
   private val datasetCache: Cache[String,CDSDataset] = new FutureCache("Store","dataset",false)
   private val variableCache: Cache[String,CDSVariable] = new FutureCache("Store","variable",false)
   private val maskCache: Cache[MaskKey,CDByteArray] = new FutureCache("Store","mask",false)
   def clearFragmentCache() = fragmentCache.clear
+
+  def addJob( jrec: JobRecord ): String = { execJobCache.put( jrec.id, jrec ); jrec.id }
+  def removeJob( jid: String ) = execJobCache.remove( jid )
 
   def getFragmentList: Array[String] =  fragmentCache.getEntries.map
     { case (key,frag) => "%s, bounds:%s".format( key.toStrRep, frag.toBoundsString ) } toArray
@@ -295,15 +306,16 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     p.success(dataset)
   }
 
-  def getExistingResult( resultId: String  ): Option[Future[TransientFragment]] = {
-    val result: Option[Future[TransientFragment]] = transientFragmentCache.get( resultId )
-    logger.info( ">>>>>>>>>>>>>>>> Get result from cache: search key = " + resultId + ", existing keys = " + transientFragmentCache.keys.mkString("[",",","]") + ", Success = " + result.isDefined.toString )
+  def getExistingResult( resultId: String  ): Option[TransientFragment] = {
+    val result: Option[TransientFragment] = Option(transientFragmentCache.get( resultId ))
+    logger.info( ">>>>>>>>>>>>>>>> Get result from cache: search key = " + resultId + ", existing keys = " + transientFragmentCache.keySet.toArray.mkString("[",",","]") + ", Success = " + result.isDefined.toString )
     result
   }
-  def deleteResult( resultId: String  ): Option[Future[TransientFragment]] = transientFragmentCache.remove(resultId)
+  def deleteResult( resultId: String  ): Option[TransientFragment] = Option(transientFragmentCache.remove(resultId))
   def putResult( resultId: String, result: TransientFragment  ) = transientFragmentCache.put(resultId,result)
-  def getResultListXml(): xml.Elem = <results> { for(rkey <- transientFragmentCache.keys) yield <result id={rkey} /> } </results>
-  def getResultIdList: Set[String] = transientFragmentCache.keys
+  def getResultListXml(): xml.Elem = <results> { for( rkey <- transientFragmentCache.keySet ) yield <result id={rkey} /> } </results>
+  def getResultIdList = transientFragmentCache.keySet
+  def getJobListXml(): xml.Elem = <jobs> { for( jrec: JobRecord <- execJobCache.values ) yield jrec.toXml } </jobs>
 
   private def promiseVariable(collection: Collection, varName: String)(p: Promise[CDSVariable]): Unit =
     getDatasetFuture(collection, varName) onComplete {

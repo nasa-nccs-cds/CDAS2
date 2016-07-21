@@ -135,8 +135,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       val resId: String = request.variableMap.values.head.uid
       collectionDataCache.getExistingResult( resId ) match {
         case None => new ExecutionResults( List( new ErrorExecutionResult( new Exception("Unrecognized resId: " + resId )) ) )
-        case Some( resultFut ) =>
-          val result = Await.result( resultFut, Duration.Inf  )
+        case Some( result ) =>
           x.split(':')(1) match {
             case "xml" => new ExecutionResults( List( new UtilityExecutionResult( resId, result.toXml(resId) ) ))
             case "netcdf" => new ExecutionResults( List( new UtilityExecutionResult( resId, result.toXml(resId) ) ))
@@ -204,19 +203,19 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 
   def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): ( String, Future[ExecutionResults] ) = {
     logger.info("Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
+    val jobId = collectionDataCache.addJob( request.getJobRec(run_args) )
     val async = run_args.getOrElse("async", "false").toBoolean
-    val resultId = "r" + counter.get.toString
-    val futureResult = this.futureExecute( request, Map( "resultId" -> resultId ) ++ run_args )
+    val futureResult = this.futureExecute( request, Map( "jobId" -> jobId ) ++ run_args )
     futureResult onSuccess { case results: ExecutionResults =>
       println("Process Completed: " + results.toString )
-      processAsyncResult( resultId, results )
+      processAsyncResult( jobId, results )
     }
-    futureResult onFailure { case e: Throwable => fatal( e ); throw e }
-    (resultId, futureResult)
+    futureResult onFailure {  case e: Throwable =>  fatal( e ); collectionDataCache.removeJob( jobId ); throw e }
+    (jobId, futureResult)
   }
 
-  def processAsyncResult( resultId: String, results: ExecutionResults ) = {
-
+  def processAsyncResult( jobId: String, results: ExecutionResults ) = {
+    collectionDataCache.removeJob( jobId )
   }
 
 //  def execute( request: TaskRequest, runargs: Map[String,String] ): xml.Elem = {
@@ -230,6 +229,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     case x if x.startsWith("proc") => kernelManager.toXml
     case x if x.startsWith("frag") => FragmentPersistence.getFragmentListXml
     case x if x.startsWith("res") => collectionDataCache.getResultListXml
+    case x if x.startsWith("job") => collectionDataCache.getJobListXml
     case x if x.startsWith("coll") => Collections.toXml
     case x if x.startsWith("op") => kernelManager.getModulesXml
     case x if x.startsWith("var") => {
