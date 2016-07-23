@@ -127,7 +127,7 @@ class CDS extends KernelModule with KernelTools {
       }
       val mean_val_masked: CDFloatArray = input_array.mean( axes.toArray, weightsOpt )
       val t11 = System.nanoTime
-      logger.info("Mean_val_masked, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, mean_val_masked.toString ) )
+      logger.info("Mean_val_masked, time = %.4f s, reduction dims = (%s), result = %s".format( (t11-t10)/1.0E9, axes.toArray.mkString(","), mean_val_masked.toString ) )
       val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
       val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
       if(async) {

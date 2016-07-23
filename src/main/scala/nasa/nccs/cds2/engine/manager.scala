@@ -596,8 +596,8 @@ object AveArray extends SyncExecutor {
     import nasa.nccs.esgf.process.DomainAxis.Type._
 
     val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "xy")))))
-    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0"))))
-    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 4, 4), DomainAxis(Y, 100, 100)), None))
+    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "t", collection = getCollection("merra/daily"), domain = "d0"))))
+    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 0, 0)), None))
     new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
   }
 }
