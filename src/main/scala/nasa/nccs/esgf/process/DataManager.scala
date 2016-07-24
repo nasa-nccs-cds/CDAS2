@@ -135,7 +135,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
             time_values.toArray[Double]
         }
       case x =>
-        CDDoubleArray.factory( coordAxis.read(List(range)) ).getArrayData
+        CDDoubleArray.factory( coordAxis.read(List(range)) ).getArrayData()
     }
   }
 

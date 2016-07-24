@@ -53,8 +53,8 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     var magsum = 0.0
     var count = 0
     val length = Math.min(array0.getSize, array1.getSize)
-    val a0 = array0.getArrayData
-    val a1 = array1.getArrayData
+    val a0 = array0.getArrayData()
+    val a1 = array1.getArrayData()
     for (index <- (0 until length); val0 = a0(index); if val0 != array0.getInvalid; val1 = a1(index); if val1 != array1.getInvalid; diff = Math.abs(val0 - val1)) {
       if (diff > max_diff) {
         max_diff = diff
@@ -69,8 +69,8 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
   def maxDiff(array0: CDFloatArray, array1: CDFloatArray): Float = {
     var max_diff = 0f
     val length = Math.min(array0.getSize, array1.getSize)
-    val a0 = array0.getArrayData
-    val a1 = array1.getArrayData
+    val a0 = array0.getArrayData()
+    val a1 = array1.getArrayData()
     for (index <- (0 until length); val0 = a0(index); if val0 != array0.getInvalid; val1 = a1(index); if val1 != array1.getInvalid; diff = Math.abs(val0 - val1)) {
       if (diff > max_diff) { max_diff = diff }
     }

@@ -2,6 +2,7 @@ package nasa.nccs.cdapi.cdm
 
 import java.nio.channels.{FileChannel, NonReadableChannelException}
 
+import nasa.nccs.caching.collectionDataCache
 import ucar.nc2
 import java.nio.file.{Files, Paths}
 import java.io.{FileWriter, _}
@@ -35,6 +36,11 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
       case "http" => s"$url/$varName.ncml"
       case _ => url
     }
+  }
+
+  def getDatasetMetadata(): List[nc2.Attribute] = {
+    val dataset = collectionDataCache.getDataset( this, vars.head )
+    dataset.attributes
   }
 
   def toXml: xml.Elem =

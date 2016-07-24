@@ -185,7 +185,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
   def promiseCacheId( frag: PartitionedFragment )(p: Promise[String]): Unit = {
     try {
-      val cacheFile = bufferToDiskFloat(frag.data.getSectionData)
+      val cacheFile = bufferToDiskFloat(frag.data.getSectionData())
       p.success(cacheFile)
     }  catch {
       case err: Throwable => logError(err, "Error writing cache data to disk:"); p.failure(err)

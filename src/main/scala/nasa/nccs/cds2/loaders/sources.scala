@@ -12,6 +12,7 @@ import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
 import nasa.nccs.cdapi.cdm.{Collection, NCMLWriter}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.dataset.NetcdfDataset
+import ucar.nc2
 
 import scala.concurrent.Future
 import scala.xml.XML
@@ -110,6 +111,12 @@ object Collections extends XmlResource {
       { for( ( id: String, collection:Collection ) <- datasets ) yield collection.toXml }
     </collections>
 
+  def getCollectionMetadata( collId: String  ): List[nc2.Attribute] = {
+    findCollection( collId ) match {
+      case None => List.empty[nc2.Attribute]
+      case Some( coll ) => coll.getDatasetMetadata
+    }
+  }
 
   def getVariableListXml(cids: Array[String]): xml.Elem = {
     <collections>

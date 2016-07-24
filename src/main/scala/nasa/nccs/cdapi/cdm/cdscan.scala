@@ -132,7 +132,7 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 4) extends Loggable
   }
 
   def getData(variable: nc2.Variable, isRegular: Boolean): xml.Node = {
-    val dataArray: Array[Double] = CDDoubleArray.factory(variable.read).getArrayData
+    val dataArray: Array[Double] = CDDoubleArray.factory(variable.read).getArrayData()
     if (isRegular) {
       <values start={"%.3f".format(dataArray(0))} increment={"%.6f".format(dataArray(1)-dataArray(0))}/>
     } else {

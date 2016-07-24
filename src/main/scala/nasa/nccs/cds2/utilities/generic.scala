@@ -1,5 +1,6 @@
 package nasa.nccs.cds2.utilities
 import org.slf4j.Logger
+import ucar.nc2
 
 object runtime {
   def printMemoryUsage(logger: Logger) = {
@@ -13,3 +14,5 @@ object runtime {
     logger.info("--------------------------------- ------------ ---------------------------------")
   }
 }
+
+
