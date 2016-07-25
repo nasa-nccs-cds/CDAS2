@@ -129,7 +129,7 @@ class AxisIndices( private val axisIds: Set[Int] = Set.empty ) {
 
 object Kernel {
   def getResultFile( serverConfiguration: Map[String,String], resultId: String, deleteExisting: Boolean = false ): File = {
-    val resultsDirPath = serverConfiguration.getOrElse("wps.results.dir", "~/.wps/results").replace( "~",  System.getProperty("user.home") )
+    val resultsDirPath = serverConfiguration.getOrElse("wps.results.dir", "~/.wps/results").replace( "~",  System.getProperty("user.home") ).replaceAll("[()]","-").replace("=","~")
     val resultsDir = new File(resultsDirPath); resultsDir.mkdirs()
     val resultFile = new File( resultsDirPath + s"/$resultId.nc" )
     if( deleteExisting && resultFile.exists ) resultFile.delete
