@@ -12,6 +12,8 @@ import nasa.nccs.cds2.loaders.XmlResource
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateSystem, NetcdfDataset}
+import ucar.nc2.ncml.NcMLReader
+import ucar.nc2.util.DebugFlagsImpl
 
 import scala.collection.mutable
 import scala.collection.concurrent
@@ -204,6 +206,7 @@ object CDSDataset extends DiskCachable  {
 
   private def loadNetCDFDataSet(url: String): NetcdfDataset = {
     NetcdfDataset.setUseNaNs(false)
+    NcMLReader.setDebugFlags( new DebugFlagsImpl( "debugURL debugXML showParsedXML debugCmd debugOpen debugConstruct debugAggDetail" ) )
     val dset_address = urlToPath(url)
     try {
       logger.info("Opening NetCDF dataset %s".format(dset_address))
@@ -220,6 +223,23 @@ object CDSDataset extends DiskCachable  {
     }
   }
 }
+//public class NcMLReader {
+//  static private final Namespace ncNS = thredds.client.catalog.Catalog.ncmlNS;
+//  static private org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(NcMLReader.class);
+//
+//  private static boolean debugURL = false, debugXML = false, showParsedXML = false;
+//  private static boolean debugOpen = false, debugConstruct = false, debugCmd = false;
+//  private static boolean debugAggDetail = false;
+//
+//  static public void setDebugFlags(ucar.nc2.util.DebugFlags debugFlag) {
+//    debugURL = debugFlag.isSet("NcML/debugURL");
+//    debugXML = debugFlag.isSet("NcML/debugXML");
+//    showParsedXML = debugFlag.isSet("NcML/showParsedXML");
+//    debugCmd = debugFlag.isSet("NcML/debugCmd");
+//    debugOpen = debugFlag.isSet("NcML/debugOpen");
+//    debugConstruct = debugFlag.isSet("NcML/debugConstruct");
+//    debugAggDetail = debugFlag.isSet("NcML/debugAggDetail");
+//  }
 
 class CDSDatasetRec( val dsetName: String, val collection: Collection, val varName: String ) extends Serializable {
   def getUri: String = collection.getUri(varName)
