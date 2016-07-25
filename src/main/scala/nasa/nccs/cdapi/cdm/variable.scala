@@ -111,11 +111,3 @@ class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray]
   def size: Long = fragmentSpec.roi.computeSize
   def contains( requestedSection: ma2.Section ): Boolean = fragmentSpec.roi.contains( requestedSection )
 }
-
-object sectionTest extends App {
-  val s0 = new ma2.Section( Array(10,10,0), Array(100,100,10) )
-  val s1 = new ma2.Section( Array(50,50,5), Array(10,10,1) )
-  val s2 = s1.shiftOrigin( s0 )
-  println( s2 )
-}
-

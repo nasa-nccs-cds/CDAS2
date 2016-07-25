@@ -99,12 +99,5 @@ class UndefinedNumber extends GenericNumber {
   override def toDouble: Double = throw new Exception( "Attempt to access an UndefinedNumber ")
 }
 
-object testNumbers extends App {
-  def testIntMethod( ival: Int ): Unit = { println( s" Got Int: $ival" ) }
-  val x = GenericNumber("40")
-  println( "CLASS = " + x.getClass.getName + ", VALUE = " + x.toString )
-}
-
-
 
 

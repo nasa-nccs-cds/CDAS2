@@ -196,13 +196,6 @@ class ContainerBase {
   }
 }
 
-object containerTest extends App {
-  val c = new ContainerBase()
-  val tval = Some( 4.7 )
-  val fv = c.getGenericNumber( tval )
-  println( fv )
-}
-
 class PartitionSpec( val axisIndex: Int, val nPart: Int, val partIndex: Int = 0 ) {
   override def toString =  s"PartitionSpec { axis = $axisIndex, nPart = $nPart, partIndex = $partIndex }"
 }
@@ -594,7 +587,7 @@ object OperationContext extends ContainerBase  {
     val op_name = metadata.getOrElse( "name", process_name ).toString.trim.toLowerCase
     val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim.toLowerCase )
     val input = metadata.getOrElse("input","").toString
-    val opLongName = op_name + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(",",",")")
+    val opLongName = op_name + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
     val op_rid: String = Array( opLongName, dt.toString("MM.dd-hh.mm.ss") ).mkString("-")
 
@@ -608,10 +601,3 @@ class TaskProcessor {
 
 }
 
-object enumTest extends App {
-  object Type extends Enumeration { val Lat, Lon, Lev, X, Y, Z, T = Value }
-
-  val strType = Type.Lat.toString
-  println( strType )
-
-}

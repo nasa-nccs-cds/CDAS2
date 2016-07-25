@@ -259,21 +259,6 @@ object Collections extends XmlResource {
 }
 
 
-object TestCollection extends App {
-  println( Collections.findNcFile( new File("/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY") ) )
-}
-
-object TestMasks extends App {
-  println( Masks.masks.toString )
-}
-
-object TestReplace extends App {
-  val s0 = "/x-one!"
-  println(s0.replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X"))
-}
-
-
-
 
 
 

@@ -24,12 +24,6 @@ object wpsOperationParser extends OperationNotationParser {
   def parseOp(operation: String): Map[String, Any] = parseAll(expr, operation.stripPrefix("\"").stripSuffix("\"")).get
 }
 
-object testOperationParser extends App {
-  val input = "v3:CWT.average(v0,axis:xy)"
-  val parsed_input = wpsOperationParser.parseOp( input )
-  println( parsed_input.toString )
-}
-
 object wpsNameMatchers {
   val yAxis = """^y\w*|^lat\w*""".r
   val xAxis = """^x\w*|^lon\w*""".r
@@ -43,12 +37,6 @@ object wpsNameMatchers {
     case tAxis() => 't'
     case _ => throw new Exception( "Unrecognized axis name: " + axisName )
   }
-}
-
-object wpsNameMatchNest extends App {
-  val axis_name = "xdim"
-  val dimension = wpsNameMatchers.getDimension( axis_name )
-  println( "Result = " + dimension )
 }
 
 

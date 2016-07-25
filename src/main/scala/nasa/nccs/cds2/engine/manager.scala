@@ -184,6 +184,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       new ExecutionResults(List(new UtilityExecutionResult("dres", <deleted results={resIds.mkString(",")}/> )))
     case x if x.startsWith("gres") =>
       val resId: String = request.variableMap.values.head.uid
+      println( "GRES: " + request.variableMap.values.head.toString )
       collectionDataCache.getExistingResult( resId ) match {
         case None => new ExecutionResults( List( new ErrorExecutionResult( new Exception("Unrecognized resId: " + resId )) ) )
         case Some( result ) =>
@@ -670,11 +671,6 @@ object AveArray extends SyncExecutor {
   }
 }
 
-object displayFragmentMap extends App {
-  val entries: Seq[(DataFragmentKey,String)] = FragmentPersistence.getEntries.map { case (key, value) => ( DataFragmentKey(key), value ) }
-  entries.foreach { case (dkey, cache_id) => println( "%s => %s".format( cache_id, dkey.toString ))}
-}
-
 object SpatialAve1 extends SyncExecutor {
   def getTaskRequest(args: Array[String]): TaskRequest = SampleTaskRequests.getSpatialAve("/MERRA/mon/atmos", "ta", "cosine")
 }
@@ -698,16 +694,6 @@ object execConstantTest extends App {
     val printer = new scala.xml.PrettyPrinter(200, 3)
     println(">>>> Final Result: " + printer.format(final_result.toXml))
   }
-}
-
-object execTestDataCreation extends App {
-  SampleTaskRequests.createTestData
-}
-
-object parseTest extends App {
-  val axes = "c,,,"
-  val r = axes.split(",").map(_.head).toList
-  println( r )
 }
 
 object cdscan extends App with Loggable {

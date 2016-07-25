@@ -103,8 +103,3 @@ object cdsutils {
   //  }
 }
 
-object dateParseTest extends App {
-  val caldate:CalendarDate = cdsutils.dateTimeParser.parse( "10/10/1998 5:00 GMT")
-  println( caldate.toString )
-}
-

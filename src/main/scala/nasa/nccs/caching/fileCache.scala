@@ -513,21 +513,3 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
 }
 
 object collectionDataCache extends CollectionDataCacheMgr()
-
-//object cacheWriterTest extends App {
-//  val data_file = "/usr/local/web/data/MERRA/MERRA300.prod.assim.inst3_3d_asm_Cp.xml"
-//  val netcdfDataset = NetcdfDataset.openDataset( data_file )
-//  val varName = "t"
-//  val ncVariable = netcdfDataset.findVariable(varName)
-//  var shape = ncVariable.getShape
-//  var section: ma2.Section = new ma2.Section(shape)
-//
-//
-//  println(".")
-//}
-
-//dType match {
-//  case ma2.DataType.FLOAT =>
-//}
-
-

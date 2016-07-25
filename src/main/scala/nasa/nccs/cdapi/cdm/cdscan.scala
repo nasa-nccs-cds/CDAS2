@@ -284,32 +284,3 @@ class FileMetadata( val ncFile: File ) {
     case _ => AxisType.RunTime
   }
 }
-
-object cdscan extends App {
-  val t0 = System.nanoTime()
-  val file = NCMLWriter.getCachePath("NCML").resolve( args(0) ).toFile
-  assert( ( !file.exists && file.getParentFile.exists ) || file.canWrite, "Error, can't write to NCML file " + file.getAbsolutePath )
-  val ncmlWriter = new NCMLWriter( args.tail.iterator )
-  val ncmlNode = ncmlWriter.getNCML
-  val bw = new BufferedWriter(new FileWriter( file ))
-  bw.write( ncmlNode.toString )
-  bw.close()
-  val t1 = System.nanoTime()
-  println( "Writing NcML to file '%s', time = %.4f".format( file.getAbsolutePath, (t1-t0)/1.0E9)  )
-}
-
-object NCMLWriterTest extends App {
-  val t0 = System.nanoTime()
-  val ofile = "/tmp/MERRA300.prod.assim.inst3_3d_asm_Cp.xml"
-  val ncmlWriter = new NCMLWriter( Array("/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/2005/").iterator )
-  val ncmlNode = ncmlWriter.getNCML
-  val file = new File( ofile )
-  val bw = new BufferedWriter(new FileWriter(file))
-  val t1 = System.nanoTime()
-  println( "Writing NcML to file '%s', time = %.4f:".format( file.getAbsolutePath, (t1-t0)/1.0E9) )
-  val nodeStr = ncmlNode.toString
-  println( nodeStr )
-  bw.write( nodeStr )
-  bw.close()
-}
-

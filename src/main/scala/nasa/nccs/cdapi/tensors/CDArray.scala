@@ -537,19 +537,6 @@ class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, pr
   def getArrayData(maxSize: Int = Int.MaxValue): Array[Double]  = if( isStorageCongruent ) getStorageArray else getSectionArray(maxSize)
 }
 
-object ArrayReduceTest extends App {
-  val base_shape0 = Array(5,5)
-  val cd_array0: CDFloatArray = CDFloatArray.spawn( base_shape0, (x) => ( 100f + x(1) ), Float.MaxValue )
-
-  val base_shape1 = Array(5,1)
-  val cd_array1: CDFloatArray = CDFloatArray.spawn( base_shape1, (x) => ( 100f + x(0) ), Float.MaxValue )
-
-  val result = cd_array0 - cd_array1.broadcast(base_shape0)
-
-  println( result.toString )
-
-}
-
 //
 //object ArrayTest extends App {
 //  val base_shape = Array(5,5,5)
