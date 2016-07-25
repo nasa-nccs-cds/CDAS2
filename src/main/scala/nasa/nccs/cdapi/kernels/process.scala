@@ -194,7 +194,7 @@ abstract class Kernel {
 
   def cacheResult( maskedTensor: CDFloatArray, operation: OperationContext, request: RequestContext, server: ServerContext, resultGrid: TargetGrid, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
     try {
-      val result: TransientFragment = new TransientFragment(maskedTensor, request, varMetadata, dsetMetadata)
+      val result: TransientFragment = new TransientFragment(maskedTensor, request, resultGrid, varMetadata, dsetMetadata)
       collectionDataCache.putResult(operation.rid, result)
       Some(operation.rid)
     } catch {
@@ -253,7 +253,7 @@ class KernelModule {
   }
 }
 
-class TransientFragment( val data: CDFloatArray, val request: RequestContext, val varMetadata: Map[String,nc2.Attribute], val dsetMetadata: List[nc2.Attribute] ) extends Loggable {
+class TransientFragment( val data: CDFloatArray, val request: RequestContext, val targetGrid: TargetGrid, val varMetadata: Map[String,nc2.Attribute], val dsetMetadata: List[nc2.Attribute] ) extends Loggable {
   def toXml(id: String): xml.Elem = {
     val units = varMetadata.get("units") match { case Some(attr) => attr.getStringValue; case None => "" }
     val long_name = varMetadata.getOrElse("long_name",varMetadata.getOrElse("fullname",varMetadata.getOrElse("varname", new Attribute("varname","UNDEF")))).getStringValue

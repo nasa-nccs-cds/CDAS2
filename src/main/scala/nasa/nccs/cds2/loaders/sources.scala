@@ -118,10 +118,10 @@ object Collections extends XmlResource {
     }
   }
 
-  def getVariableListXml(cids: Array[String]): xml.Elem = {
+  def getVariableListXml(vids: Array[String]): xml.Elem = {
     <collections>
-      { for (cid <- cids) yield Collections.findCollection(cid) match {
-      case Some(collection) => <variables cid={collection.url}> {collection.vars.map(varName => collectionDataCache.getVariable(collection, varName).toXml)} </variables>
+      { for (vid: String <- vids; vidToks = vid.split('!'); varName=vidToks(0); cid=vidToks(1) ) yield Collections.findCollection(cid) match {
+      case Some(collection) => <variables cid={collection.url}> { collectionDataCache.getVariable(collection, varName).toXml } </variables>
       case None => <error> {"Unknown collection id in identifier: " + cid } </error>
     }}
     </collections>

@@ -110,45 +110,50 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     }
   }
 
-  def saveResultToFile( maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, targetGrid: TargetGrid, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
-    request.config("resultId") match {
-      case None => logger.warn("Missing resultId: this probably means you are executing synchronously with 'async' = true ")
-      case Some(resultId) =>
-        val inputSpec = request.getInputSpec()
-        val dataset: CDSDataset = request.getDataset(server)
-        val varname = searchForValue( varMetadata, List("varname","fullname","standard_name","original_name","long_name"), "Nd4jMaskedTensor" )
-        val resultFile = Kernel.getResultFile( server.getConfiguration, resultId, true )
-        val writer: nc2.NetcdfFileWriter = nc2.NetcdfFileWriter.createNew(nc2.NetcdfFileWriter.Version.netcdf4, resultFile.getAbsolutePath )
-        assert(targetGrid.grid.getRank == maskedTensor.getRank, "Axes not the same length as data shape in saveResult")
-        val coordAxes = dataset.getCoordinateAxes
-        val dims: IndexedSeq[nc2.Dimension] = targetGrid.grid.axes.indices.map( idim => writer.addDimension(null, targetGrid.grid.getAxisSpec(idim).getAxisName, maskedTensor.getShape(idim)))
-        val newCoordVars: List[ (nc2.Variable,ma2.Array) ] = ( for( coordAxis <- coordAxes ) yield inputSpec.getRange( coordAxis.getShortName ) match {
-          case Some( range ) =>
-            val coordVar: nc2.Variable = writer.addVariable( null, coordAxis.getShortName, coordAxis.getDataType, coordAxis.getShortName )
-            for( attr <- coordAxis.getAttributes ) writer.addVariableAttribute( coordVar, attr )
-            Some( coordVar, coordAxis.read( List(range) ) )
-          case None => None
-        } ).flatten
-        val variable: nc2.Variable = writer.addVariable(null, varname, ma2.DataType.FLOAT, dims.toList)
-        varMetadata.values.foreach( attr => variable.addAttribute(attr) )
-        variable.addAttribute( new nc2.Attribute( "missing_value", maskedTensor.getInvalid ) )
-        dsetMetadata.foreach( attr => writer.addGroupAttribute(null, attr ) )
-        try {
-          writer.create()
-          for( newCoordVar <- newCoordVars ) newCoordVar match { case ( coordVar, coordData ) =>  writer.write( coordVar, coordData ) }
-          writer.write( variable, maskedTensor )
-          //          for( dim <- dims ) {
-          //            val dimvar: nc2.Variable = writer.addVariable(null, dim.getFullName, ma2.DataType.FLOAT, List(dim) )
-          //            writer.write( dimvar, dimdata )
-          //          }
-          writer.close()
-          println( "Writing result %s to file '%s'".format(resultId,resultFile.getAbsolutePath) )
-          Some(resultFile.getAbsolutePath)
-        } catch {
-          case e: IOException => logger.error("ERROR creating file %s%n%s".format(resultFile.getAbsolutePath, e.getMessage() ) )
+  def saveResultToFile( resultId: String, maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, targetGrid: TargetGrid, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
+    val inputSpec = request.getInputSpec()
+    val dataset: CDSDataset = request.getDataset(server)
+    val varname = searchForValue( varMetadata, List("varname","fullname","standard_name","original_name","long_name"), "Nd4jMaskedTensor" )
+    val resultFile = Kernel.getResultFile( server.getConfiguration, resultId, true )
+    val writer: nc2.NetcdfFileWriter = nc2.NetcdfFileWriter.createNew(nc2.NetcdfFileWriter.Version.netcdf4, resultFile.getAbsolutePath )
+    assert(targetGrid.grid.getRank == maskedTensor.getRank, "Axes not the same length as data shape in saveResult")
+    val coordAxes = dataset.getCoordinateAxes
+    val dims: IndexedSeq[nc2.Dimension] = targetGrid.grid.axes.indices.map( idim => writer.addDimension(null, targetGrid.grid.getAxisSpec(idim).getAxisName, maskedTensor.getShape(idim)))
+    val dimsMap: Map[String,nc2.Dimension] = Map( dims.map( dim => (dim.getShortName -> dim ) ): _* )
+    val newCoordVars: List[ (nc2.Variable,ma2.Array) ] = ( for( coordAxis <- coordAxes ) yield inputSpec.getRange( coordAxis.getShortName ) match {
+      case Some( range ) =>
+        val coordVar: nc2.Variable = writer.addVariable( null, coordAxis.getShortName, coordAxis.getDataType, coordAxis.getShortName )
+        for( attr <- coordAxis.getAttributes ) writer.addVariableAttribute( coordVar, attr )
+        val newRange = dimsMap.get( coordAxis.getShortName ) match { case None => range; case Some(dim) => if( dim.getLength < range.length ) new ma2.Range(dim.getLength) else range }
+        Some( coordVar, coordAxis.read( List(newRange) ) )
+      case None => None
+    } ).flatten
+    logger.info( "Writing result %s to file '%s', varname=%s, dims=(%s), shape=[%s], coords = [%s]".format(
+      resultId, resultFile.getAbsolutePath, varname, dims.map(_.toString).mkString(","), maskedTensor.getShape.mkString(","),
+      newCoordVars.map { case (cvar, data) => "%s: (%s)".format(cvar.getShortName,data.getShape.mkString(",") ) }.mkString(",") ) )
+    val variable: nc2.Variable = writer.addVariable(null, varname, ma2.DataType.FLOAT, dims.toList)
+    varMetadata.values.foreach( attr => variable.addAttribute(attr) )
+    variable.addAttribute( new nc2.Attribute( "missing_value", maskedTensor.getInvalid ) )
+    dsetMetadata.foreach( attr => writer.addGroupAttribute(null, attr ) )
+    try {
+      writer.create()
+      for( newCoordVar <- newCoordVars ) {
+        newCoordVar match {
+          case ( coordVar, coordData ) =>
+            logger.info( "Writing cvar %s: shape = [%s]".format( coordVar.getShortName, coordData.getShape.mkString(",") ) )
+            writer.write( coordVar, coordData )
         }
+      }
+      writer.write( variable, maskedTensor )
+      //          for( dim <- dims ) {
+      //            val dimvar: nc2.Variable = writer.addVariable(null, dim.getFullName, ma2.DataType.FLOAT, List(dim) )
+      //            writer.write( dimvar, dimdata )
+      //          }
+      writer.close()
+      Some(resultFile.getAbsolutePath)
+    } catch {
+      case e: IOException => logger.error("ERROR creating file %s%n%s".format(resultFile.getAbsolutePath, e.getMessage() ) ); None
     }
-    None
   }
 
   def executeUtilityRequest(util_id: String, request: TaskRequest, run_args: Map[String, String]): ExecutionResults = util_id match {
@@ -191,7 +196,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
           x.split(':')(1) match {
             case "xml" => new ExecutionResults( List( new UtilityExecutionResult( resId, result.toXml(resId) ) ))
             case "netcdf" =>
-              saveResultToFile( result.data, result.request, serverContext, createTargetGrid( request ), result.varMetadata, List.empty[nc2.Attribute] ) match {
+              saveResultToFile( resId, result.data, result.request, serverContext, result.targetGrid, result.varMetadata, List.empty[nc2.Attribute] ) match {
                 case Some( resultFilePath ) => new ExecutionResults( List( new UtilityExecutionResult( resId, <file>{resultFilePath}</file> ) ))
                 case None =>  new ExecutionResults( List( new UtilityExecutionResult( resId, <error>{"Error writing resultFile"}</error> ) ))
               }
@@ -296,9 +301,9 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     case x if x.startsWith("op") => kernelManager.getModulesXml
     case x if x.startsWith("var") => {
       println( "getCapabilities->identifier: " + identifier )
-      val cidToks = identifier.split('!')
-      if( cidToks.length < 2 ) <error> {"Missing collection id in identifier, format: var_<collID>"} </error>
-      Collections.getVariableListXml(cidToks.tail )
+      val itToks = x.split(':')
+      if( itToks.length < 2 )  <error message="Unspecified collection and variables" />
+      else                     Collections.getVariableListXml( itToks(1).split(',') )
     }
     case _ => kernelManager.toXml
   }
@@ -309,7 +314,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       if (attr.isString) sb.append(attr.getStringValue(index)) else sb.append(attr.getNumericValue(index))
       sb.append(",")
     }
-    <attr id={attr.getFullName}> { sb.toString } </attr>
+    <attr id={attr.getShortName.split("--").last}> { sb.toString } </attr>
   }
 
   def executeWorkflows( request: TaskRequest, requestCx: RequestContext ): ExecutionResults = {
