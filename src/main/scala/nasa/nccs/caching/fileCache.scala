@@ -41,17 +41,17 @@ class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
 class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
-  private val chunkCache: Cache[Int,CacheChunk] = new FutureCache("Store",cacheType,false)
+  private val chunkCache: Cache[Long,CacheChunk] = new FutureCache("Store",cacheType,false)
   private val nReadProcessors = 4
   private val baseShape = roi.getShape
   private val dType: ma2.DataType  = ncVariable.getDataType
   private val elemSize = ncVariable.getElementSize
   private val range0 = roi.getRange(0)
 
-  def getChunkMemorySize( chunkSize: Int ) : Int = {
+  def getChunkMemorySize( chunkSize: Int ) : Long = {
     var full_shape = baseShape.clone()
     full_shape(0) = chunkSize
-    full_shape.product * elemSize
+    full_shape.foldLeft(elemSize.toLong)(_ * _)
   }
 
   def getCacheFilePath: String = {
@@ -98,9 +98,9 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size)
   }
 
-  def writeChunks( nChunks: Int, chunkSize: Int ): String = {
+  def writeChunks( nChunks: Long, chunkSize: Int ): String = {
     val cacheFilePath = getCacheFilePath
-    val chunkByteSize = getChunkMemorySize( chunkSize )
+    val chunkByteSize: Long = getChunkMemorySize( chunkSize )
     val channel = new RandomAccessFile(cacheFilePath,"rw").getChannel()
     logger.info( "Writing Buffer file '%s', nChunks = %d, chunkByteSize = %d, size = %d".format( cacheFilePath, nChunks, chunkByteSize, chunkByteSize * nChunks ))
     var buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, 0, chunkByteSize * nChunks  )
@@ -109,7 +109,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   }
 
   @tailrec
-  final def processChunkFromReader( iChunk: Int, buffer: MappedByteBuffer ): Unit = {
+  final def processChunkFromReader( iChunk: Long, buffer: MappedByteBuffer ): Unit = {
     chunkCache.get(iChunk) match {
       case Some( cacheChunkFut: Future[CacheChunk] ) =>
         val cacheChunk = Await.result( cacheChunkFut, Duration.Inf )
