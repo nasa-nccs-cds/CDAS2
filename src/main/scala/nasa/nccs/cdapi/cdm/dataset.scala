@@ -11,16 +11,16 @@ import java.nio._
 import nasa.nccs.cds2.loaders.XmlResource
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.constants.AxisType
-import ucar.nc2.dataset.{CoordinateAxis, CoordinateSystem, NetcdfDataset}
+import ucar.nc2.dataset.{CoordinateAxis, CoordinateSystem, NetcdfDataset, VariableDS}
 import ucar.nc2.ncml.NcMLReader
 import ucar.nc2.util.DebugFlagsImpl
 
 import scala.collection.mutable
 import scala.collection.concurrent
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import scala.xml.XML
-// import scala.collection.JavaConverters._
 
 object Collection {
   def apply( id: String, url: String, path: String = "", fileFilter: String = "", scope: String="", vars: List[String] = List() ) = {
@@ -242,10 +242,16 @@ class CDSDatasetRec( val dsetName: String, val collection: Collection, val varNa
 class CDSDataset( val name: String, val collection: Collection, val ncDataset: NetcdfDataset, val varName: String, coordSystems: List[CoordinateSystem] ) {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val attributes: List[nc2.Attribute] = ncDataset.getGlobalAttributes.map( a => { new nc2.Attribute( name + "--" + a.getFullName, a ) } ).toList
-  val coordAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
+  val coordAxes: List[CoordinateAxis] = initCoordAxes
   val fileHeaders: Option[DatasetFileHeaders] = getDatasetFileHeaders
 
-
+  def initCoordAxes(): List[CoordinateAxis] = {
+    for( variable <- ncDataset.getVariables; if( variable.isCoordinateVariable ) ) {
+      ncDataset.addCoordinateAxis( variable.asInstanceOf[VariableDS] )
+    }
+    ncDataset.getCoordinateAxes.toList
+  }
+  
   def getCoordinateAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
   def getFilePath = CDSDataset.urlToPath(collection.url)
   def getSerializable = new CDSDatasetRec( name, collection, varName )
