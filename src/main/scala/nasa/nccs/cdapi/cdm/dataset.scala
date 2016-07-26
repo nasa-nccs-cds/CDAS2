@@ -202,11 +202,11 @@ object CDSDataset extends DiskCachable  {
 
   private def loadNetCDFDataSet(url: String): NetcdfDataset = {
     NetcdfDataset.setUseNaNs(false)
-//    NcMLReader.setDebugFlags( new DebugFlagsImpl( "NcML/debugURL NcML/debugXML NcML/showParsedXML NcML/debugCmd NcML/debugOpen NcML/debugConstruct NcML/debugAggDetail" ) )
+    NcMLReader.setDebugFlags( new DebugFlagsImpl( "NcML/debugURL NcML/debugXML NcML/showParsedXML NcML/debugCmd NcML/debugOpen NcML/debugConstruct NcML/debugAggDetail" ) )
     val dset_address = urlToPath(url)
     try {
       logger.info("Opening NetCDF dataset %s".format(dset_address))
-      NetcdfDataset.openDataset( dset_address, false, null )
+      NetcdfDataset.openDataset( dset_address, true, null )
     } catch {
       case e: java.io.IOException =>
         logger.error("Couldn't open dataset %s".format(dset_address))
@@ -247,11 +247,14 @@ class CDSDataset( val name: String, val collection: Collection, val ncDataset: N
 
   def initCoordAxes(): List[CoordinateAxis] = {
     for( variable <- ncDataset.getVariables; if( variable.isCoordinateVariable ) ) {
-      ncDataset.addCoordinateAxis( variable.asInstanceOf[VariableDS] )
+      variable match {
+        case cvar: VariableDS => ncDataset.addCoordinateAxis( variable.asInstanceOf[VariableDS] )
+        case xvar => logger.warn( "Coordinate variable of improper type: " + xvar.getClass.getName )
+      }
     }
     ncDataset.getCoordinateAxes.toList
   }
-  
+
   def getCoordinateAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
   def getFilePath = CDSDataset.urlToPath(collection.url)
   def getSerializable = new CDSDatasetRec( name, collection, varName )

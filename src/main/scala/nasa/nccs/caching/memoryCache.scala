@@ -137,8 +137,9 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
     Files.createDirectories( Paths.get(cacheFile).getParent )
     val ostr = new ObjectOutputStream ( new FileOutputStream( cacheFile ) )
     val entries = getEntries.toList
-    logger.info( " ***Persisting cache %s to file '%s', entries: [ %s ]".format( cname, cacheFile, entries.mkString(",") ) )      // TODO:  Why is this not working???
+    logger.info( " ***Persisting cache %s to file '%s', entries: [ %s ]".format( cname, cacheFile, entries.mkString(",") ) )
     ostr.writeObject( entries )
+    ostr.close()
   }
 
   protected def restore: Option[ Array[(K,V)] ] = {

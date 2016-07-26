@@ -121,7 +121,7 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 4) extends Loggable
 
   def getVariable( variable: nc2.Variable, timeRegularSpecs: Option[(Double,Double)] ): xml.Node = {
     val axisType = fileMetadata.getAxisType(variable)
-    <variable name={variable.getShortName} shape={getDims(variable)} type={variable.getDataType.toString}>
+    <variable name={variable.getFullName} shape={getDims(variable)} type={variable.getDataType.toString}>
       { if( axisType == AxisType.Time ) <attribute name="_CoordinateAxisType" value="Time"/> else for (attribute <- variable.getAttributes; if( !isIgnored( attribute ) ) ) yield getAttribute(attribute) }
       { if( axisType == AxisType.Time ) timeRegularSpecs match { case None => Unit; case Some((t0,dt)) => <values start={"%.3f".format(t0)} increment={"%.6f".format(dt)}/> } }
       { if( (axisType != AxisType.Time) && (axisType != AxisType.RunTime) ) variable match {
@@ -276,8 +276,8 @@ class FileMetadata( val ncFile: File ) {
   val dimensions: List[nc2.Dimension] = ncDataset.getDimensions.toList
   val variables = ncDataset.getVariables.toList
   val attributes = ncDataset.getGlobalAttributes
-  val dimNames = dimensions.map( _.getShortName )
-  def getCoordinateAxis( name: String ): Option[nc2.dataset.CoordinateAxis] = coordinateAxes.find( p => p.getShortName.equalsIgnoreCase(name) )
+  val dimNames = dimensions.map( _.getFullName )
+  def getCoordinateAxis( fullName: String ): Option[nc2.dataset.CoordinateAxis] = coordinateAxes.find( p => p.getFullName.equalsIgnoreCase(fullName) )
 
   def getAxisType( variable: nc2.Variable ): AxisType = variable match {
     case coordVar: CoordinateAxis1D => coordVar.getAxisType;

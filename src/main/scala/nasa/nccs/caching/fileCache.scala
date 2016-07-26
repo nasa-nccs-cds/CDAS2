@@ -130,13 +130,16 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   def getCacheType = "fragment"
   def keys: Set[String] = fragmentIdCache.keys
   def values: Iterable[Future[String]] = fragmentIdCache.values
-  private var unsafe = false
 
   def persist(fragSpec: DataFragmentSpec, frag: PartitionedFragment): Future[String] = {
     val keyStr =  fragSpec.getKey.toStrRep
     fragmentIdCache.get(keyStr) match {
       case Some(fragIdFut) => fragIdFut
-      case None => fragmentIdCache(keyStr) { unsafe = true; promiseCacheId(frag) _ }
+      case None => fragmentIdCache(keyStr) {
+        val fragIdFut = promiseCacheId(frag) _
+        fragmentIdCache.persist()
+        fragIdFut
+      }
     }
   }
 
@@ -163,24 +166,8 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
   def getFragmentListXml(): xml.Elem = <fragments> { for(fkey <- fragmentIdCache.keys) yield expandKeyXml(fkey) } </fragments>
   def getFragmentIdList(): Array[String] = fragmentIdCache.keys.toArray
-  def getFragmentList(): Array[String] =  {
-    fragmentIdCache.keys.map(k => expandKey(k)).toArray
-
-//    fragmentIdCache.values.flatMap( fragFut => fragFut.value match {
-//      case Some(Success(cacheId))     ⇒ Some( frag.fragmentSpec )
-//      case Some(Failure(exception)) ⇒ None
-//      case None                     ⇒ None
-//    })
-//    fragmentIdCache.getEntries.flatMap {
-//      case (key, value) => collectionDataCache.getExistingFragment(DataFragmentKey(key)) match {
-//        case Some( fragFut: Future[PartitionedFragment] ) => Some( "%s: %s, Bounds: %s".format (key, value, Await.result( fragFut, Duration.Inf ) .toBoundsString) )
-//        case None => None
-//      }
-//    } toArray
-  }
-
-  def put( key: DataFragmentKey, cache_id: String ) = { unsafe = true; fragmentIdCache.put( key.toStrRep, cache_id ) }
-
+  def getFragmentList(): Array[String] =  fragmentIdCache.keys.map( k => expandKey(k) ).toArray
+  def put( key: DataFragmentKey, cache_id: String ) = { fragmentIdCache.put( key.toStrRep, cache_id ); fragmentIdCache.persist() }
   def getEntries: Seq[(String,String)] = fragmentIdCache.getEntries
 
   def promiseCacheId( frag: PartitionedFragment )(p: Promise[String]): Unit = {
@@ -195,24 +182,21 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   def restore( cache_id: String, size: Int ): Option[FloatBuffer] = bufferFromDiskFloat( cache_id, size )
   def restore( fragKey: DataFragmentKey ): Option[FloatBuffer] =  fragmentIdCache.get(fragKey.toStrRep).flatMap( restore( _, fragKey.getSize ) )
   def restore( cache_id_future: Future[String], size: Int ): Option[FloatBuffer] = restore( Await.result(cache_id_future, Duration.Inf), size )
-
-  def close(): Unit = {
-    Await.result( Future.sequence( fragmentIdCache.values ), Duration.Inf )
-    if( unsafe ) { unsafe = false; fragmentIdCache.persist() }
-  }
+  def close(): Unit = Await.result( Future.sequence( fragmentIdCache.values ), Duration.Inf )
 
   def deleteEnclosing( fragSpec: DataFragmentSpec ) =
-    findEnclosingFragSpecs(  fragmentIdCache.keys.map( DataFragmentKey(_) ), fragSpec.getKey ).foreach( delete )
+    delete( findEnclosingFragSpecs(  fragmentIdCache.keys.map( DataFragmentKey(_) ), fragSpec.getKey ) )
 
-  def delete( fragKey: DataFragmentKey ) = {
-    fragmentIdCache.get(fragKey.toStrRep) match {
-      case Some( cache_id_future ) =>
-        val path = DiskCacheFileMgr.getDiskCacheFilePath( getCacheType, Await.result( cache_id_future, Duration.Inf ) )
-        fragmentIdCache.remove( fragKey.toStrRep )
-        if(new java.io.File(path).delete()) logger.info( s"Deleting persisted fragment file '$path', frag: " + fragKey.toString )
-        else logger.warn( s"Failed to delete persisted fragment file '$path'" )
-      case None => logger.warn( "No Cache ID found for Fragment: " + fragKey.toString )
+  def delete(fragKeys: Iterable[DataFragmentKey]) = {
+    for (fragKey <- fragKeys) fragmentIdCache.get(fragKey.toStrRep) match {
+      case Some(cache_id_future) =>
+        val path = DiskCacheFileMgr.getDiskCacheFilePath(getCacheType, Await.result(cache_id_future, Duration.Inf))
+        fragmentIdCache.remove(fragKey.toStrRep)
+        if (new java.io.File(path).delete()) logger.info(s"Deleting persisted fragment file '$path', frag: " + fragKey.toString)
+        else logger.warn(s"Failed to delete persisted fragment file '$path'")
+      case None => logger.warn("No Cache ID found for Fragment: " + fragKey.toString)
     }
+    fragmentIdCache.persist()
   }
 
   def getEnclosingFragmentData( fragSpec: DataFragmentSpec ): Option[ ( DataFragmentKey, FloatBuffer ) ] = {

@@ -119,18 +119,18 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     assert(targetGrid.grid.getRank == maskedTensor.getRank, "Axes not the same length as data shape in saveResult")
     val coordAxes = dataset.getCoordinateAxes
     val dims: IndexedSeq[nc2.Dimension] = targetGrid.grid.axes.indices.map( idim => writer.addDimension(null, targetGrid.grid.getAxisSpec(idim).getAxisName, maskedTensor.getShape(idim)))
-    val dimsMap: Map[String,nc2.Dimension] = Map( dims.map( dim => (dim.getShortName -> dim ) ): _* )
-    val newCoordVars: List[ (nc2.Variable,ma2.Array) ] = ( for( coordAxis <- coordAxes ) yield inputSpec.getRange( coordAxis.getShortName ) match {
+    val dimsMap: Map[String,nc2.Dimension] = Map( dims.map( dim => (dim.getFullName -> dim ) ): _* )
+    val newCoordVars: List[ (nc2.Variable,ma2.Array) ] = ( for( coordAxis <- coordAxes ) yield inputSpec.getRange( coordAxis.getFullName ) match {
       case Some( range ) =>
-        val coordVar: nc2.Variable = writer.addVariable( null, coordAxis.getShortName, coordAxis.getDataType, coordAxis.getShortName )
+        val coordVar: nc2.Variable = writer.addVariable( null, coordAxis.getFullName, coordAxis.getDataType, coordAxis.getFullName )
         for( attr <- coordAxis.getAttributes ) writer.addVariableAttribute( coordVar, attr )
-        val newRange = dimsMap.get( coordAxis.getShortName ) match { case None => range; case Some(dim) => if( dim.getLength < range.length ) new ma2.Range(dim.getLength) else range }
+        val newRange = dimsMap.get( coordAxis.getFullName ) match { case None => range; case Some(dim) => if( dim.getLength < range.length ) new ma2.Range(dim.getLength) else range }
         Some( coordVar, coordAxis.read( List(newRange) ) )
       case None => None
     } ).flatten
     logger.info( "Writing result %s to file '%s', varname=%s, dims=(%s), shape=[%s], coords = [%s]".format(
       resultId, resultFile.getAbsolutePath, varname, dims.map(_.toString).mkString(","), maskedTensor.getShape.mkString(","),
-      newCoordVars.map { case (cvar, data) => "%s: (%s)".format(cvar.getShortName,data.getShape.mkString(",") ) }.mkString(",") ) )
+      newCoordVars.map { case (cvar, data) => "%s: (%s)".format(cvar.getFullName,data.getShape.mkString(",") ) }.mkString(",") ) )
     val variable: nc2.Variable = writer.addVariable(null, varname, ma2.DataType.FLOAT, dims.toList)
     varMetadata.values.foreach( attr => variable.addAttribute(attr) )
     variable.addAttribute( new nc2.Attribute( "missing_value", maskedTensor.getInvalid ) )
@@ -140,7 +140,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       for( newCoordVar <- newCoordVars ) {
         newCoordVar match {
           case ( coordVar, coordData ) =>
-            logger.info( "Writing cvar %s: shape = [%s]".format( coordVar.getShortName, coordData.getShape.mkString(",") ) )
+            logger.info( "Writing cvar %s: shape = [%s]".format( coordVar.getFullName, coordData.getShape.mkString(",") ) )
             writer.write( coordVar, coordData )
         }
       }
@@ -162,7 +162,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
         val col = ds.getSource.collection
         col.createNCML()
         val dataset = NetcdfDataset.openDataset( col.ncmlFile.toString )
-        val vars = dataset.getVariables.filter( !_.isCoordinateVariable ).map( _.getShortName ).toList
+        val vars = dataset.getVariables.filter( !_.isCoordinateVariable ).map( _.getFullName ).toList
         val newCollection = Collection(col.id,col.url,col.path,col.fileFilter,col.scope,vars)
         Collections.updateCollection( newCollection )
         newCollection.toXml
@@ -180,7 +180,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     case "dfrag" =>
       val fragIds: Iterable[String] = request.variableMap.values.map( ds => Array( ds.getSource.name, ds.getSource.collection.url, ds.getSource.domain ).mkString("|") )
       logger.info( "Deleting frags: " + fragIds.mkString(", ") + "; Current Frags = " + FragmentPersistence.getFragmentIdList.mkString(", ") )
-      fragIds.foreach( fragId => FragmentPersistence.delete( DataFragmentKey(fragId) ) )
+      FragmentPersistence.delete( fragIds.map( fragId => DataFragmentKey(fragId) ) )
       new ExecutionResults(List(new UtilityExecutionResult("dfrag", <deleted fragments={fragIds.mkString(",")}/> )))
     case "dres" =>
       val resIds: Iterable[String] = request.variableMap.values.map( ds => ds.uid )
@@ -314,7 +314,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       if (attr.isString) sb.append(attr.getStringValue(index)) else sb.append(attr.getNumericValue(index))
       sb.append(",")
     }
-    <attr id={attr.getShortName.split("--").last}> { sb.toString } </attr>
+    <attr id={attr.getFullName.split("--").last}> { sb.toString } </attr>
   }
 
   def executeWorkflows( request: TaskRequest, requestCx: RequestContext ): ExecutionResults = {

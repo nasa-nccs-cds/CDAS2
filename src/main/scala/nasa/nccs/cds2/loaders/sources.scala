@@ -188,7 +188,7 @@ object Collections extends XmlResource {
     findNcFile( new File(path) ) match {
       case Some(f) =>
         val dset: NetcdfDataset = NetcdfDataset.openDataset( f.getAbsolutePath )
-        dset.getVariables.toList.flatMap( v => if(v.isCoordinateVariable) None else Some(v.getShortName) )
+        dset.getVariables.toList.flatMap( v => if(v.isCoordinateVariable) None else Some(v.getFullName) )
       case None => throw new Exception( "Can't find any nc files in dataset path: " + path )
     }
   }
