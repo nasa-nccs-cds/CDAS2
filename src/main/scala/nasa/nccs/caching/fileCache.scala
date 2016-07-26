@@ -104,7 +104,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val channel = new RandomAccessFile(cacheFilePath,"rw").getChannel()
     logger.info( "Writing Buffer file '%s', nChunks = %d, chunkByteSize = %d, size = %d".format( cacheFilePath, nChunks, chunkByteSize, chunkByteSize * nChunks ))
     var buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, 0, chunkByteSize * nChunks  )
-    (0 until nChunks).foreach( processChunkFromReader( _, buffer ) )
+    (0.toLong until nChunks).foreach( processChunkFromReader( _, buffer ) )
     cacheFilePath
   }
 
