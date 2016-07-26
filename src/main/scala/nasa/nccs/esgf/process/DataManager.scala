@@ -208,15 +208,13 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
 
 object GridSpec extends Loggable {
     def apply( variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ): GridSpec = {
-      val coordSpecs = for (idim <- variable.dims.indices; dim = variable.dims(idim); coord_axis = variable.getCoordinateAxis(dim.getFullName)) yield {
-        val domainAxisOpt: Option[DomainAxis] = roiOpt.flatMap(axes => axes.find(da => da.matches( coord_axis.getAxisType )))
-        val t0 = System.nanoTime()
-        val rv = new GridCoordSpec(idim, variable, coord_axis, domainAxisOpt)
-        val t1 = System.nanoTime()
-        logger.info( "Init GridCoordSpec[%d](%s), time = %.4f".format( idim, dim.getFullName, (t1-t0)/1.0E9) )
-        rv
+      val coordSpecs: IndexedSeq[Option[GridCoordSpec]] = for (idim <- variable.dims.indices; dim = variable.dims(idim); coord_axis_opt = variable.getCoordinateAxis(dim.getShortName)) yield coord_axis_opt match {
+        case Some( coord_axis ) =>
+          val domainAxisOpt: Option[DomainAxis] = roiOpt.flatMap(axes => axes.find(da => da.matches( coord_axis.getAxisType )))
+          Some( new GridCoordSpec(idim, variable, coord_axis, domainAxisOpt) )
+        case None => logger.warn( "Unrecognized coordinate axis: %s, axes = ( %s )".format( dim.getShortName, variable.getCoordinateAxesList.map( axis => axis.getShortName ).mkString(", ") )); None
       }
-      new GridSpec( variable, coordSpecs )
+      new GridSpec( variable, coordSpecs.flatten )
     }
 }
 
