@@ -210,7 +210,7 @@ object CDSDataset extends DiskCachable  {
     val dset_address = urlToPath(url)
     try {
       logger.info("Opening NetCDF dataset %s".format(dset_address))
-      val rv = NetcdfDataset.openDataset( dset_address )
+      val rv = NetcdfDataset.openDataset( dset_address, false, null )
       logger.info( "Opened NetCDF dataset" )
       rv
     } catch {
