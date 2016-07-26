@@ -206,7 +206,7 @@ object CDSDataset extends DiskCachable  {
 
   private def loadNetCDFDataSet(url: String): NetcdfDataset = {
     NetcdfDataset.setUseNaNs(false)
-    NcMLReader.setDebugFlags( new DebugFlagsImpl( "debugURL debugXML showParsedXML debugCmd debugOpen debugConstruct debugAggDetail" ) )
+    NcMLReader.setDebugFlags( new DebugFlagsImpl( "NcML/debugURL NcML/debugXML NcML/showParsedXML NcML/debugCmd NcML/debugOpen NcML/debugConstruct NcML/debugAggDetail" ) )
     val dset_address = urlToPath(url)
     try {
       logger.info("Opening NetCDF dataset %s".format(dset_address))
