@@ -192,11 +192,7 @@ object CDSDataset extends DiskCachable  {
     val t0 = System.nanoTime
     val uri = collection.getUri(varName)
     val ncDataset: NetcdfDataset = loadNetCDFDataSet( uri )
-    val coordSystems: List[CoordinateSystem] = ncDataset.getCoordinateSystems.toList
-    if( coordSystems.size > 1 ) logger.warn( "Multiple coordinate systems for one dataset:" )
-    for(coordSystem <- coordSystems ) { logger.warn( "\t-->" + coordSystem.toString ) }
-    if(coordSystems.isEmpty) throw new IllegalStateException("Error creating coordinate system for variable " + varName )
-    val rv = new CDSDataset( dsetName, collection, ncDataset, varName, coordSystems.head )
+    val rv = new CDSDataset( dsetName, collection, ncDataset, varName, ncDataset.getCoordinateSystems.toList )
     val t1 = System.nanoTime
     logger.info( "loadDataset(%s)T> %.4f,  ".format( uri, (t1-t0)/1.0E9 ) )
     rv
@@ -245,7 +241,7 @@ class CDSDatasetRec( val dsetName: String, val collection: Collection, val varNa
   def getUri: String = collection.getUri(varName)
 }
 
-class CDSDataset( val name: String, val collection: Collection, val ncDataset: NetcdfDataset, val varName: String, val coordSystem: CoordinateSystem ) {
+class CDSDataset( val name: String, val collection: Collection, val ncDataset: NetcdfDataset, val varName: String, coordSystems: List[CoordinateSystem] ) {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val attributes: List[nc2.Attribute] = ncDataset.getGlobalAttributes.map( a => { new nc2.Attribute( name + "--" + a.getFullName, a ) } ).toList
   val coordAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
