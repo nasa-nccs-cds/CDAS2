@@ -43,16 +43,22 @@ class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
 class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
-  private val chunkCache: Cache[Long,CacheChunk] = new FutureCache("Store",cacheType,false)
+  private val chunkCache = new ConcurrentLinkedHashMap.Builder[Long,CacheChunk].initialCapacity(500).maximumWeightedCapacity(1000000).build()
   private val nReadProcessors = 4
   private val baseShape = roi.getShape
   private val dType: ma2.DataType  = ncVariable.getDataType
   private val elemSize = ncVariable.getElementSize
   private val range0 = roi.getRange(0)
+  private val maxBufferSize = 250000000
+  private val throttleSize = 1500000000
+  private val sliceMemorySize: Long = getMemorySize(1)
+  private val slicesPerChunk: Int = if(sliceMemorySize >= maxBufferSize ) 1 else  math.min( ( maxBufferSize / sliceMemorySize ).toInt, baseShape(0) )
+  private val nChunks = math.ceil( baseShape(0) / slicesPerChunk.toDouble ).toInt
+  private val chunkMemorySize: Long = getMemorySize(slicesPerChunk)
 
-  def getChunkMemorySize( chunkSize: Int ) : Long = {
+  def getMemorySize( nSlices: Int): Long = {
     var full_shape = baseShape.clone()
-    full_shape(0) = chunkSize
+    full_shape(0) = nSlices
     full_shape.foldLeft(elemSize.toLong)(_ * _)
   }
 
@@ -60,33 +66,41 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val cache_file = "a" + System.nanoTime.toHexString
     DiskCacheFileMgr.getDiskCacheFilePath(cacheType, cache_file)
   }
+  def accumulatedCacheMemSize: Long = chunkCache.values.foldLeft( 1L )( _ * _.byteSize )
 
-  def readDataChunks( nChunks: Int, chunkSize: Int, coreIndex: Int ): Int = {
+  @tailrec
+  private def throttle: Unit = {
+    if( accumulatedCacheMemSize > throttleSize ) {
+      Thread.sleep(500)
+      throttle
+    }
+  }
+
+  def readDataChunks( coreIndex: Int ): Int = {
     var subsection = new ma2.Section(roi)
-
     var nElementsWritten = 0
-    for( iChunk <- (coreIndex until nChunks by nReadProcessors); startLoc = iChunk*chunkSize; if(startLoc < baseShape(0)) ) {
-      val endLoc = Math.min( startLoc + chunkSize - 1, baseShape(0)-1 )
+    for( iChunk <- (coreIndex until nChunks by nReadProcessors); startLoc = iChunk*slicesPerChunk; if(startLoc < baseShape(0)) ) {
+      val endLoc = Math.min( startLoc + slicesPerChunk - 1, baseShape(0)-1 )
       val chunkRange = new ma2.Range( startLoc, endLoc )
       subsection.replaceRange(0,chunkRange)
       val data = ncVariable.read(subsection)
       val chunkShape = subsection.getShape
       val chunk = new CacheChunk( startLoc, elemSize, chunkShape, data.getDataAsByteBuffer )
       chunkCache.put( iChunk, chunk )
+      throttle
       nElementsWritten += chunkShape.product
     }
     nElementsWritten
   }
 
-  def execute( chunkSize: Int ): String = {
-    val nChunks = if(chunkSize <= 0) { 1 } else { Math.ceil( range0.length / chunkSize.toFloat ).toInt }
-    val readProcFuts: IndexedSeq[Future[Int]] = for( coreIndex <- (0 until Math.min( nChunks, nReadProcessors ) ) ) yield Future { readDataChunks(nChunks,chunkSize,coreIndex) }
-    writeChunks(nChunks,chunkSize)
+  def execute(): String = {
+    val readProcFuts: IndexedSeq[Future[Int]] = for( coreIndex <- (0 until Math.min( nChunks, nReadProcessors ) ) ) yield Future { readDataChunks(coreIndex) }
+    writeChunks
   }
 
-  def cacheFloatData( chunkSize: Int, missing_value: Float  ): ( String, CDFloatArray ) = {
+  def cacheFloatData( missing_value: Float  ): ( String, CDFloatArray ) = {
     assert( dType == ma2.DataType.FLOAT, "Attempting to cache %s data as float".format( dType.toString ) )
-    val cache_id = execute( chunkSize )
+    val cache_id = execute()
     getReadBuffer(cache_id) match {
       case (channel, buffer) =>
         val storage: FloatBuffer = buffer.asFloatBuffer
@@ -100,28 +114,26 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size)
   }
 
-  def writeChunks( nChunks: Long, chunkSize: Int ): String = {
+  def writeChunks: String = {
     val cacheFilePath = getCacheFilePath
-    val chunkByteSize: Long = getChunkMemorySize( chunkSize )
     val channel = new RandomAccessFile(cacheFilePath,"rw").getChannel()
-    logger.info( "Writing Buffer file '%s', nChunks = %d, chunkByteSize = %d, size = %d".format( cacheFilePath, nChunks, chunkByteSize, chunkByteSize * nChunks ))
-    var buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, 0, chunkByteSize * nChunks  )
-    (0.toLong until nChunks).foreach( processChunkFromReader( _, buffer ) )
+    logger.info( "Writing Buffer file '%s', nChunks = %d, chunkMemorySize = %d, slicesPerChunk = %d".format( cacheFilePath, nChunks, chunkMemorySize, slicesPerChunk  ))
+    (0.toLong until nChunks).foreach( processChunkFromReader( _, channel ) )
     cacheFilePath
   }
 
   @tailrec
-  final def processChunkFromReader( iChunk: Long, buffer: MappedByteBuffer ): Unit = {
-    chunkCache.get(iChunk) match {
-      case Some( cacheChunkFut: Future[CacheChunk] ) =>
-        val cacheChunk = Await.result( cacheChunkFut, Duration.Inf )
+  final def processChunkFromReader( iChunk: Long, channel: FileChannel ): Unit = {
+    Option(chunkCache.get(iChunk)) match {
+      case Some( cacheChunk: CacheChunk ) =>
+        var buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, iChunk * chunkMemorySize, chunkMemorySize  )
         logger.info( "Writing chunk %d, size = %d, position = %d ".format( iChunk, cacheChunk.byteSize, buffer.position ) )
         buffer.put( cacheChunk.data )
         chunkCache.remove( iChunk )
         runtime.printMemoryUsage(logger)
       case None =>
         Thread.sleep( 200 )
-        processChunkFromReader( iChunk, buffer )
+        processChunkFromReader( iChunk, channel )
     }
   }
 
@@ -499,3 +511,9 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
 }
 
 object collectionDataCache extends CollectionDataCacheMgr()
+
+object TestApp extends App {
+  val it1 = Int.MaxValue
+  val it2 = math.pow( 2, 31 ).toLong
+  println( it1 + ", " + it2 )
+}
