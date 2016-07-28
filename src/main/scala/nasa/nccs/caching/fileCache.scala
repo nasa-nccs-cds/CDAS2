@@ -49,8 +49,8 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   private val dType: ma2.DataType  = ncVariable.getDataType
   private val elemSize = ncVariable.getElementSize
   private val range0 = roi.getRange(0)
-  private val maxBufferSize = 200000000
-  private val throttleSize = 1000000000
+  private val maxBufferSize = 400000000
+  private val throttleSize = 3
   private val sliceMemorySize: Long = getMemorySize(1)
   private val slicesPerChunk: Int = if(sliceMemorySize >= maxBufferSize ) 1 else  math.min( ( maxBufferSize / sliceMemorySize ).toInt, baseShape(0) )
   private val nChunks = math.ceil( baseShape(0) / slicesPerChunk.toDouble ).toInt
@@ -66,13 +66,15 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val cache_file = "a" + System.nanoTime.toHexString
     DiskCacheFileMgr.getDiskCacheFilePath(cacheType, cache_file)
   }
-  def accumulatedCacheMemSize: Long = chunkCache.values.foldLeft( 1L )( _ * _.byteSize )
 
   @tailrec
   private def throttle: Unit = {
-    logger.info( s"Throttle: accumulatedCacheMemSize = $accumulatedCacheMemSize" )
-    if( accumulatedCacheMemSize > throttleSize ) {
-      Thread.sleep(500)
+    val cvals: Iterable[CacheChunk] = chunkCache.values.toIterable
+    val csize = cvals.foldLeft( 1L )( _ * _.byteSize )
+    val num_cached_chunks = cvals.size
+    logger.info( s"Throttle: nChunks=$num_cached_chunks, accumulatedCacheMemSize = %.2f M".format(csize/1.0E6) )
+    if( num_cached_chunks >= throttleSize ) {
+      Thread.sleep(2000)
       throttle
     }
   }
@@ -125,12 +127,18 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
 
   @tailrec
   final def processChunkFromReader( iChunk: Long, channel: FileChannel ): Unit = {
+    logger.info( s" ^^^^^ Retrieving chunk $iChunk")
     Option(chunkCache.get(iChunk)) match {
       case Some( cacheChunk: CacheChunk ) =>
+        val t0 = System.nanoTime()
         var buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, iChunk * chunkMemorySize, chunkMemorySize  )
-        logger.info( "Writing chunk %d, size = %d, position = %d ".format( iChunk, cacheChunk.byteSize, buffer.position ) )
+        val t1 = System.nanoTime()
+        logger.info( " -----> Writing chunk %d, size = %d, position = %d, map time = %.2f ".format( iChunk, cacheChunk.byteSize, buffer.position, (t1-t0)/1.0E9 ) )
         buffer.put( cacheChunk.data )
+        buffer.force()
         chunkCache.remove( iChunk )
+        val t2 = System.nanoTime()
+        logger.info( s" xxxxx Removing chunk %d, write time = %.2f ".format( iChunk, (t2-t1)/1.0E9 ))
         runtime.printMemoryUsage(logger)
       case None =>
         Thread.sleep( 200 )
