@@ -49,8 +49,8 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   private val dType: ma2.DataType  = ncVariable.getDataType
   private val elemSize = ncVariable.getElementSize
   private val range0 = roi.getRange(0)
-  private val maxBufferSize = 400000000
-  private val throttleSize = 3
+  private val maxBufferSize = 200000000
+  private val throttleSize = 2
   private val sliceMemorySize: Long = getMemorySize(1)
   private val slicesPerChunk: Int = if(sliceMemorySize >= maxBufferSize ) 1 else  math.min( ( maxBufferSize / sliceMemorySize ).toInt, baseShape(0) )
   private val nChunks = math.ceil( baseShape(0) / slicesPerChunk.toDouble ).toInt
@@ -70,11 +70,10 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   @tailrec
   private def throttle: Unit = {
     val cvals: Iterable[CacheChunk] = chunkCache.values.toIterable
-    val csize = cvals.foldLeft( 0L )( _ + _.byteSize )
+//    val csize = cvals.foldLeft( 0L )( _ + _.byteSize )
     val num_cached_chunks = cvals.size
-    logger.info( s"Throttle: nChunks=$num_cached_chunks, accumulatedCacheMemSize = %.2f M".format(csize/1.0E6) )
     if( num_cached_chunks >= throttleSize ) {
-      Thread.sleep(2000)
+      Thread.sleep(5000)
       throttle
     }
   }
@@ -131,7 +130,6 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
 
   @tailrec
   final def processChunkFromReader( iChunk: Long, channel: FileChannel ): Unit = {
-    logger.info( s" ^^^^^ Retrieving chunk $iChunk")
     Option(chunkCache.get(iChunk)) match {
       case Some( cacheChunk: CacheChunk ) =>
         val t0 = System.nanoTime()
@@ -142,7 +140,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
         buffer.force()
         chunkCache.remove( iChunk )
         val t2 = System.nanoTime()
-        logger.info( s" xxxxx Removing chunk %d, write time = %.2f ".format( iChunk, (t2-t1)/1.0E9 ))
+        logger.info( s"Persisted chunk %d, write time = %.2f ".format( iChunk, (t2-t1)/1.0E9 ))
         runtime.printMemoryUsage(logger)
       case None =>
         Thread.sleep( 500 )
