@@ -105,7 +105,7 @@ object Collections extends XmlResource {
   }
 
   def getCacheFilePath( fileName: String ): String = DiskCacheFileMgr.getDiskCacheFilePath( "collections", fileName)
-  
+
   def getVariableListXml(vids: Array[String]): xml.Elem = {
     <collections>
       { for (vid: String <- vids; vidToks = vid.split('!'); varName=vidToks(0); cid=vidToks(1) ) yield Collections.findCollection(cid) match {
@@ -195,14 +195,20 @@ object Collections extends XmlResource {
     val maxCapacity: Int=100000
     val initialCapacity: Int=250
     val datasets = new ConcurrentLinkedHashMap.Builder[String, Collection].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).build()
-    for ( ( scope, filePath ) <- filePaths.iterator; if Files.exists( Paths.get(filePath) ) ) {
-      try {
-        XML.loadFile(filePath).child.foreach( node => node.attribute("id") match {
-          case None => None;
-          case Some(id) => datasets.put(id.toString.toLowerCase, getCollection(node,scope))
-        })
-      } catch { case err: java.io.IOException => throw new Exception( "Error opening collection data file {%s}: %s".format( filePath, err.getMessage) ) }
-    }
+    for ( ( scope, filePath ) <- filePaths.iterator ) if( Files.exists( Paths.get(filePath) ) ) {
+        try {
+          XML.loadFile(filePath).child.foreach(node => node.attribute("id") match {
+            case None => logger.warn( "Empty collections file: " + filePath ); None;
+            case Some(id) =>
+              logger.info( "Loading collections from file: " + filePath )
+              datasets.put(id.toString.toLowerCase, getCollection(node, scope))
+          })
+        } catch {
+          case err: java.io.IOException => throw new Exception("Error opening collection data file {%s}: %s".format(filePath, err.getMessage))
+        }
+      } else {
+        logger.warn( "Collections file does not exist: " + filePath )
+      }
     datasets
   }
   def persistLocalCollections(prettyPrint: Boolean = true) = {
