@@ -90,7 +90,7 @@ object Masks extends XmlResource {
 object Collections extends XmlResource {
   val maxCapacity: Int=100000
   val initialCapacity: Int=250
-  val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( Map( "global" -> getFilePath("/global_collections.xml"), "local" -> getCacheFilePath("/local_collections.xml") ) )
+  val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( Map( "global" -> getFilePath("global_collections.xml"), "local" -> getCacheFilePath("local_collections.xml") ) )
 
   def toXml: xml.Elem =
     <collections>
@@ -212,8 +212,8 @@ object Collections extends XmlResource {
     datasets
   }
   def persistLocalCollections(prettyPrint: Boolean = true) = {
-    if(prettyPrint) saveXML( getCacheFilePath("/local_collections.xml"), toXml("local") )
-    else XML.save( getCacheFilePath("/local_collections.xml"), toXml("local") )
+    if(prettyPrint) saveXML( getCacheFilePath("local_collections.xml"), toXml("local") )
+    else XML.save( getCacheFilePath("local_collections.xml"), toXml("local") )
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList

@@ -31,7 +31,7 @@ object NCMLWriter extends Loggable {
     file.isFile && (fname.endsWith(".nc4") || fname.endsWith(".nc") || fname.endsWith(".hdf") )
   }
   def getCacheDir: String = {
-    val collection_file_path = Collections.getCacheFilePath("/local_collections.xml")
+    val collection_file_path = Collections.getCacheFilePath("local_collections.xml")
     new java.io.File( collection_file_path ).getParent.stripSuffix("/")
   }
 
