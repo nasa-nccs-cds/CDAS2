@@ -70,7 +70,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   @tailrec
   private def throttle: Unit = {
     val cvals: Iterable[CacheChunk] = chunkCache.values.toIterable
-    val csize = cvals.foldLeft( 1L )( _ * _.byteSize )
+    val csize = cvals.foldLeft( 0L )( _ + _.byteSize )
     val num_cached_chunks = cvals.size
     logger.info( s"Throttle: nChunks=$num_cached_chunks, accumulatedCacheMemSize = %.2f M".format(csize/1.0E6) )
     if( num_cached_chunks >= throttleSize ) {
@@ -85,11 +85,15 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     for( iChunk <- (coreIndex until nChunks by nReadProcessors); startLoc = iChunk*slicesPerChunk; if(startLoc < baseShape(0)) ) {
       val endLoc = Math.min( startLoc + slicesPerChunk - 1, baseShape(0)-1 )
       val chunkRange = new ma2.Range( startLoc, endLoc )
+      logger.info( "Reading data chunk %d, startTimIndex = %d ".format( iChunk, startLoc ) )
       subsection.replaceRange(0,chunkRange)
+      val t0 = System.nanoTime()
       val data = ncVariable.read(subsection)
       val chunkShape = subsection.getShape
       val chunk = new CacheChunk( startLoc, elemSize, chunkShape, data.getDataAsByteBuffer )
       chunkCache.put( iChunk, chunk )
+      val t1 = System.nanoTime()
+      logger.info( "Finished Reading data chunk %d in time %.2f ".format( iChunk, (t1-t0)/1.0E9 ) )
       throttle
       nElementsWritten += chunkShape.product
     }
@@ -141,7 +145,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
         logger.info( s" xxxxx Removing chunk %d, write time = %.2f ".format( iChunk, (t2-t1)/1.0E9 ))
         runtime.printMemoryUsage(logger)
       case None =>
-        Thread.sleep( 200 )
+        Thread.sleep( 500 )
         processChunkFromReader( iChunk, channel )
     }
   }
