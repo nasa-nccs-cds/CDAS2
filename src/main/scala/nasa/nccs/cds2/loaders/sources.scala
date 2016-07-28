@@ -45,18 +45,17 @@ trait XmlResource extends Loggable {
     }
   }
 
-  def getCacheFilePath( resourcePath: String ): String =
-    try {
-      getFilePath(resourcePath)
-    } catch {
-      case ex: Exception =>
-        sys.env.get("CDAS_CACHE_DIR") match {
-          case Some( cache_path ) => Paths.get( cache_path, resourcePath ).toString
-          case None =>
+  def getCacheFilePath(resourcePath: String): String =
+    sys.env.get("CDAS_CACHE_DIR") match {
+      case Some(cache_path) => Paths.get(cache_path, resourcePath).toString
+      case None =>
+        try {
+          getFilePath(resourcePath)
+        } catch {
+          case ex: Exception =>
             val home = System.getProperty("user.home")
-            Paths.get( home, ".cdas", "cache", resourcePath ).toString
+            Paths.get(home, ".cdas", "cache", resourcePath).toString
         }
-
     }
 
   def getFilePath(resourcePath: String) = Option( getClass.getResource(resourcePath) ) match {
