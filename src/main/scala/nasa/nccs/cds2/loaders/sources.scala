@@ -9,7 +9,7 @@ import scala.collection.JavaConversions._
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
-import nasa.nccs.cdapi.cdm.{Collection, NCMLWriter}
+import nasa.nccs.cdapi.cdm.{Collection, DiskCacheFileMgr, NCMLWriter}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.dataset.NetcdfDataset
 import ucar.nc2
@@ -45,19 +45,6 @@ trait XmlResource extends Loggable {
     }
   }
 
-  def getCacheFilePath(resourcePath: String): String =
-    sys.env.get("CDAS_CACHE_DIR") match {
-      case Some(cache_path) => Paths.get(cache_path, resourcePath).toString
-      case None =>
-        try {
-          getFilePath(resourcePath)
-        } catch {
-          case ex: Exception =>
-            val home = System.getProperty("user.home")
-            Paths.get(home, ".cdas", "cache", resourcePath).toString
-        }
-    }
-
   def getFilePath(resourcePath: String) = Option( getClass.getResource(resourcePath) ) match {
       case None => Option( getClass.getClassLoader.getResource(resourcePath) ) match {
         case None =>
@@ -78,12 +65,12 @@ object Mask  {
 }
 class Mask( val mtype: String, val resource: String ) extends XmlResource {
   override def toString = "Mask( mtype=%s, resource=%s )".format( mtype, resource )
-  def getPath: String = getCacheFilePath( resource )
+  def getPath: String = getFilePath( resource )
 }
 
 object Masks extends XmlResource {
   val mid_prefix: Char = '#'
-  val masks = loadMaskXmlData(getCacheFilePath("/masks.xml"))
+  val masks = loadMaskXmlData(getFilePath("/masks.xml"))
 
   def isMaskId( maskId: String ): Boolean = (maskId(0) == mid_prefix )
 
@@ -117,6 +104,8 @@ object Collections extends XmlResource {
     }
   }
 
+  def getCacheFilePath( fileName: String ): String = DiskCacheFileMgr.getDiskCacheFilePath( "collections", fileName)
+  
   def getVariableListXml(vids: Array[String]): xml.Elem = {
     <collections>
       { for (vid: String <- vids; vidToks = vid.split('!'); varName=vidToks(0); cid=vidToks(1) ) yield Collections.findCollection(cid) match {
