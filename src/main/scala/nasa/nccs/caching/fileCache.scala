@@ -45,13 +45,13 @@ class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val
 
 class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
   private val chunkCache = new ConcurrentLinkedHashMap.Builder[Long,CacheChunk].initialCapacity(500).maximumWeightedCapacity(1000000).build()
-  private val nReadProcessors = 2
+  private val nReadProcessors = 8
   private val baseShape = roi.getShape
   private val dType: ma2.DataType  = ncVariable.getDataType
   private val elemSize = ncVariable.getElementSize
   private val range0 = roi.getRange(0)
   private val maxBufferSize = 200000000
-  private val throttleSize = 2
+  private val throttleSize = 5
   private val sliceMemorySize: Long = getMemorySize(1)
   private val slicesPerChunk: Int = if(sliceMemorySize >= maxBufferSize ) 1 else  math.min( ( maxBufferSize / sliceMemorySize ).toInt, baseShape(0) )
   private val nChunks = math.ceil( baseShape(0) / slicesPerChunk.toDouble ).toInt
