@@ -136,7 +136,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
         val t0 = System.nanoTime()
         var buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, iChunk * chunkMemorySize, chunkMemorySize  )
         val t1 = System.nanoTime()
-        logger.info( " -----> Writing chunk %d, size = %.2f M, position = %d, map time = %.2f ".format( iChunk, cacheChunk.byteSize/1.0E6, buffer.position, (t1-t0)/1.0E9 ) )
+        logger.info( " -----> Writing chunk %d, size = %.2f M, map time = %.2f ".format( iChunk, cacheChunk.byteSize/1.0E6, (t1-t0)/1.0E9 ) )
         buffer.put( cacheChunk.data )
         buffer.force()
         chunkCache.remove( iChunk )
@@ -205,9 +205,9 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     }
   }
 
-  def restore( cache_id: String, size: Int ): Option[FloatBuffer] = bufferFromDiskFloat( cache_id, size )
+  def restore( cache_id: String, size: Long ): Option[FloatBuffer] = bufferFromDiskFloat( cache_id, size )
   def restore( fragKey: DataFragmentKey ): Option[FloatBuffer] =  fragmentIdCache.get(fragKey.toStrRep).flatMap( restore( _, fragKey.getSize ) )
-  def restore( cache_id_future: Future[String], size: Int ): Option[FloatBuffer] = restore( Await.result(cache_id_future, Duration.Inf), size )
+  def restore( cache_id_future: Future[String], size: Long ): Option[FloatBuffer] = restore( Await.result(cache_id_future, Duration.Inf), size )
   def close(): Unit = Await.result( Future.sequence( fragmentIdCache.values ), Duration.Inf )
 
   def deleteEnclosing( fragSpec: DataFragmentSpec ) =

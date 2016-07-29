@@ -12,8 +12,8 @@ import scala.collection.mutable.ArrayBuffer
 object CDArray {
 
   type ReduceOp[T] = (T,T)=>T
-  type StorageIndex = Int
-  type FlatIndex = Int
+  type StorageIndex = Long
+  type FlatIndex = Long
 
   def factory[T <: AnyVal]( shape: Array[Int], storage: Buffer, invalid: T ): CDArray[T] = factory( new CDIndexMap(shape), storage, invalid )
 
