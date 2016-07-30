@@ -76,8 +76,12 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   val bounds: Array[Double] = getAxisBounds( coordAxis, domainAxisOpt)
   def getData: Array[Double] = _data
   def getAxisType: AxisType = coordAxis.getAxisType
-  def getCFAxisName: String = coordAxis.getAxisType.getCFAxisName.toLowerCase
-  def getAxisName: String = coordAxis.getShortName
+
+  def getCFAxisName: String = Option(coordAxis.getAxisType) match  {
+    case Some( axisType ) => getAxisType.getCFAxisName
+    case None => logger.warn( "Using %s for CFAxisName".format(coordAxis.getShortName) ); coordAxis.getShortName
+  }
+  def getAxisName: String = coordAxis.getFullName
   def getIndexRange: ma2.Range = range
   def getLength: Int = _data.length
   def getStartValue: Double = bounds(0)
@@ -86,8 +90,10 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
 
   private def getAxisRange( variable: CDSVariable, coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): ma2.Range = domainAxisOpt match {
     case Some( domainAxis ) =>  domainAxis.system match {
-      case asys if asys.startsWith("ind") => new ma2.Range( getCFAxisName, domainAxis.start.toInt, domainAxis.end.toInt, 1 )
-      case asys if asys.startsWith("val") => getGridIndexBounds( domainAxis.start, domainAxis.end )
+      case asys if asys.startsWith("ind") =>
+        new ma2.Range( getCFAxisName, domainAxis.start.toInt, domainAxis.end.toInt, 1 )
+      case asys if asys.startsWith("val") =>
+        getGridIndexBounds( domainAxis.start, domainAxis.end )
       case _ => throw new IllegalStateException("CDSVariable: Illegal system value in axis bounds: " + domainAxis.system)
     }
     case None => new ma2.Range( getCFAxisName, 0, coordAxis.getShape(0)-1, 1 )
@@ -177,12 +183,12 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
       case -1 =>
         if (role == BoundsRole.Start) {
           val grid_start = coordAxis1D.getCoordValue(0)
-          logger.warn("Axis %s: ROI Start value %f outside of grid area, resetting to grid start: %f".format(coordAxis.getShortName, cval, grid_start))
+          logger.warn("Axis %s: ROI Start value %f outside of grid area, resetting to grid start: %f".format(coordAxis.getFullName, cval, grid_start))
           0
         } else {
           val end_index = coordAxis1D.getSize.toInt - 1
           val grid_end = coordAxis1D.getCoordValue(end_index)
-          logger.warn("Axis %s: ROI Start value %s outside of grid area, resetting to grid end: %f".format(coordAxis.getShortName, cval, grid_end))
+          logger.warn("Axis %s: ROI Start value %s outside of grid area, resetting to grid end: %f".format(coordAxis.getFullName, cval, grid_end))
           end_index
         }
       case ival => ival
@@ -208,15 +214,13 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
 
 object GridSpec extends Loggable {
     def apply( variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ): GridSpec = {
-      val coordSpecs = for (idim <- variable.dims.indices; dim = variable.dims(idim); coord_axis = variable.getCoordinateAxis(dim.getFullName)) yield {
-        val domainAxisOpt: Option[DomainAxis] = roiOpt.flatMap(axes => axes.find(da => da.matches( coord_axis.getAxisType )))
-        val t0 = System.nanoTime()
-        val rv = new GridCoordSpec(idim, variable, coord_axis, domainAxisOpt)
-        val t1 = System.nanoTime()
-        logger.info( "Init GridCoordSpec[%d](%s), time = %.4f".format( idim, dim.getFullName, (t1-t0)/1.0E9) )
-        rv
+      val coordSpecs: IndexedSeq[Option[GridCoordSpec]] = for (idim <- variable.dims.indices; dim = variable.dims(idim); coord_axis_opt = variable.getCoordinateAxis(dim.getFullName)) yield coord_axis_opt match {
+        case Some( coord_axis ) =>
+          val domainAxisOpt: Option[DomainAxis] = roiOpt.flatMap(axes => axes.find(da => da.matches( coord_axis.getAxisType )))
+          Some( new GridCoordSpec(idim, variable, coord_axis, domainAxisOpt) )
+        case None => logger.warn( "Unrecognized coordinate axis: %s, axes = ( %s )".format( dim.getFullName, variable.getCoordinateAxesList.map( axis => axis.getFullName ).mkString(", ") )); None
       }
-      new GridSpec( variable, coordSpecs )
+      new GridSpec( variable, coordSpecs.flatten )
     }
 }
 
@@ -326,7 +330,7 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
 
   def loadRoiViaCache( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
     val cacheStream = new FileToCacheStream( data_variable.ncVariable, fragmentSpec.roi, maskOpt )
-    cacheStream.cacheFloatData( data_variable.getCacheChunkSize, data_variable.missing  ) match { case ( cache_id: String, cdArray: CDFloatArray ) =>
+    cacheStream.cacheFloatData( data_variable.missing  ) match { case ( cache_id: String, cdArray: CDFloatArray ) =>
         val pfrag = new PartitionedFragment(cdArray, maskOpt, fragmentSpec)
         FragmentPersistence.put( fragmentSpec.getKey, cache_id )
         pfrag

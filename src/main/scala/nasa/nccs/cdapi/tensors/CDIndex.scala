@@ -20,7 +20,7 @@ import scala.collection.JavaConverters._
 object CDIndexMap {
 
   def factory(index: CDIndexMap): CDIndexMap = new CDIndexMap(index.getShape, index.getStride, index.getOffset )
-  def factory(shape: Array[Int], stride: Array[Int]=Array.emptyIntArray, offset: Int = 0): CDIndexMap = new CDIndexMap(shape, stride, offset )
+  def factory(shape: Array[Int], stride: Array[Int]=Array.emptyIntArray, offset: Long = 0): CDIndexMap = new CDIndexMap(shape, stride, offset )
 }
 
 abstract class IndexMapIterator extends collection.Iterator[Int] {
@@ -34,7 +34,7 @@ abstract class IndexMapIterator extends collection.Iterator[Int] {
 
 abstract class TimeIndexMapIterator( val timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis]  ) extends IndexMapIterator {
   val index_offset: Int = domainAxisOpt match { case None => 0; case Some(domainAxis) =>  domainAxis.start.toInt }
-  override def getLength: Int =  domainAxisOpt match { case None => timeAxis.getSize.toInt; case Some(domainAxis) =>  (domainAxis.end.toInt - domainAxis.start.toInt + 1) }
+  override def getLength: Long =  domainAxisOpt match { case None => timeAxis.getSize; case Some(domainAxis) =>  domainAxis.end.toLong - domainAxis.start.toLong + 1L }
   def toDate( cd: CalendarDate ): DateTime = new DateTime( cd.toDate )
 }
 
@@ -48,7 +48,7 @@ class DayOfYearIter( timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[Domai
   def getValue( count_index: Int ): Int = toDate(timeAxis.getCalendarDate(count_index+index_offset)).getDayOfYear
 }
 
-class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val offset: Int = 0 ) {
+class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val offset: Long = 0L ) {
   protected val rank: Int = shape.length
   protected val stride = if( _stride.isEmpty ) computeStrides(shape) else _stride
   def this( index: CDIndexMap ) = this( index.shape, index.stride, index.offset )
@@ -57,8 +57,8 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   def getShape: Array[Int] = shape.clone
   def getStride: Array[Int] = stride.clone
   def getShape(index: Int): Int = shape(index)
-  def getSize: Int = shape.filter( _ > 0 ).product
-  def getOffset: Int = offset
+  def getSize: Long = shape.filter( _ > 0 ).foldLeft(1L)( _ * _ )
+  def getOffset: Long = offset
   def getReducedShape: Array[Int] = { ( for( idim <- ( 0 until rank) ) yield if( stride(idim) == 0 ) 1 else shape( idim ) ).toArray }
   override def toString: String = "{ Shape: " + shape.mkString("[ ",", "," ], Stride: " + stride.mkString("[ ",", "," ]") + " Offset: " + offset + " } ")
 
@@ -67,19 +67,19 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
     false
   }
 
-  def getCoordIndices( flatIndex: Int ): IndexedSeq[Int] = {
+  def getCoordIndices( flatIndex: Long ): IndexedSeq[Int] = {
     var currElement = flatIndex
     currElement -= offset
     for( ii <-(0 until rank ) ) yield if (shape(ii) < 0) {  -1 } else {
       val coordIndex = currElement / stride(ii)
       currElement -= coordIndex * stride(ii)
-      coordIndex
+      coordIndex.toInt
     }
   }
 
-  def getStorageIndex( coordIndices: Array[Int] ): Int = {
+  def getStorageIndex( coordIndices: Array[Int] ): Long = {
     assert( coordIndices.length == rank, "Wrong number of coordinates in getStorageIndex for Array of rank %d: %d".format( rank, coordIndices.length) )
-    var value: Int = offset
+    var value: Long = offset
     for( ii <-(0 until rank ); if (shape(ii) >= 0) ) {
       value += coordIndices(ii) * stride(ii)
     }
@@ -114,7 +114,7 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
       assert ((r.first >= 0) && (r.first < shape(ii)), "Bad range starting value at index " + ii + " == " + r.first)
       assert ((r.last >= 0) && (r.last < shape(ii)), "Bad range ending value at index " + ii + " == " + r.last)
     }
-    var _offset: Int = offset
+    var _offset: Long = offset
     val _shape: Array[Int] = Array.fill[Int](rank)(0)
     val _stride: Array[Int] = Array.fill[Int](rank)(0)
     for( ii <-(0 until rank); r = ranges(ii) ) {
@@ -215,10 +215,10 @@ class CDCoordMap( val dimIndex: Int, val mapArray: Array[Int] ) extends CDCoordM
   override def toString = "[ %s ]".format( mapArray.mkString(", "))
 }
 
-class IndexValueAccumulator( start_value: Int = 0 ) {
-  var current_index = Int.MaxValue
+class IndexValueAccumulator( start_value: Long = 0 ) {
+  var current_index = Long.MaxValue
   var cum_index = start_value-1
-  def getValue( index: Int ): Int = {
+  def getValue( index: Long ): Long = {
     if (index != current_index) { cum_index = cum_index + 1; current_index = index }
     cum_index
   }
@@ -245,9 +245,9 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid ) {
     case x if x.toLowerCase.startsWith("day") => new DayOfYearIter(timeAxis,axisSpec.domainAxisOpt);
   }
 
-  def pos_mod(initval: Int, period: Int): Int = if (initval >= 0) initval else pos_mod(initval + period, period)
+  def pos_mod(initval: Long, period: Int): Long = if (initval >= 0) initval else pos_mod(initval + period, period)
 
-  def getTimeCycleMap(period: Int, unit: String, mod: Int, offset: Int): CDCoordMap = {
+  def getTimeCycleMap(period: Int, unit: String, mod: Int, offset: Long): CDCoordMap = {
     val timeIter = getTimeIndexIterator( unit )
     val start_value = timeIter.getValue(0)-1
     val accum = new IndexValueAccumulator()
@@ -257,7 +257,7 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid ) {
     val timeIndices = for (time_index <- timeIter; bin_index = accum.getValue(time_index)) yield {
       (( bin_index + op_offset ) / period) % mod
     }
-    new CDCoordMap(axisSpec.index, timeIndices.toArray)
+    new CDCoordMap(axisSpec.index, timeIndices.toArray.map(_.toInt) )
   }
 }
 

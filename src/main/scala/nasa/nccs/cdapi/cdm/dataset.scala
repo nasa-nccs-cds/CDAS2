@@ -11,16 +11,16 @@ import java.nio._
 import nasa.nccs.cds2.loaders.XmlResource
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.constants.AxisType
-import ucar.nc2.dataset.{CoordinateAxis, CoordinateSystem, NetcdfDataset}
+import ucar.nc2.dataset.{CoordinateAxis, CoordinateSystem, NetcdfDataset, VariableDS}
 import ucar.nc2.ncml.NcMLReader
 import ucar.nc2.util.DebugFlagsImpl
 
 import scala.collection.mutable
 import scala.collection.concurrent
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import scala.xml.XML
-// import scala.collection.JavaConverters._
 
 object Collection {
   def apply( id: String, url: String, path: String = "", fileFilter: String = "", scope: String="", vars: List[String] = List() ) = {
@@ -74,12 +74,21 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
 object DiskCacheFileMgr extends XmlResource {
   val diskCacheMap = loadDiskCacheMap
 
-  def getDiskCacheFilePath(cachetype: String, cache_file: String): String =
+  def getDiskCacheFilePath( cachetype: String, cache_file: String ): String =
     if (cache_file.startsWith("/")) {cache_file} else {
-      val cacheFilePath = Array(getDiskCache(), cachetype, cache_file).mkString("/")
-      Files.createDirectories(Paths.get(cacheFilePath).getParent)
-      cacheFilePath
+      val cacheFilePath = Paths.get( getCacheDirectory, cachetype, cache_file )
+      Files.createDirectories( cacheFilePath.getParent )
+      cacheFilePath.toString
     }
+
+  def getCacheDirectory: String = {
+    sys.env.get("CDAS_CACHE_DIR") match {
+      case Some(cache_path) => cache_path
+      case None =>
+        val home = System.getProperty("user.home")
+        Paths.get(home, ".cdas", "cache" ).toString
+    }
+  }
 
   protected def getDiskCache( id: String = "main" ) = diskCacheMap.get(id) match {
     case None => throw new Exception( "No disk cache defined: " + id )
@@ -149,7 +158,7 @@ trait DiskCachable extends XmlResource {
     channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size)
   }
 
-  protected def bufferFromDiskFloat( cache_id: String, size: Int  ): Option[FloatBuffer] = {
+  protected def bufferFromDiskFloat( cache_id: String, size: Long  ): Option[FloatBuffer] = {
     try {
       val t0 = System.nanoTime()
       getReadBuffer(cache_id) match { case ( channel, buffer ) =>
@@ -206,7 +215,7 @@ object CDSDataset extends DiskCachable  {
     val dset_address = urlToPath(url)
     try {
       logger.info("Opening NetCDF dataset %s".format(dset_address))
-      NetcdfDataset.openDataset( dset_address, false, null )
+      NetcdfDataset.openDataset( dset_address, true, null )
     } catch {
       case e: java.io.IOException =>
         logger.error("Couldn't open dataset %s".format(dset_address))
@@ -242,9 +251,18 @@ class CDSDatasetRec( val dsetName: String, val collection: Collection, val varNa
 class CDSDataset( val name: String, val collection: Collection, val ncDataset: NetcdfDataset, val varName: String, coordSystems: List[CoordinateSystem] ) {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val attributes: List[nc2.Attribute] = ncDataset.getGlobalAttributes.map( a => { new nc2.Attribute( name + "--" + a.getFullName, a ) } ).toList
-  val coordAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
+  val coordAxes: List[CoordinateAxis] = initCoordAxes
   val fileHeaders: Option[DatasetFileHeaders] = getDatasetFileHeaders
 
+  def initCoordAxes(): List[CoordinateAxis] = {
+    for( variable <- ncDataset.getVariables; if( variable.isCoordinateVariable ) ) {
+      variable match {
+        case cvar: VariableDS => ncDataset.addCoordinateAxis( variable.asInstanceOf[VariableDS] )
+        case xvar => logger.warn( "Coordinate variable of improper type: " + xvar.getClass.getName )
+      }
+    }
+    ncDataset.getCoordinateAxes.toList
+  }
 
   def getCoordinateAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
   def getFilePath = CDSDataset.urlToPath(collection.url)

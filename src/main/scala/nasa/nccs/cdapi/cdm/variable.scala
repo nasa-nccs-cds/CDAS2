@@ -36,7 +36,6 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
   val attributes = nc2.Attribute.makeMap(ncVariable.getAttributes).toMap
   val missing = getAttributeValue( "missing_value", "" ) match { case "" => Float.MaxValue; case s => s.toFloat }
 
-  def getCacheChunkSize: Int = dataset.fileHeaders match { case None => -1; case Some( datasetFileHeaders ) => datasetFileHeaders.getNElems }
   def getFullSection: ma2.Section = ncVariable.getShapeAsSection
   def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last; case None => default_value }
   override def toString = "\nCDSVariable(%s) { description: '%s', shape: %s, dims: %s, }\n  --> Variable Attributes: %s".format(name, description, shape.mkString("[", " ", "]"), dims.mkString("[", ",", "]"), attributes.mkString("\n\t\t", "\n\t\t", "\n"))
@@ -53,10 +52,11 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
   def read( section: ma2.Section ) = ncVariable.read(section)
   def getTargetGrid( fragSpec: DataFragmentSpec ): TargetGrid = fragSpec.targetGridOpt match { case Some(targetGrid) => targetGrid;  case None => new TargetGrid( this, Some(fragSpec.getAxes) ) }
   def getCoordinateAxes: List[ CoordinateAxis1D ] = {
-    ncVariable.getDimensions.map( dim => CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis( dim.getFullName ) ) ).toList
+    ncVariable.getDimensions.flatMap( dim => Option(dataset.ncDataset.findCoordinateAxis( dim.getFullName )).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) ) ).toList
   }
-  def getCoordinateAxis( axisType: nc2.constants.AxisType ): CoordinateAxis1D = CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis(axisType) )
-  def getCoordinateAxis( fullName: String ): CoordinateAxis1D = CDSVariable.toCoordAxis1D( dataset.ncDataset.findCoordinateAxis(fullName) )
+  def getCoordinateAxis( axisType: nc2.constants.AxisType ): Option[CoordinateAxis1D] = Option(dataset.ncDataset.findCoordinateAxis(axisType)).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
+  def getCoordinateAxis( fullName: String ): Option[CoordinateAxis1D] = Option(dataset.ncDataset.findCoordinateAxis(fullName)).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
+  def getCoordinateAxesList = dataset.getCoordinateAxes
 }
 
 class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  )  {

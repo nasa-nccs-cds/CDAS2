@@ -9,7 +9,7 @@ import scala.collection.JavaConversions._
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
-import nasa.nccs.cdapi.cdm.{Collection, NCMLWriter}
+import nasa.nccs.cdapi.cdm.{Collection, DiskCacheFileMgr, NCMLWriter}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.dataset.NetcdfDataset
 import ucar.nc2
@@ -45,20 +45,6 @@ trait XmlResource extends Loggable {
     }
   }
 
-  def getCacheFilePath( resourcePath: String ): String =
-    try {
-      getFilePath(resourcePath)
-    } catch {
-      case ex: Exception =>
-        sys.env.get("CDAS_CACHE_DIR") match {
-          case Some( cache_path ) => Paths.get( cache_path, resourcePath ).toString
-          case None =>
-            val home = System.getProperty("user.home")
-            Paths.get( home, ".cdas", "cache", resourcePath ).toString
-        }
-
-    }
-
   def getFilePath(resourcePath: String) = Option( getClass.getResource(resourcePath) ) match {
       case None => Option( getClass.getClassLoader.getResource(resourcePath) ) match {
         case None =>
@@ -79,12 +65,12 @@ object Mask  {
 }
 class Mask( val mtype: String, val resource: String ) extends XmlResource {
   override def toString = "Mask( mtype=%s, resource=%s )".format( mtype, resource )
-  def getPath: String = getCacheFilePath( resource )
+  def getPath: String = getFilePath( resource )
 }
 
 object Masks extends XmlResource {
   val mid_prefix: Char = '#'
-  val masks = loadMaskXmlData(getCacheFilePath("/masks.xml"))
+  val masks = loadMaskXmlData(getFilePath("/masks.xml"))
 
   def isMaskId( maskId: String ): Boolean = (maskId(0) == mid_prefix )
 
@@ -104,7 +90,7 @@ object Masks extends XmlResource {
 object Collections extends XmlResource {
   val maxCapacity: Int=100000
   val initialCapacity: Int=250
-  val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( Map( "global" -> getFilePath("/global_collections.xml"), "local" -> getCacheFilePath("/local_collections.xml") ) )
+  val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( Map( "global" -> getFilePath("global_collections.xml"), "local" -> getCacheFilePath("local_collections.xml") ) )
 
   def toXml: xml.Elem =
     <collections>
@@ -117,6 +103,8 @@ object Collections extends XmlResource {
       case Some( coll ) => coll.getDatasetMetadata
     }
   }
+
+  def getCacheFilePath( fileName: String ): String = DiskCacheFileMgr.getDiskCacheFilePath( "collections", fileName)
 
   def getVariableListXml(vids: Array[String]): xml.Elem = {
     <collections>
@@ -188,7 +176,7 @@ object Collections extends XmlResource {
     findNcFile( new File(path) ) match {
       case Some(f) =>
         val dset: NetcdfDataset = NetcdfDataset.openDataset( f.getAbsolutePath )
-        dset.getVariables.toList.flatMap( v => if(v.isCoordinateVariable) None else Some(v.getShortName) )
+        dset.getVariables.toList.flatMap( v => if(v.isCoordinateVariable) None else Some(v.getFullName) )
       case None => throw new Exception( "Can't find any nc files in dataset path: " + path )
     }
   }
@@ -207,19 +195,26 @@ object Collections extends XmlResource {
     val maxCapacity: Int=100000
     val initialCapacity: Int=250
     val datasets = new ConcurrentLinkedHashMap.Builder[String, Collection].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).build()
-    for ( ( scope, filePath ) <- filePaths.iterator; if Files.exists( Paths.get(filePath) ) ) {
-      try {
-        XML.loadFile(filePath).child.foreach( node => node.attribute("id") match {
-          case None => None;
-          case Some(id) => datasets.put(id.toString.toLowerCase, getCollection(node,scope))
-        })
-      } catch { case err: java.io.IOException => throw new Exception( "Error opening collection data file {%s}: %s".format( filePath, err.getMessage) ) }
-    }
+    for ( ( scope, filePath ) <- filePaths.iterator ) if( Files.exists( Paths.get(filePath) ) ) {
+        try {
+          logger.info( "Loading collections from file: " + filePath )
+          XML.loadFile(filePath).child.foreach(node => node.attribute("id") match {
+            case None => None;
+            case Some(id) =>
+              logger.info( "Loading collection: " + id.toString.toLowerCase )
+              datasets.put(id.toString.toLowerCase, getCollection(node, scope))
+          })
+        } catch {
+          case err: java.io.IOException => throw new Exception("Error opening collection data file {%s}: %s".format(filePath, err.getMessage))
+        }
+      } else {
+        logger.warn( "Collections file does not exist: " + filePath )
+      }
     datasets
   }
   def persistLocalCollections(prettyPrint: Boolean = true) = {
-    if(prettyPrint) saveXML( getCacheFilePath("/local_collections.xml"), toXml("local") )
-    else XML.save( getCacheFilePath("/local_collections.xml"), toXml("local") )
+    if(prettyPrint) saveXML( getCacheFilePath("local_collections.xml"), toXml("local") )
+    else XML.save( getCacheFilePath("local_collections.xml"), toXml("local") )
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
