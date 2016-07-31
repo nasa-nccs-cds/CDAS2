@@ -60,8 +60,7 @@ def getCacheDir( properties: Properties ): File =
 
 def getPublishDir( properties: Properties ): File =
   sys.env.get("SBT_PUBLISH_DIR") match {
-    case Some(cache_dir) => file(cache_dir)
-    case None =>
+    case Some(pub_dir) => { val pdir = file(pub_dir); pdir.mkdirs(); pdir }
       val home = file(System.getProperty("user.home"))
       val cache_dir = properties.getProperty("cdas.publish.dir", "")
       if (cache_dir.isEmpty) { home / ".cdas" / "cache" } else file( cache_dir )
