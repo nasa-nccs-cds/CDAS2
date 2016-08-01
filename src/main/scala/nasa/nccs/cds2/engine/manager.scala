@@ -719,7 +719,9 @@ object cdscan extends App with Loggable {
 }
 
 
-
+object IntMaxTest extends App {
+  printf( " MAXINT: %.2f G".format( Int.MaxValue/1.0E9 ) )
+}
 
 
 //  TaskRequest: name= CWT.average, variableMap= Map(v0 -> DataContainer { id = hur:v0, dset = merra/mon/atmos, domain = d0 }, ivar#1 -> OperationContext { id = ~ivar#1,  name = , result = ivar#1, inputs = List(v0), optargs = Map(axis -> xy) }), domainMap= Map(d0 -> DomainContainer { id = d0, axes = List(DomainAxis { id = lev, start = 0, end = 1, system = "indices", bounds =  }) })
