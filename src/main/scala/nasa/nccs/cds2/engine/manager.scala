@@ -720,7 +720,7 @@ object cdscan extends App with Loggable {
 
 
 object IntMaxTest extends App {
-  printf( " MAXINT: %.2f G".format( Int.MaxValue/1.0E9 ) )
+  printf( " MAXINT: %.2f G, MAXLONG: %.2f G".format( Int.MaxValue/1.0E9, Long.MaxValue/1.0E9 ) )
 }
 
 
