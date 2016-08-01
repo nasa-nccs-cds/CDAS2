@@ -51,11 +51,13 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   private val elemSize = ncVariable.getElementSize
   private val range0 = roi.getRange(0)
   private val maxBufferSize = Int.MaxValue
+  private val maxChunkSize = 250000000
   private val throttleSize = 2
   private val sliceMemorySize: Int = getMemorySize(1)
-  private val slicesPerChunk: Int = if(sliceMemorySize >= maxBufferSize ) 1 else  math.min( ( maxBufferSize / sliceMemorySize ), baseShape(0) )
-  private val nChunks = math.ceil( baseShape(0) / slicesPerChunk.toFloat ).toInt
-  private val chunkMemorySize: Int = getMemorySize(slicesPerChunk)
+  private val slicesPerChunk: Int = if(sliceMemorySize >= maxChunkSize ) 1 else  math.min( ( maxChunkSize / sliceMemorySize ), baseShape(0) )
+  private val chunkMemorySize: Int = if(sliceMemorySize >= maxChunkSize ) sliceMemorySize else getMemorySize(slicesPerChunk)
+  private val nChunks = maxBufferSize/chunkMemorySize
+  private val nSlices = nChunks * slicesPerChunk
 
   def getMemorySize( nSlices: Int): Int = {
     var full_shape = baseShape.clone()
@@ -65,7 +67,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
 
   def getTruncatedArrayShape(): Array[Int] = {
     var full_shape = baseShape.clone()
-    full_shape(0) = math.min( slicesPerChunk, full_shape(0) )
+    full_shape(0) = math.min( nSlices, full_shape(0) )
     full_shape
   }
 
