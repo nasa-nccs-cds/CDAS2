@@ -63,6 +63,12 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     full_shape.foldLeft(elemSize)(_ * _)
   }
 
+  def getTruncatedArrayShape(): Array[Int] = {
+    var full_shape = baseShape.clone()
+    full_shape(0) = math.min( slicesPerChunk, full_shape(0) )
+    full_shape
+  }
+
   def getCacheFilePath: String = {
     val cache_file = "a" + System.nanoTime.toHexString
     DiskCacheFileMgr.getDiskCacheFilePath(cacheType, cache_file)
@@ -112,13 +118,14 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
       case (channel, buffer) =>
         val storage: FloatBuffer = buffer.asFloatBuffer
         channel.close
-        ( cache_id -> new CDFloatArray( roi.getShape, storage, missing_value ) )
+        ( cache_id -> new CDFloatArray( getTruncatedArrayShape, storage, missing_value ) )
     }
   }
 
   def getReadBuffer( cache_id: String ): ( FileChannel, MappedByteBuffer ) = {
     val channel = new FileInputStream( cache_id ).getChannel
-    channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size)
+    val size = math.min( channel.size, Int.MaxValue ).toInt
+    channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, size )
   }
 
   def writeChunks: String = {
@@ -134,7 +141,8 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     Option(chunkCache.get(iChunk)) match {
       case Some( cacheChunk: CacheChunk ) =>
         val t0 = System.nanoTime()
-        var buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, iChunk.toLong * chunkMemorySize, chunkMemorySize  )
+        val position: Long = iChunk.toLong * chunkMemorySize.toLong
+        var buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, position, chunkMemorySize  )
         val t1 = System.nanoTime()
         logger.info( " -----> Writing chunk %d, size = %.2f M, map time = %.2f ".format( iChunk, chunkMemorySize/1.0E6, (t1-t0)/1.0E9 ) )
         buffer.put( cacheChunk.data )
