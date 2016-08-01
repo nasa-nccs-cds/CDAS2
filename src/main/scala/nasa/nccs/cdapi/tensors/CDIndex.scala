@@ -34,7 +34,7 @@ abstract class IndexMapIterator extends collection.Iterator[Int] {
 
 abstract class TimeIndexMapIterator( val timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis]  ) extends IndexMapIterator {
   val index_offset: Int = domainAxisOpt match { case None => 0; case Some(domainAxis) =>  domainAxis.start.toInt }
-  override def getLength: Int =  domainAxisOpt match { case None => timeAxis.getSize.toInt; case Some(domainAxis) =>  (domainAxis.end.toInt - domainAxis.start.toInt + 1) }
+  override def getLength: Int =  domainAxisOpt match { case None => timeAxis.getSize.toInt; case Some(domainAxis) =>  domainAxis.end.toInt - domainAxis.start.toInt + 1 }
   def toDate( cd: CalendarDate ): DateTime = new DateTime( cd.toDate )
 }
 
@@ -57,7 +57,7 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   def getShape: Array[Int] = shape.clone
   def getStride: Array[Int] = stride.clone
   def getShape(index: Int): Int = shape(index)
-  def getSize: Int = shape.filter( _ > 0 ).product
+  def getSize: Int = shape.filter( _ > 0 ).foldLeft(1)( _ * _ )
   def getOffset: Int = offset
   def getReducedShape: Array[Int] = { ( for( idim <- ( 0 until rank) ) yield if( stride(idim) == 0 ) 1 else shape( idim ) ).toArray }
   override def toString: String = "{ Shape: " + shape.mkString("[ ",", "," ], Stride: " + stride.mkString("[ ",", "," ]") + " Offset: " + offset + " } ")
@@ -73,7 +73,7 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
     for( ii <-(0 until rank ) ) yield if (shape(ii) < 0) {  -1 } else {
       val coordIndex = currElement / stride(ii)
       currElement -= coordIndex * stride(ii)
-      coordIndex
+      coordIndex.toInt
     }
   }
 
@@ -257,7 +257,7 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid ) {
     val timeIndices = for (time_index <- timeIter; bin_index = accum.getValue(time_index)) yield {
       (( bin_index + op_offset ) / period) % mod
     }
-    new CDCoordMap(axisSpec.index, timeIndices.toArray)
+    new CDCoordMap(axisSpec.index, timeIndices.toArray.map(_.toInt) )
   }
 }
 

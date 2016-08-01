@@ -44,7 +44,7 @@ class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
 class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
-  private val chunkCache = new ConcurrentLinkedHashMap.Builder[Long,CacheChunk].initialCapacity(500).maximumWeightedCapacity(1000000).build()
+  private val chunkCache = new ConcurrentLinkedHashMap.Builder[Int,CacheChunk].initialCapacity(500).maximumWeightedCapacity(1000000).build()
   private val nReadProcessors = 8
   private val baseShape = roi.getShape
   private val dType: ma2.DataType  = ncVariable.getDataType
@@ -52,15 +52,15 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   private val range0 = roi.getRange(0)
   private val maxBufferSize = 200000000
   private val throttleSize = 5
-  private val sliceMemorySize: Long = getMemorySize(1)
+  private val sliceMemorySize: Int = getMemorySize(1)
   private val slicesPerChunk: Int = if(sliceMemorySize >= maxBufferSize ) 1 else  math.min( ( maxBufferSize / sliceMemorySize ).toInt, baseShape(0) )
   private val nChunks = math.ceil( baseShape(0) / slicesPerChunk.toDouble ).toInt
-  private val chunkMemorySize: Long = getMemorySize(slicesPerChunk)
+  private val chunkMemorySize: Int = getMemorySize(slicesPerChunk)
 
-  def getMemorySize( nSlices: Int): Long = {
+  def getMemorySize( nSlices: Int): Int = {
     var full_shape = baseShape.clone()
     full_shape(0) = nSlices
-    full_shape.foldLeft(elemSize.toLong)(_ * _)
+    full_shape.foldLeft(elemSize)(_ * _)
   }
 
   def getCacheFilePath: String = {
@@ -125,18 +125,18 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val cacheFilePath = getCacheFilePath
     val channel = new RandomAccessFile(cacheFilePath,"rw").getChannel()
     logger.info( "Writing Buffer file '%s', nChunks = %d, chunkMemorySize = %d, slicesPerChunk = %d".format( cacheFilePath, nChunks, chunkMemorySize, slicesPerChunk  ))
-    (0.toLong until nChunks).foreach( processChunkFromReader( _, channel ) )
+    (0 until nChunks).foreach( processChunkFromReader( _, channel ) )
     cacheFilePath
   }
 
   @tailrec
-  final def processChunkFromReader( iChunk: Long, channel: FileChannel ): Unit = {
+  final def processChunkFromReader( iChunk: Int, channel: FileChannel ): Unit = {
     Option(chunkCache.get(iChunk)) match {
       case Some( cacheChunk: CacheChunk ) =>
         val t0 = System.nanoTime()
         var buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, iChunk * chunkMemorySize, chunkMemorySize  )
         val t1 = System.nanoTime()
-        logger.info( " -----> Writing chunk %d, size = %.2f M, position = %d, map time = %.2f ".format( iChunk, cacheChunk.byteSize/1.0E6, buffer.position, (t1-t0)/1.0E9 ) )
+        logger.info( " -----> Writing chunk %d, size = %.2f M, map time = %.2f ".format( iChunk, cacheChunk.byteSize/1.0E6, (t1-t0)/1.0E9 ) )
         buffer.put( cacheChunk.data )
         buffer.force()
         chunkCache.remove( iChunk )
