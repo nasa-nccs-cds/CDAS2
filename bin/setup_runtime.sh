@@ -15,8 +15,8 @@ alias cdas='cd $CDAS_HOME_DIR'
 alias cdist='cd $CDWPS_HOME_DIR; sbt dist; cd target/universal/; rm -rf cdwps-*-SNAPSHOT; unzip *.zip; cd ../..; chmod -R a+rwX target; chmod -R a+rX ../CDWPS'
 alias cdwps='$WPS_CMD'
 alias cdwpsb='nohup $WPS_CMD &'
-alias pcdas='cd $CDAS_HOME_DIR; git fetch; git pull; sbt publish-local'
+alias pcdas='cd $CDAS_HOME_DIR; git fetch; git pull; sbt publish'
 alias cdshell='cd $CDSHELL_HOME_DIR; sbt run'
-alias cdup='cd $CDAS_HOME_DIR; git fetch; git pull; sbt publish-local'
+alias cdup='cd $CDAS_HOME_DIR; git fetch; git pull; sbt publish'
 
 umask 002
