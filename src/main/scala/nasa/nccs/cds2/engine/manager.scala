@@ -96,7 +96,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     val sourceMap: Map[String,OperationInputSpec] = Map(sources.toSeq:_*)
     val rv = new RequestContext (request.domainMap, sourceMap, targetGrid, run_args)
     val t3 = System.nanoTime
-    logger.info( " LoadInputDataT: %.4f %.4f %.4f".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9 ) )
+    logger.info( " LoadInputDataT: %.4f %.4f %.4f, MAXINT: %.2f G".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, Int.MaxValue/1.0E9 ) )
     rv
   }
 
