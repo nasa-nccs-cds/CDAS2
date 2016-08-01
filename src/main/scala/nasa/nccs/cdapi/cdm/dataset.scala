@@ -158,7 +158,7 @@ trait DiskCachable extends XmlResource {
     channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size)
   }
 
-  protected def bufferFromDiskFloat( cache_id: String, size: Long  ): Option[FloatBuffer] = {
+  protected def bufferFromDiskFloat( cache_id: String, size: Int  ): Option[FloatBuffer] = {
     try {
       val t0 = System.nanoTime()
       getReadBuffer(cache_id) match { case ( channel, buffer ) =>

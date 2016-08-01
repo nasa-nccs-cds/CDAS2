@@ -56,6 +56,15 @@ def getCacheDir( properties: Properties ): File =
     case None =>
       val home = file(System.getProperty("user.home"))
       val cache_dir = properties.getProperty("cdas.cache.dir", "")
+      if (cache_dir.isEmpty) { home / ".ivy2" / "local" } else file( cache_dir )
+  }
+
+def getPublishDir( properties: Properties ): File =
+  sys.env.get("SBT_PUBLISH_DIR") match {
+    case Some(pub_dir) => { val pdir = file(pub_dir); pdir.mkdirs(); pdir }
+    case None =>
+      val home = file(System.getProperty("user.home"))
+      val cache_dir = properties.getProperty("cdas.publish.dir", "")
       if (cache_dir.isEmpty) { home / ".cdas" / "cache" } else file( cache_dir )
   }
 
@@ -78,6 +87,8 @@ cdasLocalCollectionsFile :=  {
 unmanagedClasspath in Compile += cdas_cache_dir.value
 unmanagedClasspath in Runtime += cdas_cache_dir.value
 unmanagedClasspath in Test += cdas_cache_dir.value
+
+publishTo := Some(Resolver.file( "file", getPublishDir( cdasProperties.value ) ) )
 
 
 //lazy val md = taskKey[Unit]("Prints 'Hello World'")

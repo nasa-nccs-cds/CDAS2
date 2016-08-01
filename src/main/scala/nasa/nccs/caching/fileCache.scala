@@ -44,7 +44,7 @@ class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
 class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
-  private val chunkCache = new ConcurrentLinkedHashMap.Builder[Long,CacheChunk].initialCapacity(500).maximumWeightedCapacity(1000000).build()
+  private val chunkCache = new ConcurrentLinkedHashMap.Builder[Int,CacheChunk].initialCapacity(500).maximumWeightedCapacity(1000000).build()
   private val nReadProcessors = 8
   private val baseShape = roi.getShape
   private val dType: ma2.DataType  = ncVariable.getDataType
@@ -52,15 +52,15 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   private val range0 = roi.getRange(0)
   private val maxBufferSize = 200000000
   private val throttleSize = 5
-  private val sliceMemorySize: Long = getMemorySize(1)
+  private val sliceMemorySize: Int = getMemorySize(1)
   private val slicesPerChunk: Int = if(sliceMemorySize >= maxBufferSize ) 1 else  math.min( ( maxBufferSize / sliceMemorySize ).toInt, baseShape(0) )
   private val nChunks = math.ceil( baseShape(0) / slicesPerChunk.toDouble ).toInt
-  private val chunkMemorySize: Long = getMemorySize(slicesPerChunk)
+  private val chunkMemorySize: Int = getMemorySize(slicesPerChunk)
 
-  def getMemorySize( nSlices: Int): Long = {
+  def getMemorySize( nSlices: Int): Int = {
     var full_shape = baseShape.clone()
     full_shape(0) = nSlices
-    full_shape.foldLeft(elemSize.toLong)(_ * _)
+    full_shape.foldLeft(elemSize)(_ * _)
   }
 
   def getCacheFilePath: String = {
@@ -125,12 +125,12 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val cacheFilePath = getCacheFilePath
     val channel = new RandomAccessFile(cacheFilePath,"rw").getChannel()
     logger.info( "Writing Buffer file '%s', nChunks = %d, chunkMemorySize = %d, slicesPerChunk = %d".format( cacheFilePath, nChunks, chunkMemorySize, slicesPerChunk  ))
-    (0.toLong until nChunks).foreach( processChunkFromReader( _, channel ) )
+    (0 until nChunks).foreach( processChunkFromReader( _, channel ) )
     cacheFilePath
   }
 
   @tailrec
-  final def processChunkFromReader( iChunk: Long, channel: FileChannel ): Unit = {
+  final def processChunkFromReader( iChunk: Int, channel: FileChannel ): Unit = {
     Option(chunkCache.get(iChunk)) match {
       case Some( cacheChunk: CacheChunk ) =>
         val t0 = System.nanoTime()
@@ -205,9 +205,9 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     }
   }
 
-  def restore( cache_id: String, size: Long ): Option[FloatBuffer] = bufferFromDiskFloat( cache_id, size )
+  def restore( cache_id: String, size: Int ): Option[FloatBuffer] = bufferFromDiskFloat( cache_id, size )
   def restore( fragKey: DataFragmentKey ): Option[FloatBuffer] =  fragmentIdCache.get(fragKey.toStrRep).flatMap( restore( _, fragKey.getSize ) )
-  def restore( cache_id_future: Future[String], size: Long ): Option[FloatBuffer] = restore( Await.result(cache_id_future, Duration.Inf), size )
+  def restore( cache_id_future: Future[String], size: Int ): Option[FloatBuffer] = restore( Await.result(cache_id_future, Duration.Inf), size )
   def close(): Unit = Await.result( Future.sequence( fragmentIdCache.values ), Duration.Inf )
 
   def deleteEnclosing( fragSpec: DataFragmentSpec ) =

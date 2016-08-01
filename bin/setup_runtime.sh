@@ -18,3 +18,5 @@ alias cdwpsb='nohup $WPS_CMD &'
 alias pcdas='cd $CDAS_HOME_DIR; git fetch; git pull; sbt publish-local'
 alias cdshell='cd $CDSHELL_HOME_DIR; sbt run'
 alias cdup='cd $CDAS_HOME_DIR; git fetch; git pull; sbt publish-local'
+
+umask 002

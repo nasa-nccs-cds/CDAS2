@@ -16,7 +16,6 @@ import mutable.ListBuffer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
-import nasa.nccs.esgf.utilities.numbers.GenericNumber.GenericNumber
 import nasa.nccs.esgf.utilities.wpsNameMatchers
 
 import scala.util.Random
@@ -215,7 +214,7 @@ class DataFragmentKey( val varname: String, val collectionUrl: String, val origi
   def sameVariable( otherCollectionUrl: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collectionUrl == otherCollectionUrl) }
   def getRoi: ma2.Section = new ma2.Section(origin,shape)
   def equalRoi( df: DataFragmentKey ): Boolean = ( shape.sameElements(df.shape) && origin.sameElements(df.origin ) )
-  def getSize: Long = shape.foldLeft(1L)( _ * _ )
+  def getSize: Int = shape.foldLeft(1)( _ * _ )
   def contains( df: DataFragmentKey ): Boolean = getRoi.contains( df.getRoi )
   def contains( df: DataFragmentKey, admitEquality: Boolean ): Boolean = if( admitEquality ) contains( df ) else containsSmaller( df )
   def containsSmaller( df: DataFragmentKey ): Boolean = ( !equalRoi( df ) && contains( df ) )

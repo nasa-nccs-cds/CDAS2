@@ -108,6 +108,6 @@ class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray]
       new PartitionedFragment( if(copy) newDataArray.dup() else newDataArray, maskOpt, fragmentSpec.reSection( newSection ) )
     }
   }
-  def size: Long = fragmentSpec.roi.computeSize
+  def size: Int = fragmentSpec.roi.computeSize.toInt
   def contains( requestedSection: ma2.Section ): Boolean = fragmentSpec.roi.contains( requestedSection )
 }
