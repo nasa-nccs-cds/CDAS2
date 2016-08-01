@@ -50,11 +50,11 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   private val dType: ma2.DataType  = ncVariable.getDataType
   private val elemSize = ncVariable.getElementSize
   private val range0 = roi.getRange(0)
-  private val maxBufferSize = 200000000
+  private val maxBufferSize = Int.MaxValue
   private val throttleSize = 5
   private val sliceMemorySize: Int = getMemorySize(1)
-  private val slicesPerChunk: Int = if(sliceMemorySize >= maxBufferSize ) 1 else  math.min( ( maxBufferSize / sliceMemorySize ).toInt, baseShape(0) )
-  private val nChunks = math.ceil( baseShape(0) / slicesPerChunk.toDouble ).toInt
+  private val slicesPerChunk: Int = if(sliceMemorySize >= maxBufferSize ) 1 else  math.min( ( maxBufferSize / sliceMemorySize ), baseShape(0) )
+  private val nChunks = math.ceil( baseShape(0) / slicesPerChunk.toFloat ).toInt
   private val chunkMemorySize: Int = getMemorySize(slicesPerChunk)
 
   def getMemorySize( nSlices: Int): Int = {
@@ -125,7 +125,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val cacheFilePath = getCacheFilePath
     val channel = new RandomAccessFile(cacheFilePath,"rw").getChannel()
     logger.info( "Writing Buffer file '%s', nChunks = %d, chunkMemorySize = %d, slicesPerChunk = %d".format( cacheFilePath, nChunks, chunkMemorySize, slicesPerChunk  ))
-    (0 until nChunks).foreach( processChunkFromReader( _, channel ) )
+    (0.toInt until nChunks).foreach( processChunkFromReader( _, channel ) )
     cacheFilePath
   }
 
@@ -134,9 +134,9 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     Option(chunkCache.get(iChunk)) match {
       case Some( cacheChunk: CacheChunk ) =>
         val t0 = System.nanoTime()
-        var buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, iChunk * chunkMemorySize, chunkMemorySize  )
+        var buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, iChunk.toLong * chunkMemorySize, chunkMemorySize  )
         val t1 = System.nanoTime()
-        logger.info( " -----> Writing chunk %d, size = %.2f M, map time = %.2f ".format( iChunk, cacheChunk.byteSize/1.0E6, (t1-t0)/1.0E9 ) )
+        logger.info( " -----> Writing chunk %d, size = %.2f M, map time = %.2f ".format( iChunk, chunkMemorySize/1.0E6, (t1-t0)/1.0E9 ) )
         buffer.put( cacheChunk.data )
         buffer.force()
         chunkCache.remove( iChunk )
@@ -526,6 +526,6 @@ object collectionDataCache extends CollectionDataCacheMgr()
 
 object TestApp extends App {
   val it1 = Int.MaxValue
-  val it2 = math.pow( 2, 31 ).toLong
+  val it2 = math.pow( 2, 31 ).toInt
   println( it1 + ", " + it2 )
 }
