@@ -19,6 +19,7 @@ resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"
 resolvers += "Boundless Maven Repository" at "http://repo.boundlessgeo.com/main"
 resolvers += "spray repo" at "http://repo.spray.io"
 resolvers += "Artima Maven Repository" at "http://repo.artima.com/releases"
+resolvers += "Local Repository" at "~tpmaxwel/.ivy"
 
 libraryDependencies ++= Dependencies.scala
 
