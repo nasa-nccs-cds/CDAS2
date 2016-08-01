@@ -93,7 +93,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
       val chunkRange = new ma2.Range( startLoc, endLoc )
       subsection.replaceRange(0,chunkRange)
       val t0 = System.nanoTime()
-      logger.info( "Reading data chunk %d, startTimIndex = %d, subsection [%s], nElems = %d ".format( iChunk, startLoc, subsection.getShape, subsection.getShape.foldLeft(1L)( _ * _ ) ) )
+      logger.info( "Reading data chunk %d, startTimIndex = %d, subsection [%s], nElems = %d ".format( iChunk, startLoc, subsection.getShape.mkString(","), subsection.getShape.foldLeft(1L)( _ * _ ) ) )
       val data = ncVariable.read(subsection)
       val chunkShape = subsection.getShape
       val dataBuffer = data.getDataAsByteBuffer
