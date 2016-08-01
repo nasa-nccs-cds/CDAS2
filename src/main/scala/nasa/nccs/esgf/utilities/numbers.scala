@@ -2,8 +2,6 @@ package nasa.nccs.esgf.utilities.numbers
 import scala.language.implicitConversions
 import org.slf4j.LoggerFactory
 
-
-
 class IllegalNumberException( value: Any ) extends RuntimeException("Error, " + value.toString + " is not a valid Number")
 
 object GenericNumber {
@@ -26,10 +24,11 @@ object GenericNumber {
       case err: NumberFormatException => try {
         new FloatNumber(sx.toFloat)
       } catch {
-        case err: NumberFormatException =>  try {
+        case err: NumberFormatException => try {
           new LongNumber(sx.toLong)
         } catch {
           case err: NumberFormatException => throw new IllegalNumberException(sx)
+        }
       }
     }
   }
