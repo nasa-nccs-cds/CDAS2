@@ -253,7 +253,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   }
   def toBoundsString = { printf("XXX"); targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
-  def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, targetGridOpt, String, units, longname, new ma2.Section(newShape), mask, partitions )
+  def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), mask, partitions )
 
   def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
     case Some( array ) => array
