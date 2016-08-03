@@ -1,7 +1,7 @@
 package nasa.nccs.cds2.engine
 import java.io.{IOException, PrintWriter, StringWriter}
 import java.nio.FloatBuffer
-
+import java.io.File
 import nasa.nccs.cdapi.cdm.{Collection, PartitionedFragment, _}
 import nasa.nccs.cds2.loaders.{Collections, Masks}
 import nasa.nccs.esgf.process._
@@ -156,17 +156,28 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     }
   }
 
+  def aggCollection( col: Collection ): xml.Elem = {
+    col.createNCML()
+    val dataset = NetcdfDataset.openDataset(col.ncmlFile.toString)
+    val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(_.getFullName).toList
+    val newCollection = Collection(col.id, col.url, col.path, col.fileFilter, col.scope, vars)
+    Collections.updateCollection(newCollection)
+    newCollection.toXml
+  }
+
   def executeUtilityRequest(util_id: String, request: TaskRequest, run_args: Map[String, String]): ExecutionResults = util_id match {
-    case "agg" =>
-      val collectionNodes =  request.variableMap.values.map( ds => {
-        val col = ds.getSource.collection
-        col.createNCML()
-        val dataset = NetcdfDataset.openDataset( col.ncmlFile.toString )
-        val vars = dataset.getVariables.filter( !_.isCoordinateVariable ).map( _.getFullName ).toList
-        val newCollection = Collection(col.id,col.url,col.path,col.fileFilter,col.scope,vars)
-        Collections.updateCollection( newCollection )
-        newCollection.toXml
+    case "magg" =>
+      val collectionNodes =  request.variableMap.values.flatMap( ds => {
+        val pcol = ds.getSource.collection
+        val base_dir = new File(pcol.path)
+        val base_id = pcol.id
+        val col_dirs: Array[File] = base_dir.listFiles
+        for( col_file <- col_dirs; if col_file.isDirectory; col_id = base_id + "/" + col_file.getName ) yield
+          aggCollection( new Collection( col_id, "collection:/" + col_id, col_file.getAbsolutePath ) )
       })
+      new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
+    case "agg" =>
+      val collectionNodes =  request.variableMap.values.map( ds => aggCollection( ds.getSource.collection ) )
       new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "cache" =>
       val targetGrid: TargetGrid = createTargetGrid(request)
