@@ -157,6 +157,7 @@ object Collections extends XmlResource {
 
   def updateCollection( collection: Collection ): Collection = {
     datasets.put( collection.id, collection  )
+    logger.info( " *----> Persist New Collection: " + collection.id )
     persistLocalCollections()
     collection
   }
