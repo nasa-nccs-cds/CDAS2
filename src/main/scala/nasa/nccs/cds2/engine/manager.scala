@@ -173,8 +173,10 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
         val base_dir = new File(pcol.path)
         val base_id = pcol.id
         val col_dirs: Array[File] = base_dir.listFiles
-        for( col_file <- col_dirs; if col_file.isDirectory; col_id = base_id + "/" + col_file.getName ) yield
-          aggCollection( new Collection( col_id, "collection:/" + col_id, col_file.getAbsolutePath ) )
+        for( col_file <- col_dirs; if col_file.isDirectory; col_id = base_id + "/" + col_file.getName ) yield {
+          val uri = "file:" + NCMLWriter.getCachePath("NCML").resolve(Collections.uriToFile(col_id))
+          aggCollection(new Collection(col_id, uri, col_file.getAbsolutePath))
+        }
       })
       new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "agg" =>
