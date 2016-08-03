@@ -157,6 +157,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   }
 
   def aggCollection( col: Collection ): xml.Elem = {
+    logger.info( "Creating collection '" + col.id + "' using path: "  + col.path )
     col.createNCML()
     val dataset = NetcdfDataset.openDataset(col.ncmlFile.toString)
     val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(_.getFullName).toList
