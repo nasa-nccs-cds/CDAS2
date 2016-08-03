@@ -35,6 +35,7 @@ trait XmlResource extends Loggable {
 
   def saveXML( fileName: String, node: xml.Node ) = {
     val pp = new xml.PrettyPrinter( 800, 2 )
+    logger.info( "Persisting resource to file "+ fileName )
     val fos = new FileOutputStream(fileName)
     val writer = Channels.newWriter(fos.getChannel(), Encoding)
     try {
