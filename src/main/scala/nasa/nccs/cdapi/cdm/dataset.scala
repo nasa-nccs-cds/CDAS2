@@ -42,7 +42,12 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
 
   def getDatasetMetadata(): List[nc2.Attribute] = {
     val dataset = collectionDataCache.getDataset( this, vars.head )
-    dataset.attributes
+    val inner_attributes: List[nc2.Attribute] = List (
+      new nc2.Attribute( "variables", vars.mkString(",") ),
+      new nc2.Attribute( "path", path ),
+      new nc2.Attribute( "url", url )
+    )
+    inner_attributes ++ dataset.attributes
   }
 
   def toXml: xml.Elem =

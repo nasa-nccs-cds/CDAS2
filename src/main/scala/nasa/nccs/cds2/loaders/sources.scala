@@ -100,7 +100,7 @@ object Collections extends XmlResource {
   def getCollectionMetadata( collId: String  ): List[nc2.Attribute] = {
     findCollection( collId ) match {
       case None => List.empty[nc2.Attribute]
-      case Some( coll ) => coll.getDatasetMetadata
+      case Some( coll ) => coll.getDatasetMetadata()
     }
   }
 
