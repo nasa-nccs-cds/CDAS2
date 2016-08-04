@@ -71,15 +71,13 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   private val elemSize = ncVariable.getElementSize
   private val range0 = roi.getRange(0)
   private val maxBufferSize = Int.MaxValue
-  private val maxChunkSize = 150000000
-  private val throttleSize = 2
+  private val maxChunkSize = 250000000
   private val sliceMemorySize: Int = getMemorySize(1)
   private val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min((maxChunkSize / sliceMemorySize), baseShape(0))
   private val chunkMemorySize: Int = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize(nSlicesPerChunk)
   private val nChunksPerPart = maxBufferSize / chunkMemorySize
   private val nSlicesPerPart = nChunksPerPart * nSlicesPerChunk
   private val nPartitions = math.ceil(baseShape(0) / nSlicesPerPart.toFloat).toInt
-  private val nProcessors = Math.min( nChunksPerPart, Runtime.getRuntime.availableProcessors )
   private val nCoresPerPart = 1
 
   def getMemorySize(nSlicesPerPart: Int): Int = {
@@ -118,21 +116,20 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
 
   def execute(missing_value: Float): Partitions = {
     val cache_id = getCacheId
-    val partitions: IndexedSeq[Partition] = for (partIndex <- (0 until nPartitions)) yield  {
-      processPartition(cache_id, partIndex, missing_value)
-    }
-    new Partitions( cache_id, roi, partitions.toArray )
+    logger.info(s" *** Processing cache $cache_id with $nPartitions partitions, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk")
+    val future_partitions: IndexedSeq[Future[Partition]] = for ( partIndex <- (0 until nPartitions) ) yield Future { processPartition( cache_id, partIndex, missing_value ) }
+    val partitions: Array[Partition] = Await.result( Future.sequence( future_partitions ), Duration.Inf ).toArray
+    new Partitions(cache_id, roi, partitions )
   }
 
   def processPartition(cache_id: String, partIndex: Int, missing_value: Float): Partition = {
     val cacheFilePath = getCacheFilePath(cache_id, partIndex)
     val channel = new RandomAccessFile(cacheFilePath, "rw").getChannel()
-    val partSize = cachePartition(0, partIndex, channel)
+    val partSize = cachePartition( partIndex, channel )
     new Partition(partIndex, cacheFilePath, 0, partIndex * nSlicesPerPart, partSize, sliceMemorySize, missing_value, roi)
   }
 
-  def processChunk( partIndex: Int, iChunk: Int, startLoc: Int, channel: FileChannel ): Int = {
-    var subsection = new ma2.Section(roi)
+  def cacheChunk( partIndex: Int, iChunk: Int, startLoc: Int, channel: FileChannel, subsection: ma2.Section ): Int = {
     val endLoc = Math.min(startLoc + nSlicesPerChunk - 1, baseShape(0) - 1)
     val chunkRange = new ma2.Range(startLoc, endLoc)
     subsection.replaceRange(0, chunkRange)
@@ -156,11 +153,10 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     endLoc - startLoc + 1
   }
 
-  def cachePartition(coreIndex: Int, partIndex: Int, channel: FileChannel): Int = {
-    val sizeFuts: IndexedSeq[Future[Int]] = for ( iChunk <- (coreIndex until nChunksPerPart by nCoresPerPart);
-                                                  startLoc = iChunk * nSlicesPerChunk + partIndex * nSlicesPerPart;
-                                                  if (startLoc < baseShape(0)) ) yield Future { processChunk( partIndex, iChunk, startLoc, channel ) }
-    Await.result( Future.sequence(sizeFuts), Duration.Inf ).foldLeft(0)(_ + _)
+  def cachePartition( partIndex: Int, channel: FileChannel ): Int = {
+    var subsection = new ma2.Section(roi)
+    val sizes: IndexedSeq[Int] = for (iChunk <- (0 until nChunksPerPart); startLoc = iChunk * nSlicesPerChunk + partIndex * nSlicesPerPart; if (startLoc < baseShape(0))) yield cacheChunk( partIndex, iChunk, startLoc, channel, subsection )
+    sizes.foldLeft(0)(_ + _)
   }
 }
 
