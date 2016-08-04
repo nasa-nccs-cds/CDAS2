@@ -27,7 +27,7 @@ object Collection {
     new Collection(id,url,path,fileFilter,scope,vars)
   }
 }
-class Collection( val id: String="",  val url: String="", val path: String = "", val fileFilter: String = "", val scope: String="", val vars: List[String] = List() ) extends Serializable with Loggable {
+class Collection( val id: String="",  val url: String="", val path: String = "", val fileFilter: String = "", val scope: String="local", val vars: List[String] = List() ) extends Serializable with Loggable {
   val ctype: String = url.split(":").head
   val ncmlFile = new File( url.split(":").last )
   override def toString = "Collection( id=%s, url=%s, path=%s, fileFilter=%s )".format( id, url, path, fileFilter )
@@ -42,7 +42,12 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
 
   def getDatasetMetadata(): List[nc2.Attribute] = {
     val dataset = collectionDataCache.getDataset( this, vars.head )
-    dataset.attributes
+    val inner_attributes: List[nc2.Attribute] = List (
+      new nc2.Attribute( "variables", vars.mkString(",") ),
+      new nc2.Attribute( "path", path ),
+      new nc2.Attribute( "url", url )
+    )
+    inner_attributes ++ dataset.attributes
   }
 
   def toXml: xml.Elem =

@@ -11,6 +11,7 @@ object runtime {
     logger.info("** Free Memory:  " + runtime.freeMemory / mb)
     logger.info("** Total Memory: " + runtime.totalMemory / mb)
     logger.info("** Max Memory:   " + runtime.maxMemory / mb)
+    logger.info("** Processors:   " + runtime.availableProcessors )
     logger.info("--------------------------------- ------------ ---------------------------------")
   }
 }

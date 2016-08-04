@@ -35,6 +35,7 @@ trait XmlResource extends Loggable {
 
   def saveXML( fileName: String, node: xml.Node ) = {
     val pp = new xml.PrettyPrinter( 800, 2 )
+    logger.info( "Persisting resource to file "+ fileName )
     val fos = new FileOutputStream(fileName)
     val writer = Channels.newWriter(fos.getChannel(), Encoding)
     try {
@@ -100,7 +101,7 @@ object Collections extends XmlResource {
   def getCollectionMetadata( collId: String  ): List[nc2.Attribute] = {
     findCollection( collId ) match {
       case None => List.empty[nc2.Attribute]
-      case Some( coll ) => coll.getDatasetMetadata
+      case Some( coll ) => coll.getDatasetMetadata()
     }
   }
 
@@ -157,6 +158,7 @@ object Collections extends XmlResource {
 
   def updateCollection( collection: Collection ): Collection = {
     datasets.put( collection.id, collection  )
+    logger.info( " *----> Persist New Collection: " + collection.id )
     persistLocalCollections()
     collection
   }
