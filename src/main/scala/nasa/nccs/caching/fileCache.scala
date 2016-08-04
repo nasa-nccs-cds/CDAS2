@@ -39,12 +39,33 @@ class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val
   def byteOffset = offset * elemSize
 }
 
+class Partitions( val id: String, val roi: ma2.Section, val parts: Array[Partition] ) {
+  def getShape = roi.getShape
+}
+
+class Partition( val index: Int, val path: String, val coordIndex: Int, val startIndex: Int, val partSize: Int, val sliceMemorySize: Int, val missing_value: Float, roi: ma2.Section ) {
+  val shape = getPartitionShape(roi)
+
+  def getChannel: FileChannel  = new RandomAccessFile( path,"r" ).getChannel()
+
+  def data( channelOpt: Option[FileChannel] = None ): CDFloatArray = {
+    val channel = channelOpt match { case Some(c) => c; case None => getChannel }
+    val buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, partSize * sliceMemorySize)
+    new CDFloatArray( shape, buffer.asFloatBuffer, missing_value )
+  }
+
+  def getPartitionShape(roi: ma2.Section): Array[Int] = {
+    var full_shape = roi.getShape.clone()
+    full_shape(0) = partSize
+    full_shape
+  }
+
+}
 //class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {
 //  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
 class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
-  private val chunkCache = new ConcurrentLinkedHashMap.Builder[Int, CacheChunk].initialCapacity(500).maximumWeightedCapacity(1000000).build()
   private val baseShape = roi.getShape
   private val dType: ma2.DataType = ncVariable.getDataType
   private val elemSize = ncVariable.getElementSize
@@ -86,6 +107,13 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val channel = new FileInputStream(cache_id).getChannel
     val size = math.min(channel.size, Int.MaxValue).toInt
     channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, size)
+  }
+
+  def cacheFloatData( missing_value: Float  ): ( String, CDFloatArray ) = {
+    assert( dType == ma2.DataType.FLOAT, "Attempting to cache %s data as float".format( dType.toString ) )
+    val cache_id = getCacheId
+    val partition = execute(missing_value).parts.head
+    cache_id -> partition.data()
   }
 
   def execute(missing_value: Float): Partitions = {
