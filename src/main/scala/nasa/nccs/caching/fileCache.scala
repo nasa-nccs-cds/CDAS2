@@ -89,13 +89,15 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
 
   def readDataChunks( coreIndex: Int ): Int = {
     var subsection = new ma2.Section(roi)
+    logger.info( s" ~~~~~~~~ ReadDataChunks, nReadProcessors = $nReadProcessors, nChunks = $nChunks, coreIndex = $coreIndex" )
     var nElementsWritten = 0
     for( iChunk <- (coreIndex until nChunks by nReadProcessors); startLoc = iChunk*slicesPerChunk; if(startLoc < baseShape(0)) ) {
+      logger.info( " ~~~~~~~~ Reading data chunk %d".format( iChunk ) )
       val endLoc = Math.min( startLoc + slicesPerChunk - 1, baseShape(0)-1 )
       val chunkRange = new ma2.Range( startLoc, endLoc )
       subsection.replaceRange(0,chunkRange)
       val t0 = System.nanoTime()
-      logger.info( "Reading data chunk %d, startTimIndex = %d, subsection [%s], nElems = %d ".format( iChunk, startLoc, subsection.getShape.mkString(","), subsection.getShape.foldLeft(1L)( _ * _ ) ) )
+      logger.info( " ~~~~~~~~ Reading data chunk %d, startTimIndex = %d, subsection [%s], nElems = %d ".format( iChunk, startLoc, subsection.getShape.mkString(","), subsection.getShape.foldLeft(1L)( _ * _ ) ) )
       val data = ncVariable.read(subsection)
       val chunkShape = subsection.getShape
       val dataBuffer = data.getDataAsByteBuffer
@@ -103,7 +105,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
       val chunk = new CacheChunk( startLoc, elemSize, chunkShape, dataBuffer )
       chunkCache.put( iChunk, chunk )
       val t1 = System.nanoTime()
-      logger.info( "Finished Reading data chunk %d, shape = [%s], buffer capacity = %d in time %.2f ".format( iChunk, chunkShape.mkString(","), dataBuffer.capacity(), (t1-t0)/1.0E9 ) )
+      logger.info( " ~~~~~~~~ Finished Reading data chunk %d, shape = [%s], buffer capacity = %d in time %.2f ".format( iChunk, chunkShape.mkString(","), dataBuffer.capacity(), (t1-t0)/1.0E9 ) )
       throttle
       nElementsWritten += chunkShape.product
     }

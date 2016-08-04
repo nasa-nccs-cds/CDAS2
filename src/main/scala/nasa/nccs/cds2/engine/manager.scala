@@ -324,9 +324,9 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 
   def attrToXml( attr: nc2.Attribute ): xml.Elem = {
     val sb = new StringBuffer()
-    val svals = for( index <- (0 to attr.getLength) )  {
+    val svals = for( index <- (0 until attr.getLength) )  {
+      if( index > 0 ) sb.append(",")
       if (attr.isString) sb.append(attr.getStringValue(index)) else sb.append(attr.getNumericValue(index))
-      sb.append(",")
     }
     <attr id={attr.getFullName.split("--").last}> { sb.toString } </attr>
   }

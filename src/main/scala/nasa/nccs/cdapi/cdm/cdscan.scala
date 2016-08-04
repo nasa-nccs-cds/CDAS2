@@ -274,7 +274,8 @@ class FileMetadata( val ncFile: File ) {
   private val ncDataset: NetcdfDataset = FileHeader.openNetCDFFile( ncFile )
   val coordinateAxes = ncDataset.getCoordinateAxes.toList
   val dimensions: List[nc2.Dimension] = ncDataset.getDimensions.toList
-  val variables = ncDataset.getVariables.toList
+  val variables = ncDataset.getVariables.filterNot( v => (v.isCoordinateVariable || v.isMetadata) ).toList
+  val coordVars = ncDataset.getVariables.filter( _.isCoordinateVariable ).toList
   val attributes = ncDataset.getGlobalAttributes
   val dimNames = dimensions.map( _.getFullName )
   def getCoordinateAxis( fullName: String ): Option[nc2.dataset.CoordinateAxis] = coordinateAxes.find( p => p.getFullName.equalsIgnoreCase(fullName) )
