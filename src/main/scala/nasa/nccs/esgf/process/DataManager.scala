@@ -247,7 +247,7 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
       roi.find( _.matches( gridCoordSpec.getAxisType ) ) match {
         case Some( domainAxis ) => domainAxis.system match {
           case asys if asys.startsWith( "ind" ) => new ma2.Range( gridCoordSpec.getCFAxisName, domainAxis.start.toInt, domainAxis.end.toInt, 1)
-          case asys if asys.startsWith( "val" ) => gridCoordSpec.getGridIndexBounds( domainAxis.start, domainAxis.end )
+          case asys if asys.startsWith( "val" ) => gridCoordSpec.getIndexBounds( domainAxis.start, domainAxis.end )
           case _ => throw new IllegalStateException("CDSVariable: Illegal system value in axis bounds: " + domainAxis.system)
         }
         case None => gridCoordSpec.getIndexRange
