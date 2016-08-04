@@ -44,6 +44,98 @@ class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
 class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
+  private val chunkCache = new ConcurrentLinkedHashMap.Builder[Int, CacheChunk].initialCapacity(500).maximumWeightedCapacity(1000000).build()
+  private val baseShape = roi.getShape
+  private val dType: ma2.DataType = ncVariable.getDataType
+  private val elemSize = ncVariable.getElementSize
+  private val range0 = roi.getRange(0)
+  private val maxBufferSize = Int.MaxValue
+  private val maxChunkSize = 250000000
+  private val throttleSize = 2
+  private val sliceMemorySize: Int = getMemorySize(1)
+  private val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min((maxChunkSize / sliceMemorySize), baseShape(0))
+  private val chunkMemorySize: Int = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize(nSlicesPerChunk)
+  private val nChunksPerPart = maxBufferSize / chunkMemorySize
+  private val nSlicesPerPart = nChunksPerPart * nSlicesPerChunk
+  private val nPartitions = math.ceil(baseShape(0) / nSlicesPerPart.toFloat).toInt
+  private val nProcessors = Math.min(nChunksPerPart, Runtime.getRuntime.availableProcessors)
+  private val nCoresPerPart = 1
+
+  def getMemorySize(nSlicesPerPart: Int): Int = {
+    var full_shape = baseShape.clone()
+    full_shape(0) = nSlicesPerPart
+    full_shape.foldLeft(elemSize)(_ * _)
+  }
+
+  def getPartitionShape(partSize: Int): Array[Int] = {
+    var full_shape = baseShape.clone()
+    full_shape(0) = partSize
+    full_shape
+  }
+
+  def getCacheId: String = {
+    "a" + System.nanoTime.toHexString
+  }
+
+  def getCacheFilePath(cache_id: String, partIndex: Int): String = {
+    val cache_file = cache_id + "-" + partIndex.toString
+    DiskCacheFileMgr.getDiskCacheFilePath(cacheType, cache_file)
+  }
+
+  def getReadBuffer(cache_id: String): (FileChannel, MappedByteBuffer) = {
+    val channel = new FileInputStream(cache_id).getChannel
+    val size = math.min(channel.size, Int.MaxValue).toInt
+    channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, size)
+  }
+
+  def execute(missing_value: Float): Partitions = {
+    val cache_id = getCacheId
+    val future_partitions: IndexedSeq[Future[Partition]] = for (partIndex <- (0 until nPartitions)) yield Future {
+      processPartition(cache_id, partIndex, missing_value)
+    }
+    val partitions: Array[Partition] = Await.result(Future.sequence(future_partitions), Duration.Inf).toArray
+    new Partitions(cache_id, roi, partitions)
+  }
+
+  def processPartition(cache_id: String, partIndex: Int, missing_value: Float): Partition = {
+    val cacheFilePath = getCacheFilePath(cache_id, partIndex)
+    val channel = new RandomAccessFile(cacheFilePath, "rw").getChannel()
+    val partSize = cachePartition(0, partIndex, channel)
+    new Partition(partIndex, cacheFilePath, 0, partIndex * nSlicesPerPart, partSize, sliceMemorySize, missing_value, roi)
+  }
+
+  def cachePartition(coreIndex: Int, partIndex: Int, channel: FileChannel): Int = {
+    var subsection = new ma2.Section(roi)
+    var nElementsWritten = 0
+    val sizes = for (iChunk <- (coreIndex until nChunksPerPart by nCoresPerPart); startLoc = iChunk * nSlicesPerChunk + partIndex * nSlicesPerPart; if (startLoc < baseShape(0))) yield {
+      val endLoc = Math.min(startLoc + nSlicesPerChunk - 1, baseShape(0) - 1)
+      val chunkRange = new ma2.Range(startLoc, endLoc)
+      subsection.replaceRange(0, chunkRange)
+      val t0 = System.nanoTime()
+      logger.info("Reading data chunk %d, part %d, startTimIndex = %d, subsection [%s], nElems = %d ".format(iChunk, partIndex, startLoc, subsection.getShape.mkString(","), subsection.getShape.foldLeft(1L)(_ * _)))
+      val data = ncVariable.read(subsection)
+      val chunkShape = subsection.getShape
+      val dataBuffer = data.getDataAsByteBuffer
+      val t1 = System.nanoTime()
+      logger.info("Finished Reading data chunk %d, shape = [%s], buffer capacity = %d in time %.2f ".format(iChunk, chunkShape.mkString(","), dataBuffer.capacity(), (t1 - t0) / 1.0E9))
+      val t2 = System.nanoTime()
+      val position: Long = iChunk.toLong * chunkMemorySize.toLong
+      var buffer: MappedByteBuffer = channel.map(FileChannel.MapMode.READ_WRITE, position, chunkMemorySize)
+      val t3 = System.nanoTime()
+      logger.info(" -----> Writing chunk %d, size = %.2f M, map time = %.2f ".format(iChunk, chunkMemorySize / 1.0E6, (t2 - t3) / 1.0E9))
+      buffer.put(dataBuffer)
+      buffer.force()
+      val t4 = System.nanoTime()
+      logger.info(s"Persisted chunk %d, write time = %.2f ".format(iChunk, (t4 - t3) / 1.0E9))
+      runtime.printMemoryUsage(logger)
+      endLoc - startLoc + 1
+    }
+    sizes.foldLeft(0)(_ + _)
+  }
+}
+
+
+class FileToCacheStream1( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
   private val chunkCache = new ConcurrentLinkedHashMap.Builder[Int,CacheChunk].initialCapacity(500).maximumWeightedCapacity(1000000).build()
   private val nReadProcessors = 3
   private val baseShape = roi.getShape
