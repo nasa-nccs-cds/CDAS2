@@ -113,6 +113,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   }
 
   def execute(): String = {
+    logger.info( s" ~~~~~~~~ initiate Cache Stream, nReadProcessors = $nReadProcessors, nChunks = $nChunks" )
     val readProcFuts: IndexedSeq[Future[Int]] = for( coreIndex <- (0 until Math.min( nChunks, nReadProcessors ) ) ) yield Future { readDataChunks(coreIndex) }
     writeChunks
   }
