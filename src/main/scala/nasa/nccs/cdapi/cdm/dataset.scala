@@ -356,12 +356,13 @@ object ncReadTest extends App with Loggable {
     case TestType.Buffer =>
       val t0 = System.nanoTime()
       logger.info(s"Reading  $outputFile...")
+      val size = shape.foldLeft(1)(_*_)
+      val bSize = size * 4
       val channel = FileChannel.open( new File(outputFile).toPath, READ )
-      val bSize = channel.size.toInt
       val buffer = ByteBuffer.allocate(bSize)
       IOUtils.readFully(channel,buffer)
       val fltBuffer = buffer.asFloatBuffer
-      logger.info( "Read Float buffer, capacity = %d, shape = (%s): %d elems".format( fltBuffer.capacity(), shape.mkString(","), shape.foldLeft(1)(_*_) ) )
+      logger.info( "Read Float buffer, capacity = %d (%d), shape = (%s): %d elems".format( fltBuffer.capacity(), bSize, shape.mkString(","), size ) )
       val data = new CDFloatArray( shape, fltBuffer, Float.MaxValue )
       val sum = data.sum(Array(0))
       val t1 = System.nanoTime()
