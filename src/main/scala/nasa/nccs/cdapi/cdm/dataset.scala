@@ -340,7 +340,7 @@ object ncReadTest extends App with Loggable {
   import java.nio.channels.FileChannel
   import java.nio.file.StandardOpenOption._
 
-  val testType = TestType.Map
+  val testType = TestType.Buffer
 
 //  val outputFile = "/Users/tpmaxwel/.cdas/cache/test/testBinaryFile.out"
   val outputFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/test/testBinaryFile.out"
@@ -356,17 +356,20 @@ object ncReadTest extends App with Loggable {
       val bSize = channel.size.toInt
       val buffer = ByteBuffer.allocate(bSize)
       IOUtils.readFully(channel,buffer)
+      val data: Array[Float] = buffer.asFloatBuffer.array
+      val sum = data.sum[Float]
       val t1 = System.nanoTime()
-      logger.info( s"Read BUFFER data chunk, size= %.2f M, Time-{ read: %.2f,  }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
+      logger.info( s"Sum of BUFFER data chunk, value = %.2f, size= %.2f M, Time-{ read: %.2f,  }".format( sum, bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
     case TestType.Map =>
       val t0 = System.nanoTime()
       logger.info(s"Reading  $outputFile...")
       val channel = FileChannel.open( new File(outputFile).toPath, READ )
       val bSize = channel.size.toInt
       val buffer = channel.map( FileChannel.MapMode.READ_ONLY, 0, bSize )
-      buffer.load()
+      val data: Array[Float] = buffer.asFloatBuffer.array
+      val sum = data.sum[Float]
       val t1 = System.nanoTime()
-      logger.info( s"Read MAP data chunk, size= %.2f M, Time-{ read: %.2f,  }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
+      logger.info( s"Sum of MAP data chunk, value = %.2f, size= %.2f M, Time-{ read: %.2f,  }".format( sum, bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
     case TestType.NcFile =>
       NetcdfDataset.setUseNaNs(false)
       val url = "file:"+outputNcFile
