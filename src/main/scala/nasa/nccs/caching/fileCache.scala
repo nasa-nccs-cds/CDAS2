@@ -148,7 +148,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val position: Long = iChunk.toLong * chunkMemorySize.toLong
     var buffer: MappedByteBuffer = channel.map(FileChannel.MapMode.READ_WRITE, position, chunkMemorySize)
     val t3 = System.nanoTime()
-    logger.info(" -----> Writing chunk %d, size = %.2f M, map time = %.2f ".format(iChunk, chunkMemorySize / 1.0E6, (t2 - t3) / 1.0E9))
+    logger.info(" -----> Writing chunk %d, size = %.2f M, map time = %.3f ".format(iChunk, chunkMemorySize / 1.0E6, (t3 - t2) / 1.0E9))
     buffer.put(dataBuffer)
     buffer.force()
     val t4 = System.nanoTime()
