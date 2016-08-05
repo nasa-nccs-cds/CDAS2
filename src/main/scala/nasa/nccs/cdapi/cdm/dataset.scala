@@ -343,12 +343,15 @@ object ncReadTest extends App with Loggable {
 
   val testType = TestType.Buffer
 
+  val url = "file:/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/NCML/merra_daily_2005.xml"
 //  val outputFile = "/Users/tpmaxwel/.cdas/cache/test/testBinaryFile.out"
   val outputFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/test/testBinaryFile.out"
 //  val outputNcFile = "/Users/tpmaxwel/.cdas/cache/test/testFile.nc"
   val outputNcFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/test/testFile.nc"
   val bufferSize: Int = -1
   val varName = "t"
+
+  val shape = getShape( url, varName )
   testType match {
     case TestType.Buffer =>
       val t0 = System.nanoTime()
@@ -357,20 +360,20 @@ object ncReadTest extends App with Loggable {
       val bSize = channel.size.toInt
       val buffer = ByteBuffer.allocate(bSize)
       IOUtils.readFully(channel,buffer)
-      val data = new CDFloatArray( buffer.asFloatBuffer, Float.MaxValue )
+      val data = new CDFloatArray( shape, buffer.asFloatBuffer, Float.MaxValue )
       val sum = data.sum(Array(0))
       val t1 = System.nanoTime()
-      logger.info( s"Sum of BUFFER data chunk, value = %.2f, size= %.2f M, Time-{ read: %.2f,  }".format( sum, bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
+      logger.info( s"Sum of BUFFER data chunk, size= %.2f M, Time-{ read: %.2f,  }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
     case TestType.Map =>
       val t0 = System.nanoTime()
       logger.info(s"Reading  $outputFile...")
       val channel = FileChannel.open( new File(outputFile).toPath, READ )
       val bSize = channel.size.toInt
       val buffer = channel.map( FileChannel.MapMode.READ_ONLY, 0, bSize )
-      val data = new CDFloatArray( buffer.asFloatBuffer, Float.MaxValue )
+      val data = new CDFloatArray( shape, buffer.asFloatBuffer, Float.MaxValue )
       val sum = data.sum(Array(0))
       val t1 = System.nanoTime()
-      logger.info( s"Sum of MAP data chunk, value = %.2f, size= %.2f M, Time-{ read: %.2f,  }".format( sum, bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
+      logger.info( s"Sum of MAP data chunk, size= %.2f M, Time-{ read: %.2f,  }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
     case TestType.NcFile =>
       NetcdfDataset.setUseNaNs(false)
       val url = "file:"+outputNcFile
@@ -389,6 +392,23 @@ object ncReadTest extends App with Loggable {
           logger.error("Something went wrong while reading %s".format(url))
           throw ex
       }
+  }
+
+  def getShape( url: String, varName: String  ): Array[Int] = {
+    try {
+      val datset = NetcdfDataset.openDataset( url, true, -1, null, null)
+      Option(datset.findVariable(varName)) match {
+        case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
+        case Some(ncVar) => ncVar.getShape
+      }
+    } catch {
+      case e: java.io.IOException =>
+        logger.error("Couldn't open dataset %s".format(url))
+        throw e
+      case ex: Exception =>
+        logger.error("Something went wrong while reading %s".format(url))
+        throw ex
+    }
   }
 }
 
