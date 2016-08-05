@@ -33,7 +33,7 @@ libraryDependencies ++= Dependencies.netcdf
 fork in run:= true
 fork in test:= true
 
-javaOptions in run ++= Seq( "-Xmx10000M", "-Xms512M")
+javaOptions in run ++= Seq( "-Xmx64000M", "-Xms512M")
 
 import java.util.Properties
 
