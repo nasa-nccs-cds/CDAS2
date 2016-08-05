@@ -381,7 +381,7 @@ object ncWriteTest extends App with Loggable {
   import nasa.nccs.cds2.utilities.runtime
   import java.nio.channels.FileChannel
   import java.nio.file.StandardOpenOption._
-  val testType = TestType.NcFile
+  val testType = TestType.Buffer
 
   val url = "file:/Users/tpmaxwel/.cdas/cache/NCML/merra_daily.xml"
   val outputFile = "/Users/tpmaxwel/.cdas/cache/test/testBinaryFile.out"
