@@ -383,9 +383,12 @@ object ncWriteTest extends App with Loggable {
   import java.nio.file.StandardOpenOption._
   val testType = TestType.Buffer
 
-  val url = "file:/Users/tpmaxwel/.cdas/cache/NCML/merra_daily.xml"
-  val outputFile = "/Users/tpmaxwel/.cdas/cache/test/testBinaryFile.out"
-  val outputNcFile = "/Users/tpmaxwel/.cdas/cache/test/testFile.nc"
+//  val url = "file:/Users/tpmaxwel/.cdas/cache/NCML/merra_daily.xml"
+  val url = "file:/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/NCML/merra_daily_2005.xml"
+//  val outputFile = "/Users/tpmaxwel/.cdas/cache/test/testBinaryFile.out"
+  val outputFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/test/testBinaryFile.out"
+//  val outputNcFile = "/Users/tpmaxwel/.cdas/cache/test/testFile.nc"
+  val outputNcFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/test/testFile.nc"
   val bufferSize: Int = -1
   val varName = "t"
   NetcdfDataset.setUseNaNs(false)
