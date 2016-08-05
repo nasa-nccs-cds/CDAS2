@@ -408,9 +408,10 @@ object ncWriteTest extends App with Loggable {
           val t1 = System.nanoTime()
           val bytes = data.getDataAsByteBuffer.array()
           val outStr = new BufferedOutputStream(new FileOutputStream(new File(outputFile)))
-          logger.info(s"Writing  $outputFile...")
+          logger.info(s"Writing Buffer $outputFile...")
           runtime.printMemoryUsage(logger)
-          IOUtils.writeChunked(bytes, outStr)
+//          IOUtils.writeChunked(bytes, outStr)
+          IOUtils.write(bytes, outStr)
           val t2 = System.nanoTime()
           logger.info(s"Persisted data chunk, size= %.2f M, Times-{ read: %.2f, write: %.2f, total: %.2f }".format(bytes.size / 1.0E6, (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9))
         case TestType.Stream =>
@@ -435,7 +436,7 @@ object ncWriteTest extends App with Loggable {
           file.setLength( bSize )
           val buffer =  file.getChannel.map( FileChannel.MapMode.READ_WRITE, 0, bSize );
           val data = ncVar.read()
-          logger.info(s"Writing  $outputFile")
+          logger.info(s"Writing Map $outputFile")
           runtime.printMemoryUsage(logger)
           val t1 = System.nanoTime()
           buffer.put( data.getDataAsByteBuffer )
