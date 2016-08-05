@@ -8,6 +8,7 @@ import java.nio.file.{Files, Paths}
 import java.io.{FileWriter, _}
 import java.nio._
 
+import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.XmlResource
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.constants.AxisType
@@ -356,8 +357,8 @@ object ncReadTest extends App with Loggable {
       val bSize = channel.size.toInt
       val buffer = ByteBuffer.allocate(bSize)
       IOUtils.readFully(channel,buffer)
-      val data: Array[Float] = buffer.asFloatBuffer.array
-      val sum = data.sum[Float]
+      val data = new CDFloatArray( buffer.asFloatBuffer, Float.MaxValue )
+      val sum = data.sum(Array(0))
       val t1 = System.nanoTime()
       logger.info( s"Sum of BUFFER data chunk, value = %.2f, size= %.2f M, Time-{ read: %.2f,  }".format( sum, bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
     case TestType.Map =>
@@ -366,8 +367,8 @@ object ncReadTest extends App with Loggable {
       val channel = FileChannel.open( new File(outputFile).toPath, READ )
       val bSize = channel.size.toInt
       val buffer = channel.map( FileChannel.MapMode.READ_ONLY, 0, bSize )
-      val data: Array[Float] = buffer.asFloatBuffer.array
-      val sum = data.sum[Float]
+      val data = new CDFloatArray( buffer.asFloatBuffer, Float.MaxValue )
+      val sum = data.sum(Array(0))
       val t1 = System.nanoTime()
       logger.info( s"Sum of MAP data chunk, value = %.2f, size= %.2f M, Time-{ read: %.2f,  }".format( sum, bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
     case TestType.NcFile =>
