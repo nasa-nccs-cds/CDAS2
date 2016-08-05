@@ -341,7 +341,7 @@ object ncReadTest extends App with Loggable {
   import java.nio.channels.FileChannel
   import java.nio.file.StandardOpenOption._
 
-  val testType = TestType.Buffer
+  val testType = TestType.Map
 
   val url = "file:/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/NCML/merra_daily_2005.xml"
 //  val outputFile = "/Users/tpmaxwel/.cdas/cache/test/testBinaryFile.out"
