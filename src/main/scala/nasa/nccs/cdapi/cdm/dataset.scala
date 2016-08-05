@@ -341,7 +341,7 @@ object ncReadTest extends App with Loggable {
   import java.nio.channels.FileChannel
   import java.nio.file.StandardOpenOption._
 
-  val testType = TestType.Map
+  val testType = TestType.Buffer
 
   val url = "file:/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/NCML/merra_daily_2005.xml"
 //  val outputFile = "/Users/tpmaxwel/.cdas/cache/test/testBinaryFile.out"
@@ -360,7 +360,9 @@ object ncReadTest extends App with Loggable {
       val bSize = channel.size.toInt
       val buffer = ByteBuffer.allocate(bSize)
       IOUtils.readFully(channel,buffer)
-      val data = new CDFloatArray( shape, buffer.asFloatBuffer, Float.MaxValue )
+      val fltBuffer = buffer.asFloatBuffer
+      logger.info( "Read Float buffer, capacity = %d, shape = (%s): %d elems".format( fltBuffer.capacity(), shape.mkString(","), shape.foldLeft(1)(_*_) ) )
+      val data = new CDFloatArray( shape, fltBuffer, Float.MaxValue )
       val sum = data.sum(Array(0))
       val t1 = System.nanoTime()
       logger.info( s"Sum of BUFFER data chunk, size= %.2f M, Time-{ read: %.2f,  }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
@@ -370,7 +372,9 @@ object ncReadTest extends App with Loggable {
       val channel = FileChannel.open( new File(outputFile).toPath, READ )
       val bSize = channel.size.toInt
       val buffer = channel.map( FileChannel.MapMode.READ_ONLY, 0, bSize )
-      val data = new CDFloatArray( shape, buffer.asFloatBuffer, Float.MaxValue )
+      val fltBuffer = buffer.asFloatBuffer
+      logger.info( "Read Float buffer, capacity = %d, shape = (%s): %d elems".format( fltBuffer.capacity(), shape.mkString(","), shape.foldLeft(1)(_*_) ) )
+      val data = new CDFloatArray( shape, fltBuffer, Float.MaxValue )
       val sum = data.sum(Array(0))
       val t1 = System.nanoTime()
       logger.info( s"Sum of MAP data chunk, size= %.2f M, Time-{ read: %.2f,  }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
