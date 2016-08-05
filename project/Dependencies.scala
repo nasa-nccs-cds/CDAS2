@@ -20,6 +20,7 @@ object Library {
   val sparkCore      = "org.apache.spark"  %% "spark-core"      % "1.6.0"
   val scalaxml       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
   val scalaparser    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
+  val commonsIO      = "commons-io"         % "commons-io"      % "2.5"
 
   val cdm            = "edu.ucar"           % "cdm"             % "4.6.6"
   val clcommon       = "edu.ucar"           % "clcommon"        % "4.6.6"
@@ -52,7 +53,7 @@ object Dependencies {
     scalaTest      % "test",
     mockitoAll     % "test"
   )
-  val scala = Seq( logbackClassic, slf4jApi, scalaxml, scalaparser, joda, natty, scalactic, scalatest )
+  val scala = Seq( logbackClassic, slf4jApi, scalaxml, scalaparser, joda, natty, scalactic, scalatest, commonsIO )
 
   val spark = Seq( sparkCore )
 

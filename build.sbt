@@ -33,7 +33,7 @@ libraryDependencies ++= Dependencies.netcdf
 fork in run:= true
 fork in test:= true
 
-javaOptions in run ++= Seq( "-Xmx4096M", "-Xms512M")
+javaOptions in run ++= Seq( "-Xmx10000M", "-Xms512M")
 
 import java.util.Properties
 
@@ -41,11 +41,11 @@ lazy val cdasProperties = settingKey[Properties]("The cdas properties map")
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
 
-cdasPropertiesFile :=  baseDirectory.value / "project" / "cdas.properties"
+cdasPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
 
 cdasProperties := {
   val prop = new Properties()
-  try{ IO.load( prop, cdasPropertiesFile.value ) } catch { case err: Exception => println("No properties file found") }
+  try{ IO.load( prop, cdasPropertiesFile.value ) } catch { case err: Exception => println("No property file found") }
   prop
 }
 
