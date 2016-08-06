@@ -1,11 +1,12 @@
 package nasa.nccs.caching
 
-import java.io.{FileInputStream, RandomAccessFile}
+import java.io._
 import java.nio.channels.FileChannel
 import java.nio.file.Paths
 import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
+import nasa.nccs.cdapi.cdm.ncWriteTest._
 import nasa.nccs.cds2.utilities.runtime
 import nasa.nccs.cdapi.cdm.{Collection, _}
 import nasa.nccs.cdapi.kernels.TransientFragment
@@ -14,6 +15,7 @@ import nasa.nccs.cds2.loaders.Masks
 import nasa.nccs.cds2.utilities.GeoTools
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.Loggable
+import org.apache.commons.io.IOUtils
 import sun.nio.ch.FileChannelImpl
 import ucar.{ma2, nc2}
 
@@ -127,13 +129,14 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   def processPartitions(cache_id: String, partIndices: IndexedSeq[Int], missing_value: Float): IndexedSeq[Partition] = {
     for( partIndex <- partIndices ) yield {
       val cacheFilePath = getCacheFilePath(cache_id, partIndex)
-      val channel = new RandomAccessFile(cacheFilePath, "rw").getChannel()
-      val partSize = cachePartition(partIndex, channel)
+      val outStr = IOUtils.buffer(new FileOutputStream(new File(cacheFilePath)))
+      val partSize = cachePartition(partIndex, outStr)
+      outStr.close
       new Partition(partIndex, cacheFilePath, 0, partIndex * nSlicesPerPart, partSize, sliceMemorySize, missing_value, roi)
     }
   }
 
-  def cacheChunk( partIndex: Int, iChunk: Int, startLoc: Int, channel: FileChannel, subsection: ma2.Section ): Int = {
+  def cacheChunk( partIndex: Int, iChunk: Int, startLoc: Int, outStr: BufferedOutputStream, subsection: ma2.Section ): Int = {
     val endLoc = Math.min(startLoc + nSlicesPerChunk - 1, baseShape(0) - 1)
     val chunkRange = new ma2.Range(startLoc, endLoc)
     subsection.replaceRange(0, chunkRange)
@@ -145,25 +148,21 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val t1 = System.nanoTime()
     logger.info("Finished Reading data chunk %d, shape = [%s], buffer capacity = %d in time %.2f ".format(iChunk, chunkShape.mkString(","), dataBuffer.capacity(), (t1 - t0) / 1.0E9))
     val t2 = System.nanoTime()
-    val position: Long = iChunk.toLong * chunkMemorySize.toLong
-    var buffer: MappedByteBuffer = channel.map(FileChannel.MapMode.READ_WRITE, position, chunkMemorySize)
+    IOUtils.write(dataBuffer.array(), outStr)
     val t3 = System.nanoTime()
-    logger.info(" -----> Writing chunk %d, size = %.2f M, map time = %.3f ".format(iChunk, chunkMemorySize / 1.0E6, (t3 - t2) / 1.0E9))
-    buffer.put(dataBuffer)
-    buffer.force()
+    logger.info(" -----> Writing chunk %d, size = %.2f M, write time = %.3f ".format(iChunk, chunkMemorySize / 1.0E6, (t3 - t2) / 1.0E9))
     val t4 = System.nanoTime()
     logger.info(s"Persisted chunk %d, write time = %.2f ".format(iChunk, (t4 - t3) / 1.0E9))
     runtime.printMemoryUsage(logger)
     endLoc - startLoc + 1
   }
 
-  def cachePartition( partIndex: Int, channel: FileChannel ): Int = {
+  def cachePartition( partIndex: Int, stream: BufferedOutputStream ): Int = {
     var subsection = new ma2.Section(roi)
-    val sizes: IndexedSeq[Int] = for (iChunk <- (0 until nChunksPerPart); startLoc = iChunk * nSlicesPerChunk + partIndex * nSlicesPerPart; if (startLoc < baseShape(0))) yield cacheChunk( partIndex, iChunk, startLoc, channel, subsection )
+    val sizes: IndexedSeq[Int] = for (iChunk <- (0 until nChunksPerPart); startLoc = iChunk * nSlicesPerChunk + partIndex * nSlicesPerPart; if (startLoc < baseShape(0))) yield cacheChunk( partIndex, iChunk, startLoc, stream, subsection )
     sizes.foldLeft(0)(_ + _)
   }
 }
-
 
 class FileToCacheStream1( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
   private val chunkCache = new ConcurrentLinkedHashMap.Builder[Int,CacheChunk].initialCapacity(500).maximumWeightedCapacity(1000000).build()
