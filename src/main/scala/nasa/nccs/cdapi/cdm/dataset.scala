@@ -362,31 +362,31 @@ object ncReadTest extends App with Loggable {
     testType match {
       case TestType.Buffer =>
         val t0 = System.nanoTime()
-        logger.info(s"Reading  $outputFile...")
+//        logger.info(s"Reading  $outputFile...")
         val size = shape.foldLeft(1)(_ * _)
         val bSize = size * 4
         val file: File = new File(outputFile);
         val fSize = file.length.toInt
-        logger.info("Reading Float buffer, bSize = %d, shape = (%s): %d elems (%d bytes), file size: %d, (%d floats)".format(bSize, shape.mkString(","), size, size * 4, fSize, fSize / 4))
+//        logger.info("Reading Float buffer, bSize = %d, shape = (%s): %d elems (%d bytes), file size: %d, (%d floats)".format(bSize, shape.mkString(","), size, size * 4, fSize, fSize / 4))
         val buffer: Array[Byte] = Array.ofDim[Byte](fSize)
         val inputStream = new BufferedInputStream(new FileInputStream(file))
         IOUtils.read(inputStream, buffer)
         val t1 = System.nanoTime()
         val fltBuffer = ByteBuffer.wrap(buffer).asFloatBuffer
-        logger.info("Read Float buffer, capacity = %d".format(fltBuffer.capacity()))
+//        logger.info("Read Float buffer, capacity = %d".format(fltBuffer.capacity()))
         val data = new CDFloatArray(shape, fltBuffer, Float.MaxValue)
         val sum = data.sum(Array(0))
         val t2 = System.nanoTime()
         logger.info(s"Sum of BUFFER data chunk, size= %.2f M, result shape= %s, Time-{ read: %.2f,  compute: %.2f, total: %.2f,  }".format(bSize / 1.0E6, sum.getShape.mkString(","), (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9))
       case TestType.Map =>
         val t0 = System.nanoTime()
-        logger.info(s"Reading  $outputFile...")
+//        logger.info(s"Reading  $outputFile...")
         val file: File = new File(outputFile)
         val bSize = file.length.toInt
         val fileChannel: FileChannel = new RandomAccessFile(file, "r").getChannel()
         val buffer: MappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size())
         val fltBuffer = buffer.asFloatBuffer
-        logger.info("Read Float buffer, capacity = %d, shape = (%s): %d elems".format(fltBuffer.capacity(), shape.mkString(","), shape.foldLeft(1)(_ * _)))
+ //       logger.info("Read Float buffer, capacity = %d, shape = (%s): %d elems".format(fltBuffer.capacity(), shape.mkString(","), shape.foldLeft(1)(_ * _)))
         val data = new CDFloatArray(shape, fltBuffer, Float.MaxValue)
         val sum = data.sum(Array(0))
         val t1 = System.nanoTime()
