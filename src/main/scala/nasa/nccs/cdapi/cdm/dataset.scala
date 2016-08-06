@@ -377,7 +377,7 @@ object ncReadTest extends App with Loggable {
         val data = new CDFloatArray(shape, fltBuffer, Float.MaxValue)
         val sum = CDFloatArray( data.section( Array(0,10,100,100), Array(shape(0),1,1,1) ) ).sum(Array(0))
         val t2 = System.nanoTime()
-        logger.info(s"Sum of BUFFER data chunk, size= %.2f M, result shape= %s, Time-{ read: %.2f,  compute: %.2f, total: %.2f,  }".format(bSize / 1.0E6, sum.getShape.mkString(","), (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9))
+        logger.info(s"Sum of BUFFER data chunk, size= %.2f M, result shape= %s, Time-{ read: %.2f,  compute: %.2f, total: %.2f,  }, value = %.3f".format(bSize / 1.0E6, sum.getShape.mkString(","), (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9, sum.getFlatValue(0) ))
       case TestType.Map =>
         val t0 = System.nanoTime()
 //        logger.info(s"Reading  $outputFile...")
@@ -390,7 +390,7 @@ object ncReadTest extends App with Loggable {
         val data = new CDFloatArray(shape, fltBuffer, Float.MaxValue)
         val sum = CDFloatArray( data.section( Array(0,10,100,100), Array(shape(0),1,1,1) ) ).sum(Array(0))
         val t1 = System.nanoTime()
-        logger.info(s"Sum of MAP data chunk, size= %.2f M, Time-{ read: %.2f,  }".format(bSize / 1.0E6, (t1 - t0) / 1.0E9))
+        logger.info(s"Sum of MAP data chunk, size= %.2f M, Time-{ read: %.2f,  }, value = %.3f".format(bSize / 1.0E6, (t1 - t0) / 1.0E9, sum.getFlatValue(0)))
       case TestType.NcFile =>
         NetcdfDataset.setUseNaNs(false)
         val url = "file:" + outputNcFile
