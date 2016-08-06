@@ -367,7 +367,7 @@ object ncReadTest extends App with Loggable {
       val t1 = System.nanoTime()
       val fltBuffer = ByteBuffer.wrap(buffer).asFloatBuffer
       logger.info( "Read Float buffer, capacity = %d".format( fltBuffer.capacity() ) )
-      val data = new CDFloatArray( Array(fSize/4), fltBuffer, Float.MaxValue )
+      val data = new CDFloatArray( shape, fltBuffer, Float.MaxValue )
       val sum = data.sum(Array(0))
       val t2 = System.nanoTime()
       logger.info( s"Sum of BUFFER data chunk, size= %.2f M, Time-{ read: %.2f,  compute: %.2f, total: %.2f,  }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9 ) )
