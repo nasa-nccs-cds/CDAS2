@@ -58,16 +58,16 @@ def getCacheDir( properties: Properties ): File =
       if (cache_dir.isEmpty) { home / ".ivy2" / "local" } else file( cache_dir )
   }
 
+lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
+
 def getPublishDir( properties: Properties ): File =
   sys.env.get("SBT_PUBLISH_DIR") match {
     case Some(pub_dir) => { val pdir = file(pub_dir); pdir.mkdirs(); pdir }
     case None =>
       val home = file(System.getProperty("user.home"))
       val cache_dir = properties.getProperty("cdas.publish.dir", "")
-      if (cache_dir.isEmpty) { home / ".cdas" / "cache" } else file( cache_dir )
+      if(cache_dir.isEmpty) { home / ".cdas" / "cache" } else file( cache_dir )
   }
-
-lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 
 cdas_cache_dir := {
   val cache_dir = getCacheDir( cdasProperties.value )
