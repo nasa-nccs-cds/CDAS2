@@ -2,12 +2,11 @@
 
 package nasa.nccs.cdapi.tensors
 import java.nio._
-
 import nasa.nccs.cdapi.tensors.CDArray.{FlatIndex, StorageIndex}
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.ma2
-
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 object CDArray {
 
@@ -78,6 +77,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   def getStorage: Buffer = storage
   def copySectionData( maxSize: Int = Int.MaxValue ): Buffer
   def getSectionData( maxSize: Int = Int.MaxValue ): Buffer = if( isStorageCongruent ) getStorage else copySectionData(maxSize)
+  def section( subsection: ma2.Section ): CDArray[T] = section( subsection.getRanges.toList )
   def section(ranges: List[ma2.Range]): CDArray[T] = createView(cdIndexMap.section(ranges))
   def valid( value: T ): Boolean
   def spawn( shape: Array[Int], fillval: T ): CDArray[T]
@@ -176,6 +176,7 @@ object CDFloatArray {
 
   def apply( cdIndexMap: CDIndexMap, floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( cdIndexMap, FloatBuffer.wrap(floatData),  invalid )
   def apply( shape: Array[Int], floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( shape, FloatBuffer.wrap(floatData),  invalid )
+  def apply( target: CDArray[Float] ): CDFloatArray  = CDFloatArray.cdArrayConverter( target )
 
   def toFloatBuffer( array: ucar.ma2.Array ): FloatBuffer = array.getElementType.toString match {
     case "float"  => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]] )
