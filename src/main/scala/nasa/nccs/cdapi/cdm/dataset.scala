@@ -360,16 +360,17 @@ object ncReadTest extends App with Loggable {
       val bSize = size * 4
       val file: File  = new File(outputFile);
       val fSize = file.length.toInt
-      logger.info( "Reading Float buffer, bSize = %d, shape = (%s): %d elems, file size: %d".format(  bSize, shape.mkString(","), size, fSize ) )
+      logger.info( "Reading Float buffer, bSize = %d, shape = (%s): %d elems (%d bytes), file size: %d, (%d floats)".format(  bSize, shape.mkString(","), size, size*4, fSize, fSize/4 ) )
       val buffer: Array[Byte] = Array.ofDim[Byte]( fSize )
       val inputStr = new BufferedInputStream(new FileInputStream(file))
       IOUtils.read(inputStr,buffer)
+      val t1 = System.nanoTime()
       val fltBuffer = ByteBuffer.wrap(buffer).asFloatBuffer
       logger.info( "Read Float buffer, capacity = %d".format( fltBuffer.capacity() ) )
       val data = new CDFloatArray( Array(fSize/4), fltBuffer, Float.MaxValue )
       val sum = data.sum(Array(0))
-      val t1 = System.nanoTime()
-      logger.info( s"Sum of BUFFER data chunk, size= %.2f M, Time-{ read: %.2f,  }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
+      val t2 = System.nanoTime()
+      logger.info( s"Sum of BUFFER data chunk, size= %.2f M, Time-{ read: %.2f,  compute: %.2f, total: %.2f,  }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9 ) )
     case TestType.Map =>
       val t0 = System.nanoTime()
       logger.info(s"Reading  $outputFile...")
