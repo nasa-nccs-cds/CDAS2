@@ -340,8 +340,7 @@ object ncReadTest extends App with Loggable {
   import nasa.nccs.cds2.utilities.runtime
   import java.nio.channels.FileChannel
   import java.nio.file.StandardOpenOption._
-
-  val testType = TestType.Buffer
+  import TestType._
 
   val url = "file:/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/NCML/merra_daily_2005.xml"
 //  val outputFile = "/Users/tpmaxwel/.cdas/cache/test/testBinaryFile.out"
@@ -350,58 +349,67 @@ object ncReadTest extends App with Loggable {
   val outputNcFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/test/testFile.nc"
   val bufferSize: Int = -1
   val varName = "t"
+  val shape = getShape(url, varName)
 
-  val shape = getShape( url, varName )
-  testType match {
-    case TestType.Buffer =>
-      val t0 = System.nanoTime()
-      logger.info(s"Reading  $outputFile...")
-      val size = shape.foldLeft(1)(_*_)
-      val bSize = size * 4
-      val file: File  = new File(outputFile);
-      val fSize = file.length.toInt
-      logger.info( "Reading Float buffer, bSize = %d, shape = (%s): %d elems (%d bytes), file size: %d, (%d floats)".format(  bSize, shape.mkString(","), size, size*4, fSize, fSize/4 ) )
-      val buffer: Array[Byte] = Array.ofDim[Byte]( fSize )
-      val inputStream = new BufferedInputStream(new FileInputStream(file))
-      IOUtils.read(inputStream,buffer)
-      val t1 = System.nanoTime()
-      val fltBuffer = ByteBuffer.wrap(buffer).asFloatBuffer
-      logger.info( "Read Float buffer, capacity = %d".format( fltBuffer.capacity() ) )
-      val data = new CDFloatArray( shape, fltBuffer, Float.MaxValue )
-      val sum = data.sum(Array(0))
-      val t2 = System.nanoTime()
-      logger.info( s"Sum of BUFFER data chunk, size= %.2f M, result shape= %s, Time-{ read: %.2f,  compute: %.2f, total: %.2f,  }".format( bSize / 1.0E6, sum.getShape.mkString(","), (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9 ) )
-    case TestType.Map =>
-      val t0 = System.nanoTime()
-      logger.info(s"Reading  $outputFile...")
-      val file: File  = new File(outputFile)
-      val bSize = file.length.toInt
-      val fileChannel: FileChannel = new RandomAccessFile(file, "r").getChannel()
-      val buffer: MappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size())
-      val fltBuffer = buffer.asFloatBuffer
-      logger.info( "Read Float buffer, capacity = %d, shape = (%s): %d elems".format( fltBuffer.capacity(), shape.mkString(","), shape.foldLeft(1)(_*_) ) )
-      val data = new CDFloatArray( shape, fltBuffer, Float.MaxValue )
-      val sum = data.sum(Array(0))
-      val t1 = System.nanoTime()
-      logger.info( s"Sum of MAP data chunk, size= %.2f M, Time-{ read: %.2f,  }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9 ) )
-    case TestType.NcFile =>
-      NetcdfDataset.setUseNaNs(false)
-      val url = "file:"+outputNcFile
-      try {
-        val datset = NetcdfDataset.openDataset( url, true, bufferSize, null, null)
-        Option(datset.findVariable(varName)) match {
-          case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
-          case Some(ncVar) =>
-            runtime.printMemoryUsage(logger)
-            }
+  val testPlan = Array( Buffer, Map, Buffer, Map )
+
+  executePlan( testPlan )
+
+
+  def executePlan( exePlan: Array[Int] ) = exePlan.foreach( ttype => execute( ttype ) )
+
+  def execute( testType: Int ) = {
+    testType match {
+      case TestType.Buffer =>
+        val t0 = System.nanoTime()
+        logger.info(s"Reading  $outputFile...")
+        val size = shape.foldLeft(1)(_ * _)
+        val bSize = size * 4
+        val file: File = new File(outputFile);
+        val fSize = file.length.toInt
+        logger.info("Reading Float buffer, bSize = %d, shape = (%s): %d elems (%d bytes), file size: %d, (%d floats)".format(bSize, shape.mkString(","), size, size * 4, fSize, fSize / 4))
+        val buffer: Array[Byte] = Array.ofDim[Byte](fSize)
+        val inputStream = new BufferedInputStream(new FileInputStream(file))
+        IOUtils.read(inputStream, buffer)
+        val t1 = System.nanoTime()
+        val fltBuffer = ByteBuffer.wrap(buffer).asFloatBuffer
+        logger.info("Read Float buffer, capacity = %d".format(fltBuffer.capacity()))
+        val data = new CDFloatArray(shape, fltBuffer, Float.MaxValue)
+        val sum = data.sum(Array(0))
+        val t2 = System.nanoTime()
+        logger.info(s"Sum of BUFFER data chunk, size= %.2f M, result shape= %s, Time-{ read: %.2f,  compute: %.2f, total: %.2f,  }".format(bSize / 1.0E6, sum.getShape.mkString(","), (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9))
+      case TestType.Map =>
+        val t0 = System.nanoTime()
+        logger.info(s"Reading  $outputFile...")
+        val file: File = new File(outputFile)
+        val bSize = file.length.toInt
+        val fileChannel: FileChannel = new RandomAccessFile(file, "r").getChannel()
+        val buffer: MappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size())
+        val fltBuffer = buffer.asFloatBuffer
+        logger.info("Read Float buffer, capacity = %d, shape = (%s): %d elems".format(fltBuffer.capacity(), shape.mkString(","), shape.foldLeft(1)(_ * _)))
+        val data = new CDFloatArray(shape, fltBuffer, Float.MaxValue)
+        val sum = data.sum(Array(0))
+        val t1 = System.nanoTime()
+        logger.info(s"Sum of MAP data chunk, size= %.2f M, Time-{ read: %.2f,  }".format(bSize / 1.0E6, (t1 - t0) / 1.0E9))
+      case TestType.NcFile =>
+        NetcdfDataset.setUseNaNs(false)
+        val url = "file:" + outputNcFile
+        try {
+          val datset = NetcdfDataset.openDataset(url, true, bufferSize, null, null)
+          Option(datset.findVariable(varName)) match {
+            case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
+            case Some(ncVar) =>
+              runtime.printMemoryUsage(logger)
+          }
         } catch {
-        case e: java.io.IOException =>
-          logger.error("Couldn't open dataset %s".format(url))
-          throw e
-        case ex: Exception =>
-          logger.error("Something went wrong while reading %s".format(url))
-          throw ex
-      }
+          case e: java.io.IOException =>
+            logger.error("Couldn't open dataset %s".format(url))
+            throw e
+          case ex: Exception =>
+            logger.error("Something went wrong while reading %s".format(url))
+            throw ex
+        }
+    }
   }
 
   def getShape( url: String, varName: String  ): Array[Int] = {
