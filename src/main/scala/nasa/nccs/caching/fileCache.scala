@@ -121,16 +121,26 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val cache_id = getCacheId
     val partIndices: Iterator[IndexedSeq[Int]] = (0 until nPartitions).sliding(nProcessors,nProcessors)
     logger.info(s" *** Processing cache $cache_id with $nPartitions partitions, $nProcessors processors, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk")
-    val future_partitions: Iterator[ Future[IndexedSeq[Partition] ] ] = for ( partIndices <- partIndices ) yield Future { processPartitions( cache_id, partIndices, missing_value ) }
+    val future_partitions: Iterator[ Future[IndexedSeq[Partition] ] ] = for ( partIndices <- partIndices ) yield Future { processStreamedPartitions( cache_id, partIndices, missing_value ) }
     val partitions: Array[Partition] = Await.result( Future.sequence( future_partitions ), Duration.Inf ).flatten.toArray
     new Partitions(cache_id, roi, partitions )
   }
 
-  def processPartitions(cache_id: String, partIndices: IndexedSeq[Int], missing_value: Float): IndexedSeq[Partition] = {
+  def processChunkedPartitions(cache_id: String, partIndices: IndexedSeq[Int], missing_value: Float): IndexedSeq[Partition] = {
     for( partIndex <- partIndices ) yield {
       val cacheFilePath = getCacheFilePath(cache_id, partIndex)
       val outStr = IOUtils.buffer(new FileOutputStream(new File(cacheFilePath)))
       val partSize = cachePartition(partIndex, outStr)
+      outStr.close
+      new Partition(partIndex, cacheFilePath, 0, partIndex * nSlicesPerPart, partSize, sliceMemorySize, missing_value, roi)
+    }
+  }
+
+  def processStreamedPartitions(cache_id: String, partIndices: IndexedSeq[Int], missing_value: Float): IndexedSeq[Partition] = {
+    for( partIndex <- partIndices ) yield {
+      val cacheFilePath = getCacheFilePath(cache_id, partIndex)
+      val outStr = IOUtils.buffer(new FileOutputStream(new File(cacheFilePath)))
+      val partSize = streamPartitionToCache(partIndex, outStr)
       outStr.close
       new Partition(partIndex, cacheFilePath, 0, partIndex * nSlicesPerPart, partSize, sliceMemorySize, missing_value, roi)
     }
@@ -153,6 +163,21 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     logger.info(" -----> Writing chunk %d, size = %.2f M, write time = %.3f ".format(iChunk, chunkMemorySize / 1.0E6, (t3 - t2) / 1.0E9))
     val t4 = System.nanoTime()
     logger.info(s"Persisted chunk %d, write time = %.2f ".format(iChunk, (t4 - t3) / 1.0E9))
+    runtime.printMemoryUsage(logger)
+    endLoc - startLoc + 1
+  }
+
+  def streamPartitionToCache( partIndex: Int, outStr: BufferedOutputStream ): Int = {
+    var subsection = new ma2.Section(roi)
+    val startLoc: Int = partIndex * nSlicesPerPart
+    val endLoc = Math.min(startLoc + nSlicesPerPart - 1, baseShape(0) - 1)
+    val partRange = new ma2.Range(startLoc, endLoc)
+    subsection.replaceRange(0, partRange)
+    val t0 = System.nanoTime()
+    logger.info("StreamPartitionToCache: part %d, startTimIndex = %d, subsection [%s], nElems = %d ".format( partIndex, startLoc, subsection.getShape.mkString(","), subsection.getShape.foldLeft(1L)(_ * _)))
+    val data = ncVariable.readToStream(subsection,outStr)
+    val t1 = System.nanoTime()
+    logger.info(" -----> Finished Writing part %d, size = %.2f M, write time = %.3f ".format(partIndex, chunkMemorySize / 1.0E6, (t1 - t0) / 1.0E9))
     runtime.printMemoryUsage(logger)
     endLoc - startLoc + 1
   }
