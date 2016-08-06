@@ -341,7 +341,7 @@ object ncReadTest extends App with Loggable {
   import java.nio.channels.FileChannel
   import java.nio.file.StandardOpenOption._
 
-  val testType = TestType.Buffer
+  val testType = TestType.Map
 
   val url = "file:/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/NCML/merra_daily_2005.xml"
 //  val outputFile = "/Users/tpmaxwel/.cdas/cache/test/testBinaryFile.out"
@@ -362,21 +362,22 @@ object ncReadTest extends App with Loggable {
       val fSize = file.length.toInt
       logger.info( "Reading Float buffer, bSize = %d, shape = (%s): %d elems (%d bytes), file size: %d, (%d floats)".format(  bSize, shape.mkString(","), size, size*4, fSize, fSize/4 ) )
       val buffer: Array[Byte] = Array.ofDim[Byte]( fSize )
-      val inputStr = new BufferedInputStream(new FileInputStream(file))
-      IOUtils.read(inputStr,buffer)
+      val inputStream = new BufferedInputStream(new FileInputStream(file))
+      IOUtils.read(inputStream,buffer)
       val t1 = System.nanoTime()
       val fltBuffer = ByteBuffer.wrap(buffer).asFloatBuffer
       logger.info( "Read Float buffer, capacity = %d".format( fltBuffer.capacity() ) )
       val data = new CDFloatArray( shape, fltBuffer, Float.MaxValue )
       val sum = data.sum(Array(0))
       val t2 = System.nanoTime()
-      logger.info( s"Sum of BUFFER data chunk, size= %.2f M, Time-{ read: %.2f,  compute: %.2f, total: %.2f,  }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9 ) )
+      logger.info( s"Sum of BUFFER data chunk, size= %.2f M, result shape= %s, Time-{ read: %.2f,  compute: %.2f, total: %.2f,  }".format( bSize / 1.0E6, sum.getShape.mkString(","), (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9 ) )
     case TestType.Map =>
       val t0 = System.nanoTime()
       logger.info(s"Reading  $outputFile...")
-      val channel = FileChannel.open( new File(outputFile).toPath, READ )
-      val bSize = channel.size.toInt
-      val buffer = channel.map( FileChannel.MapMode.READ_ONLY, 0, bSize )
+      val file: File  = new File(outputFile)
+      val bSize = file.length.toInt
+      val fileChannel: FileChannel = new RandomAccessFile(file, "r").getChannel()
+      val buffer: MappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size())
       val fltBuffer = buffer.asFloatBuffer
       logger.info( "Read Float buffer, capacity = %d, shape = (%s): %d elems".format( fltBuffer.capacity(), shape.mkString(","), shape.foldLeft(1)(_*_) ) )
       val data = new CDFloatArray( shape, fltBuffer, Float.MaxValue )
