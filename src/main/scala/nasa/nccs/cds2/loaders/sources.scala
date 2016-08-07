@@ -110,7 +110,8 @@ object Collections extends XmlResource {
       val dataset: NetcdfDataset = NetcdfDataset.openDataset( collection.url )
       val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => getVariableString(v) ).toList
       val newCollection = Collection( id, collection.url, collection.path, collection.fileFilter, "local", vars)
-      datasets.put( collection.id, collection  )
+      println( "Updating collection %s, vars = %s".format(id,vars))
+      datasets.put( collection.id, newCollection  )
     }
     persistLocalCollections()
   }
