@@ -110,13 +110,13 @@ object Collections extends XmlResource {
       val dataset: NetcdfDataset = NetcdfDataset.openDataset( collection.url )
       val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => getVariableString(v) ).toList
       val newCollection = Collection( id, collection.url, collection.path, collection.fileFilter, "local", vars)
-      println( "Updating collection %s, vars = %s".format(id,vars))
+      println( "\nUpdating collection %s, vars = %s".format( id, vars.mkString(";") ))
       datasets.put( collection.id, newCollection  )
     }
     persistLocalCollections()
   }
 
-  def getVariableString( variable: nc2.Variable ): String = variable.getShortName + ":" + variable.getDimensionsString + ":" + variable.getDescription
+  def getVariableString( variable: nc2.Variable ): String = variable.getShortName + ":" + variable.getDimensionsString.replace(" ",",") + ":" + variable.getDescription+ ":" + variable.getUnitsString
   def getCacheFilePath( fileName: String ): String = DiskCacheFileMgr.getDiskCacheFilePath( "collections", fileName)
 
   def getVariableListXml(vids: Array[String]): xml.Elem = {
