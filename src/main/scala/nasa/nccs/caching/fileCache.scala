@@ -121,14 +121,15 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val cache_id = getCacheId
     val blockSize = math.ceil( nPartitions / nProcessors.toDouble ).toInt
     val partIndexChunks: Iterator[IndexedSeq[Int]] = (0 until nPartitions).sliding(blockSize,blockSize)
-    logger.info(s" *** Processing cache $cache_id with $nPartitions partitions, %d processors, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk".format( partIndexChunks.length ))
-    val future_partitions: Iterator[ Future[IndexedSeq[Partition] ] ] = for ( pIndices <- partIndexChunks ) yield Future { processChunkedPartitions( cache_id, pIndices, missing_value ) }
+    logger.info(s" *** Processing cache $cache_id with $nPartitions partitions, %d processors, $blockSize blockSize, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk".format( partIndexChunks.length ))
+    val future_partitions: Iterator[ Future[IndexedSeq[Partition] ] ] = for ( pIndices <- partIndexChunks; if(!pIndices.isEmpty) ) yield Future { processChunkedPartitions( cache_id, pIndices, missing_value ) }
     val partitions: Array[Partition] = Await.result( Future.sequence( future_partitions ), Duration.Inf ).flatten.toArray
     new Partitions(cache_id, roi, partitions )
   }
 
   def processChunkedPartitions(cache_id: String, partIndices: IndexedSeq[Int], missing_value: Float): IndexedSeq[Partition] = {
-    for( partIndex <- partIndices ) yield {
+      logger.info( " *** Processing partIndices: " + partIndices.mkString(",") )
+      for( partIndex <- partIndices ) yield {
       val cacheFilePath = getCacheFilePath(cache_id, partIndex)
       val outStr = IOUtils.buffer(new FileOutputStream(new File(cacheFilePath)))
       val partSize = cachePartition(partIndex, outStr)
