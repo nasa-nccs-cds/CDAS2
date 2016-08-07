@@ -121,7 +121,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val cache_id = getCacheId
     val blockSize = math.ceil( nPartitions / nProcessors.toDouble ).toInt
     val partIndexChunks: Iterator[IndexedSeq[Int]] = (0 until nPartitions).sliding(blockSize,blockSize)
-    logger.info(s" *** Processing cache $cache_id with $nPartitions partitions, %d processors, %d partsPerProc, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk".format( partIndexChunks.length, partIndexChunks.toArray.head.length ))
+    logger.info(s" *** Processing cache $cache_id with $nPartitions partitions, %d processors, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk".format( partIndexChunks.length ))
     val future_partitions: Iterator[ Future[IndexedSeq[Partition] ] ] = for ( pIndices <- partIndexChunks ) yield Future { processChunkedPartitions( cache_id, pIndices, missing_value ) }
     val partitions: Array[Partition] = Await.result( Future.sequence( future_partitions ), Duration.Inf ).flatten.toArray
     new Partitions(cache_id, roi, partitions )
