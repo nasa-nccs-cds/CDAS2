@@ -160,13 +160,11 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     logger.info( "Creating collection '" + col.id + "' using path: "  + col.path )
     col.createNCML()
     val dataset = NetcdfDataset.openDataset(col.ncmlFile.toString)
-    val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => getVariableString(v) ).toList
+    val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => Collections.getVariableString(v) ).toList
     val newCollection = Collection(col.id, col.url, col.path, col.fileFilter, col.scope, vars)
     Collections.updateCollection(newCollection)
     newCollection.toXml
   }
-
-  def getVariableString( variable: nc2.Variable ): String = variable.getShortName + ":" + variable.getDimensionsString + ":" + variable.getDescription
 
   def executeUtilityRequest(util_id: String, request: TaskRequest, run_args: Map[String, String]): ExecutionResults = util_id match {
     case "magg" =>

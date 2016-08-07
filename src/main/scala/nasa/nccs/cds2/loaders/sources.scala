@@ -105,6 +105,17 @@ object Collections extends XmlResource {
     }
   }
 
+  def updateVars = {
+    for( ( id: String, collection:Collection ) <- datasets; if collection.scope.equalsIgnoreCase("local") ) {
+      val dataset: NetcdfDataset = NetcdfDataset.openDataset( collection.url )
+      val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => getVariableString(v) ).toList
+      val newCollection = Collection( id, collection.url, collection.path, collection.fileFilter, "local", vars)
+      datasets.put( collection.id, collection  )
+    }
+    persistLocalCollections()
+  }
+
+  def getVariableString( variable: nc2.Variable ): String = variable.getShortName + ":" + variable.getDimensionsString + ":" + variable.getDescription
   def getCacheFilePath( fileName: String ): String = DiskCacheFileMgr.getDiskCacheFilePath( "collections", fileName)
 
   def getVariableListXml(vids: Array[String]): xml.Elem = {
@@ -220,7 +231,7 @@ object Collections extends XmlResource {
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
-  def getCollection( n: xml.Node, scope: String ): Collection = { Collection( attr(n,"id"), attr(n,"url"), attr(n,"path"), attr(n,"fileFilter"), scope, n.text.split(",").toList )}
+  def getCollection( n: xml.Node, scope: String ): Collection = { Collection( attr(n,"id"), attr(n,"url"), attr(n,"path"), attr(n,"fileFilter"), scope, n.text.split(";").toList )}
 
   def findCollection( collectionId: String ): Option[Collection] = Option( datasets.get( collectionId ) )
 
@@ -253,6 +264,10 @@ object Collections extends XmlResource {
 //  }
 
   def getCollectionKeys(): Array[String] = datasets.keys.toArray
+}
+
+object UpdateCollectionVars extends App {
+  Collections.updateVars
 }
 
 
