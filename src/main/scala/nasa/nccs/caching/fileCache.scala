@@ -17,6 +17,7 @@ import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.Loggable
 import org.apache.commons.io.IOUtils
 import sun.nio.ch.FileChannelImpl
+import ucar.nc2.dataset.NetcdfDataset
 import ucar.{ma2, nc2}
 
 import scala.collection.JavaConversions._
@@ -72,15 +73,15 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   private val dType: ma2.DataType = ncVariable.getDataType
   private val elemSize = ncVariable.getElementSize
   private val range0 = roi.getRange(0)
-  private val maxBufferSize = Int.MaxValue
-  private val maxChunkSize = 100000000
+  private val maxBufferSize = 100000000 //  Int.MaxValue
+  private val maxChunkSize = 10000000 // 100000000
   private val sliceMemorySize: Int =  getMemorySize(1)
   private val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min((maxChunkSize / sliceMemorySize), baseShape(0))
   private val chunkMemorySize: Int = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize(nSlicesPerChunk)
   private val nChunksPerPart = maxBufferSize / chunkMemorySize
   private val nSlicesPerPart = nChunksPerPart * nSlicesPerChunk
   private val nPartitions = math.ceil(baseShape(0) / nSlicesPerPart.toFloat).toInt
-  private val nProcessors = 10
+  private val nProcessors = 3 // 10
   private val nCoresPerPart = 1
 
   def getMemorySize(nSlicesPerPart: Int): Int = {
@@ -120,16 +121,15 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   def execute(missing_value: Float): Partitions = {
     val cache_id = getCacheId
     val blockSize = math.ceil( nPartitions / nProcessors.toDouble ).toInt
-    val partIndexChunks: Iterator[IndexedSeq[Int]] = (0 until nPartitions).sliding(blockSize,blockSize)
-    logger.info(s" *** Processing cache $cache_id with $nPartitions partitions, %d processors, $blockSize blockSize, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk".format( partIndexChunks.length ))
-    val future_partitions: Iterator[ Future[IndexedSeq[Partition] ] ] = for ( pIndices <- partIndexChunks; if(!pIndices.isEmpty) ) yield Future { processChunkedPartitions( cache_id, pIndices, missing_value ) }
-    val partitions: Array[Partition] = Await.result( Future.sequence( future_partitions ), Duration.Inf ).flatten.toArray
+    val partIndexArray: Array[IndexedSeq[Int]] = (0 until nPartitions).sliding(blockSize,blockSize).toArray
+    logger.info(s" *** Processing cache $cache_id with $nPartitions partitions, %d processors, %d partsPerProc, $blockSize blockSize, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk".format( partIndexArray.size, partIndexArray(0).size ))
+    val future_partitions: Array[ Future[IndexedSeq[Partition] ] ] = for ( pIndices <- partIndexArray ) yield Future { processChunkedPartitions( cache_id, pIndices, missing_value ) }
+    val partitions: Array[Partition] = Await.result( Future.sequence( future_partitions.toList ), Duration.Inf ).flatten.toArray
     new Partitions(cache_id, roi, partitions )
   }
 
   def processChunkedPartitions(cache_id: String, partIndices: IndexedSeq[Int], missing_value: Float): IndexedSeq[Partition] = {
-      logger.info( " *** Processing partIndices: " + partIndices.mkString(",") )
-      for( partIndex <- partIndices ) yield {
+    for( partIndex <- partIndices ) yield {
       val cacheFilePath = getCacheFilePath(cache_id, partIndex)
       val outStr = IOUtils.buffer(new FileOutputStream(new File(cacheFilePath)))
       val partSize = cachePartition(partIndex, outStr)
@@ -691,4 +691,20 @@ object TestApp extends App {
   val it1 = Int.MaxValue
   val it2 = math.pow( 2, 31 ).toInt
   println( it1 + ", " + it2 )
+}
+
+object Cachetest extends App {
+  val dataset = NetcdfDataset.openDataset("/Users/tpmaxwel/.cdas/cache/NCML/merra_daily.xml")
+  val variable = dataset.findVariable("t")
+  val roi = new ma2.Section(variable.getShape)
+  val cacheStream = new FileToCacheStream( variable, roi, None  )
+  val result = cacheStream.execute( Float.MaxValue )
+}
+
+object PartitionTest extends App {
+  val nPartitions = 18
+  val blockSize = 3
+  val partIndexChunks: Iterator[IndexedSeq[Int]] = (0 until nPartitions).sliding(blockSize,blockSize)
+  val indexArrays = partIndexChunks.toArray
+  indexArrays.foreach( iArray => println( "Index chunk values: " + iArray.mkString(",")))
 }
