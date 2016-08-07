@@ -80,7 +80,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   private val nChunksPerPart = maxBufferSize / chunkMemorySize
   private val nSlicesPerPart = nChunksPerPart * nSlicesPerChunk
   private val nPartitions = math.ceil(baseShape(0) / nSlicesPerPart.toFloat).toInt
-  private val nProcessors = 1
+  private val nProcessors = 10
   private val nCoresPerPart = 1
 
   def getMemorySize(nSlicesPerPart: Int): Int = {
@@ -119,10 +119,11 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
 
   def execute(missing_value: Float): Partitions = {
     val cache_id = getCacheId
-    val partIndices: Iterator[IndexedSeq[Int]] = (0 until nPartitions).sliding(nProcessors,nProcessors)
-    logger.info(s" *** Processing cache $cache_id with $nPartitions partitions, $nProcessors processors, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk")
-    val future_partitions: Iterator[ Future[IndexedSeq[Partition] ] ] = for ( partIndices <- partIndices ) yield Future { processChunkedPartitions( cache_id, partIndices, missing_value ) }
-    val partitions: Array[Partition] = Await.result( Future.sequence( future_partitions ), Duration.Inf ).flatten.toArray
+    val blockSize = math.ceil( nPartitions / nProcessors.toDouble ).toInt
+    val partIndexChunks: Array[IndexedSeq[Int]] = (0 until nPartitions).sliding(blockSize,blockSize).toArray
+    logger.info(s" *** Processing cache $cache_id with $nPartitions partitions, %d processors, %d partPerProc, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk".format( partIndexChunks.length, partIndexChunks.head.length ))
+    val future_partitions: Array[ Future[IndexedSeq[Partition] ] ] = for ( pIndices <- partIndexChunks ) yield Future { processChunkedPartitions( cache_id, pIndices, missing_value ) }
+    val partitions: Array[Partition] = Await.result( Future.sequence( future_partitions ), Duration.Inf ).flatten
     new Partitions(cache_id, roi, partitions )
   }
 
