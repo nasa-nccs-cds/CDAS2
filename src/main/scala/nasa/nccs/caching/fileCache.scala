@@ -59,7 +59,7 @@ class Partition( val index: Int, val path: String, val coordIndex: Int, val star
   def getPartitionShape(roi: ma2.Section): Array[Int] = {
     var full_shape = roi.getShape.clone()
     full_shape(0) = partSize
-    full_shape
+    full_shape  
   }
 
 }
