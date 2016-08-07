@@ -418,7 +418,7 @@ object DataContainer extends ContainerBase {
       val fullname = filterMap(metadata, key_equals("name")) match { case None => ""; case Some(x) => x.toString }
       val domain = filterMap(metadata, key_equals("domain")) match { case None => ""; case Some(x) => x.toString }
       val collection = getCollection(metadata)
-      val var_names: Array[String] = if( fullname.equals("*") ) collection.vars.toArray else fullname.toString.split(',')
+      val var_names: Array[String] = if( fullname.equals("*") ) collection.varNames.toArray else fullname.toString.split(',')
       val base_index = random.nextInt(Integer.MAX_VALUE)
 
       for( ( name, index ) <- var_names.zipWithIndex) yield {
