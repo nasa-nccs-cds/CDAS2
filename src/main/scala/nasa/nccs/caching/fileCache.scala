@@ -75,14 +75,14 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   private val elemSize = ncVariable.getElementSize
   private val range0 = roi.getRange(0)
   private val maxBufferSize = Int.MaxValue
-  private val maxChunkSize = 250*M
+  private val maxChunkSize = 100*M
   private val sliceMemorySize: Int =  getMemorySize(1)
   private val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min((maxChunkSize / sliceMemorySize), baseShape(0))
   private val chunkMemorySize: Int = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize(nSlicesPerChunk)
   private val nChunksPerPart = maxBufferSize / chunkMemorySize
   private val nSlicesPerPart = nChunksPerPart * nSlicesPerChunk
   private val nPartitions = math.ceil(baseShape(0) / nSlicesPerPart.toFloat).toInt
-  private val nProcessors = 1
+  private val nProcessors = 12
   private val nCoresPerPart = 1
 
   def getMemorySize(nSlicesPerPart: Int): Int = {
