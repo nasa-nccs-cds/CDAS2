@@ -208,10 +208,10 @@ class DataSource(val name: String, val collection: Collection, val domain: Strin
   def isReadable = ( !collection.isEmpty && !name.isEmpty && !domain.isEmpty )
 }
 
-class DataFragmentKey( val varname: String, val collectionUrl: String, val origin: Array[Int], val shape: Array[Int] ) extends Serializable {
-  override def toString =  "DataFragmentKey{ name = %s, collection = %s, origin = [ %s ], shape = [ %s ] }".format( varname, collectionUrl, origin.mkString(", "), shape.mkString(", "))
-  def toStrRep =  "%s|%s|%s|%s".format( varname, collectionUrl, origin.mkString(","), shape.mkString(","))
-  def sameVariable( otherCollectionUrl: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collectionUrl == otherCollectionUrl) }
+class DataFragmentKey( val varname: String, val collId: String, val origin: Array[Int], val shape: Array[Int] ) extends Serializable {
+  override def toString =  "DataFragmentKey{ name = %s, collection = %s, origin = [ %s ], shape = [ %s ] }".format( varname, collId, origin.mkString(", "), shape.mkString(", "))
+  def toStrRep =  "%s|%s|%s|%s".format( varname, collId, origin.mkString(","), shape.mkString(","))
+  def sameVariable( otherCollId: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collId == otherCollId) }
   def getRoi: ma2.Section = new ma2.Section(origin,shape)
   def equalRoi( df: DataFragmentKey ): Boolean = ( shape.sameElements(df.shape) && origin.sameElements(df.origin ) )
   def getSize: Int = shape.foldLeft(1)( _ * _ )
@@ -287,7 +287,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   def getAxes: List[DomainAxis] = roi.getRanges.map( (range: ma2.Range) => new  DomainAxis( DomainAxis.fromCFAxisName(range.getName), range.first, range.last, "indices" ) ).toList
 
   def getKey: DataFragmentKey = {
-    new DataFragmentKey( varname, collection.url, roi.getOrigin, roi.getShape )
+    new DataFragmentKey( varname, collection.id, roi.getOrigin, roi.getShape )
   }
   def getSize: Int = roi.getShape.product
 
@@ -400,6 +400,7 @@ object DataContainer extends ContainerBase {
     val uri = metadata.getOrElse("uri","").toString
     val varsList: List[String] = metadata.getOrElse("name","").toString.split(",").map( item => stripQuotes( item.split(':').head ) ).toList
     val path =  metadata.getOrElse("path","").toString
+    val title =  metadata.getOrElse("title","").toString
     val fileFilter = metadata.getOrElse("fileFilter","").toString
     val id = parseUri(uri)
     if (uri.startsWith("collection"))
@@ -409,8 +410,8 @@ object DataContainer extends ContainerBase {
           collection
         case None =>
           if (path.isEmpty) throw new Exception(s"Unrecognized collection: '$id', current collections: " + Collections.idSet.mkString(", ") )
-          else Collections.addCollection( uri, path, fileFilter, varsList )
-      } else Collection(uri, uri, path, fileFilter)
+          else Collections.addCollection( uri, path, fileFilter, title, varsList )
+      } else Collection(uri, uri, path, fileFilter, title)
   }
 
   def factory(metadata: Map[String, Any]): Array[DataContainer] = {

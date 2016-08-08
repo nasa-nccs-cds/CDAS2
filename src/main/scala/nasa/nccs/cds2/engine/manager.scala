@@ -2,6 +2,7 @@ package nasa.nccs.cds2.engine
 import java.io.{IOException, PrintWriter, StringWriter}
 import java.nio.FloatBuffer
 import java.io.File
+
 import nasa.nccs.cdapi.cdm.{Collection, PartitionedFragment, _}
 import nasa.nccs.cds2.loaders.{Collections, Masks}
 import nasa.nccs.esgf.process._
@@ -21,11 +22,9 @@ import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
 import nasa.nccs.caching._
 import ucar.{ma2, nc2}
 import nasa.nccs.cds2.utilities.{GeoTools, runtime}
-
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import java.util.concurrent._
-
 import ucar.nc2.dataset.NetcdfDataset
 
 
@@ -161,9 +160,15 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     col.createNCML()
     val dataset = NetcdfDataset.openDataset(col.ncmlFile.toString)
     val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => Collections.getVariableString(v) ).toList
-    val newCollection = Collection(col.id, col.url, col.path, col.fileFilter, col.scope, vars)
+    val title: String = dataset.getGlobalAttributes.toList.find( attr => isTitleAttr(attr) ) match { case Some(attr) => attr.getStringValue; case None => "" }
+    val newCollection = Collection(col.id, col.url, col.path, col.fileFilter, col.scope, title, vars)
     Collections.updateCollection(newCollection)
     newCollection.toXml
+  }
+
+  def isTitleAttr( attr: nc2.Attribute ): Boolean = {
+    val aname = attr.getShortName.toLowerCase
+    aname.contains("title") || aname.contains("longname")
   }
 
   def executeUtilityRequest(util_id: String, request: TaskRequest, run_args: Map[String, String]): ExecutionResults = util_id match {

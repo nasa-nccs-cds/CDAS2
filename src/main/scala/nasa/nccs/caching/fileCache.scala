@@ -4,6 +4,7 @@ import java.io._
 import java.nio.channels.FileChannel
 import java.nio.file.Paths
 import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
+import java.util.Comparator
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.cdapi.cdm.ncWriteTest._
@@ -314,7 +315,6 @@ class FileToCacheStream1( val ncVariable: nc2.Variable, val roi: ma2.Section, va
         processChunkFromReader( iChunk, channel )
     }
   }
-
 }
 
 object FragmentPersistence extends DiskCachable with FragSpecKeySet {
@@ -343,12 +343,12 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   def expandKey( fragKey: String ): String = {
     val bounds = getBounds(fragKey)
     val toks = fragKey.split('|')
-    "variable= %s; origin= (%s); shape= (%s); url= %s; bounds= %s".format(toks(0),toks(2),toks(3),toks(1),bounds)
+    "variable= %s; origin= (%s); shape= (%s); coll= %s; bounds= %s".format(toks(0),toks(2),toks(3),toks(1),bounds)
   }
 
   def expandKeyXml( fragKey: String ):  xml.Elem = {
     val toks = fragKey.split('|')
-     <fragment variable={toks(0)} origin={toks(2)} shape={toks(3)} url={toks(1)}> { getBounds(fragKey) } </fragment>
+     <fragment variable={toks(0)} origin={toks(2)} shape={toks(3)} coll={toks(1)}> { getBounds(fragKey) } </fragment>
   }
 
   def contractKey( fragDescription: String ): String = {
@@ -356,7 +356,13 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     Array( tok(0),tok(3),tok(1),tok(2) ).mkString("|")
   }
 
-  def getFragmentListXml(): xml.Elem = <fragments> { for(fkey <- fragmentIdCache.keys) yield expandKeyXml(fkey) } </fragments>
+  def fragKeyLT( fragKey1: String, fragKey2: String ): Boolean = {
+    val toks1 = fragKey1.split('|')
+    val toks2 = fragKey2.split('|')
+    (toks1(1)+toks1(0)) < (toks2(1)+toks2(0))
+  }
+
+  def getFragmentListXml(): xml.Elem = <fragments> { for(fkey <- fragmentIdCache.keys.toIndexedSeq.sortWith(fragKeyLT) ) yield expandKeyXml(fkey) } </fragments>
   def getFragmentIdList(): Array[String] = fragmentIdCache.keys.toArray
   def getFragmentList(): Array[String] =  fragmentIdCache.keys.map( k => expandKey(k) ).toArray
   def put( key: DataFragmentKey, cache_id: String ) = { fragmentIdCache.put( key.toStrRep, cache_id ); fragmentIdCache.persist() }
@@ -414,12 +420,12 @@ trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {
 
 
   def findEnclosingFragSpecs(keys: Set[DataFragmentKey], fkey: DataFragmentKey, admitEquality: Boolean = true): Set[DataFragmentKey] = {
-    val variableFrags = getFragSpecsForVariable(keys, fkey.collectionUrl, fkey.varname)
+    val variableFrags = getFragSpecsForVariable(keys, fkey.collId, fkey.varname)
     variableFrags.filter(fkeyParent => fkeyParent.contains(fkey, admitEquality))
   }
 
   def findEnclosedFragSpecs(keys: Set[DataFragmentKey], fkeyParent: DataFragmentKey, admitEquality: Boolean = false): Set[DataFragmentKey] = {
-    val variableFrags = getFragSpecsForVariable(keys, fkeyParent.collectionUrl, fkeyParent.varname)
+    val variableFrags = getFragSpecsForVariable(keys, fkeyParent.collId, fkeyParent.varname)
     variableFrags.filter(fkey => fkeyParent.contains(fkey, admitEquality))
   }
 
