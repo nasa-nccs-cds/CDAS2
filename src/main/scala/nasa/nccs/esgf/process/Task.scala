@@ -251,7 +251,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
       case Some(maskId) => <input varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
-  def toBoundsString = { printf("XXX"); targetGridOpt.map( _.toBoundsString ).getOrElse("") }
+  def toBoundsString = { targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
   def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), mask, partitions )
 
