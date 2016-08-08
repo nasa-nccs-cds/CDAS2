@@ -69,19 +69,20 @@ class Partition( val index: Int, val path: String, val coordIndex: Int, val star
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
 class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
+  private val M = 1000000
   private val baseShape = roi.getShape
   private val dType: ma2.DataType = ncVariable.getDataType
   private val elemSize = ncVariable.getElementSize
   private val range0 = roi.getRange(0)
   private val maxBufferSize = Int.MaxValue
-  private val maxChunkSize = maxBufferSize // 100000000
+  private val maxChunkSize = 250*M
   private val sliceMemorySize: Int =  getMemorySize(1)
   private val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min((maxChunkSize / sliceMemorySize), baseShape(0))
   private val chunkMemorySize: Int = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize(nSlicesPerChunk)
   private val nChunksPerPart = maxBufferSize / chunkMemorySize
   private val nSlicesPerPart = nChunksPerPart * nSlicesPerChunk
   private val nPartitions = math.ceil(baseShape(0) / nSlicesPerPart.toFloat).toInt
-  private val nProcessors = 8
+  private val nProcessors = 1
   private val nCoresPerPart = 1
 
   def getMemorySize(nSlicesPerPart: Int): Int = {
@@ -120,11 +121,13 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
 
   def execute(missing_value: Float): Partitions = {
     val cache_id = getCacheId
+    val t0 = System.nanoTime()
     val blockSize = math.ceil( nPartitions / nProcessors.toDouble ).toInt
     val partIndexArray: Array[IndexedSeq[Int]] = (0 until nPartitions).sliding(blockSize,blockSize).toArray
     logger.info(s" *** Processing cache $cache_id with $nPartitions partitions, %d processors, %d partsPerProc, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk".format( partIndexArray.size, partIndexArray(0).size ))
     val future_partitions: Array[ Future[IndexedSeq[Partition] ] ] = for ( pIndices <- partIndexArray ) yield Future { processChunkedPartitions( cache_id, pIndices, missing_value ) }
     val partitions: Array[Partition] = Await.result( Future.sequence( future_partitions.toList ), Duration.Inf ).flatten.toArray
+    logger.info( "\n ********** Completed Cache Op, total time = %.3f min  ********** \n".format( (System.nanoTime() - t0) / 6.0E10 ) )
     new Partitions(cache_id, roi, partitions )
   }
 
