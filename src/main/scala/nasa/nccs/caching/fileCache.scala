@@ -343,12 +343,12 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   def expandKey( fragKey: String ): String = {
     val bounds = getBounds(fragKey)
     val toks = fragKey.split('|')
-    "variable= %s; origin= (%s); shape= (%s); url= %s; bounds= %s".format(toks(0),toks(2),toks(3),toks(1),bounds)
+    "variable= %s; origin= (%s); shape= (%s); coll= %s; bounds= %s".format(toks(0),toks(2),toks(3),toks(1),bounds)
   }
 
   def expandKeyXml( fragKey: String ):  xml.Elem = {
     val toks = fragKey.split('|')
-     <fragment variable={toks(0)} origin={toks(2)} shape={toks(3)} url={toks(1)}> { getBounds(fragKey) } </fragment>
+     <fragment variable={toks(0)} origin={toks(2)} shape={toks(3)} coll={toks(1)}> { getBounds(fragKey) } </fragment>
   }
 
   def contractKey( fragDescription: String ): String = {
@@ -414,12 +414,12 @@ trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {
 
 
   def findEnclosingFragSpecs(keys: Set[DataFragmentKey], fkey: DataFragmentKey, admitEquality: Boolean = true): Set[DataFragmentKey] = {
-    val variableFrags = getFragSpecsForVariable(keys, fkey.collectionUrl, fkey.varname)
+    val variableFrags = getFragSpecsForVariable(keys, fkey.collId, fkey.varname)
     variableFrags.filter(fkeyParent => fkeyParent.contains(fkey, admitEquality))
   }
 
   def findEnclosedFragSpecs(keys: Set[DataFragmentKey], fkeyParent: DataFragmentKey, admitEquality: Boolean = false): Set[DataFragmentKey] = {
-    val variableFrags = getFragSpecsForVariable(keys, fkeyParent.collectionUrl, fkeyParent.varname)
+    val variableFrags = getFragSpecsForVariable(keys, fkeyParent.collId, fkeyParent.varname)
     variableFrags.filter(fkey => fkeyParent.contains(fkey, admitEquality))
   }
 
