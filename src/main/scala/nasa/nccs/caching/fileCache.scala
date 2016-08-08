@@ -682,7 +682,6 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   def deleteFragment( fkey: DataFragmentKey  ): Option[Future[PartitionedFragment]] = fragmentCache.remove(fkey)
 
   def printFragmentMetadata( fragKeyStr: String ) = {
-    println( "XXX: " + fragKeyStr )
     val fragKey = DataFragmentKey( fragKeyStr )
     FragmentPersistence.restore( fragKey )
     val bounds = collectionDataCache.getExistingFragment(fragKey) match {
