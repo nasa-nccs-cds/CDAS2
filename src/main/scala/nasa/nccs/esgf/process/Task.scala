@@ -400,6 +400,7 @@ object DataContainer extends ContainerBase {
     val uri = metadata.getOrElse("uri","").toString
     val varsList: List[String] = metadata.getOrElse("name","").toString.split(",").map( item => stripQuotes( item.split(':').head ) ).toList
     val path =  metadata.getOrElse("path","").toString
+    val title =  metadata.getOrElse("title","").toString
     val fileFilter = metadata.getOrElse("fileFilter","").toString
     val id = parseUri(uri)
     if (uri.startsWith("collection"))
@@ -409,8 +410,8 @@ object DataContainer extends ContainerBase {
           collection
         case None =>
           if (path.isEmpty) throw new Exception(s"Unrecognized collection: '$id', current collections: " + Collections.idSet.mkString(", ") )
-          else Collections.addCollection( uri, path, fileFilter, varsList )
-      } else Collection(uri, uri, path, fileFilter)
+          else Collections.addCollection( uri, path, fileFilter, title, varsList )
+      } else Collection(uri, uri, path, fileFilter, title)
   }
 
   def factory(metadata: Map[String, Any]): Array[DataContainer] = {

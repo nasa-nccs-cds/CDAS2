@@ -25,14 +25,14 @@ import scala.xml.XML
 import org.apache.commons.io.IOUtils
 
 object Collection {
-  def apply( id: String, url: String, path: String = "", fileFilter: String = "", scope: String="", vars: List[String] = List() ) = {
-    new Collection(id,url,path,fileFilter,scope,vars)
+  def apply( id: String, url: String, path: String = "", fileFilter: String = "", scope: String="", title: String= "", vars: List[String] = List() ) = {
+    new Collection(id,url,path,fileFilter,scope,title,vars)
   }
 }
-class Collection( val id: String="",  val url: String="", val path: String = "", val fileFilter: String = "", val scope: String="local", val vars: List[String] = List() ) extends Serializable with Loggable {
+class Collection( val id: String="",  val url: String="", val path: String = "", val fileFilter: String = "", val scope: String="local", val title: String= "", val vars: List[String] = List() ) extends Serializable with Loggable {
   val ctype: String = url.split(":").head
   val ncmlFile = new File( url.split(":").last )
-  override def toString = "Collection( id=%s, url=%s, path=%s, fileFilter=%s )".format( id, url, path, fileFilter )
+  override def toString = "Collection( id=%s, url=%s, path=%s, title=%s, fileFilter=%s )".format( id, url, path, title, fileFilter )
   def isEmpty = url.isEmpty
   lazy val varNames = vars.map( varStr => varStr.split(':').head )
 
@@ -48,6 +48,7 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
     val inner_attributes: List[nc2.Attribute] = List (
       new nc2.Attribute( "variables", varNames ),
       new nc2.Attribute( "path", path ),
+      new nc2.Attribute( "title", title ),
       new nc2.Attribute( "url", url )
     )
     inner_attributes ++ dataset.attributes
@@ -55,15 +56,15 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
 
   def toXml: xml.Elem =
     if(path.isEmpty) {
-      <collection id={id} url={url}>
+      <collection id={id} url={url} title={title}>
         {vars.mkString(";")}
       </collection>
     } else if(fileFilter.isEmpty) {
-      <collection id={id} url={url} path={path}>
+      <collection id={id} url={url} path={path} title={title}>
         {vars.mkString(";")}
       </collection>
     } else {
-      <collection id={id} url={url} path={path} fileFilter={fileFilter}>
+      <collection id={id} url={url} path={path} fileFilter={fileFilter} title={title}>
         {vars.mkString(";")}
       </collection>
     }

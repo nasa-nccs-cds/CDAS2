@@ -4,6 +4,7 @@ import java.io._
 import java.nio.channels.FileChannel
 import java.nio.file.Paths
 import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
+import java.util.Comparator
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.cdapi.cdm.ncWriteTest._
@@ -314,7 +315,6 @@ class FileToCacheStream1( val ncVariable: nc2.Variable, val roi: ma2.Section, va
         processChunkFromReader( iChunk, channel )
     }
   }
-
 }
 
 object FragmentPersistence extends DiskCachable with FragSpecKeySet {
@@ -356,7 +356,13 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     Array( tok(0),tok(3),tok(1),tok(2) ).mkString("|")
   }
 
-  def getFragmentListXml(): xml.Elem = <fragments> { for(fkey <- fragmentIdCache.keys) yield expandKeyXml(fkey) } </fragments>
+  def fragKeyLT( fragKey1: String, fragKey2: String ): Boolean = {
+    val toks1 = fragKey1.split('|')
+    val toks2 = fragKey2.split('|')
+    (toks1(1)+toks1(0)) < (toks2(1)+toks2(0))
+  }
+
+  def getFragmentListXml(): xml.Elem = <fragments> { for(fkey <- fragmentIdCache.keys.toIndexedSeq.sortWith(fragKeyLT) ) yield expandKeyXml(fkey) } </fragments>
   def getFragmentIdList(): Array[String] = fragmentIdCache.keys.toArray
   def getFragmentList(): Array[String] =  fragmentIdCache.keys.map( k => expandKey(k) ).toArray
   def put( key: DataFragmentKey, cache_id: String ) = { fragmentIdCache.put( key.toStrRep, cache_id ); fragmentIdCache.persist() }

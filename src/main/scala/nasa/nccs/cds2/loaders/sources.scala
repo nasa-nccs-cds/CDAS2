@@ -109,7 +109,7 @@ object Collections extends XmlResource {
     for( ( id: String, collection:Collection ) <- datasets; if collection.scope.equalsIgnoreCase("local") ) {
       val dataset: NetcdfDataset = NetcdfDataset.openDataset( collection.url )
       val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => getVariableString(v) ).toList
-      val newCollection = Collection( id, collection.url, collection.path, collection.fileFilter, "local", vars)
+      val newCollection = Collection( id, collection.url, collection.path, collection.fileFilter, "local", collection.title, vars)
       println( "\nUpdating collection %s, vars = %s".format( id, vars.mkString(";") ))
       datasets.put( collection.id, newCollection  )
     }
@@ -158,11 +158,11 @@ object Collections extends XmlResource {
     removedCids
   }
 
-  def addCollection( uri: String, path: String, fileFilter: String="", vars: List[String] = List.empty[String] ): Collection = {
+  def addCollection( uri: String, path: String, fileFilter: String="", title: String, vars: List[String] = List.empty[String] ): Collection = {
     val url = "file:" + NCMLWriter.getCachePath("NCML").resolve( uriToFile(uri) )
     val id = uri.split(":").last.stripPrefix("/").stripPrefix("/").toLowerCase
     val cvars = if(vars.isEmpty) getVariableList( path ) else vars
-    val collection = Collection( id, url, path, fileFilter, "local", cvars )
+    val collection = Collection( id, url, path, fileFilter, "local", title, cvars )
     datasets.put( id, collection  )
     persistLocalCollections()
     collection
@@ -232,7 +232,7 @@ object Collections extends XmlResource {
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
-  def getCollection( n: xml.Node, scope: String ): Collection = { Collection( attr(n,"id"), attr(n,"url"), attr(n,"path"), attr(n,"fileFilter"), scope, n.text.split(";").toList )}
+  def getCollection( n: xml.Node, scope: String ): Collection = { Collection( attr(n,"id"), attr(n,"url"), attr(n,"path"), attr(n,"fileFilter"), scope, attr(n,"title"), n.text.split(";").toList )}
 
   def findCollection( collectionId: String ): Option[Collection] = Option( datasets.get( collectionId ) )
 
