@@ -105,11 +105,15 @@ object Collections extends XmlResource {
     }
   }
 
+  def findAttribute( dataset: NetcdfDataset, possible_names: List[String] ): String =
+    dataset.getGlobalAttributes.toList.find( attr => possible_names.contains( attr.getShortName ) ) match { case Some(attr) => attr.getStringValue; case None => "" }
+
   def updateVars = {
     for( ( id: String, collection:Collection ) <- datasets; if collection.scope.equalsIgnoreCase("local") ) {
       val dataset: NetcdfDataset = NetcdfDataset.openDataset( collection.url )
       val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => getVariableString(v) ).toList
-      val newCollection = Collection( id, collection.url, collection.path, collection.fileFilter, "local", collection.title, vars)
+      val title = findAttribute( dataset, List( "Title", "LongName" ) )
+      val newCollection = Collection( id, collection.url, collection.path, collection.fileFilter, "local", title, vars)
       println( "\nUpdating collection %s, vars = %s".format( id, vars.mkString(";") ))
       datasets.put( collection.id, newCollection  )
     }

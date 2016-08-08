@@ -160,13 +160,11 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     col.createNCML()
     val dataset = NetcdfDataset.openDataset(col.ncmlFile.toString)
     val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => Collections.getVariableString(v) ).toList
-    val title: String = dataset.getGlobalAttributes.toList.find( attr => isTitleAttr(attr) ) match { case Some(attr) => attr.getStringValue; case None => "" }
+    val title: String = Collections.findAttribute( dataset, List( "Title", "LongName" ) )
     val newCollection = Collection(col.id, col.url, col.path, col.fileFilter, col.scope, title, vars)
     Collections.updateCollection(newCollection)
     newCollection.toXml
   }
-
-  def isTitleAttr( attr: nc2.Attribute ): Boolean = List( "Title", "LongName" ).contains( attr.getShortName )
 
   def executeUtilityRequest(util_id: String, request: TaskRequest, run_args: Map[String, String]): ExecutionResults = util_id match {
     case "magg" =>
