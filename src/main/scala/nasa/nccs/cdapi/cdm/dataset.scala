@@ -48,7 +48,6 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
     val inner_attributes: List[nc2.Attribute] = List (
       new nc2.Attribute( "variables", varNames ),
       new nc2.Attribute( "path", path ),
-      new nc2.Attribute( "title", title ),
       new nc2.Attribute( "url", url )
     )
     inner_attributes ++ dataset.attributes

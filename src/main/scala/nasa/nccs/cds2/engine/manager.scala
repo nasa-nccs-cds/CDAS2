@@ -166,10 +166,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     newCollection.toXml
   }
 
-  def isTitleAttr( attr: nc2.Attribute ): Boolean = {
-    val aname = attr.getShortName.toLowerCase
-    aname.contains("title") || aname.contains("longname")
-  }
+  def isTitleAttr( attr: nc2.Attribute ): Boolean = List( "Title", "LongName" ).contains( attr.getShortName )
 
   def executeUtilityRequest(util_id: String, request: TaskRequest, run_args: Map[String, String]): ExecutionResults = util_id match {
     case "magg" =>
