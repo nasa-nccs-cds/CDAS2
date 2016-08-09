@@ -45,16 +45,18 @@ class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val
 
 class Partitions( val id: String, val roi: ma2.Section, val parts: Array[Partition] ) {
   def getShape = roi.getShape
+  def getPart( partId: Int ): Partition = parts(partId)
+  def getPartData( partId: Int ): CDFloatArray = parts(partId).data
 }
 
 class Partition( val index: Int, val path: String, val coordIndex: Int, val startIndex: Int, val partSize: Int, val sliceMemorySize: Int, val missing_value: Float, roi: ma2.Section ) {
   val shape = getPartitionShape(roi)
 
-  def getChannel: FileChannel  = new RandomAccessFile( path,"r" ).getChannel()
-
-  def data( channelOpt: Option[FileChannel] = None ): CDFloatArray = {
-    val channel = channelOpt match { case Some(c) => c; case None => getChannel }
+  def data: CDFloatArray = {
+    val file = new RandomAccessFile( path,"r" )
+    val channel: FileChannel  = file.getChannel()
     val buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, partSize * sliceMemorySize)
+    channel.close(); file.close()
     new CDFloatArray( shape, buffer.asFloatBuffer, missing_value )
   }
 
@@ -113,11 +115,10 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, size)
   }
 
-  def cacheFloatData( missing_value: Float  ): ( String, CDFloatArray ) = {
+  def cacheFloatData( missing_value: Float  ): Partitions = {
     assert( dType == ma2.DataType.FLOAT, "Attempting to cache %s data as float".format( dType.toString ) )
     val cache_id = getCacheId
-    val partition = execute(missing_value).parts.head
-    cache_id -> partition.data()
+    execute(missing_value)
   }
 
   def execute(missing_value: Float): Partitions = {
@@ -526,7 +527,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
 
   def getVariable(fragSpec: DataFragmentSpec): CDSVariable = getVariable(fragSpec.collection, fragSpec.varname)
 
-  private def cutExistingFragment( fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f ): Option[PartitionedFragment] = {
+  private def cutExistingFragment( fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f ): Option[DataFragment] = {
     val fragOpt = findEnclosingFragSpec( fragmentCache.keys, fragSpec.getKey, FragmentSelectionCriteria.Smallest) match {
       case Some(fkey: DataFragmentKey) => getExistingFragment(fkey) match {
         case Some(fragmentFuture) =>
@@ -535,7 +536,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
             None
           } else {
             val fragment = Await.result(fragmentFuture, Duration.Inf)
-            Some(fragment.cutNewSubset(fragSpec.roi))
+            Some(fragment.cutIntersection(fragSpec.roi))
           }
         case None => cutExistingFragment(fragSpec, abortSizeFraction)
       }
@@ -550,7 +551,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
             val maskOpt = newFragSpec.mask.flatMap( maskId => produceMask( maskId, newFragSpec.getBounds, newFragSpec.getGridShape, cdvar.getTargetGrid( newFragSpec ).getAxisIndices("xy") ) )
             val fragment = new PartitionedFragment( new CDFloatArray( newFragSpec.getShape, fltBuffer, cdvar.missing ), maskOpt, newFragSpec )
             fragmentCache.put( fkey, fragment )
-            Some(fragment.cutNewSubset(fragSpec.roi))
+            Some(fragment.cutIntersection(fragSpec.roi))
           case None => None
         }
       case x => x

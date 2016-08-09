@@ -1,7 +1,7 @@
 package nasa.nccs.esgf.process
 import java.util.Formatter
 
-import nasa.nccs.caching.{FileToCacheStream, FragmentPersistence}
+import nasa.nccs.caching.{FileToCacheStream, FragmentPersistence, Partition, Partitions}
 import nasa.nccs.cdapi.cdm._
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, VariableDS}
 import java.util.Formatter
@@ -245,10 +245,16 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
   def getSubSection( roi: List[DomainAxis] ): ma2.Section = {
     val ranges: IndexedSeq[ma2.Range] = for( gridCoordSpec <- axes ) yield {
       roi.find( _.matches( gridCoordSpec.getAxisType ) ) match {
-        case Some( domainAxis ) => domainAxis.system match {
-          case asys if asys.startsWith( "ind" ) => new ma2.Range( gridCoordSpec.getCFAxisName, domainAxis.start.toInt, domainAxis.end.toInt, 1)
-          case asys if asys.startsWith( "val" ) => gridCoordSpec.getIndexBounds( domainAxis.start, domainAxis.end )
-          case _ => throw new IllegalStateException("CDSVariable: Illegal system value in axis bounds: " + domainAxis.system)
+        case Some( domainAxis ) => {
+          val range = domainAxis.system match {
+            case asys if asys.startsWith( "ind" ) => new ma2.Range(domainAxis.start.toInt, domainAxis.end.toInt)
+            case asys if asys.startsWith( "val" ) =>
+              val ibnds = gridCoordSpec.getIndexBounds( domainAxis.start, domainAxis.end )
+              new ma2.Range(ibnds.first, ibnds.last )
+            case _ => throw new IllegalStateException("CDSVariable: Illegal system value in axis bounds: " + domainAxis.system)
+          }
+          val irange = gridCoordSpec.getIndexRange.intersect( range )
+          new ma2.Range( gridCoordSpec.getCFAxisName, irange.first, irange.last, 1)
         }
         case None => gridCoordSpec.getIndexRange
       }
@@ -301,19 +307,19 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
 
   def createFragmentSpec() = new DataFragmentSpec( variable.name, dataset.collection, Some(this) )
 
-  def loadPartition( data_variable: CDSVariable, fragmentSpec : DataFragmentSpec, maskOpt: Option[CDByteArray], axisConf: List[OperationSpecs] ): PartitionedFragment = {
-    val partition = fragmentSpec.partitions.head
-    val sp = new SectionPartitioner(fragmentSpec.roi, partition.nPart)
-    sp.getPartition(partition.partIndex, partition.axisIndex ) match {
-      case Some(partSection) =>
-        val array = data_variable.read(partSection)
-        val cdArray: CDFloatArray = CDFloatArray.factory(array, variable.missing )
-        new PartitionedFragment( cdArray, maskOpt, fragmentSpec )
-      case None =>
-        logger.warn("No fragment generated for partition index %s out of %d parts".format(partition.partIndex, partition.nPart))
-        new PartitionedFragment()
-    }
-  }
+//  def loadPartition( data_variable: CDSVariable, fragmentSpec : DataFragmentSpec, maskOpt: Option[CDByteArray], axisConf: List[OperationSpecs] ): PartitionedFragment = {
+//    val partition = fragmentSpec.partitions.head
+//    val sp = new SectionPartitioner(fragmentSpec.roi, partition.nPart)
+//    sp.getPartition(partition.partIndex, partition.axisIndex ) match {
+//      case Some(partSection) =>
+//        val array = data_variable.read(partSection)
+//        val cdArray: CDFloatArray = CDFloatArray.factory(array, variable.missing )
+//        new PartitionedFragment( cdArray, maskOpt, fragmentSpec )
+//      case None =>
+//        logger.warn("No fragment generated for partition index %s out of %d parts".format(partition.partIndex, partition.nPart))
+//        new PartitionedFragment()
+//    }
+//  }
 
   def loadRoi( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray], dataAccessMode: DataAccessMode ): PartitionedFragment =
     dataAccessMode match {
@@ -325,19 +331,22 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
   def loadRoiDirect( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
     val array: ma2.Array = data_variable.read(fragmentSpec.roi)
     val cdArray: CDFloatArray = CDFloatArray.factory(array, data_variable.missing, maskOpt )
-    new PartitionedFragment( cdArray, maskOpt, fragmentSpec )
+    val id = "a" + System.nanoTime.toHexString
+    throw new IllegalAccessError( "Direct Read from NecCDF is not currently implemented")
+ //   val part = new Partition( )
+///    val partitions = new Partitions( id, fragmentSpec.getShape, Array(part) )
+ //   new PartitionedFragment( partitions, maskOpt, fragmentSpec )
   }
 
   def loadRoiViaCache( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
     logger.info( "loadRoiViaCache" )
     val cacheStream = new FileToCacheStream( data_variable.ncVariable, fragmentSpec.roi, maskOpt )
-    cacheStream.cacheFloatData( data_variable.missing  ) match { case ( cache_id: String, cdArray: CDFloatArray ) =>
-        val newFragSpec = fragmentSpec.reshape( cdArray.getShape )
-        val pfrag = new PartitionedFragment( cdArray, maskOpt, newFragSpec )
-        logger.info( "Persisting fragment %s with id %s".format( newFragSpec.getKey, cache_id ) )
-        FragmentPersistence.put( newFragSpec.getKey, cache_id )
-        pfrag
-    }
+    val partitions = cacheStream.cacheFloatData( data_variable.missing  )
+    val newFragSpec = fragmentSpec.reshape( partitions.getShape )
+    val pfrag = new PartitionedFragment( partitions, maskOpt, newFragSpec )
+    logger.info( "Persisting fragment %s with id %s".format( newFragSpec.getKey, partitions.id ) )
+    FragmentPersistence.put( newFragSpec.getKey, partitions.id )
+    pfrag
   }
 }
 

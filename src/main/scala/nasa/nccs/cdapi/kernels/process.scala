@@ -15,6 +15,8 @@ import scala.util.Random
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 
 object Port {
   def apply( name: String, cardinality: String, description: String="", datatype: String="", identifier: String="" ) = {
@@ -156,11 +158,19 @@ abstract class Kernel {
   val identifier: String = ""
   val metadata: String = ""
 
-  def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext   ): ExecutionResult = {
-    throw new Exception( " This kernel does not have a request-execute method defined: " + id )
+  def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext, nprocs: Int  ): ExecutionResult = {
+    val future_results: IndexedSeq[Future[DataFragment]] = (0 until nprocs).map( iproc => Future { map(iproc,operationCx,requestCx,serverCx) } )
+    val results: IndexedSeq[DataFragment] = Await.result( Future.sequence( future_results ), Duration.Inf )
+    reduce( results.sortWith( _.partIndex < _.partIndex ), operationCx, requestCx, serverCx )
   }
   def execute( operationCx: OperationContext, serverCx: ServerContext   ): ExecutionResult = {
     throw new Exception( " This kernel cannot be executed without a request context: " + id )
+  }
+  def map( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext  ): DataFragment = {
+    throw new Exception( " This kernel does not have a map method defined: " + id )
+  }
+  def reduce( results: IndexedSeq[DataFragment], operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+    val result = results.aggregate(null)((df0,df1)=>df1,(df0,df1)=>df0.merge(df1))
   }
   def toXmlHeader =  <kernel module={module} name={name}> { if (description.nonEmpty) <description> {description} </description> } </kernel>
 

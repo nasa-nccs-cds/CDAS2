@@ -2,6 +2,7 @@ package nasa.nccs.esgf.process
 
 import nasa.nccs.caching.JobRecord
 import nasa.nccs.cdapi.cdm.{CDSDataset, CDSVariable, Collection, PartitionedFragment}
+import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
 import org.joda.time.{DateTime, DateTimeZone}
@@ -241,9 +242,15 @@ object DataFragmentSpec {
   }
 }
 
+class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val partIndex: Int ) {
+  def merge( dfrag: DataFragment ): DataFragment = {
+    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data), partIndex )
+  }
+}
+
 class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
-                        val longname: String="", val roi: ma2.Section = new ma2.Section(), val mask: Option[String] = None, val partitions: Array[PartitionSpec]= Array() )  {
-  override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s, partitions = [ %s ] }".format( varname, collection, dimensions, units, longname, roi.toString, partitions.map(_.toString).mkString(", "))
+                        val longname: String="", val roi: ma2.Section = new ma2.Section(), val mask: Option[String] = None )  {
+  override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
     mask match {
@@ -253,7 +260,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   }
   def toBoundsString = { targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
-  def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), mask, partitions )
+  def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), mask )
 
   def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
     case Some( array ) => array
@@ -294,7 +301,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   def getKeyString: String = getKey.toString
 
   def cutIntersection( cutSection: ma2.Section ): DataFragmentSpec =
-    new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), mask, partitions )
+    new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), mask )
 
   def getReducedSection( axisIndices: Set[Int], newsize: Int = 1 ): ma2.Section = {
     new ma2.Section( roi.getRanges.zipWithIndex.map( rngIndx => if( axisIndices(rngIndx._2) ) collapse( rngIndx._1, newsize ) else rngIndx._1 ):_* )
@@ -329,9 +336,15 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
     reSection( newSection )
   }
 
+  def merge( dfSpec: DataFragmentSpec, dimIndex: Int = 0 ): DataFragmentSpec = {
+    val combinedRange = roi.getRange(dimIndex).union( dfSpec.roi.getRange(dimIndex) )
+    val newSection: ma2.Section = roi.insertRange( dimIndex, combinedRange )
+    reSection( newSection )
+  }
+
   def reSection( newSection: ma2.Section ): DataFragmentSpec = {
     val newRanges = for( iR <- roi.getRanges.indices; r0 = roi.getRange(iR); rNew = newSection.getRange(iR) ) yield new ma2.Range(r0.getName,rNew)
-    new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), mask, partitions )
+    new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), mask )
   }
   def reSection( fkey: DataFragmentKey ): DataFragmentSpec = reSection( fkey.getRoi )
 
