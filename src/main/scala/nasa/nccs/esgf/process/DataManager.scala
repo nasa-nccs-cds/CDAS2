@@ -329,10 +329,12 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
   }
 
   def loadRoiViaCache( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
+    logger.info( "loadRoiViaCache" )
     val cacheStream = new FileToCacheStream( data_variable.ncVariable, fragmentSpec.roi, maskOpt )
     cacheStream.cacheFloatData( data_variable.missing  ) match { case ( cache_id: String, cdArray: CDFloatArray ) =>
         val newFragSpec = fragmentSpec.reshape( cdArray.getShape )
         val pfrag = new PartitionedFragment( cdArray, maskOpt, newFragSpec )
+        logger.info( "Persisting fragment %s with id %s".format( newFragSpec.getKey, cache_id ) )
         FragmentPersistence.put( newFragSpec.getKey, cache_id )
         pfrag
     }
