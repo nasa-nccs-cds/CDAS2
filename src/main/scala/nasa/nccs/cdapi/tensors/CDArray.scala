@@ -94,7 +94,6 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 
   def getReducedArray: CDArray[T] = { CDArray.factory[T]( getReducedShape, storage, getInvalid ) }
 
-
   def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T, coordMapOpt: Option[CDCoordMap] = None ): CDArray[T] = {
     val fullShape = coordMapOpt match { case Some(coordMap) => coordMap.mapShape( getShape ); case None => getShape }
     val accumulator: CDArray[T] = getAccumulatorArray( reduceDims, initVal, fullShape )
@@ -268,10 +267,17 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def getStorageData: FloatBuffer = floatStorage
   def isMapped: Boolean = !floatStorage.hasArray
 
+  def merge( other: CDFloatArray ): CDFloatArray = {
+    assert( !isMapped && !other.isMapped, "Attempt to merge a mapped array: Not supported.")
+    val (a0, a1)  = (dup(), other.dup())
+    val newIndex = a0.getIndex.append( a1.getIndex )
+    val new_storage = storage
+  }
+
   def getStorageArray: Array[Float] = CDFloatArray.toArray( floatStorage )
   def getSectionArray( maxSize: Int = Int.MaxValue ): Array[Float] = CDFloatArray.toArray( getSectionData(maxSize) )
   def getArrayData( maxSize: Int = Int.MaxValue ): Array[Float]  = if( isStorageCongruent ) getStorageArray else getSectionArray( maxSize )
-  override def dup(): CDFloatArray = new CDFloatArray( cdIndexMap.getShape, this.getSectionData().asInstanceOf[FloatBuffer], invalid )
+  override def dup(): CDFloatArray = new CDFloatArray( cdIndexMap.getShape, this.getSectionData(), invalid )
   def valid( value: Float ) = ( value != invalid )
   def toCDFloatArray( target: CDArray[Float] ) = new CDFloatArray( target.getIndex, target.getStorage.asInstanceOf[FloatBuffer], invalid )
   def spawn( shape: Array[Int], fillval: Float ): CDArray[Float] = CDArray.factory( shape, FloatBuffer.wrap(Array.fill[Float]( shape.product )(fillval)), invalid  )
