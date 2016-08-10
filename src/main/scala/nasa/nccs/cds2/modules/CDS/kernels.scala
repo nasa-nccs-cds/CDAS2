@@ -18,21 +18,24 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Maximum over Axes on Input Fragment"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
-      val input_array: CDFloatArray = inputVar.dataFragment.data
+    override def map( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): DataFragment = {
+      val inputVar: KernelDataInput = inputVars( partIndex, operationCx, requestCx, serverCx).head
+      val input_array: CDFloatArray = inputVar.dataFragment.data(partIndex)
+      val partFragSpec: DataFragmentSpec = inputVar.dataFragment.partSection(partIndex)
       val axisSpecs = inputVar.axisIndices
       val async = requestCx.config("async", "false").toBoolean
       val axes = axisSpecs.getAxes
-      val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
+      val resultFragSpec = partFragSpec.reduce(Set(axes:_*))
       val t10 = System.nanoTime
       val max_val_masked: CDFloatArray = input_array.max( axes.toArray )
       val t11 = System.nanoTime
       logger.info("Max_val_masked, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, max_val_masked.toString ) )
-      if(async) {
-        new AsyncExecutionResult( cacheResult( max_val_masked, operationCx, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
-      }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), max_val_masked )
+      new DataFragment( resultFragSpec, max_val_masked, partIndex )
+
+//      if(async) {
+//        new AsyncExecutionResult( cacheResult( max_val_masked, operationCx, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
+//      }
+//      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), max_val_masked )
     }
   }
 
@@ -41,8 +44,8 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Sets Input Fragment to constant value"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
+    override def map( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+      val inputVar: KernelDataInput = inputVars( partIndex, operationCx, requestCx, serverCx).head
       val input_array: CDFloatArray = inputVar.dataFragment.data
       val async = requestCx.config("async", "false").toBoolean
       val sval = operationCx.config("value", "1.0" )
@@ -64,8 +67,8 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Minimum over Axes on Input Fragment"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
+    override def map( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+      val inputVar: KernelDataInput = inputVars( partIndex, operationCx, requestCx, serverCx).head
       val input_array: CDFloatArray = inputVar.dataFragment.data
       val axisSpecs = inputVar.axisIndices
       val async = requestCx.config("async", "false").toBoolean
@@ -87,8 +90,8 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Sum over Axes on Input Fragment"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
+    override def map( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+      val inputVar: KernelDataInput = inputVars( partIndex, operationCx, requestCx, serverCx).head
       val input_array: CDFloatArray = inputVar.dataFragment.data
       val axisSpecs = inputVar.axisIndices
       val async = requestCx.config("async", "false").toBoolean
@@ -111,8 +114,8 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Weighted Average over Axes on Input Fragment"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
+    override def map( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+      val inputVar: KernelDataInput = inputVars( partIndex, operationCx, requestCx, serverCx).head
       val optargs: Map[String, String] = operationCx.getConfiguration
       val input_array: CDFloatArray = inputVar.dataFragment.data
       val axisSpecs = inputVar.axisIndices
@@ -142,8 +145,8 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Subset of Input Fragment"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
+    override def map( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+      val inputVar: KernelDataInput = inputVars( partIndex, operationCx, requestCx, serverCx).head
       val optargs: Map[String, String] = operationCx.getConfiguration
       val resultFragment = optargs.get("domain") match {
         case None => inputVar.dataFragment
@@ -199,8 +202,8 @@ class CDS extends KernelModule with KernelTools {
 //    val outputs = List(Port("result", "1"))
 //    override val description = "Aggregate data into bins using specified reduce function"
 //
-//    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-//      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
+//    override def map( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+//      val inputVar: KernelDataInput = inputVars( partIndex, operationCx, requestCx, serverCx).head
 //      val optargs: Map[String, String] = operationCx.getConfiguration
 //      val input_array: CDFloatArray = inputVar.dataFragment.data
 //      val cdsVariable = serverCx.getVariable(inputVar.getSpec)
@@ -234,8 +237,8 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Aggregate data into bins using specified reduce function"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
+    override def map( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+      val inputVar: KernelDataInput = inputVars( partIndex, operationCx, requestCx, serverCx).head
       val optargs: Map[String, String] = operationCx.getConfiguration
       val input_array: CDFloatArray = inputVar.dataFragment.data
       val cdsVariable = serverCx.getVariable(inputVar.getSpec.collection, inputVar.getSpec.varname)
@@ -274,8 +277,8 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Anomaly over Input Fragment"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput  =  inputVars( operationCx, requestCx, serverCx ).head
+    override def map( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+      val inputVar: KernelDataInput  =  inputVars( partIndex,  operationCx, requestCx, serverCx ).head
       val optargs: Map[String,String] =  operationCx.getConfiguration
       val input_array = inputVar.dataFragment.data
       val axisSpecs = inputVar.axisIndices

@@ -266,14 +266,6 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   override def getSectionData( maxSize: Int = Int.MaxValue ): FloatBuffer = super.getSectionData(maxSize).asInstanceOf[FloatBuffer]
   def getStorageData: FloatBuffer = floatStorage
   def isMapped: Boolean = !floatStorage.hasArray
-
-  def merge( other: CDFloatArray ): CDFloatArray = {
-    assert( !isMapped && !other.isMapped, "Attempt to merge a mapped array: Not supported.")
-    val (a0, a1)  = (dup(), other.dup())
-    val newIndex = a0.getIndex.append( a1.getIndex )
-    val new_storage = storage
-  }
-
   def getStorageArray: Array[Float] = CDFloatArray.toArray( floatStorage )
   def getSectionArray( maxSize: Int = Int.MaxValue ): Array[Float] = CDFloatArray.toArray( getSectionData(maxSize) )
   def getArrayData( maxSize: Int = Int.MaxValue ): Array[Float]  = if( isStorageCongruent ) getStorageArray else getSectionArray( maxSize )
@@ -319,7 +311,13 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     val floatData = ( for ( index <- getIterator; if(index<maxValue); value = floatStorage.get(index) ) yield { value } );
     FloatBuffer.wrap(floatData.toArray)
   }
-
+  def merge( other: CDFloatArray ): CDFloatArray = {
+    assert( !isMapped && !other.isMapped, "Attempt to merge a mapped array: Not supported.")
+    val (a0, a1)  = (dup(), other.dup())
+    val newIndex = a0.getIndex.append( a1.getIndex )
+    val new_storage = FloatBuffer.wrap( a0.getStorageArray ++ a1.getStorageArray )
+    new CDFloatArray( newIndex, new_storage, invalid )
+  }
   def weightedReduce( reductionOp: ReduceOpFlt, reduceDims: Array[Int], initVal: Float, weightsOpt: Option[CDFloatArray] = None, coordMapOpt: Option[CDCoordMap] = None ): ( CDFloatArray, CDFloatArray ) = {
     val fullShape = coordMapOpt match { case Some(coordMap) => coordMap.mapShape( getShape ); case None => getShape }
     val bcastReductionDims = coordMapOpt match { case None => reduceDims; case Some( coordMap ) => reduceDims.filterNot( _ == coordMap.dimIndex ) }

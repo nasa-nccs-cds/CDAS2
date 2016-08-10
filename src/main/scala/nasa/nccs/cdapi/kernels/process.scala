@@ -160,8 +160,7 @@ abstract class Kernel {
 
   def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext, nprocs: Int  ): ExecutionResult = {
     val future_results: IndexedSeq[Future[DataFragment]] = (0 until nprocs).map( iproc => Future { map(iproc,operationCx,requestCx,serverCx) } )
-    val results: IndexedSeq[DataFragment] = Await.result( Future.sequence( future_results ), Duration.Inf )
-    reduce( results.sortWith( _.partIndex < _.partIndex ), operationCx, requestCx, serverCx )
+    reduce( future_results, operationCx, requestCx, serverCx )
   }
   def execute( operationCx: OperationContext, serverCx: ServerContext   ): ExecutionResult = {
     throw new Exception( " This kernel cannot be executed without a request context: " + id )
@@ -169,9 +168,20 @@ abstract class Kernel {
   def map( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext  ): DataFragment = {
     throw new Exception( " This kernel does not have a map method defined: " + id )
   }
-  def reduce( results: IndexedSeq[DataFragment], operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-    val result = results.aggregate(null)((df0,df1)=>df1,(df0,df1)=>df0.merge(df1))
+
+  def reduce( future_results: IndexedSeq[Future[DataFragment]], operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
+    val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
+    val async = requestCx.config("async", "false").toBoolean
+    val resultFut: Future[DataFragment] = Future.reduce( future_results )( _ ++ _ )
+
+/*    if(async) {
+      new AsyncExecutionResult( cacheResult( resultFragment.data, operationCx, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
+    } else */
+
+    val result: DataFragment = Await.result( resultFut, Duration.Inf )
+    new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid( result.spec.roi ), result.data )
   }
+
   def toXmlHeader =  <kernel module={module} name={name}> { if (description.nonEmpty) <description> {description} </description> } </kernel>
 
   def toXml = {
@@ -204,7 +214,7 @@ abstract class Kernel {
     }
   }
 
-  def inputVars( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext, dataAccessMode: DataAccessMode = DataAccessMode.Read ): List[KernelDataInput] = serverCx.inputs(operationCx.inputs.map( requestCx.getInputSpec ), dataAccessMode )
+  def inputVars( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext, dataAccessMode: DataAccessMode = DataAccessMode.Read ): List[KernelDataInput] = serverCx.inputs(partIndex, operationCx.inputs.map( requestCx.getInputSpec ), dataAccessMode )
 
   def cacheResult( maskedTensor: CDFloatArray, operation: OperationContext, request: RequestContext, server: ServerContext, resultGrid: TargetGrid, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
     try {

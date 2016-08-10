@@ -99,6 +99,12 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     rv
   }
 
+  def cacheInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ):  Iterable[Future[PartitionedFragment]] = {
+    val sourceContainers = request.variableMap.values.filter(_.isSource)
+    for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
+      yield serverContext.cacheInputData(data_container, domainOpt, targetGrid )
+  }
+
   def searchForValue(metadata: Map[String, nc2.Attribute], keys: List[String], default_val: String): String = {
     keys.length match {
       case 0 => default_val
@@ -183,8 +189,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       val collectionNodes =  request.variableMap.values.map( ds => aggCollection( ds.getSource.collection ) )
       new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "cache" =>
-      val targetGrid: TargetGrid = createTargetGrid(request)
-      val requestContext = loadInputData(request, targetGrid, run_args)
+      cacheInputData(request, createTargetGrid(request), run_args)
       FragmentPersistence.close()
       new ExecutionResults(List(new UtilityExecutionResult("cache", <cache/> )))
     case "dcol" =>

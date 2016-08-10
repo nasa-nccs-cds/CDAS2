@@ -17,6 +17,7 @@ import ucar.nc2.constants.AxisType
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.concurrent.Future
 
 sealed abstract class DataAccessMode
 object DataAccessMode {
@@ -30,7 +31,8 @@ object FragmentSelectionCriteria extends Enumeration { val Largest, Smallest = V
 trait DataLoader {
   def getDataset( collection: Collection, varname: String ): CDSDataset
   def getVariable( collection: Collection, varname: String ): CDSVariable
-  def getFragment( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode, abortSizeFraction: Float=0f ): PartitionedFragment
+  def getFragment( fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f ): PartitionedFragment
+  def cacheFragmentFuture( fragSpec: DataFragmentSpec  ): Future[PartitionedFragment];
 }
 
 trait ScopeContext {
@@ -321,12 +323,12 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
 //    }
 //  }
 
-  def loadRoi( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray], dataAccessMode: DataAccessMode ): PartitionedFragment =
-    dataAccessMode match {
-      case DataAccessMode.Read => loadRoiDirect( data_variable, fragmentSpec, maskOpt )
-      case DataAccessMode.Cache =>  loadRoiViaCache( data_variable, fragmentSpec, maskOpt )
-      case DataAccessMode.MetaData =>  throw new Exception( "Attempt to load data in metadata operation")
-    }
+//  def loadRoi( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray], dataAccessMode: DataAccessMode ): PartitionedFragment =
+//    dataAccessMode match {
+//      case DataAccessMode.Read => loadRoiDirect( data_variable, fragmentSpec, maskOpt )
+//      case DataAccessMode.Cache =>  loadRoiViaCache( data_variable, fragmentSpec, maskOpt )
+//      case DataAccessMode.MetaData =>  throw new Exception( "Attempt to load data in metadata operation")
+//    }
 
   def loadRoiDirect( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
     val array: ma2.Array = data_variable.read(fragmentSpec.roi)
@@ -338,7 +340,7 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
  //   new PartitionedFragment( partitions, maskOpt, fragmentSpec )
   }
 
-  def loadRoiViaCache( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
+  def loadFileDataIntoCache( data_variable: CDSVariable, fragmentSpec: DataFragmentSpec, maskOpt: Option[CDByteArray] ): PartitionedFragment = {
     logger.info( "loadRoiViaCache" )
     val cacheStream = new FileToCacheStream( data_variable.ncVariable, fragmentSpec.roi, maskOpt )
     val partitions = cacheStream.cacheFloatData( data_variable.missing  )
@@ -354,10 +356,10 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   def getConfiguration = configuration
   def getVariable( collection: Collection, varname: String ): CDSVariable = dataLoader.getVariable( collection, varname )
-  def getVariableData( fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode ): PartitionedFragment = dataLoader.getFragment( fragSpec, dataAccessMode )
+  def getVariableData( partIndex: Int, fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode ): PartitionedFragment = dataLoader.getFragment( partIndex, fragSpec )
 
-  def inputs( inputSpecs: List[OperationInputSpec], dataAccessMode: DataAccessMode ): List[KernelDataInput] =
-    for( inputSpec <- inputSpecs ) yield new KernelDataInput( getVariableData(inputSpec.data, dataAccessMode), inputSpec.axes )
+  def inputs( partIndex: Int, inputSpecs: List[OperationInputSpec], dataAccessMode: DataAccessMode ): List[KernelDataInput] =
+    for( inputSpec <- inputSpecs ) yield new KernelDataInput( getVariableData(partIndex, inputSpec.data, dataAccessMode), inputSpec.axes )
 
   def getAxisData( fragSpec: DataFragmentSpec, axis: Char ): Option[( Int, ma2.Array )] = {
     val variable: CDSVariable = dataLoader.getVariable(fragSpec.collection, fragSpec.varname)
@@ -433,6 +435,15 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     logger.info( " LoadVariableDataT: %.4f %.4f %.4f, T = %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, (t4-t0)/1.0E9 ) )
     rv
   }
+
+  def cacheInputData( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid ): Future[PartitionedFragment] = {
+    val data_source: DataSource = dataContainer.getSource
+    val variable: CDSVariable = dataLoader.getVariable(data_source.collection, data_source.name)
+    val maskOpt: Option[String] = domain_container_opt.flatMap( domain_container => domain_container.mask )
+    val fragSpec: DataFragmentSpec = targetGrid.createFragmentSpec( variable, targetGrid.grid.getSection, maskOpt )
+    dataLoader.cacheFragmentFuture( fragSpec )
+  }
+
 }
 
 

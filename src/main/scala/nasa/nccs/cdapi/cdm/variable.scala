@@ -83,6 +83,11 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
     fragmentSpec.reSection( fragmentSpec.roi.insertRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
   }
 
+  def dataFragment( partIndex: Int ): DataFragment = {
+    val partition = partitions.getPart(partIndex)
+    new DataFragment( fragmentSpec.cutIntersection(partition.roi), partition.data, partIndex )
+  }
+
   def isMapped(partIndex: Int): Boolean = partitions.getPartData(partIndex).isMapped
 
 //  def data: CDFloatArray = dataStore match {
