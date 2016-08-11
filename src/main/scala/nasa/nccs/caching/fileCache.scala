@@ -447,7 +447,7 @@ class JobRecord( val id: String ) {
 
 class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with FragSpecKeySet {
   private val fragmentCache: Cache[DataFragmentKey,PartitionedFragment] = new FutureCache("Store","fragment",false)
-  private val transientFragmentCache = new ConcurrentLinkedHashMap.Builder[ String, TransientFragment ].initialCapacity(64).maximumWeightedCapacity(10000).build()
+  private val transientFragmentCache: Cache[String,TransientFragment] = new FutureCache("Store","result",false)
   private val execJobCache = new ConcurrentLinkedHashMap.Builder[ String, JobRecord ].initialCapacity(64).maximumWeightedCapacity(10000).build()
   private val datasetCache: Cache[String,CDSDataset] = new FutureCache("Store","dataset",false)
   private val variableCache: Cache[String,CDSVariable] = new FutureCache("Store","variable",false)
@@ -489,15 +489,15 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     p.success(dataset)
   }
 
-  def getExistingResult( resultId: String  ): Option[TransientFragment] = {
-    val result: Option[TransientFragment] = Option(transientFragmentCache.get( resultId ))
-    logger.info( ">>>>>>>>>>>>>>>> Get result from cache: search key = " + resultId + ", existing keys = " + transientFragmentCache.keySet.toArray.mkString("[",",","]") + ", Success = " + result.isDefined.toString )
+  def getExistingResult( resultId: String  ): Option[Future[TransientFragment]] = {
+    val result: Option[Future[TransientFragment]] = transientFragmentCache.get( resultId )
+    logger.info( ">>>>>>>>>>>>>>>> Get result from cache: search key = " + resultId + ", existing keys = " + transientFragmentCache.keys.toArray.mkString("[",",","]") + ", Success = " + result.isDefined.toString )
     result
   }
-  def deleteResult( resultId: String  ): Option[TransientFragment] = Option(transientFragmentCache.remove(resultId))
-  def putResult( resultId: String, result: TransientFragment  ) = transientFragmentCache.put(resultId,result)
-  def getResultListXml(): xml.Elem = <results> { for( rkey <- transientFragmentCache.keySet ) yield <result id={rkey} /> } </results>
-  def getResultIdList = transientFragmentCache.keySet
+  def deleteResult( resultId: String  ): Option[Future[TransientFragment]] = transientFragmentCache.remove(resultId)
+  def putResult( resultId: String, result: Future[TransientFragment]  ) = transientFragmentCache.putF(resultId,result)
+  def getResultListXml(): xml.Elem = <results> { for( rkey <- transientFragmentCache.keys ) yield <result id={rkey} /> } </results>
+  def getResultIdList = transientFragmentCache.keys
   def getJobListXml(): xml.Elem = <jobs> { for( jrec: JobRecord <- execJobCache.values ) yield jrec.toXml } </jobs>
 
   private def promiseVariable(collection: Collection, varName: String)(p: Promise[CDSVariable]): Unit =
@@ -566,11 +566,11 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
           val t0 = System.nanoTime()
           val result = fragSpec.targetGridOpt match {
             case Some( targetGrid ) =>
-              val maskOpt = fragSpec.mask.flatMap( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy") ) )
+              val maskOpt = fragSpec.mask.flatMap( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy").args ) )
               targetGrid.loadFileDataIntoCache( variable, fragSpec, maskOpt )
             case None =>
               val targetGrid = new TargetGrid( variable, Some(fragSpec.getAxes) )
-              val maskOpt = fragSpec.mask.flatMap( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy")  ) )
+              val maskOpt = fragSpec.mask.flatMap( maskId => produceMask( maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy").args  ) )
               targetGrid.loadFileDataIntoCache( variable, fragSpec, maskOpt )
           }
           logger.info("Completed variable (%s:%s) subset data input in time %.4f sec, section = %s ".format(fragSpec.collection, fragSpec.varname, (System.nanoTime()-t0)/1.0E9, fragSpec.roi ))
@@ -625,36 +625,36 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     fragFuture
   }
 
-  def getFragment( partIndex: Int, fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode, abortSizeFraction: Float=0f  ): DataFragment = {
-    cutExistingFragment( partIndex, fragSpec, abortSizeFraction) getOrElse {
-      val fragmentFuture = getFragmentFuture(fragSpec, dataAccessMode)
-      val result = Await.result(fragmentFuture, Duration.Inf)
-      logger.info("Loaded variable (%s:%s) subset data, section = %s ".format(fragSpec.collection, fragSpec.varname, fragSpec.roi))
-      result.dataFragment(partIndex)
-    }
-  }
+//  def getFragment( partIndex: Int, fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode, abortSizeFraction: Float=0f  ): DataFragment = {
+//    cutExistingFragment( partIndex, fragSpec, abortSizeFraction) getOrElse {
+//      val fragmentFuture = getFragmentFuture(fragSpec, dataAccessMode)
+//      val result = Await.result(fragmentFuture, Duration.Inf)
+//      logger.info("Loaded variable (%s:%s) subset data, section = %s ".format(fragSpec.collection, fragSpec.varname, fragSpec.roi))
+//      result.dataFragment(partIndex)
+//    }
+//  }
+//
+//  def getFragmentAsync( partIndex: Int, fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode  ): Future[DataFragment] = {
+//    cutExistingFragment( partIndex, fragSpec ) getOrElse {
+//      val fragmentFuture = getFragmentFuture(fragSpec, dataAccessMode)
+//      fragmentFuture.map( df => df.dataFragment(partIndex) )
+//    }
+//  }
+//
+//  def getFragmentAsync1( partIndex: Int, fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode  ): Future[DataFragment] =
+//    cutExistingFragment( partIndex, fragSpec ) match {
+//      case Some(fragment) => Future { fragment }
+//      case None => getFragmentFuture(fragSpec, dataAccessMode)
+//    }
 
-  def getFragmentAsync( partIndex: Int, fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode  ): Future[DataFragment] = {
-    cutExistingFragment( partIndex, fragSpec ) getOrElse {
-      val fragmentFuture = getFragmentFuture(fragSpec, dataAccessMode)
-      fragmentFuture.map( df => df.dataFragment(partIndex) )
-    }
-  }
 
-  def getFragmentAsync1( partIndex: Int, fragSpec: DataFragmentSpec, dataAccessMode: DataAccessMode  ): Future[DataFragment] =
-    cutExistingFragment( partIndex, fragSpec ) match {
-      case Some(fragment) => Future { fragment }
-      case None => getFragmentFuture(fragSpec, dataAccessMode)
-    }
-
-
-  //  def loadOperationInputFuture( dataContainer: DataContainer, domain_container: DomainContainer ): Future[OperationInputSpec] = {
+  //  def loadOperationInputFuture( dataContainer: DataContainer, domain_container: DomainContainer ): Future[DataFragmentSpec] = {
   //    val variableFuture = getVariableFuture(dataContainer.getSource.collection, dataContainer.getSource.name)
   //    variableFuture.flatMap( variable => {
   //      val section = variable.getSubSection(domain_container.axes)
   //      val fragSpec = variable.createFragmentSpec( section, domain_container.mask )
   //      val axisSpecs: AxisIndices = variable.getAxisIndices(dataContainer.getOpSpecs)
-  //      for (frag <- getFragmentFuture(fragSpec)) yield new OperationInputSpec( fragSpec, axisSpecs)
+  //      for (frag <- getFragmentFuture(fragSpec)) yield new DataFragmentSpec( fragSpec, axisSpecs)
   //    })
   //  }
   //

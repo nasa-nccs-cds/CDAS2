@@ -291,7 +291,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def *(value: Float) = CDFloatArray.combine( multiplyOp, this, value )
   def :=(value: Float) = CDFloatArray.combine( eqOp, this, value )
 
-  def max(reduceDims: Array[Int]): CDFloatArray = reduce( maxOp, reduceDims, Float.MinValue )
+  def max(reduceDims: Array[Int]): CDFloatArray = reduce( maxOp, reduceDims, -Float.MaxValue )
   def min(reduceDims: Array[Int]): CDFloatArray = reduce( minOp, reduceDims, Float.MaxValue )
   def sum(reduceDims: Array[Int]): CDFloatArray = reduce( addOp, reduceDims, 0f )
 

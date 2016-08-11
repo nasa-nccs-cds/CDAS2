@@ -9,15 +9,10 @@ import ucar.nc2.dataset.{CoordinateAxis1D, _}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.concurrent.Future
 import scala.xml.XML
 
 object BoundsRole extends Enumeration { val Start, End = Value }
-
-class KernelDataInput( val dataFragment: PartitionedFragment, val axisIndices: AxisIndices ) {
-  def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] =  dataFragment.getVariableMetadata(serverContext)
-  def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] =  dataFragment.getDatasetMetadata(serverContext)
-  def getSpec: DataFragmentSpec = dataFragment.fragmentSpec
-}
 
 object CDSVariable {
   def toCoordAxis1D(coordAxis: CoordinateAxis): CoordinateAxis1D = coordAxis match {
@@ -25,8 +20,6 @@ object CDSVariable {
     case _ => throw new IllegalStateException("CDSVariable: 2D Coord axes not yet supported: " + coordAxis.getClass.getName)
   }
 }
-
-
 
 class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc2.Variable) {
   val logger = org.slf4j.LoggerFactory.getLogger("nasa.nccs.cds2.cdm.CDSVariable")
@@ -67,7 +60,7 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
 //  private val cdIndexMap: CDIndexMap = array.getIndex
 //  private val invalid: Float = array.getInvalid
 
-  def this() = this( CDFloatArray( Array(0), Array.emptyFloatArray, Float.MaxValue ), None, new DataFragmentSpec )
+//  def this() = this( CDFloatArray( Array(0), Array.emptyFloatArray, Float.MaxValue ), None, new DataFragmentSpec() )
   def toBoundsString = fragmentSpec.toBoundsString
 
   def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] = {
@@ -78,14 +71,25 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
   }
   def data(partIndex: Int): CDFloatArray = partitions.getPartData(partIndex)
 
-  def partSection( partIndex: Int ): DataFragmentSpec = {
+  def partFragSpec( partIndex: Int ): DataFragmentSpec = {
     val part = partitions.getPart(partIndex)
     fragmentSpec.reSection( fragmentSpec.roi.insertRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
   }
 
-  def dataFragment( partIndex: Int ): DataFragment = {
+  def domainFragSpec( partIndex: Int ): DataFragmentSpec = {
+    val part = partitions.getPart(partIndex)
+    fragmentSpec.domainSpec.reSection( fragmentSpec.roi.insertRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
+  }
+
+  def partDataFragment( partIndex: Int ): DataFragment = {
     val partition = partitions.getPart(partIndex)
-    new DataFragment( fragmentSpec.cutIntersection(partition.roi), partition.data, partIndex )
+    new DataFragment( partFragSpec(partIndex), partition.data )
+  }
+
+  def domainDataFragment( partIndex: Int ): DataFragment = {
+    val partition = partitions.getPart(partIndex)
+    val domainData = fragmentSpec.domainSectOpt match { case None => partition.data; case Some(domainSect) => partition.data.section(domainSect) }
+    new DataFragment( domainFragSpec(partIndex), domainData )
   }
 
   def isMapped(partIndex: Int): Boolean = partitions.getPartData(partIndex).isMapped
@@ -107,10 +111,10 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
   override def toString = { "{Fragment: shape = [%s], section = [%s]}".format( partitions.getShape.mkString(","), fragmentSpec.roi.toString ) }
 
   def cutIntersection( partIndex: Int, cutSection: ma2.Section, copy: Boolean = true ): DataFragment = {
-    val partFragSpec = partSection( partIndex )
-    val newFragSpec = partFragSpec.cutIntersection(cutSection)
-    val newDataArray: CDFloatArray = data(partIndex).section( newFragSpec.roi.shiftOrigin(partFragSpec.roi).getRanges.toList )
-    new DataFragment( newFragSpec, if(copy) newDataArray.dup() else newDataArray, partIndex )
+    val pFragSpec = partFragSpec( partIndex )
+    val newFragSpec = pFragSpec.cutIntersection(cutSection)
+    val newDataArray: CDFloatArray = data(partIndex).section( newFragSpec.roi.shiftOrigin(pFragSpec.roi).getRanges.toList )
+    new DataFragment( newFragSpec, if(copy) newDataArray.dup() else newDataArray )
   }
 
   def size: Int = fragmentSpec.roi.computeSize.toInt

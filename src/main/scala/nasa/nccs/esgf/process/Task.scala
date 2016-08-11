@@ -2,6 +2,7 @@ package nasa.nccs.esgf.process
 
 import nasa.nccs.caching.JobRecord
 import nasa.nccs.cdapi.cdm.{CDSDataset, CDSVariable, Collection, PartitionedFragment}
+import nasa.nccs.cdapi.kernels.AxisIndices
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
@@ -254,14 +255,18 @@ class MergeDataFragment( val wrappedDataFragOpt: Option[DataFragment] = None ) {
   }
 }
 
-class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val partIndex: Int ) {
+class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray ) {
   def ++( dfrag: DataFragment ): DataFragment = {
-    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data), partIndex )
+    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data) )
   }
+  def getReducedSpec( axes: AxisIndices ): DataFragmentSpec =  spec.reduce(Set(axes.getAxes:_*))
+  def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)
+  def subset( section: ma2.Section ): DataFragment = new DataFragment( spec.cutIntersection( section ), data.section(section) )
+
 }
 
-class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
-                        val longname: String="", val roi: ma2.Section = new ma2.Section(), val mask: Option[String] = None )  {
+class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
+                        val longname: String="", val roi: ma2.Section = new ma2.Section(), val domainSectOpt: Option[ma2.Section], val mask: Option[String] = None )  {
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
@@ -272,7 +277,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   }
   def toBoundsString = { targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
-  def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), mask )
+  def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), domainSectOpt, mask )
 
   def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
     case Some( array ) => array
@@ -312,8 +317,13 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
 
   def getKeyString: String = getKey.toString
 
+  def domainSpec: DataFragmentSpec = domainSectOpt match {
+    case None => this;
+    case Some(cutSection) => new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, mask )
+  }
+
   def cutIntersection( cutSection: ma2.Section ): DataFragmentSpec =
-    new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), mask )
+    new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, mask )
 
   def getReducedSection( axisIndices: Set[Int], newsize: Int = 1 ): ma2.Section = {
     new ma2.Section( roi.getRanges.zipWithIndex.map( rngIndx => if( axisIndices(rngIndx._2) ) collapse( rngIndx._1, newsize ) else rngIndx._1 ):_* )
@@ -358,7 +368,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
 
   def reSection( newSection: ma2.Section ): DataFragmentSpec = {
     val newRanges = for( iR <- roi.getRanges.indices; r0 = roi.getRange(iR); rNew = newSection.getRange(iR) ) yield new ma2.Range(r0.getName,rNew)
-    new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), mask )
+    new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), domainSectOpt, mask )
   }
   def reSection( fkey: DataFragmentKey ): DataFragmentSpec = reSection( fkey.getRoi )
 
@@ -405,7 +415,7 @@ class DataContainer(val uid: String, private val source : Option[DataSource] = N
     operation.get
   }
 
-  def addOpSpec( operation: OperationContext ): Unit = {
+  def addOpSpec( operation: OperationContext ): Unit = {     // used to inform data container what types of ops will be performed on it.
     def mergeOpSpec( oSpecList: mutable.ListBuffer[ OperationSpecs ], oSpec: OperationSpecs ): Unit = oSpecList.headOption match {
       case None => oSpecList += oSpec
       case Some(head) => if( head == oSpec ) head merge oSpec else mergeOpSpec(oSpecList.tail,oSpec)
