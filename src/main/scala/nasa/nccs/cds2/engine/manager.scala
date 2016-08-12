@@ -340,17 +340,17 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     results
   }
 
-  def executeUtility( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-    val result: xml.Node =  <result> {"Completed executing utility " + operationCx.name.toLowerCase } </result>
-    new XmlExecutionResult( operationCx.name.toLowerCase + "~u0", result )
+  def executeUtility( context: CDASExecutionContext ): ExecutionResult = {
+    val result: xml.Node =  <result> {"Completed executing utility " + context.operation.name.toLowerCase } </result>
+    new XmlExecutionResult( context.operation.name.toLowerCase + "~u0", result )
   }
 
   def operationExecution( operationCx: OperationContext, requestCx: RequestContext ): ExecutionResult = {
     val opName = operationCx.name.toLowerCase
     val module_name = opName.split('.')(0)
     module_name match {
-      case "util" => executeUtility( operationCx, requestCx, serverContext )
-      case x => getKernel( opName ).execute( operationCx, requestCx, serverContext, nprocs )
+      case "util" => executeUtility( new CDASExecutionContext( operationCx, requestCx, serverContext ) )
+      case x => getKernel( opName ).execute( new CDASExecutionContext( operationCx, requestCx, serverContext ), nprocs )
     }
   }
 }

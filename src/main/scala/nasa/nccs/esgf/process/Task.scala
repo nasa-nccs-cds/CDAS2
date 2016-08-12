@@ -451,8 +451,9 @@ object DataContainer extends ContainerBase {
         if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.path)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id,collection.path,path) ) }
         ( collection, fragIdOpt )
       case None =>
-        if ( colId.isEmpty || path.isEmpty ) throw new Exception(s"Unrecognized collection: '$id', current collections: " + Collections.idSet.mkString(", ") )
-        else ( Collections.addCollection( uri, path, fileFilter, title, varsList ), fragIdOpt )
+        val fpath = if(new java.io.File(id).isFile) id else path
+        if ( colId.isEmpty || fpath.isEmpty ) throw new Exception(s"Unrecognized collection: '$id', current collections: " + Collections.idSet.mkString(", ") )
+        else ( Collections.addCollection( uri, fpath, fileFilter, title, varsList ), fragIdOpt )
     }
   }
 

@@ -2,7 +2,7 @@ package nasa.nccs.cdapi.kernels
 
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdapi.cdm._
-import nasa.nccs.esgf.process.{OperationContext, _}
+import nasa.nccs.esgf.process._
 import org.slf4j.LoggerFactory
 import java.io.{File, IOException, PrintWriter, StringWriter}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -18,7 +18,7 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Future, Await}
 
 object Port {
   def apply( name: String, cardinality: String, description: String="", datatype: String="", identifier: String="" ) = {
@@ -36,6 +36,8 @@ class Port( val name: String, val cardinality: String, val description: String, 
     </port>
   }
 }
+
+class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) {}
 
 trait ExecutionResult {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
@@ -161,43 +163,34 @@ abstract class Kernel {
   val keywords: List[String] = List()
   val identifier: String = ""
   val metadata: String = ""
+
   val combineOp: ReduceOpFlt  = ( x, y ) => { math.max(x,y) }
   val initValue: Float = 0f
 
-  def reduceOp( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext )( a0: DataFragment, a1: DataFragment ): DataFragment = {
-    val axes: AxisIndices = requestCx.getAxisIndices( operationCx.config("axes","") )
+  def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[DataFragment]
+
+  def execute( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
+    val inputs: List[PartitionedFragment] = inputVars( context )
+    var opResult: Future[DataFragment] = mapReduce( inputs, context, nprocs )
+    createResponse( postOp( opResult, context  ), inputs, context )
+  }
+  def postOp( future_result: Future[DataFragment], context: CDASExecutionContext ):  Future[DataFragment] = future_result
+  def reduce( future_results: IndexedSeq[Future[DataFragment]], context: CDASExecutionContext ):  Future[DataFragment] = Future.reduce(future_results)(reduceOp(context) _)
+
+  def reduceOp( context: CDASExecutionContext )( a0: DataFragment, a1: DataFragment ): DataFragment = {
+    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
     if( axes.includes(0) )  { new DataFragment( a0.spec, CDFloatArray.combine( combineOp, a0.data, a1.data ) ) }
     else                    {  a0 ++ a1  }
   }
-
-  def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext, nprocs: Int  ): ExecutionResult = {
-    val future_results: IndexedSeq[Future[DataFragment]] = (0 until nprocs).map( iproc => Future { map(iproc,operationCx,requestCx,serverCx) } )
-    reduce( future_results, operationCx, requestCx, serverCx )
-  }
-
-  def reduce( future_results: IndexedSeq[Future[DataFragment]], operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-    val inputVar: PartitionedFragment = inputVars(operationCx, requestCx, serverCx).head
-    val async = requestCx.config("async", "false").toBoolean
-    val resultFut: Future[DataFragment] = Future.reduce( future_results )( reduceOp( operationCx, requestCx, serverCx ) _ )
+  def createResponse( resultFut: Future[DataFragment], inputs: List[PartitionedFragment], context: CDASExecutionContext ): ExecutionResult = {
+    val inputVar: PartitionedFragment = inputs.head
+    val async = context.request.config("async", "false").toBoolean
     if(async) {
-      new AsyncExecutionResult( cacheResult( resultFut, operationCx, requestCx, inputVar.getVariableMetadata(serverCx) ) )
+      new AsyncExecutionResult( cacheResult( resultFut, context, inputVar.getVariableMetadata(context.server) ) )
     } else {
       val result: DataFragment = Await.result( resultFut, Duration.Inf )
-      new BlockingExecutionResult(operationCx.identifier, List(inputVar.fragmentSpec), requestCx.targetGrid.getSubGrid(result.spec.roi), result.data )
+      new BlockingExecutionResult(context.operation.identifier, List(inputVar.fragmentSpec), context.request.targetGrid.getSubGrid(result.spec.roi), result.data )
     }
-  }
-
-  def map( partIndex: Int, operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): DataFragment = {
-    val inputVar: PartitionedFragment = inputVars( operationCx, requestCx, serverCx).head
-    val axes: AxisIndices = requestCx.getAxisIndices( operationCx.config("axes","") )
-    val dataFrag: DataFragment = inputVar.domainDataFragment(partIndex)
-    val async = requestCx.config("async", "false").toBoolean
-    val resultFragSpec = dataFrag.getReducedSpec( axes )
-    val t10 = System.nanoTime
-    val result_val_masked: CDFloatArray = dataFrag.data.reduce( combineOp, axes.args, initValue )
-    val t11 = System.nanoTime
-    logger.info("Executed Kernel %s map op, time = %.4f s".format( name, (t11-t10)/1.0E9 ) )
-    new DataFragment( resultFragSpec, result_val_masked )
   }
 
   def toXmlHeader =  <kernel module={module} name={name}> { if (description.nonEmpty) <description> {description} </description> } </kernel>
@@ -232,36 +225,48 @@ abstract class Kernel {
     }
   }
 
-  def inputVars( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): List[PartitionedFragment] = serverCx.inputs( operationCx.inputs.map( requestCx.getInputSpec ) )
+  def inputVars( context: CDASExecutionContext ): List[PartitionedFragment] = context.server.inputs( context.operation.inputs.map( context.request.getInputSpec ) )
 
-  def cacheResult( resultFut: Future[DataFragment], operation: OperationContext, requestCx: RequestContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
+  def cacheResult( resultFut: Future[DataFragment], context: CDASExecutionContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
     try {
-      val tFragFut = resultFut.map( dataFrag =>  new TransientFragment( dataFrag, requestCx, varMetadata ) )
-      collectionDataCache.putResult( operation.rid, tFragFut )
-      Some(operation.rid)
+      val tFragFut = resultFut.map( dataFrag =>  new TransientFragment( dataFrag, context.request, varMetadata ) )
+      collectionDataCache.putResult( context.operation.rid, tFragFut )
+      Some(context.operation.rid)
     } catch {
       case ex: Exception => logger.error( "Can't cache result: " + ex.getMessage ); None
     }
   }
+}
 
+//abstract class MultiKernel  extends Kernel {
+//  val kernels: List[Kernel]
+//
+//  def execute( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
+//    val inputs: List[PartitionedFragment] = inputVars( context )
+//    for( kernel: Kernel <- kernels ) {
+//      val result = kernel.mapReduce( inputs, context, nprocs )
+//    }
+//  }
+//}
 
-  //  def binArrayOpt = serverContext.getBinnedArrayFactory( operation )
+abstract class SingularKernel extends Kernel {
 
-  //
-  //
-  //  //  def getSubset( var_uid: String, domain_id: String ) = {
-  ////    serverContext.getSubset( var_uid, getDomain(domain_id) )
-  ////  }
-  //  def getDataSources: Map[String,DataFragmentSpec] = serverContext.getDataSources
-  //
-  //
-  //
-  //  def getFragmentSpec( uid: String ): DataFragmentSpec = serverContext.getOperationInputSpec(uid) match {
-  //    case None => throw new Exception( "Missing Data Fragment Spec: " + uid )
-  //    case Some( inputSpec ) => inputSpec.data
-  //  }
-  //
-  //  def getAxisIndices( uid: String ): AxisIndices = serverContext.getAxisIndices( uid )
+  def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[DataFragment] = {
+    val future_results: IndexedSeq[Future[DataFragment]] = (0 until nprocs).map( iproc => Future { map(iproc,inputs,context) } )
+    reduce( future_results, context )
+  }
+  def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): DataFragment = {
+    val inputVar = inputs.head
+    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+    val dataFrag: DataFragment = inputVar.domainDataFragment(partIndex)
+    val async = context.request.config("async", "false").toBoolean
+    val resultFragSpec = dataFrag.getReducedSpec( axes )
+    val t10 = System.nanoTime
+    val result_val_masked: CDFloatArray = dataFrag.data.reduce( combineOp, axes.args, initValue )
+    val t11 = System.nanoTime
+    logger.info("Executed Kernel %s map op, time = %.4f s".format( name, (t11-t10)/1.0E9 ) )
+    new DataFragment( resultFragSpec, result_val_masked )
+  }
 
 }
 
