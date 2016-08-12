@@ -282,7 +282,7 @@ class KernelModule {
   val contact = ""
   val kernelMap: Map[String,Kernel] = Map(getKernelObjects.map( kernel => kernel.operation.toLowerCase -> kernel ): _*)
 
-  def getKernelClasses = getInnerClasses.filter( _.getSuperclass.getName.split('.').last == "Kernel"  )
+  def getKernelClasses = getInnerClasses // .filter( Kernel.getClass.isAssignableFrom( _ )  )
   def getInnerClasses = this.getClass.getClasses.toList
   def getKernelObjects: List[Kernel] = getKernelClasses.map( _.getDeclaredConstructors()(0).newInstance(this).asInstanceOf[Kernel] )
 
@@ -310,4 +310,9 @@ class TransientFragment( val dataFrag: DataFragment, val request: RequestContext
   }
 
 }
+
+//object classTest extends App {
+//  import nasa.nccs.cds2.modules.CDS._
+//  printf( Kernel.getClass.isAssignableFrom( CDS. ).toString )
+//}
 

@@ -71,8 +71,8 @@ object NCMLWriter extends Loggable {
 //  }
 //}
 
-class NCMLWriter(args: Iterator[String], val maxCores: Int = 4) extends Loggable {
-  private val nReadProcessors = 1 // Math.min(Runtime.getRuntime.availableProcessors - 1, maxCores)
+class NCMLWriter(args: Iterator[String], val maxCores: Int = 8) extends Loggable {
+  private val nReadProcessors = Math.min(Runtime.getRuntime.availableProcessors, maxCores)
   private val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
   private val nFiles = files.length
   val fileHeaders = NCMLWriter.getFileHeaders(files, nReadProcessors)

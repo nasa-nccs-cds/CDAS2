@@ -442,17 +442,17 @@ object DataContainer extends ContainerBase {
     val id = parseUri(uri)
     val colId = uri match {
       case colUri if(colUri.startsWith("collection")) => id
-      case fragUri if(fragUri.startsWith("fragment")) => id.split('|')(3)
+      case fragUri if(fragUri.startsWith("fragment")) => id.split('|')(1)
       case x => ""
     }
     val fragIdOpt = if(uri.startsWith("fragment")) Some(id) else None
-    Collections.findCollection( id ) match {
+    Collections.findCollection( colId ) match {
       case Some(collection) =>
         if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.path)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id,collection.path,path) ) }
         ( collection, fragIdOpt )
       case None =>
         val fpath = if(new java.io.File(id).isFile) id else path
-        if ( colId.isEmpty || fpath.isEmpty ) throw new Exception(s"Unrecognized collection: '$id', current collections: " + Collections.idSet.mkString(", ") )
+        if ( colId.isEmpty || fpath.isEmpty ) throw new Exception(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", ") )
         else ( Collections.addCollection( uri, fpath, fileFilter, title, varsList ), fragIdOpt )
     }
   }
@@ -489,12 +489,12 @@ object DataContainer extends ContainerBase {
 
   def parseUri( uri: String ): String = {
     if(uri.isEmpty) "" else {
-      val recognizedUrlTypes = List( "file", "collection" )
+      val recognizedUrlTypes = List( "file", "collection", "fragment" )
       val uri_parts = uri.split(":")
       val url_type = normalize(uri_parts.head)
       if ( recognizedUrlTypes.contains(url_type) && (uri_parts.length == 2) ) {
         val value = uri_parts.last.toLowerCase
-        if( url_type.equals("collection") ) value.stripPrefix("/").stripPrefix("/") else value
+        if( List( "collection", "fragment" ).contains( url_type ) ) value.stripPrefix("/").stripPrefix("/") else value
       } else throw new Exception("Unrecognized uri format: " + uri + ", type = " + uri_parts.head + ", nparts = " + uri_parts.length.toString + ", value = " + uri_parts.last)
     }
   }

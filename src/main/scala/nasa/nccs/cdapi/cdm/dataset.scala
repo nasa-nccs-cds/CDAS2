@@ -35,6 +35,7 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
   override def toString = "Collection( id=%s, url=%s, path=%s, title=%s, fileFilter=%s )".format( id, url, path, title, fileFilter )
   def isEmpty = url.isEmpty
   lazy val varNames = vars.map( varStr => varStr.split(':').head )
+  println( s"====> Collection($id), vars = %s".format( vars.mkString(",")))
 
   def getUri( varName: String = "" ) = {
     ctype match {
@@ -53,20 +54,17 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
     inner_attributes ++ dataset.attributes
   }
 
-  def toXml: xml.Elem =
-    if(path.isEmpty) {
-      <collection id={id} url={url} title={title}>
-        {vars.mkString(";")}
-      </collection>
-    } else if(fileFilter.isEmpty) {
-      <collection id={id} url={url} path={path} title={title}>
-        {vars.mkString(";")}
-      </collection>
+  def toXml: xml.Elem = {
+    val varData = vars.mkString(";")
+    println( "Collection.toXml: vardata = " + varData )
+    if (path.isEmpty) {
+      <collection id={id} url={url} title={title}> {varData} </collection>
+    } else if (fileFilter.isEmpty) {
+      <collection id={id} url={url} path={path} title={title}> {varData} </collection>
     } else {
-      <collection id={id} url={url} path={path} fileFilter={fileFilter} title={title}>
-        {vars.mkString(";")}
-      </collection>
+      <collection id={id} url={url} path={path} fileFilter={fileFilter} title={title}> {varData} </collection>
     }
+  }
 
   def createNCML( recreate: Boolean = false ): Boolean = {
     if( !ncmlFile.exists || recreate ) {
