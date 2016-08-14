@@ -28,6 +28,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
 import scala.util.{Failure, Success, Try}
+import nasa.nccs.cds2.loaders.Collections
 
 object MaskKey {
   def apply( bounds: Array[Double], mask_shape: Array[Int], spatial_axis_indices: Array[Int] ): MaskKey = {
@@ -107,7 +108,7 @@ class CDASPartitioner( val cache_id: String, val roi: ma2.Section, dataType: ma2
     val partSize = Math.min( nSlicesPerPart, baseShape(0) - startIndex )
     Partition(partIndex, cacheFilePath, 0, startIndex, partSize, sliceMemorySize, nChunksPerPart, roi.getShape )
   }
-  def getPartitions: IndexedSeq[Partition] = ( 0 until nPartitions ).map( getPartition(_) )
+  def getPartitions: Array[Partition] = ( 0 until nPartitions ).map( getPartition(_) ).toArray
 
   def getBlockSize: Int =  math.ceil( nPartitions / nProcessors.toDouble ).toInt
 
@@ -181,7 +182,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   }
 
   def cachePartition( partition: Partition, stream: BufferedOutputStream ) = {
-    for (iChunk <- partition.chunkIndexArray(partition.index); startLoc = partition.chunkStartIndex(iChunk); if ( startLoc < partitioner.roi.getShape(0)) ) yield cacheChunk( partition, iChunk, stream  )
+    for (iChunk <- partition.chunkIndexArray; startLoc = partition.chunkStartIndex(iChunk); if ( startLoc < partitioner.roi.getShape(0)) ) yield cacheChunk( partition, iChunk, stream  )
   }
 }
 
@@ -206,9 +207,14 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 //    }
 //  }
 
-  def getBounds( fragKey: String ): String =  collectionDataCache.getExistingFragment(DataFragmentKey(fragKey)) match {
-    case Some( fragFut ) => Await.result( fragFut, Duration.Inf ).toBoundsString
-    case None => ""
+  def getBounds( fragKey: String ): String =  {
+    val dataFragKey = DataFragmentKey(fragKey)
+    Collections.findCollection( dataFragKey.collId ) match {
+      case Some( collection ) =>
+        val variable: CDSVariable = collectionDataCache.getVariable ( collection, dataFragKey.varname )
+      case None => ""
+    }
+    " "
   }
 
   def expandKey( fragKey: String ): String = {
@@ -250,13 +256,16 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
 
 
-  def restore( fragKey: DataFragmentKey ): Future[IndexedSeq[Partition]] = {
+  def restore( fragSpec: DataFragmentSpec ): Option[Future[PartitionedFragment]] = {
+    val fragKey = fragSpec.getKey
+    logger.info( "FragmentPersistence.restor: fragKey: " + fragKey )
     fragmentIdCache.get(fragKey.toStrRep) match {
-      case Some( cache_id_fut ) => cache_id_fut.map( (cache_id: String ) => {
-        val partitioner = new CDASPartitioner( cache_id, fragKey.getRoi )
-        partitioner.getPartitions
+      case Some( cache_id_fut ) => Some( cache_id_fut.map( (cache_id: String ) => {
+        logger.info( "----> Cached frag " + cache_id )
+        val partitioner = new CDASPartitioner( cache_id, fragSpec.roi )
+        new PartitionedFragment( new Partitions( cache_id, fragSpec.roi, partitioner.getPartitions ), None, fragSpec )
       }
-      )
+      ))
       case None => None
     }
   }
@@ -287,10 +296,10 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     fragmentIdCache.persist()
   }
 
-  def getEnclosingFragmentData( fragSpec: DataFragmentSpec ): Option[ ( DataFragmentKey, PartitionedFragment ) ] = {
+  def getEnclosingFragmentData( fragSpec: DataFragmentSpec ): Option[ ( DataFragmentKey, Future[PartitionedFragment] ) ] = {
     val fragKeys = findEnclosingFragSpecs(  fragmentIdCache.keys.map( DataFragmentKey(_) ), fragSpec.getKey )
     fragKeys.headOption match {
-      case Some( fkey ) => restore(fkey) match {
+      case Some( fkey ) => restore(fragSpec) match {
         case Some(pfrag) => Some( (fkey-> pfrag ) )
         case None => None
       }
@@ -417,7 +426,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
 
   private def cutExistingFragment( partIndex: Int, fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f ): Option[DataFragment] = {
     findEnclosingFragSpec(fragmentCache.keys, fragSpec.getKey, FragmentSelectionCriteria.Smallest) match {
-      case Some(fkey: DataFragmentKey) => getExistingFragment(fkey) match {
+      case Some(fkey: DataFragmentKey) => getExistingFragment(fragSpec) match {
         case Some(fragmentFuture) =>
           if (!fragmentFuture.isCompleted && (fkey.getSize * abortSizeFraction > fragSpec.getSize)) {
             logger.info("Cache Chunk[%s] found but not yet ready, abandoning cache access attempt".format(fkey.shape.mkString(",")))
@@ -561,10 +570,22 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     rv
   }
 
-  def restoreFromCache( fkey: DataFragmentKey ) = if( !fragmentCache.keys.contains( fkey ) ) FragmentPersistence.restore( fkey ).map( partFrag => fragmentCache.put( fkey, partFrag ) )
+  def restoreFromCache( fragSpec: DataFragmentSpec ): DataFragmentKey = {
+    val fkey = fragSpec.getKey
+    if ( !fragmentCache.keys.contains(fkey) ) {
+      logger.info("Restoring frag from cache: " + fkey.toString )
+      FragmentPersistence.restore(fragSpec) match {
+        case Some( partFragFut ) =>
+          val partFrag = Await.result( partFragFut, Duration.Inf )
+          fragmentCache.put(fkey, partFrag )
+        case None => logger.warn( "Unable to restore frag from cache: " + fkey.toString )
+      }
+    }
+    fkey
+  }
 
-  def getExistingFragment( fkey: DataFragmentKey  ): Option[Future[PartitionedFragment]] = {
-    restoreFromCache( fkey )
+  def getExistingFragment( fragSpec: DataFragmentSpec  ): Option[Future[PartitionedFragment]] = {
+    val fkey = restoreFromCache( fragSpec )
     val rv: Option[Future[PartitionedFragment]] = fragmentCache.get( fkey ) match {
       case Some( result ) => Some( result )
       case None =>  None

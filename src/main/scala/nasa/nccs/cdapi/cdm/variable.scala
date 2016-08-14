@@ -69,7 +69,7 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
   def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = {
     fragmentSpec.getDatasetMetadata(serverContext)
   }
-  def data(partIndex: Int): CDFloatArray = partitions.getPartData(partIndex)
+  def data(partIndex: Int ): CDFloatArray = partitions.getPartData(partIndex, fragmentSpec.missing_value )
 
   def partFragSpec( partIndex: Int ): DataFragmentSpec = {
     val part = partitions.getPart(partIndex)
@@ -83,16 +83,16 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
 
   def partDataFragment( partIndex: Int ): DataFragment = {
     val partition = partitions.getPart(partIndex)
-    new DataFragment( partFragSpec(partIndex), partition.data )
+    new DataFragment( partFragSpec(partIndex), partition.data( fragmentSpec.missing_value ) )
   }
 
   def domainDataFragment( partIndex: Int ): DataFragment = {
     val partition = partitions.getPart(partIndex)
-    val domainData = fragmentSpec.domainSectOpt match { case None => partition.data; case Some(domainSect) => partition.data.section(domainSect) }
+    val domainData = fragmentSpec.domainSectOpt match { case None => partition.data(fragmentSpec.missing_value); case Some(domainSect) => partition.data(fragmentSpec.missing_value).section(domainSect) }
     new DataFragment( domainFragSpec(partIndex), domainData )
   }
 
-  def isMapped(partIndex: Int): Boolean = partitions.getPartData(partIndex).isMapped
+  def isMapped(partIndex: Int): Boolean = partitions.getPartData( partIndex, fragmentSpec.missing_value ).isMapped
 
 //  def data: CDFloatArray = dataStore match {
 //    case Some( array ) => array

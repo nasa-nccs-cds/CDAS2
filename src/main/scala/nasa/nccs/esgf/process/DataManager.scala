@@ -32,7 +32,7 @@ object FragmentSelectionCriteria extends Enumeration { val Largest, Smallest = V
 trait DataLoader {
   def getDataset( collection: Collection, varname: String ): CDSDataset
   def getVariable( collection: Collection, varname: String ): CDSVariable
-  def getExistingFragment( fkey: DataFragmentKey  ): Option[Future[PartitionedFragment]]
+  def getExistingFragment( fragSpec: DataFragmentSpec  ): Option[Future[PartitionedFragment]]
   def cacheFragmentFuture( fragSpec: DataFragmentSpec  ): Future[PartitionedFragment];
 }
 
@@ -344,7 +344,7 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
   def getVariable( collection: Collection, varname: String ): CDSVariable = dataLoader.getVariable( collection, varname )
 
   def getVariableData( fragSpec: DataFragmentSpec ): PartitionedFragment = {
-    dataLoader.getExistingFragment( fragSpec.getKey ) match {
+    dataLoader.getExistingFragment( fragSpec ) match {
       case Some( fragFut ) => Await.result( fragFut, Duration.Inf )
       case None => throw new Exception( "Fragment defined by key (%s) can't be found".format(fragSpec.getKey) )
     }
@@ -416,7 +416,7 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     val section: ma2.Section = data_source.fragIdOpt match { case Some(fragId) => DataFragmentKey(fragId).getRoi; case None => targetGrid.grid.getSection }
     val domainSect: Option[ma2.Section] = domain_container_opt.map( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
     val fragSpec: DataFragmentSpec = new DataFragmentSpec( variable.name, variable.dataset.collection, data_source.fragIdOpt, Some(targetGrid), variable.ncVariable.getDimensionsString,
-      variable.ncVariable.getUnitsString, variable.getAttributeValue( "long_name", variable.ncVariable.getFullName ), section, domainSect, maskOpt )
+      variable.ncVariable.getUnitsString, variable.getAttributeValue( "long_name", variable.ncVariable.getFullName ), section, domainSect, variable.missing, maskOpt )
     val t2 = System.nanoTime
     val rv = dataContainer.uid -> fragSpec
     val t3 = System.nanoTime
@@ -431,7 +431,7 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     val section: ma2.Section = data_source.fragIdOpt match { case Some(fragId) => DataFragmentKey(fragId).getRoi; case None => targetGrid.grid.getSection }
     val domainSect: Option[ma2.Section] = domain_container_opt.map( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
     val fragSpec: DataFragmentSpec = new DataFragmentSpec( variable.name, variable.dataset.collection, data_source.fragIdOpt, Some(targetGrid), variable.ncVariable.getDimensionsString,
-      variable.ncVariable.getUnitsString, variable.getAttributeValue( "long_name", variable.ncVariable.getFullName ), section, domainSect, maskOpt )
+      variable.ncVariable.getUnitsString, variable.getAttributeValue( "long_name", variable.ncVariable.getFullName ), section, domainSect, variable.missing, maskOpt )
     dataLoader.cacheFragmentFuture( fragSpec )
   }
 

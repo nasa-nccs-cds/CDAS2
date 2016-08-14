@@ -266,7 +266,7 @@ class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray ) {
 }
 
 class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
-                        val longname: String="", val roi: ma2.Section = new ma2.Section(), val domainSectOpt: Option[ma2.Section], val mask: Option[String] = None )  {
+                        val longname: String="", val roi: ma2.Section = new ma2.Section(), val domainSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None )  {
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
@@ -277,7 +277,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   }
   def toBoundsString = { targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
-  def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), domainSectOpt, mask )
+  def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), domainSectOpt, missing_value, mask )
 
   def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
     case Some( array ) => array
@@ -319,11 +319,11 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
 
   def domainSpec: DataFragmentSpec = domainSectOpt match {
     case None => this;
-    case Some(cutSection) => new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, mask )
+    case Some(cutSection) => new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask )
   }
 
   def cutIntersection( cutSection: ma2.Section ): DataFragmentSpec =
-    new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, mask )
+    new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask )
 
   def getReducedSection( axisIndices: Set[Int], newsize: Int = 1 ): ma2.Section = {
     new ma2.Section( roi.getRanges.zipWithIndex.map( rngIndx => if( axisIndices(rngIndx._2) ) collapse( rngIndx._1, newsize ) else rngIndx._1 ):_* )
@@ -368,7 +368,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
 
   def reSection( newSection: ma2.Section ): DataFragmentSpec = {
     val newRanges = for( iR <- roi.getRanges.indices; r0 = roi.getRange(iR); rNew = newSection.getRange(iR) ) yield new ma2.Range(r0.getName,rNew)
-    new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), domainSectOpt, mask )
+    new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), domainSectOpt, missing_value, mask )
   }
   def reSection( fkey: DataFragmentKey ): DataFragmentSpec = reSection( fkey.getRoi )
 
@@ -440,6 +440,7 @@ object DataContainer extends ContainerBase {
     val title =  metadata.getOrElse("title","").toString
     val fileFilter = metadata.getOrElse("fileFilter","").toString
     val id = parseUri(uri)
+    logger.info( s" >>>>>>>>>>>----> getCollection, uri=$uri, id=$id")
     val colId = uri match {
       case colUri if(colUri.startsWith("collection")) => id
       case fragUri if(fragUri.startsWith("fragment")) => id.split('|')(1)
@@ -452,8 +453,8 @@ object DataContainer extends ContainerBase {
         ( collection, fragIdOpt )
       case None =>
         val fpath = if(new java.io.File(id).isFile) id else path
-        if ( colId.isEmpty || fpath.isEmpty ) throw new Exception(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", ") )
-        else ( Collections.addCollection( uri, fpath, fileFilter, title, varsList ), fragIdOpt )
+        if ( colId.isEmpty || fpath.isEmpty ) logger.warn(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", ") )
+        ( Collections.addCollection( uri, fpath, fileFilter, title, varsList ), fragIdOpt )
     }
   }
 
