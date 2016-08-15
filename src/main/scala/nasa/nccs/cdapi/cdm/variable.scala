@@ -6,7 +6,7 @@ import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.esgf.process._
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
-
+import nasa.nccs.utilities.Loggable
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
@@ -54,7 +54,7 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
   def getCoordinateAxesList = dataset.getCoordinateAxes
 }
 
-class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  )  {
+class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  ) extends Loggable  {
   val LOG = org.slf4j.LoggerFactory.getLogger(this.getClass)
 //  private var dataStore: Option[ CDFloatArray ] = Some( array )
 //  private val cdIndexMap: CDIndexMap = array.getIndex
@@ -86,10 +86,19 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
     new DataFragment( partFragSpec(partIndex), partition.data( fragmentSpec.missing_value ) )
   }
 
-  def domainDataFragment( partIndex: Int ): DataFragment = {
-    val partition = partitions.getPart(partIndex)
-    val domainData = fragmentSpec.domainSectOpt match { case None => partition.data(fragmentSpec.missing_value); case Some(domainSect) => partition.data(fragmentSpec.missing_value).section(domainSect) }
-    new DataFragment( domainFragSpec(partIndex), domainData )
+  def domainDataFragment( partIndex: Int ): Option[DataFragment] = {
+    try {
+      val partition = partitions.getPart(partIndex)
+      val domainData = fragmentSpec.domainSectOpt match {
+        case None => partition.data(fragmentSpec.missing_value);
+        case Some(domainSect) => partition.data(fragmentSpec.missing_value).section(domainSect)
+      }
+      Some( new DataFragment(domainFragSpec(partIndex), domainData) )
+    } catch {
+      case ex: Exception =>
+        logger.warn( s"Failed getting data fragment $partIndex: " + ex.getMessage )
+        None
+    }
   }
 
   def isMapped(partIndex: Int): Boolean = partitions.getPartData( partIndex, fragmentSpec.missing_value ).isMapped

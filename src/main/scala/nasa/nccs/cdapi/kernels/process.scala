@@ -166,30 +166,45 @@ abstract class Kernel extends Loggable {
   val combineOp: ReduceOpFlt  = ( x, y ) => { math.max(x,y) }
   val initValue: Float = 0f
 
-  def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[DataFragment]
+  def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]]
 
   def execute( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
     logger.info( s"Kernel[$name($id)].execute: " + context.operation.toString )
     val inputs: List[PartitionedFragment] = inputVars( context )
-    var opResult: Future[DataFragment] = mapReduce( inputs, context, nprocs )
+    var opResult: Future[Option[DataFragment]] = mapReduce( inputs, context, nprocs )
     createResponse( postOp( opResult, context  ), inputs, context )
   }
-  def postOp( future_result: Future[DataFragment], context: CDASExecutionContext ):  Future[DataFragment] = future_result
-  def reduce( future_results: IndexedSeq[Future[DataFragment]], context: CDASExecutionContext ):  Future[DataFragment] = Future.reduce(future_results)(reduceOp(context) _)
+  def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = future_result
+  def reduce( future_results: IndexedSeq[Future[Option[DataFragment]]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = Future.reduce(future_results)(reduceOp(context) _)
 
-  def reduceOp( context: CDASExecutionContext )( a0: DataFragment, a1: DataFragment ): DataFragment = {
-    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
-    if( axes.includes(0) )  { new DataFragment( a0.spec, CDFloatArray.combine( combineOp, a0.data, a1.data ) ) }
-    else                    {  a0 ++ a1  }
+  def reduceOp(context: CDASExecutionContext)(a0op: Option[DataFragment], a1op: Option[DataFragment]): Option[DataFragment] = {
+    val axes: AxisIndices = context.request.getAxisIndices(context.operation.config("axes", ""))
+    a0op match {
+      case Some(a0) =>
+        a1op match {
+          case Some(a1) =>
+            if (axes.includes(0)) { Some(new DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))) }
+            else { Some( a0 ++ a1 ) }
+          case None => Some(a0)
+        }
+      case None =>
+        a1op match {
+          case Some(a1) => Some(a1)
+          case None => None
+        }
+    }
   }
-  def createResponse( resultFut: Future[DataFragment], inputs: List[PartitionedFragment], context: CDASExecutionContext ): ExecutionResult = {
+  def createResponse( resultFut: Future[Option[DataFragment]], inputs: List[PartitionedFragment], context: CDASExecutionContext ): ExecutionResult = {
     val inputVar: PartitionedFragment = inputs.head
     val async = context.request.config("async", "false").toBoolean
     if(async) {
       new AsyncExecutionResult( cacheResult( resultFut, context, inputVar.getVariableMetadata(context.server) ) )
     } else {
-      val result: DataFragment = Await.result( resultFut, Duration.Inf )
-      new BlockingExecutionResult(context.operation.identifier, List(inputVar.fragmentSpec), context.request.targetGrid.getSubGrid(result.spec.roi), result.data )
+      val resultOpt: Option[DataFragment] = Await.result( resultFut, Duration.Inf )
+      resultOpt match {
+        case Some(result) => new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data)
+        case None => new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid, CDFloatArray.empty )
+      }
     }
   }
 
@@ -227,9 +242,9 @@ abstract class Kernel extends Loggable {
 
   def inputVars( context: CDASExecutionContext ): List[PartitionedFragment] = context.server.inputs( context.operation.inputs.map( context.request.getInputSpec ) )
 
-  def cacheResult( resultFut: Future[DataFragment], context: CDASExecutionContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
+  def cacheResult( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
     try {
-      val tFragFut = resultFut.map( dataFrag =>  new TransientFragment( dataFrag, context.request, varMetadata ) )
+      val tFragFut = resultFut.map( dataFragOpt =>  new TransientFragment( dataFragOpt, context.request, varMetadata ) )
       collectionDataCache.putResult( context.operation.rid, tFragFut )
       Some(context.operation.rid)
     } catch {
@@ -251,23 +266,23 @@ abstract class Kernel extends Loggable {
 
 abstract class SingularKernel extends Kernel {
 
-  def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[DataFragment] = {
-    val future_results: IndexedSeq[Future[DataFragment]] = (0 until nprocs).map( iproc => Future { map(iproc,inputs,context) } )
+  def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]] = {
+    val future_results: IndexedSeq[Future[Option[DataFragment]]] = (0 until nprocs).map( iproc => Future { map(iproc,inputs,context) } )
     reduce( future_results, context )
   }
-  def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): DataFragment = {
+  def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
     val inputVar = inputs.head
     val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
-    val dataFrag: DataFragment = inputVar.domainDataFragment(partIndex)
-    val async = context.request.config("async", "false").toBoolean
-    val resultFragSpec = dataFrag.getReducedSpec( axes )
-    val t10 = System.nanoTime
-    val result_val_masked: CDFloatArray = dataFrag.data.reduce( combineOp, axes.args, initValue )
-    val t11 = System.nanoTime
-    logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format( name, partIndex, (t11-t10)/1.0E9 ) )
-    new DataFragment( resultFragSpec, result_val_masked )
+    inputVar.domainDataFragment(partIndex).map { (dataFrag) =>
+      val async = context.request.config("async", "false").toBoolean
+      val resultFragSpec = dataFrag.getReducedSpec(axes)
+      val t10 = System.nanoTime
+      val result_val_masked: CDFloatArray = dataFrag.data.reduce(combineOp, axes.args, initValue)
+      val t11 = System.nanoTime
+      logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (t11 - t10) / 1.0E9))
+      new DataFragment(resultFragSpec, result_val_masked)
+    }
   }
-
 }
 
 class KernelModule {
@@ -300,15 +315,19 @@ class KernelModule {
   }
 }
 
-class TransientFragment( val dataFrag: DataFragment, val request: RequestContext, val varMetadata: Map[String,nc2.Attribute] ) extends Loggable {
+class TransientFragment( val dataFragOpt: Option[DataFragment], val request: RequestContext, val varMetadata: Map[String,nc2.Attribute] ) extends Loggable {
   def toXml(id: String): xml.Elem = {
     val units = varMetadata.get("units") match { case Some(attr) => attr.getStringValue; case None => "" }
     val long_name = varMetadata.getOrElse("long_name",varMetadata.getOrElse("fullname",varMetadata.getOrElse("varname", new Attribute("varname","UNDEF")))).getStringValue
     val description = varMetadata.get("description") match { case Some(attr) => attr.getStringValue; case None => "" }
     val axes = varMetadata.get("axes") match { case Some(attr) => attr.getStringValue; case None => "" }
-    <result id={id} missing_value={dataFrag.data.getInvalid.toString} shape={dataFrag.data.getShape.mkString("(",",",")")} units={units} long_name={long_name} description={description} axes={axes}> { dataFrag.data.mkBoundedDataString( ", ", 1100 ) } </result> //
+    dataFragOpt match {
+      case Some( dataFrag ) =>
+        <result id={id} missing_value={dataFrag.data.getInvalid.toString} shape={dataFrag.data.getShape.mkString("(",",",")")} units={units} long_name={long_name} description={description} axes={axes}> { dataFrag.data.mkBoundedDataString( ", ", 1100 ) } </result>
+      case None =>
+        <result id={id} data="empty" units={units} long_name={long_name} description={description} axes={axes}> </result>
+    }
   }
-
 }
 
 //object classTest extends App {

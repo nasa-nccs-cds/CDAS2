@@ -187,6 +187,8 @@ object CDFloatArray {
     case x        => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Byte]].map( _.toFloat ) )
   }
 
+  def empty: CDFloatArray = { new CDFloatArray( CDIndexMap.empty, FloatBuffer.allocate(0), Float.MaxValue ) }
+
   def toFloatBuffer( buffer: Buffer ): FloatBuffer = buffer match {
     case x: FloatBuffer  => buffer.asInstanceOf[ FloatBuffer ]
     case x => throw new Exception( "Attempt to convert non-float buffer to FloatBuffer")
