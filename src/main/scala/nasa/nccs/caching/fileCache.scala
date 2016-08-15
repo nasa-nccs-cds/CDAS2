@@ -59,6 +59,7 @@ object Partition {
 }
 
 class Partition( val index: Int, val path: String, val dimIndex: Int, val startIndex: Int, val partSize: Int, val chunkSize: Int, val sliceMemorySize: Int, val shape: Array[Int] ) {
+  logger.info(s" *** Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s)".format( shape.mkString ))
   def data( missing_value: Float ): CDFloatArray = {
     val file = new RandomAccessFile( path,"r" )
     val channel: FileChannel  = file.getChannel()
@@ -171,11 +172,11 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
     val chunkShape = subsection.getShape
     val dataBuffer = data.getDataAsByteBuffer
     val t1 = System.nanoTime()
-    logger.info("Finished Reading data chunk %d, shape = [%s], buffer capacity = %d in time %.2f ".format(iChunk, chunkShape.mkString(","), dataBuffer.capacity(), (t1 - t0) / 1.0E9))
+    logger.info("Finished Reading data chunk %d, shape = [%s], buffer capacity = %.2f M in time %.2f ".format(iChunk, chunkShape.mkString(","), dataBuffer.capacity()/1.0E6, (t1 - t0)/1.0E9))
     val t2 = System.nanoTime()
     IOUtils.write(dataBuffer.array(), outStr)
     val t3 = System.nanoTime()
-    logger.info(" -----> Writing chunk %d, size = %.2f M, write time = %.3f ".format(iChunk, partition.chunkMemorySize / 1.0E6, (t3 - t2) / 1.0E9))
+    logger.info(" -----> Writing chunk %d, size = %.2f M, write time = %.3f ".format(iChunk, partition.chunkMemorySize/1.0E6, (t3 - t2)/1.0E9))
     val t4 = System.nanoTime()
     logger.info(s"Persisted chunk %d, write time = %.2f ".format(iChunk, (t4 - t3) / 1.0E9))
     runtime.printMemoryUsage(logger)
