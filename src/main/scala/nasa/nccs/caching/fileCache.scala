@@ -157,6 +157,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   }
 
   def processChunkedPartitions(cache_id: String, partIndices: IndexedSeq[Int], missing_value: Float): IndexedSeq[Partition] = {
+    logger.info( "Process Chunked Partitions(%s): %s".format( cache_id, partIndices.mkString(",") ) )
     for( partIndex <- partIndices; partition: Partition = partitioner.getPartition(partIndex); outStr = IOUtils.buffer(new FileOutputStream(new File(partition.path))) ) yield {
       cachePartition(partition, outStr)
       outStr.close
@@ -165,6 +166,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   }
 
   def cacheChunk( partition: Partition, iChunk: Int, outStr: BufferedOutputStream ) = {
+    logger.info( "CacheChunk: part=%d, chunk=%d".format( partition.index, iChunk ) )
     val subsection: ma2.Section = partition.chunkSection( iChunk, partitioner.roi )
     val t0 = System.nanoTime()
     logger.info("Reading data chunk %d, part %d, startTimIndex = %d, subsection [%s], nElems = %d ".format(iChunk, partition.index, partition.startIndex, subsection.getShape.mkString(","), subsection.getShape.foldLeft(1L)(_ * _)))
@@ -183,6 +185,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   }
 
   def cachePartition( partition: Partition, stream: BufferedOutputStream ) = {
+    logger.info( "Caching Partitions(%s): chunk indices: (%s)".format( partition.index,partition.chunkIndexArray.mkString(","))
     for (iChunk <- partition.chunkIndexArray; startLoc = partition.chunkStartIndex(iChunk); if ( startLoc < partitioner.roi.getShape(0)) ) yield cacheChunk( partition, iChunk, stream  )
   }
 }
