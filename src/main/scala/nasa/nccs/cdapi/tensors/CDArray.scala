@@ -97,22 +97,27 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T, coordMapOpt: Option[CDCoordMap] = None ): CDArray[T] = {
     val fullShape = coordMapOpt match { case Some(coordMap) => coordMap.mapShape( getShape ); case None => getShape }
     val accumulator: CDArray[T] = getAccumulatorArray( reduceDims, initVal, fullShape )
-    logger.info( "reduce: %s".format( reductionOp.toString() ))
+    logger.info( "reduce: %s".format( reduceDims.mkString(",") ))
     val iter = getIterator
     coordMapOpt match {
-      case Some(coordMap) =>
+      case Some(coordMap) => {
+        logger.info("reduce: %s".format(coordMap.toString()))
         for (index <- iter; array_value = getStorageValue(index); if valid(array_value); coordIndices = iter.getCoordinateIndices) {
           val mappedCoords = coordMap.map(coordIndices)
           accumulator.setValue(mappedCoords, reductionOp(accumulator.getValue(mappedCoords), array_value))
         }
-      case None =>
+      }
+      case None => {
+        logger.info( "reduce: None" )
         for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
-          if( valid(array_value) ) {
+          if (valid(array_value)) {
             val reduced_value = reductionOp(accumulator.getValue(coordIndices), array_value)
             accumulator.setValue(coordIndices, reduced_value)
           }
         }
+      }
     }
+    logger.info( "reduce: accumulator" )
     accumulator.getReducedArray
   }
 

@@ -260,10 +260,8 @@ abstract class SingularKernel extends Kernel {
     val inputVar = inputs.head
     val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
     val dataFrag: DataFragment = inputVar.domainDataFragment(partIndex)
-    logger.info("$partIndex 1")
     val async = context.request.config("async", "false").toBoolean
     val resultFragSpec = dataFrag.getReducedSpec( axes )
-    logger.info("$partIndex 2")
     val t10 = System.nanoTime
     val result_val_masked: CDFloatArray = dataFrag.data.reduce( combineOp, axes.args, initValue )
     val t11 = System.nanoTime
