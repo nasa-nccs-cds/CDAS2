@@ -67,7 +67,7 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
     channel.close(); file.close()
     new CDFloatArray( shape, buffer.asFloatBuffer, missing_value )
   }
-  def chunkSection( iChunk: Int, section: ma2.Section ): ma2.Section = { section.replaceRange( dimIndex, chunkRange(iChunk) ) }
+  def chunkSection( iChunk: Int, section: ma2.Section ): ma2.Section = { section.clone().asInstanceOf[ma2.Section].replaceRange( dimIndex, chunkRange(iChunk) ) }
   def nChunks = math.ceil( partSize / chunkSize.toDouble ).toInt
   def endIndex = startIndex + partSize - 1
   def chunkRange(iChunk: Int): ma2.Range = { val start = chunkStartIndex(iChunk); new ma2.Range( start, Math.min(start+chunkSize-1,endIndex) ) }
