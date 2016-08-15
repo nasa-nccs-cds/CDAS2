@@ -51,15 +51,15 @@ class Partitions( val id: String, val roi: ma2.Section, val parts: Array[Partiti
 }
 
 object Partition {
-  def apply( index: Int, path: String, coordIndex: Int, startIndex: Int, partSize: Int, chunkSize: Int, sliceMemorySize: Int, fragShape: Array[Int] ): Partition = {
+  def apply( index: Int, path: String, dimIndex: Int, startIndex: Int, partSize: Int, chunkSize: Int, sliceMemorySize: Int, fragShape: Array[Int] ): Partition = {
     val partShape = getPartitionShape(partSize,fragShape)
-    new Partition( index, path, coordIndex, startIndex, partSize, chunkSize, sliceMemorySize, partShape )
+    new Partition( index, path, dimIndex, startIndex, partSize, chunkSize, sliceMemorySize, partShape )
   }
   def getPartitionShape( partSize: Int, fragShape: Array[Int] ): Array[Int] = { var shape = fragShape.clone(); shape(0) = partSize; shape }
 }
 
 class Partition( val index: Int, val path: String, val dimIndex: Int, val startIndex: Int, val partSize: Int, val chunkSize: Int, val sliceMemorySize: Int, val shape: Array[Int] ) {
-  logger.info(s" *** Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s)".format( shape.mkString ))
+  logger.info(s" *** Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s)".format( shape.mkString(",") ))
   def data( missing_value: Float ): CDFloatArray = {
     val file = new RandomAccessFile( path,"r" )
     val channel: FileChannel  = file.getChannel()
@@ -107,7 +107,7 @@ class CDASPartitioner( val cache_id: String, val roi: ma2.Section, dataType: ma2
     val cacheFilePath = getCacheFilePath(partIndex)
     val startIndex = partIndex * nSlicesPerPart
     val partSize = Math.min( nSlicesPerPart, baseShape(0) - startIndex )
-    Partition(partIndex, cacheFilePath, 0, startIndex, partSize, sliceMemorySize, nChunksPerPart, roi.getShape )
+    Partition(partIndex, cacheFilePath, 0, startIndex, partSize, nChunksPerPart, sliceMemorySize, roi.getShape )
   }
   def getPartitions: Array[Partition] = ( 0 until nPartitions ).map( getPartition(_) ).toArray
 
