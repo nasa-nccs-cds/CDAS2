@@ -49,7 +49,7 @@ class Partitions( val id: String, private val _section: ma2.Section, val parts: 
   def getShape = baseShape
   def getPart( partId: Int ): Partition = parts(partId)
   def getPartData( partId: Int, missing_value: Float ): CDFloatArray = parts(partId).data( missing_value )
-  def roi: ma2.Section = _section.clone.asInstanceOf[ma2.Section]
+  def roi: ma2.Section = new ma2.Section( _section )
 }
 
 object Partition {
@@ -69,7 +69,7 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
     channel.close(); file.close()
     new CDFloatArray( shape, buffer.asFloatBuffer, missing_value )
   }
-  def chunkSection( iChunk: Int, section: ma2.Section ): ma2.Section = { section.clone().asInstanceOf[ma2.Section].replaceRange( dimIndex, chunkRange(iChunk) ) }
+  def chunkSection( iChunk: Int, section: ma2.Section ): ma2.Section = {  new ma2.Section( section ).replaceRange( dimIndex, chunkRange(iChunk) ) }
   def nChunks = math.ceil( partSize / chunkSize.toDouble ).toInt
   def endIndex = startIndex + partSize - 1
   def chunkRange(iChunk: Int): ma2.Range = { val start = chunkStartIndex(iChunk); new ma2.Range( start, Math.min(start+chunkSize-1,endIndex) ) }
@@ -101,7 +101,7 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
   private val nSlicesPerPart = nChunksPerPart * nSlicesPerChunk
   private val nPartitions = math.ceil(baseShape(0) / nSlicesPerPart.toFloat).toInt
   private val nCoresPerPart = 1
-  def roi: ma2.Section = _section.clone.asInstanceOf[ma2.Section]
+  def roi: ma2.Section = new ma2.Section( _section )
 
   logger.info(s" *** Generating partitions for fragment $cache_id with $nPartitions partitions, %d processors, %d partsPerProc, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk, shape=(%s)"
     .format( partIndexArray.size, partIndexArray(0).size, baseShape.mkString(",") ))
@@ -139,7 +139,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, private val _section: ma2
   private val baseShape = _section.getShape
   val cacheId = "a" + System.nanoTime.toHexString
   val dType = ncVariable.getDataType
-  def roi: ma2.Section = _section.clone.asInstanceOf[ma2.Section]
+  def roi: ma2.Section = new ma2.Section( _section )
   val partitioner = new CDASPartitioner( cacheId, roi, dType )
   def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last; case None => default_value }
 
