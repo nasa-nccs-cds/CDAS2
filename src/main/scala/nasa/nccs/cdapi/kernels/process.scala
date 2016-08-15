@@ -149,8 +149,7 @@ object pathTest extends App {
   println( System.getProperty("user.home") )
 }
 
-abstract class Kernel {
-  val logger = LoggerFactory.getLogger(this.getClass)
+abstract class Kernel extends Loggable {
   val identifiers = this.getClass.getName.split('$').flatMap( _.split('.') )
   def operation: String = identifiers.last.toLowerCase
   def module = identifiers.dropRight(1).mkString(".")
@@ -170,6 +169,7 @@ abstract class Kernel {
   def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[DataFragment]
 
   def execute( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
+    logger.info( s"Kernel[$name($id)].execute: " + context.operation.toString )
     val inputs: List[PartitionedFragment] = inputVars( context )
     var opResult: Future[DataFragment] = mapReduce( inputs, context, nprocs )
     createResponse( postOp( opResult, context  ), inputs, context )
@@ -256,15 +256,18 @@ abstract class SingularKernel extends Kernel {
     reduce( future_results, context )
   }
   def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): DataFragment = {
+    logger.info("SingularKernel(%s).map[%d] ".format( name, partIndex ))
     val inputVar = inputs.head
     val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
     val dataFrag: DataFragment = inputVar.domainDataFragment(partIndex)
+    logger.info("$partIndex 1")
     val async = context.request.config("async", "false").toBoolean
     val resultFragSpec = dataFrag.getReducedSpec( axes )
+    logger.info("$partIndex 2")
     val t10 = System.nanoTime
     val result_val_masked: CDFloatArray = dataFrag.data.reduce( combineOp, axes.args, initValue )
     val t11 = System.nanoTime
-    logger.info("Executed Kernel %s map op, time = %.4f s".format( name, (t11-t10)/1.0E9 ) )
+    logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format( name, partIndex, (t11-t10)/1.0E9 ) )
     new DataFragment( resultFragSpec, result_val_masked )
   }
 
