@@ -94,25 +94,30 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 
   def getReducedArray: CDArray[T] = { CDArray.factory[T]( getReducedShape, storage, getInvalid ) }
 
-
   def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T, coordMapOpt: Option[CDCoordMap] = None ): CDArray[T] = {
     val fullShape = coordMapOpt match { case Some(coordMap) => coordMap.mapShape( getShape ); case None => getShape }
     val accumulator: CDArray[T] = getAccumulatorArray( reduceDims, initVal, fullShape )
     val iter = getIterator
     coordMapOpt match {
-      case Some(coordMap) =>
+      case Some(coordMap) => {
         for (index <- iter; array_value = getStorageValue(index); if valid(array_value); coordIndices = iter.getCoordinateIndices) {
           val mappedCoords = coordMap.map(coordIndices)
           accumulator.setValue(mappedCoords, reductionOp(accumulator.getValue(mappedCoords), array_value))
         }
-      case None =>
+      }
+      case None => {
+        logger.info( "reduce: None" )
         for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
-          if( valid(array_value) ) {
+          logger.info( "array_value: %f, indices: %s".format(array_value,coordIndices.mkString(",")) )
+          if (valid(array_value)) {
             val reduced_value = reductionOp(accumulator.getValue(coordIndices), array_value)
+            logger.info( "reduced_value: %f".format(reduced_value) )
             accumulator.setValue(coordIndices, reduced_value)
           }
         }
+      }
     }
+    logger.info( "reduce: accumulator" )
     accumulator.getReducedArray
   }
 
@@ -267,11 +272,10 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   override def getSectionData( maxSize: Int = Int.MaxValue ): FloatBuffer = super.getSectionData(maxSize).asInstanceOf[FloatBuffer]
   def getStorageData: FloatBuffer = floatStorage
   def isMapped: Boolean = !floatStorage.hasArray
-
   def getStorageArray: Array[Float] = CDFloatArray.toArray( floatStorage )
   def getSectionArray( maxSize: Int = Int.MaxValue ): Array[Float] = CDFloatArray.toArray( getSectionData(maxSize) )
   def getArrayData( maxSize: Int = Int.MaxValue ): Array[Float]  = if( isStorageCongruent ) getStorageArray else getSectionArray( maxSize )
-  override def dup(): CDFloatArray = new CDFloatArray( cdIndexMap.getShape, this.getSectionData().asInstanceOf[FloatBuffer], invalid )
+  override def dup(): CDFloatArray = new CDFloatArray( cdIndexMap.getShape, this.getSectionData(), invalid )
   def valid( value: Float ) = ( value != invalid )
   def toCDFloatArray( target: CDArray[Float] ) = new CDFloatArray( target.getIndex, target.getStorage.asInstanceOf[FloatBuffer], invalid )
   def spawn( shape: Array[Int], fillval: Float ): CDArray[Float] = CDArray.factory( shape, FloatBuffer.wrap(Array.fill[Float]( shape.product )(fillval)), invalid  )
@@ -293,7 +297,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def *(value: Float) = CDFloatArray.combine( multiplyOp, this, value )
   def :=(value: Float) = CDFloatArray.combine( eqOp, this, value )
 
-  def max(reduceDims: Array[Int]): CDFloatArray = reduce( maxOp, reduceDims, Float.MinValue )
+  def max(reduceDims: Array[Int]): CDFloatArray = reduce( maxOp, reduceDims, -Float.MaxValue )
   def min(reduceDims: Array[Int]): CDFloatArray = reduce( minOp, reduceDims, Float.MaxValue )
   def sum(reduceDims: Array[Int]): CDFloatArray = reduce( addOp, reduceDims, 0f )
 
@@ -313,7 +317,13 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     val floatData = ( for ( index <- getIterator; if(index<maxValue); value = floatStorage.get(index) ) yield { value } );
     FloatBuffer.wrap(floatData.toArray)
   }
-
+  def merge( other: CDFloatArray ): CDFloatArray = {
+    assert( !isMapped && !other.isMapped, "Attempt to merge a mapped array: Not supported.")
+    val (a0, a1)  = (dup(), other.dup())
+    val newIndex = a0.getIndex.append( a1.getIndex )
+    val new_storage = FloatBuffer.wrap( a0.getStorageArray ++ a1.getStorageArray )
+    new CDFloatArray( newIndex, new_storage, invalid )
+  }
   def weightedReduce( reductionOp: ReduceOpFlt, reduceDims: Array[Int], initVal: Float, weightsOpt: Option[CDFloatArray] = None, coordMapOpt: Option[CDCoordMap] = None ): ( CDFloatArray, CDFloatArray ) = {
     val fullShape = coordMapOpt match { case Some(coordMap) => coordMap.mapShape( getShape ); case None => getShape }
     val bcastReductionDims = coordMapOpt match { case None => reduceDims; case Some( coordMap ) => reduceDims.filterNot( _ == coordMap.dimIndex ) }

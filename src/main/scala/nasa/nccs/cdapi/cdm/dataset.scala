@@ -35,6 +35,7 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
   override def toString = "Collection( id=%s, url=%s, path=%s, title=%s, fileFilter=%s )".format( id, url, path, title, fileFilter )
   def isEmpty = url.isEmpty
   lazy val varNames = vars.map( varStr => varStr.split(':').head )
+  println( s"====> Collection($id), vars = %s".format( vars.mkString(",")))
 
   def getUri( varName: String = "" ) = {
     ctype match {
@@ -53,20 +54,17 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
     inner_attributes ++ dataset.attributes
   }
 
-  def toXml: xml.Elem =
-    if(path.isEmpty) {
-      <collection id={id} url={url} title={title}>
-        {vars.mkString(";")}
-      </collection>
-    } else if(fileFilter.isEmpty) {
-      <collection id={id} url={url} path={path} title={title}>
-        {vars.mkString(";")}
-      </collection>
+  def toXml: xml.Elem = {
+    val varData = vars.mkString(";")
+    println( "Collection.toXml: vardata = " + varData )
+    if (path.isEmpty) {
+      <collection id={id} url={url} title={title}> {varData} </collection>
+    } else if (fileFilter.isEmpty) {
+      <collection id={id} url={url} path={path} title={title}> {varData} </collection>
     } else {
-      <collection id={id} url={url} path={path} fileFilter={fileFilter} title={title}>
-        {vars.mkString(";")}
-      </collection>
+      <collection id={id} url={url} path={path} fileFilter={fileFilter} title={title}> {varData} </collection>
     }
+  }
 
   def createNCML( recreate: Boolean = false ): Boolean = {
     if( !ncmlFile.exists || recreate ) {
@@ -131,23 +129,23 @@ trait DiskCachable extends XmlResource {
     case x => throw new Exception("Unsupported type in sizeof: " + x.toString)
   }
 
-  protected def bufferToDiskFloat( data: FloatBuffer  ): String = {
-    val memsize = data.capacity() * 4
-    val cache_file = "a" + System.nanoTime.toHexString
-    try {
-      val t0 = System.nanoTime()
-      val cache_file_path = DiskCacheFileMgr.getDiskCacheFilePath(getCacheType, cache_file)
-      val channel = new RandomAccessFile( cache_file_path, "rw" ).getChannel()
-      val buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, 0, memsize )
-      buffer.asFloatBuffer.put(data)
-      channel.close
-      val t1 = System.nanoTime()
-      logger.info( s"Persisted cache data to file '%s', memsize = %d, time = %.2f".format( cache_file_path, memsize, (t1-t0)/1.0E9))
-      cache_file
-    } catch {
-      case err: Throwable => logError(err, s"Error writing data to disk, size = $memsize" ); ""
-    }
-  }
+//  protected def bufferToDiskFloat( data: FloatBuffer  ): String = {
+//    val memsize = data.capacity() * 4
+//    val cache_file = "a" + System.nanoTime.toHexString
+//    try {
+//      val t0 = System.nanoTime()
+//      val cache_file_path = DiskCacheFileMgr.getDiskCacheFilePath(getCacheType, cache_file)
+//      val channel = new RandomAccessFile( cache_file_path, "rw" ).getChannel()
+//      val buffer: MappedByteBuffer = channel.map( FileChannel.MapMode.READ_WRITE, 0, memsize )
+//      buffer.asFloatBuffer.put(data)
+//      channel.close
+//      val t1 = System.nanoTime()
+//      logger.info( s"Persisted cache data to file '%s', memsize = %d, time = %.2f".format( cache_file_path, memsize, (t1-t0)/1.0E9))
+//      cache_file
+//    } catch {
+//      case err: Throwable => logError(err, s"Error writing data to disk, size = $memsize" ); ""
+//    }
+//  }
 
   protected def objectToDisk[T <: Serializable]( record: T  ): String = {
     val cache_file = "c" + System.nanoTime.toHexString

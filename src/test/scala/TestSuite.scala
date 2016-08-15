@@ -1,6 +1,10 @@
+import java.io.File
+
+import nasa.nccs.cdapi.cdm.{Collection, NCMLWriter}
 import nasa.nccs.cdapi.kernels.{BlockingExecutionResult, ErrorExecutionResult, ExecutionResult, XmlExecutionResult}
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.engine.CDS2ExecutionManager
+import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.esgf.process.{RequestContext, TargetGrid, TaskRequest}
 import org.scalatest._
 import ucar.nc2.dataset.NetcdfDataset
@@ -24,6 +28,19 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
         None
     }
   }
+
+//  def createCollections: Unit = {
+//    val collectionNodes =  request.variableMap.values.flatMap( ds => {
+//      val pcol = ds.getSource.collection
+//      val base_dir = new File(pcol.path)
+//      val base_id = pcol.id
+//      val col_dirs: Array[File] = base_dir.listFiles
+//      for( col_file <- col_dirs; if col_file.isDirectory; col_id = base_id + "/" + col_file.getName ) yield {
+//        val uri = "file:" + NCMLWriter.getCachePath("NCML").resolve(Collections.uriToFile(col_id))
+//        aggCollection( new Collection(col_id, uri, col_file.getAbsolutePath ) )
+//      }
+//    })
+//  }
 
   def computeCycle( tsdata: CDFloatArray, cycle_period: Int ): CDFloatArray = {
     val values: CDFloatArray = CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )

@@ -23,6 +23,7 @@ trait Cache[K,V] { cache ⇒
   def apply(key: K) = new Keyed(key)
 
   def put( key: K, value: V )
+  def putF( key: K, value: Future[V] )
 
   def getEntries: Seq[(K,V)]
 
@@ -155,6 +156,7 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
   }
 
   def put( key: K, value: V ) = store.put( key, Future(value) )
+  def putF( key: K, fvalue: Future[V] ) = store.put( key, fvalue )
 
   def apply(key: K, genValue: () ⇒ Future[V])(implicit ec: ExecutionContext): Future[V] = {
     val promise = Promise[V]()

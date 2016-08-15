@@ -2,6 +2,8 @@ package nasa.nccs.esgf.process
 
 import nasa.nccs.caching.JobRecord
 import nasa.nccs.cdapi.cdm.{CDSDataset, CDSVariable, Collection, PartitionedFragment}
+import nasa.nccs.cdapi.kernels.AxisIndices
+import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
 import org.joda.time.{DateTime, DateTimeZone}
@@ -200,12 +202,13 @@ class PartitionSpec( val axisIndex: Int, val nPart: Int, val partIndex: Int = 0 
   override def toString =  s"PartitionSpec { axis = $axisIndex, nPart = $nPart, partIndex = $partIndex }"
 }
 
-class DataSource(val name: String, val collection: Collection, val domain: String ) {
+class DataSource(val name: String, val collection: Collection, val domain: String, val fragIdOpt: Option[String] = None ) {
   def this( dsource: DataSource ) = this( dsource.name, dsource.collection, dsource.domain )
-  override def toString =  s"DataSource { name = $name, collection = %s, domain = $domain }".format( collection.toString )
+  override def toString =  s"DataSource { name = $name, collection = %s, domain = $domain, %s }".format(collection.toString,fragIdOpt.map(", fragment = "+_).getOrElse("") )
   def toXml = <dataset name={name} domain={domain}>{ collection.toXml }</dataset>
   def isDefined = ( !collection.isEmpty && !name.isEmpty )
   def isReadable = ( !collection.isEmpty && !name.isEmpty && !domain.isEmpty )
+  def getKey: Option[DataFragmentKey] = fragIdOpt.map( DataFragmentKey.apply(_) )
 }
 
 class DataFragmentKey( val varname: String, val collId: String, val origin: Array[Int], val shape: Array[Int] ) extends Serializable {
@@ -241,9 +244,30 @@ object DataFragmentSpec {
   }
 }
 
-class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
-                        val longname: String="", val roi: ma2.Section = new ma2.Section(), val mask: Option[String] = None, val partitions: Array[PartitionSpec]= Array() )  {
-  override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s, partitions = [ %s ] }".format( varname, collection, dimensions, units, longname, roi.toString, partitions.map(_.toString).mkString(", "))
+object MergeDataFragment {
+  def apply( df: DataFragment ): MergeDataFragment = new MergeDataFragment( Some( df ) )
+  def apply(): MergeDataFragment = new MergeDataFragment()
+}
+class MergeDataFragment( val wrappedDataFragOpt: Option[DataFragment] = None ) {
+  def ++( dfrag: DataFragment ): MergeDataFragment = wrappedDataFragOpt match {
+    case None => MergeDataFragment( dfrag )
+    case Some( wrappedDataFrag ) => MergeDataFragment( wrappedDataFrag ++ dfrag )
+  }
+}
+
+class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray ) {
+  def ++( dfrag: DataFragment ): DataFragment = {
+    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data) )
+  }
+  def getReducedSpec( axes: AxisIndices ): DataFragmentSpec =  spec.reduce(Set(axes.getAxes:_*))
+  def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)
+  def subset( section: ma2.Section ): DataFragment = new DataFragment( spec.cutIntersection( section ), data.section(section) )
+
+}
+
+class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
+                        val longname: String="", val roi: ma2.Section = new ma2.Section(), val domainSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None )  {
+  override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
     mask match {
@@ -253,7 +277,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   }
   def toBoundsString = { targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
-  def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), mask, partitions )
+  def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), domainSectOpt, missing_value, mask )
 
   def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
     case Some( array ) => array
@@ -293,12 +317,19 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
 
   def getKeyString: String = getKey.toString
 
+  def domainSpec: DataFragmentSpec = domainSectOpt match {
+    case None => this;
+    case Some(cutSection) => new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask )
+  }
+
   def cutIntersection( cutSection: ma2.Section ): DataFragmentSpec =
-    new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), mask, partitions )
+    new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask )
 
   def getReducedSection( axisIndices: Set[Int], newsize: Int = 1 ): ma2.Section = {
     new ma2.Section( roi.getRanges.zipWithIndex.map( rngIndx => if( axisIndices(rngIndx._2) ) collapse( rngIndx._1, newsize ) else rngIndx._1 ):_* )
   }
+
+  def reduce( axisIndices: Set[Int], newsize: Int = 1 ): DataFragmentSpec =  reSection( getReducedSection(axisIndices,newsize) )
 
   def getSubSection( subsection: ma2.Section  ): ma2.Section = {
     new ma2.Section( roi.getRanges.zipWithIndex.map( rngIndx => {
@@ -329,9 +360,15 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
     reSection( newSection )
   }
 
+  def merge( dfSpec: DataFragmentSpec, dimIndex: Int = 0 ): DataFragmentSpec = {
+    val combinedRange = roi.getRange(dimIndex).union( dfSpec.roi.getRange(dimIndex) )
+    val newSection: ma2.Section = roi.insertRange( dimIndex, combinedRange )
+    reSection( newSection )
+  }
+
   def reSection( newSection: ma2.Section ): DataFragmentSpec = {
     val newRanges = for( iR <- roi.getRanges.indices; r0 = roi.getRange(iR); rNew = newSection.getRange(iR) ) yield new ma2.Range(r0.getName,rNew)
-    new DataFragmentSpec( varname, collection, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), mask, partitions )
+    new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), domainSectOpt, missing_value, mask )
   }
   def reSection( fkey: DataFragmentKey ): DataFragmentSpec = reSection( fkey.getRoi )
 
@@ -378,7 +415,7 @@ class DataContainer(val uid: String, private val source : Option[DataSource] = N
     operation.get
   }
 
-  def addOpSpec( operation: OperationContext ): Unit = {
+  def addOpSpec( operation: OperationContext ): Unit = {     // used to inform data container what types of ops will be performed on it.
     def mergeOpSpec( oSpecList: mutable.ListBuffer[ OperationSpecs ], oSpec: OperationSpecs ): Unit = oSpecList.headOption match {
       case None => oSpecList += oSpec
       case Some(head) => if( head == oSpec ) head merge oSpec else mergeOpSpec(oSpecList.tail,oSpec)
@@ -396,54 +433,69 @@ object DataContainer extends ContainerBase {
   }
   def absPath( path: String ): String = new java.io.File(path).getAbsolutePath.toLowerCase
 
-  def getCollection(metadata: Map[String, Any]): Collection = {
+  def getCollection(metadata: Map[String, Any]): ( Collection, Option[String] ) = {
     val uri = metadata.getOrElse("uri","").toString
     val varsList: List[String] = metadata.getOrElse("name","").toString.split(",").map( item => stripQuotes( item.split(':').head ) ).toList
     val path =  metadata.getOrElse("path","").toString
     val title =  metadata.getOrElse("title","").toString
     val fileFilter = metadata.getOrElse("fileFilter","").toString
     val id = parseUri(uri)
-    if (uri.startsWith("collection"))
-      Collections.findCollection( id ) match {
-        case Some(collection) =>
-          if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.path)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id,collection.path,path) ) }
-          collection
-        case None =>
-          if (path.isEmpty) throw new Exception(s"Unrecognized collection: '$id', current collections: " + Collections.idSet.mkString(", ") )
-          else Collections.addCollection( uri, path, fileFilter, title, varsList )
-      } else Collection(uri, uri, path, fileFilter, title)
+    logger.info( s" >>>>>>>>>>>----> getCollection, uri=$uri, id=$id")
+    val colId = uri match {
+      case colUri if(colUri.startsWith("collection")) => id
+      case fragUri if(fragUri.startsWith("fragment")) => id.split('|')(1)
+      case x => ""
+    }
+    val fragIdOpt = if(uri.startsWith("fragment")) Some(id) else None
+    Collections.findCollection( colId ) match {
+      case Some(collection) =>
+        if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.path)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id,collection.path,path) ) }
+        ( collection, fragIdOpt )
+      case None =>
+        val fpath = if(new java.io.File(id).isFile) id else path
+        if ( colId.isEmpty || fpath.isEmpty ) logger.warn(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", ") )
+        ( Collections.addCollection( uri, fpath, fileFilter, title, varsList ), fragIdOpt )
+    }
   }
 
   def factory(metadata: Map[String, Any]): Array[DataContainer] = {
     try {
-      val fullname = filterMap(metadata, key_equals("name")) match { case None => ""; case Some(x) => x.toString }
-      val domain = filterMap(metadata, key_equals("domain")) match { case None => ""; case Some(x) => x.toString }
-      val collection = getCollection(metadata)
-      val var_names: Array[String] = if( fullname.equals("*") ) collection.varNames.toArray else fullname.toString.split(',')
+      val fullname = metadata.getOrElse("name", "").toString
+      val domain = metadata.getOrElse("domain", "").toString
+      val (collection, fragIdOpt) = getCollection(metadata)
+      val var_names: Array[String] = if (fullname.equals("*")) collection.varNames.toArray else fullname.toString.split(',')
       val base_index = random.nextInt(Integer.MAX_VALUE)
 
-      for( ( name, index ) <- var_names.zipWithIndex) yield {
-        val name_items = name.split(':')
-        val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain))
-        val vid = normalize(name_items.last)
-        new DataContainer( if(vid.isEmpty) s"c-$base_index$index" else vid, source = Some(dsource) )
+      fragIdOpt match {
+        case Some(fragId) =>
+          val name_items = var_names.head.split(':')
+          val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain), fragIdOpt )
+          val vid = normalize(name_items.last)
+          Array( new DataContainer(if (vid.isEmpty) s"c-$base_index" else vid, source = Some(dsource)) )
+        case None =>
+          for ((name, index) <- var_names.zipWithIndex) yield {
+            val name_items = name.split(':')
+            val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain))
+            val vid = normalize(name_items.last)
+            new DataContainer(if (vid.isEmpty) s"c-$base_index$index" else vid, source = Some(dsource))
+          }
       }
     } catch {
       case e: Exception =>
-        logger.error("Error creating DataContainer: " + e.getMessage  )
-        logger.error( e.getStackTrace.mkString("\n") )
-        throw new Exception( e.getMessage, e )
+        logger.error("Error creating DataContainer: " + e.getMessage)
+        logger.error(e.getStackTrace.mkString("\n"))
+        throw new Exception(e.getMessage, e)
     }
   }
 
   def parseUri( uri: String ): String = {
     if(uri.isEmpty) "" else {
-      val recognizedUrlTypes = List( "file", "collection" )
+      val recognizedUrlTypes = List( "file", "collection", "fragment" )
       val uri_parts = uri.split(":")
       val url_type = normalize(uri_parts.head)
       if ( recognizedUrlTypes.contains(url_type) && (uri_parts.length == 2) ) {
         val value = uri_parts.last.toLowerCase
-        if( url_type.equals("collection") ) value.stripPrefix("/").stripPrefix("/") else value
+        if( List( "collection", "fragment" ).contains( url_type ) ) value.stripPrefix("/").stripPrefix("/") else value
       } else throw new Exception("Unrecognized uri format: " + uri + ", type = " + uri_parts.head + ", nparts = " + uri_parts.length.toString + ", value = " + uri_parts.last)
     }
   }

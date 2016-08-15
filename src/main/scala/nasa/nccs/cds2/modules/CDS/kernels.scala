@@ -2,10 +2,14 @@ package nasa.nccs.cds2.modules.CDS
 
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.kernels._
+import nasa.nccs.cdapi.tensors.CDFloatArray._
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDTimeCoordMap}
 import nasa.nccs.cds2.kernels.KernelTools
-import nasa.nccs.esgf.process._
+import nasa.nccs.esgf.process.{DataFragment, _}
 import ucar.ma2
+
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 
 class CDS extends KernelModule with KernelTools {
   override val version = "1.0-SNAPSHOT"
@@ -13,235 +17,107 @@ class CDS extends KernelModule with KernelTools {
   override val author = "Thomas Maxwell"
   override val contact = "thomas.maxwell@nasa.gov"
 
-  class max extends Kernel {
+  class max extends SingularKernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Maximum over Axes on Input Fragment"
-
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
-      val input_array: CDFloatArray = inputVar.dataFragment.data
-      val axisSpecs = inputVar.axisIndices
-      val async = requestCx.config("async", "false").toBoolean
-      val axes = axisSpecs.getAxes
-      val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
-      val t10 = System.nanoTime
-      val max_val_masked: CDFloatArray = input_array.max( axes.toArray )
-      val t11 = System.nanoTime
-      logger.info("Max_val_masked, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, max_val_masked.toString ) )
-      if(async) {
-        new AsyncExecutionResult( cacheResult( max_val_masked, operationCx, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
-      }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), max_val_masked )
-    }
+    override val combineOp: ReduceOpFlt  = ( x, y ) => { math.max(x,y) }
+    override val initValue: Float = -Float.MaxValue
   }
 
-  class const extends Kernel {
+    
+  class const extends SingularKernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Sets Input Fragment to constant value"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
-      val input_array: CDFloatArray = inputVar.dataFragment.data
-      val async = requestCx.config("async", "false").toBoolean
-      val sval = operationCx.config("value", "1.0" )
+    override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): DataFragment = {
+      val inputVar: PartitionedFragment = inputs.head
+      val dataFrag: DataFragment = inputVar.domainDataFragment(partIndex)
+      val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+      val async = context.request.config("async", "false").toBoolean
+      val resultFragSpec = dataFrag.getReducedSpec( axes )
+      val sval = context.operation.config("value", "1.0" )
       val t10 = System.nanoTime
-      val max_val_masked: CDFloatArray = ( input_array := sval.toFloat )
+      val result_val_masked: CDFloatArray = ( dataFrag.data := sval.toFloat )
       val t11 = System.nanoTime
-      logger.info("Constant op, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, max_val_masked.toString ) )
-      val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
-      val section = inputVar.getSpec.getReducedSection(Set())
-      if(async) {
-        new AsyncExecutionResult( cacheResult( max_val_masked, operationCx, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
-      }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), max_val_masked )
+      logger.info("Constant op, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, result_val_masked.toString ) )
+      new DataFragment( resultFragSpec, result_val_masked )
     }
   }
 
-  class min extends Kernel {
+  class min extends SingularKernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Minimum over Axes on Input Fragment"
+    override val combineOp: ReduceOpFlt  = ( x, y ) => { math.min(x,y) }
+    override val initValue: Float = Float.MaxValue
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
-      val input_array: CDFloatArray = inputVar.dataFragment.data
-      val axisSpecs = inputVar.axisIndices
-      val async = requestCx.config("async", "false").toBoolean
-      val axes = axisSpecs.getAxes
-      val t10 = System.nanoTime
-      val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
-      val max_val_masked: CDFloatArray = input_array.min( axes.toArray )
-      val t11 = System.nanoTime
-      logger.info("Mean_val_masked, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, max_val_masked.toString ) )
-      if(async) {
-        new AsyncExecutionResult( cacheResult( max_val_masked, operationCx, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
-      }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), max_val_masked )
-    }
   }
 
-  class sum extends Kernel {
+  class sum extends SingularKernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Sum over Axes on Input Fragment"
-
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
-      val input_array: CDFloatArray = inputVar.dataFragment.data
-      val axisSpecs = inputVar.axisIndices
-      val async = requestCx.config("async", "false").toBoolean
-      val axes = axisSpecs.getAxes
-      val t10 = System.nanoTime
-      val max_val_masked: CDFloatArray = input_array.sum( axes.toArray )
-      val t11 = System.nanoTime
-      logger.info("Mean_val_masked, time = %.4f s, result = %s".format( (t11-t10)/1.0E9, max_val_masked.toString ) )
-      val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
-      val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
-      if(async) {
-        new AsyncExecutionResult( cacheResult( max_val_masked, operationCx, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
-      }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), max_val_masked )
-    }
+    override val combineOp: ReduceOpFlt  = ( x, y ) => { x+y }
+    override val initValue: Float = 0f
   }
 
-  class average extends Kernel {
+  class average extends SingularKernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Weighted Average over Axes on Input Fragment"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
-      val optargs: Map[String, String] = operationCx.getConfiguration
-      val input_array: CDFloatArray = inputVar.dataFragment.data
-      val axisSpecs = inputVar.axisIndices
-      val async = requestCx.config("async", "false").toBoolean
-      val axes = axisSpecs.getAxes
+    override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): DataFragment = {
+      val inputVar: PartitionedFragment = inputs.head
+      val dataFrag: DataFragment = inputVar.domainDataFragment(partIndex)
+      val async = context.request.config("async", "false").toBoolean
+      val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+      val resultFragSpec = dataFrag.getReducedSpec( axes )
       val t10 = System.nanoTime
-      val weighting_type = operationCx.config("weights", if( operationCx.config("axes","").contains('y') ) "cosine" else "")
+      val weighting_type = context.operation.config("weights", if( context.operation.config("axes","").contains('y') ) "cosine" else "")
       val weightsOpt: Option[CDFloatArray] = weighting_type match {
         case "" => None
-        case "cosine" => serverCx.getAxisData( inputVar.getSpec, 'y' ).map( axis_data => input_array.computeWeights( weighting_type, Map( 'y' ->  axis_data ) ) )
+        case "cosine" => context.server.getAxisData( inputVar.fragmentSpec, 'y' ).map( axis_data => dataFrag.data.computeWeights( weighting_type, Map( 'y' ->  axis_data ) ) )
         case x => throw new NoSuchElementException( "Can't recognize weighting method: %s".format( x ))
       }
-      val mean_val_masked: CDFloatArray = input_array.mean( axes.toArray, weightsOpt )
+      val result_val_masked: CDFloatArray = dataFrag.data.mean( axes.args, weightsOpt )
       val t11 = System.nanoTime
-      logger.info("Mean_val_masked, time = %.4f s, reduction dims = (%s), result = %s".format( (t11-t10)/1.0E9, axes.toArray.mkString(","), mean_val_masked.toString ) )
-      val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
-      val section = inputVar.getSpec.getReducedSection(Set(axes:_*))
-      if(async) {
-        new AsyncExecutionResult( cacheResult( mean_val_masked, operationCx, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
-      }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), mean_val_masked )
+      logger.info("Mean_val_masked, time = %.4f s, reduction dims = (%s), result = %s".format( (t11-t10)/1.0E9, axes.args.mkString(","), result_val_masked.toString ) )
+      new DataFragment( resultFragSpec, result_val_masked )
     }
   }
 
-  class subset extends Kernel {
+  class subset extends SingularKernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Subset of Input Fragment"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
-      val optargs: Map[String, String] = operationCx.getConfiguration
-      val resultFragment = optargs.get("domain") match {
-        case None => inputVar.dataFragment
-        case Some( domainId ) =>
-          serverCx.getSubset( inputVar.dataFragment.fragmentSpec,  requestCx.getDomain( domainId ) )
+    override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): DataFragment = {
+      val inputVar: PartitionedFragment = inputs.head
+      val dataFrag: DataFragment = inputVar.domainDataFragment(partIndex)
+      val async = context.request.config("async", "false").toBoolean
+      val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+      val resultFragSpec = dataFrag.getReducedSpec( axes )
+      val optargs: Map[String, String] = context.operation.getConfiguration
+      optargs.get("domain") match {
+        case None => dataFrag
+        case Some( domainId ) => dataFrag.subset( context.request.targetGrid.grid.getSubSection( context.request.getDomain( domainId ).axes ) )
       }
-      val async = requestCx.config("async", "false").toBoolean
-      val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
-      val section = resultFragment.fragmentSpec.roi
-      if(async) {
-        new AsyncExecutionResult( cacheResult( resultFragment.data, operationCx, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
-      }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), resultFragment.data )
     }
   }
 
-  class metadata extends Kernel {
-    val inputs = List(Port("input fragment", "1"))
-    val outputs = List(Port("result", "1"))
-    override val description = "Displays Metadata for available data collections and masks"
-
-    override def execute(operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext): ExecutionResult = {
-      import nasa.nccs.cds2.loaders.Collections
-      val result: (String, xml.Node) = requestCx.inputs.headOption match {
-        case None => ("Collection", Collections.toXml)
-        case Some((key, inputSpec)) =>
-          inputSpec.data.collection.url match {
-            case "" => ("Collection", Collections.toXml)
-            case collectionUrl =>
-              Collections.findCollection( collectionUrl ) match {
-                case Some( collection ) =>
-                  inputSpec.data.varname match {
-                    case "" => ( collectionUrl, collection.toXml )
-                    case vname => ( collectionUrl + ":" + vname, serverCx.getVariable(collection, vname).toXml)
-                  }
-                case None => ( "Collection", Collections.toXml )
-              }
-          }
-      }
-      result match {
-        case (id, resultXml) => new XmlExecutionResult("Metadata~" + id, resultXml )
-      }
-    }
-
-    override def execute(operationCx: OperationContext, serverCx: ServerContext): ExecutionResult = {
-      import nasa.nccs.cds2.loaders.Collections
-      new XmlExecutionResult("Metadata~Collection", Collections.toXml )
-    }
-  }
-
-//  class aggregate extends Kernel {
-//    val inputs = List(Port("input fragment", "1"))
-//    val outputs = List(Port("result", "1"))
-//    override val description = "Aggregate data into bins using specified reduce function"
-//
-//    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-//      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
-//      val optargs: Map[String, String] = operationCx.getConfiguration
-//      val input_array: CDFloatArray = inputVar.dataFragment.data
-//      val cdsVariable = serverCx.getVariable(inputVar.getSpec)
-//      val axisSpecs = inputVar.axisIndices
-//      val async = requestCx.config("async", "false").toBoolean
-//      val axes = axisSpecs.getAxes.toArray
-//      val binArgs = optargs.getOrElse("bins","").split('|')
-//      val cycle = if(binArgs.length > 3) binArgs(3) else ""
-//      val period = if(binArgs.length > 1) binArgs(1) else ""
-//      val opName = if(binArgs.length > 2) binArgs(2) else "ave"
-//      val t10 = System.nanoTime
-//      assert(axes.length == 1, "Must bin over 1 axis only! Requested: " + axes.mkString(","))
-//      val coordMap: CDCoordMap = CDTimeCoordMap.getTimeCycleMap( period, cycle, requestCx.targetGrid )
-//      val binned_array: CDFloatArray = input_array.weightedReduce(input_array.getOp("add"), axes, 0f, None, Some(coordMap)) match {
-//        case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
-//          values_sum / weights_sum
-//      }
-//      val t11 = System.nanoTime
-//      logger.info("Binned array, time = %.4f s, result = %s".format((t11 - t10) / 1.0E9, binned_array.toString))
-//      val variable = serverCx.getVariable(inputVar.getSpec)
-//      val section = inputVar.getSpec.getReducedSection(Set(axes(0)), binned_array.getShape(axes(0)))
-//      if (async) {
-//        new AsyncExecutionResult(cacheResult(binned_array, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx)))
-//      }
-//      else new BlockingExecutionResult(operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), binned_array)
-//    }
-//  }
-
-  class timeBin extends Kernel {
+  class timeBin extends SingularKernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Aggregate data into bins using specified reduce function"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput = inputVars(operationCx, requestCx, serverCx).head
-      val optargs: Map[String, String] = operationCx.getConfiguration
-      val input_array: CDFloatArray = inputVar.dataFragment.data
-      val cdsVariable = serverCx.getVariable(inputVar.getSpec.collection, inputVar.getSpec.varname)
-      val axisSpecs = inputVar.axisIndices
-      val async = requestCx.config("async", "false").toBoolean
-      val axes = requestCx.targetGrid.getAxisIndices("t")
+    override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): DataFragment = {
+      val inputVar: PartitionedFragment = inputs.head
+      val dataFrag: DataFragment = inputVar.domainDataFragment(partIndex)
+      val async = context.request.config("async", "false").toBoolean
+      val optargs: Map[String, String] = context.operation.getConfiguration
+      val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
 
       val period = getIntArg( optargs, "period", Some(1) )
       val mod = getIntArg( optargs, "mod", Some(Int.MaxValue) )
@@ -249,53 +125,41 @@ class CDS extends KernelModule with KernelTools {
       val offset = getIntArg( optargs, "offset", Some(0) )
 
       val t10 = System.nanoTime
-      val cdTimeCoordMap: CDTimeCoordMap = new CDTimeCoordMap(requestCx.targetGrid)
+      val cdTimeCoordMap: CDTimeCoordMap = new CDTimeCoordMap(context.request.targetGrid)
       val coordMap: CDCoordMap = cdTimeCoordMap.getTimeCycleMap( period, unit, mod, offset )
       val timeData  = cdTimeCoordMap.getTimeIndexIterator( "month" ).toArray
       logger.info( "Binned array, timeData = [ %s ]".format( timeData.mkString(",") ) )
       logger.info( "Binned array, coordMap = %s".format( coordMap.toString ) )
-      val binned_array: CDFloatArray = input_array.weightedReduce(input_array.getOp("add"), axes, 0f, None, Some(coordMap)) match {
+      val binned_array: CDFloatArray = dataFrag.data.weightedReduce( dataFrag.data.getOp("add"), axes.args, 0f, None, Some(coordMap)) match {
         case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
           values_sum / weights_sum
       }
       val t11 = System.nanoTime
       logger.info("Binned array, time = %.4f s, result = %s".format((t11 - t10) / 1.0E9, binned_array.toString))
-      val variable = serverCx.getVariable(inputVar.getSpec.collection, inputVar.getSpec.varname)
-      val section = inputVar.getSpec.getReducedSection(Set(axes(0)), binned_array.getShape(axes(0)))
-      if (async) {
-        new AsyncExecutionResult(cacheResult(binned_array, operationCx, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx)))
-      }
-      else new BlockingExecutionResult(operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), binned_array)
+      val resultFragSpec = dataFrag.getReducedSpec( Set(axes.args(0)), binned_array.getShape(axes.args(0)) )
+      new DataFragment( resultFragSpec, binned_array )
     }
   }
 
-  class anomaly extends Kernel {
+  class anomaly extends SingularKernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Anomaly over Input Fragment"
 
-    override def execute( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-      val inputVar: KernelDataInput  =  inputVars( operationCx, requestCx, serverCx ).head
-      val optargs: Map[String,String] =  operationCx.getConfiguration
-      val input_array = inputVar.dataFragment.data
-      val axisSpecs = inputVar.axisIndices
-      val async = requestCx.config("async", "false").toBoolean
-      val axes = axisSpecs.getAxes
+    override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): DataFragment = {
+      val inputVar: PartitionedFragment = inputs.head
+      val dataFrag: DataFragment = inputVar.domainDataFragment(partIndex)
+      val async = context.request.config("async", "false").toBoolean
+      val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+      val resultFragSpec = dataFrag.getReducedSpec( axes )
       val t10 = System.nanoTime
-      val weighting_type = requestCx.config("weights", if( operationCx.config("axis","").contains('y') ) "cosine" else "")
+      val weighting_type = context.request.config("weights", if( context.operation.config("axis","").contains('y') ) "cosine" else "")
       val weightsOpt: Option[CDFloatArray] = weighting_type match {
         case "" => None
-        case wtype => serverCx.getAxisData( inputVar.getSpec, 'y' ).map( axis_data => input_array.computeWeights( wtype, Map( 'y' ->  axis_data ) ) )
+        case wtype => context.server.getAxisData( inputVar.fragmentSpec, 'y' ).map( axis_data => dataFrag.data.computeWeights( wtype, Map( 'y' ->  axis_data ) ) )
       }
-      val anomaly_result: CDFloatArray = input_array.anomaly( axes.toArray, weightsOpt )
-      val variable = serverCx.getVariable( inputVar.getSpec.collection, inputVar.getSpec.varname )
-      val section = inputVar.getSpec.roi
+      val anomaly_result: CDFloatArray = dataFrag.data.anomaly( axes.args, weightsOpt )
       val t11 = System.nanoTime
-      logger.info("Anomaly, time = %.4f s".format( (t11-t10)/1.0E9 ) )
-      if(async) {
-        new AsyncExecutionResult( cacheResult( anomaly_result, operationCx, requestCx, serverCx, requestCx.targetGrid.getSubGrid(section), inputVar.getVariableMetadata(serverCx), inputVar.getDatasetMetadata(serverCx) ) )
-      }
-      else new BlockingExecutionResult( operationCx.identifier, List(inputVar.getSpec), requestCx.targetGrid.getSubGrid(section), anomaly_result )
-    }
+      new DataFragment( resultFragSpec, anomaly_result )    }
   }
 }

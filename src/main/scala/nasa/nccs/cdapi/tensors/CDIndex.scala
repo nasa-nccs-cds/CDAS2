@@ -53,6 +53,13 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   protected val stride = if( _stride.isEmpty ) computeStrides(shape) else _stride
   def this( index: CDIndexMap ) = this( index.shape, index.stride, index.offset )
 
+  def append( other: CDIndexMap ): CDIndexMap = {
+    for( i <- (1 until rank) ) if(shape(i) != other.shape(i) ) throw new Exception( "Can't merge arrays with non-commensurate shapes: %s vs %s".format(shape.mkString(","),other.shape.mkString(",")))
+    assert( (offset==0) || (other.offset==0), "Can't merge subsetted arrays, should extract section first." )
+    val newShape: IndexedSeq[Int] = for( i <- (0 until rank) ) yield if( i==0 ) shape(i) + other.shape(i) else shape(i)
+    new CDIndexMap( newShape.toArray, _stride, offset )
+  }
+
   def getRank: Int = rank
   def getShape: Array[Int] = shape.clone
   def getStride: Array[Int] = stride.clone

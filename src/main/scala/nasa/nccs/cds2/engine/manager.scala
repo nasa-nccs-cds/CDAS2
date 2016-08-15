@@ -27,7 +27,6 @@ import scala.collection.JavaConverters._
 import java.util.concurrent._
 import ucar.nc2.dataset.NetcdfDataset
 
-
 class Counter(start: Int = 0) {
   private val index = new AtomicReference(start)
   def get: Int = {
@@ -36,13 +35,12 @@ class Counter(start: Int = 0) {
   }
 }
 
-class MetadataOnlyException extends Exception {}
-
 class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   val serverContext = new ServerContext( collectionDataCache, serverConfiguration )
   val logger = LoggerFactory.getLogger(this.getClass)
   val kernelManager = new KernelMgr()
   private val counter = new Counter
+  val nprocs: Int = serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
 
   def getKernelModule( moduleName: String  ): KernelModule = {
     kernelManager.getModule( moduleName ) match {
@@ -76,10 +74,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     request.targetGridSpec.get("id") match {
       case Some(varId) => request.variableMap.get(varId) match {
         case Some(dataContainer: DataContainer) => serverContext.createTargetGrid( dataContainer, request.getDomain(dataContainer.getSource) )
-        case None => varId match {
-          case "#META" => throw new MetadataOnlyException()
-          case x => throw new Exception("Unrecognized variable id in Grid spec: " + varId)
-        }
+        case None => throw new Exception( "Unrecognized variable id in Grid spec: " + varId )
       }
       case None => throw new Exception("Target grid specification method has not yet been implemented: " + request.targetGridSpec.toString)
     }
@@ -90,13 +85,19 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     val sourceContainers = request.variableMap.values.filter(_.isSource)
     val t1 = System.nanoTime
     val sources = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
-      yield serverContext.createInputSpec(data_container, domainOpt, targetGrid, request.getDataAccessMode )
+      yield serverContext.createInputSpec(data_container, domainOpt, targetGrid )
     val t2 = System.nanoTime
-    val sourceMap: Map[String,OperationInputSpec] = Map(sources.toSeq:_*)
+    val sourceMap: Map[String,DataFragmentSpec] = Map(sources.toSeq:_*)
     val rv = new RequestContext (request.domainMap, sourceMap, targetGrid, run_args)
     val t3 = System.nanoTime
     logger.info( " LoadInputDataT: %.4f %.4f %.4f, MAXINT: %.2f G".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, Int.MaxValue/1.0E9 ) )
     rv
+  }
+
+  def cacheInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ):  Iterable[Future[PartitionedFragment]] = {
+    val sourceContainers = request.variableMap.values.filter(_.isSource)
+    for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
+      yield serverContext.cacheInputData(data_container, domainOpt, targetGrid )
   }
 
   def searchForValue(metadata: Map[String, nc2.Attribute], keys: List[String], default_val: String): String = {
@@ -109,8 +110,9 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     }
   }
 
-  def saveResultToFile( resultId: String, maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, targetGrid: TargetGrid, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
+  def saveResultToFile( resultId: String, maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
     val inputSpec = request.getInputSpec()
+    val targetGrid = request.targetGrid
     val dataset: CDSDataset = request.getDataset(server)
     val varname = searchForValue( varMetadata, List("varname","fullname","standard_name","original_name","long_name"), "Nd4jMaskedTensor" )
     val resultFile = Kernel.getResultFile( server.getConfiguration, resultId, true )
@@ -183,8 +185,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       val collectionNodes =  request.variableMap.values.map( ds => aggCollection( ds.getSource.collection ) )
       new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "cache" =>
-      val targetGrid: TargetGrid = createTargetGrid(request)
-      val requestContext = loadInputData(request, targetGrid, run_args)
+      cacheInputData(request, createTargetGrid(request), run_args)
       FragmentPersistence.close()
       new ExecutionResults(List(new UtilityExecutionResult("cache", <cache/> )))
     case "dcol" =>
@@ -203,18 +204,26 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       new ExecutionResults(List(new UtilityExecutionResult("dres", <deleted results={resIds.mkString(",")}/> )))
     case x if x.startsWith("gres") =>
       val resId: String = request.variableMap.values.head.uid
-      println( "GRES: " + request.variableMap.values.head.toString )
+      println( "GRES: " + request.variableMap.values.head.toString + ", util_id =" + util_id )
       collectionDataCache.getExistingResult( resId ) match {
         case None => new ExecutionResults( List( new ErrorExecutionResult( new Exception("Unrecognized resId: " + resId )) ) )
-        case Some( result ) =>
-          x.split(':')(1) match {
-            case "xml" => new ExecutionResults( List( new UtilityExecutionResult( resId, result.toXml(resId) ) ))
-            case "netcdf" =>
-              saveResultToFile( resId, result.data, result.request, serverContext, result.targetGrid, result.varMetadata, List.empty[nc2.Attribute] ) match {
-                case Some( resultFilePath ) => new ExecutionResults( List( new UtilityExecutionResult( resId, <file>{resultFilePath}</file> ) ))
-                case None =>  new ExecutionResults( List( new UtilityExecutionResult( resId, <error>{"Error writing resultFile"}</error> ) ))
-              }
-          }
+        case Some( fut_result ) =>
+          println( "fut_result: " + x  )
+          if (fut_result.isCompleted) {
+            println( "await fut_result:" )
+            val result = Await.result( fut_result, Duration.Inf )
+            println( "result"  )
+            x.split(':')(1) match {
+              case "xml" =>
+                println( "xml" )
+                new ExecutionResults(List(new UtilityExecutionResult(resId,result.toXml(resId))))
+              case "netcdf" =>
+                saveResultToFile(resId, result.dataFrag.data, result.request, serverContext, result.varMetadata, List.empty[nc2.Attribute]) match {
+                  case Some(resultFilePath) => new ExecutionResults(List(new UtilityExecutionResult(resId, <file> {resultFilePath} </file>)))
+                  case None => new ExecutionResults(List(new UtilityExecutionResult(resId, <error> {"Error writing resultFile"} </error>)))
+                }
+            }
+          } else { new ExecutionResults(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }
       }
   }
 
@@ -254,7 +263,6 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
           rv
       }
     } catch {
-      case err: MetadataOnlyException => executeMetadataWorkflows( request )
       case err: Exception => new ExecutionResults(err)
     }
   }
@@ -262,7 +270,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 //  def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[xml.Elem] = Future {
 //    try {
 //      val sourceContainers = request.variableMap.values.filter(_.isSource)
-//      val inputFutures: Iterable[Future[OperationInputSpec]] = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource) yield {
+//      val inputFutures: Iterable[Future[DataFragmentSpec]] = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource) yield {
 //        serverContext.dataLoader.loadVariableDataFuture(data_container, request.getDomain(data_container.getSource))
 //      }
 //      inputFutures.flatMap( inputFuture => for( input <- inputFuture ) yield executeWorkflows(request, run_args).toXml )
@@ -337,28 +345,18 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     results
   }
 
-  def executeMetadataWorkflows( request: TaskRequest ): ExecutionResults = {
-    new ExecutionResults( request.workflows.flatMap(workflow => workflow.operations.map( metadataExecution )) )
-  }
-
-  def executeUtility( operationCx: OperationContext, requestCx: RequestContext, serverCx: ServerContext ): ExecutionResult = {
-    val result: xml.Node =  <result> {"Completed executing utility " + operationCx.name.toLowerCase } </result>
-    new XmlExecutionResult( operationCx.name.toLowerCase + "~u0", result )
+  def executeUtility( context: CDASExecutionContext ): ExecutionResult = {
+    val result: xml.Node =  <result> {"Completed executing utility " + context.operation.name.toLowerCase } </result>
+    new XmlExecutionResult( context.operation.name.toLowerCase + "~u0", result )
   }
 
   def operationExecution( operationCx: OperationContext, requestCx: RequestContext ): ExecutionResult = {
     val opName = operationCx.name.toLowerCase
     val module_name = opName.split('.')(0)
     module_name match {
-      case "util" => executeUtility( operationCx, requestCx, serverContext )
-      case x => getKernel( opName ).execute( operationCx, requestCx, serverContext )
+      case "util" => executeUtility( new CDASExecutionContext( operationCx, requestCx, serverContext ) )
+      case x => getKernel( opName ).execute( new CDASExecutionContext( operationCx, requestCx, serverContext ), nprocs )
     }
-  }
-
-  def metadataExecution( operationCx: OperationContext ): ExecutionResult = {
-    val opName = operationCx.name.toLowerCase
-    val module_name = opName.split('.')(0)
-    getKernel(opName).execute( operationCx, serverContext )
   }
 }
 

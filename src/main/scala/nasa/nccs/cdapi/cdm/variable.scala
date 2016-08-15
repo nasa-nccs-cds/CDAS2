@@ -1,21 +1,18 @@
 package nasa.nccs.cdapi.cdm
 
+import nasa.nccs.caching.{Partition, Partitions}
 import nasa.nccs.cdapi.kernels.AxisIndices
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.esgf.process._
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.concurrent.Future
 import scala.xml.XML
 
 object BoundsRole extends Enumeration { val Start, End = Value }
-
-class KernelDataInput( val dataFragment: PartitionedFragment, val axisIndices: AxisIndices ) {
-  def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] =  dataFragment.getVariableMetadata(serverContext)
-  def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] =  dataFragment.getDatasetMetadata(serverContext)
-  def getSpec: DataFragmentSpec = dataFragment.fragmentSpec
-}
 
 object CDSVariable {
   def toCoordAxis1D(coordAxis: CoordinateAxis): CoordinateAxis1D = coordAxis match {
@@ -23,8 +20,6 @@ object CDSVariable {
     case _ => throw new IllegalStateException("CDSVariable: 2D Coord axes not yet supported: " + coordAxis.getClass.getName)
   }
 }
-
-
 
 class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc2.Variable) {
   val logger = org.slf4j.LoggerFactory.getLogger("nasa.nccs.cds2.cdm.CDSVariable")
@@ -59,13 +54,13 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
   def getCoordinateAxesList = dataset.getCoordinateAxes
 }
 
-class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  )  {
+class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  )  {
   val LOG = org.slf4j.LoggerFactory.getLogger(this.getClass)
 //  private var dataStore: Option[ CDFloatArray ] = Some( array )
 //  private val cdIndexMap: CDIndexMap = array.getIndex
 //  private val invalid: Float = array.getInvalid
 
-  def this() = this( CDFloatArray( Array(0), Array.emptyFloatArray, Float.MaxValue ), None, new DataFragmentSpec )
+//  def this() = this( CDFloatArray( Array(0), Array.emptyFloatArray, Float.MaxValue ), None, new DataFragmentSpec() )
   def toBoundsString = fragmentSpec.toBoundsString
 
   def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] = {
@@ -74,9 +69,30 @@ class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray]
   def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = {
     fragmentSpec.getDatasetMetadata(serverContext)
   }
-  def data: CDFloatArray = array
+  def data(partIndex: Int ): CDFloatArray = partitions.getPartData(partIndex, fragmentSpec.missing_value )
 
-  def isMapped: Boolean = array.isMapped
+  def partFragSpec( partIndex: Int ): DataFragmentSpec = {
+    val part = partitions.getPart(partIndex)
+    fragmentSpec.reSection( fragmentSpec.roi.insertRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
+  }
+
+  def domainFragSpec( partIndex: Int ): DataFragmentSpec = {
+    val part = partitions.getPart(partIndex)
+    fragmentSpec.domainSpec.reSection( fragmentSpec.roi.insertRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
+  }
+
+  def partDataFragment( partIndex: Int ): DataFragment = {
+    val partition = partitions.getPart(partIndex)
+    new DataFragment( partFragSpec(partIndex), partition.data( fragmentSpec.missing_value ) )
+  }
+
+  def domainDataFragment( partIndex: Int ): DataFragment = {
+    val partition = partitions.getPart(partIndex)
+    val domainData = fragmentSpec.domainSectOpt match { case None => partition.data(fragmentSpec.missing_value); case Some(domainSect) => partition.data(fragmentSpec.missing_value).section(domainSect) }
+    new DataFragment( domainFragSpec(partIndex), domainData )
+  }
+
+  def isMapped(partIndex: Int): Boolean = partitions.getPartData( partIndex, fragmentSpec.missing_value ).isMapped
 
 //  def data: CDFloatArray = dataStore match {
 //    case Some( array ) => array
@@ -89,25 +105,18 @@ class PartitionedFragment( array: CDFloatArray, val maskOpt: Option[CDByteArray]
 //  def free = { dataStore = None }
 
   def mask: Option[CDByteArray] = maskOpt
-  def shape: List[Int] = data.getShape.toList
-  def getValue( indices: Array[Int] ): Float = data.getValue( indices )
+  def shape: List[Int] = partitions.getShape.toList
+  def getValue(partIndex: Int, indices: Array[Int] ): Float = data(partIndex).getValue( indices )
 
-  override def toString = { "{Fragment: shape = [%s], section = [%s]}".format( data.getShape.mkString(","), fragmentSpec.roi.toString ) }
+  override def toString = { "{Fragment: shape = [%s], section = [%s]}".format( partitions.getShape.mkString(","), fragmentSpec.roi.toString ) }
 
-  def cutIntersection( cutSection: ma2.Section, copy: Boolean = true ): PartitionedFragment = {
-    val newFragSpec = fragmentSpec.cutIntersection(cutSection)
-    val newDataArray: CDFloatArray = data.section( newFragSpec.roi.shiftOrigin(fragmentSpec.roi).getRanges.toList )
-    new PartitionedFragment( if(copy) newDataArray.dup() else newDataArray, maskOpt, newFragSpec )
+  def cutIntersection( partIndex: Int, cutSection: ma2.Section, copy: Boolean = true ): DataFragment = {
+    val pFragSpec = partFragSpec( partIndex )
+    val newFragSpec = pFragSpec.cutIntersection(cutSection)
+    val newDataArray: CDFloatArray = data(partIndex).section( newFragSpec.roi.shiftOrigin(pFragSpec.roi).getRanges.toList )
+    new DataFragment( newFragSpec, if(copy) newDataArray.dup() else newDataArray )
   }
 
-  def cutNewSubset( newSection: ma2.Section, copy: Boolean = true ): PartitionedFragment = {
-    if (fragmentSpec.roi.equals( newSection )) this
-    else {
-      val relativeSection = newSection.shiftOrigin( fragmentSpec.roi )
-      val newDataArray: CDFloatArray = data.section( relativeSection.getRanges.toList )
-      new PartitionedFragment( if(copy) newDataArray.dup() else newDataArray, maskOpt, fragmentSpec.reSection( newSection ) )
-    }
-  }
   def size: Int = fragmentSpec.roi.computeSize.toInt
   def contains( requestedSection: ma2.Section ): Boolean = fragmentSpec.roi.contains( requestedSection )
 }
