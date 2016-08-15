@@ -106,18 +106,14 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
         }
       }
       case None => {
-        logger.info( "reduce: None" )
         for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
-          logger.info( "array_value: %f, indices: %s".format(array_value,coordIndices.mkString(",")) )
           if (valid(array_value)) {
             val reduced_value = reductionOp(accumulator.getValue(coordIndices), array_value)
-            logger.info( "reduced_value: %f".format(reduced_value) )
             accumulator.setValue(coordIndices, reduced_value)
           }
         }
       }
     }
-    logger.info( "reduce: accumulator" )
     accumulator.getReducedArray
   }
 

@@ -256,7 +256,6 @@ abstract class SingularKernel extends Kernel {
     reduce( future_results, context )
   }
   def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): DataFragment = {
-    logger.info("SingularKernel(%s).map[%d] ".format( name, partIndex ))
     val inputVar = inputs.head
     val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
     val dataFrag: DataFragment = inputVar.domainDataFragment(partIndex)
