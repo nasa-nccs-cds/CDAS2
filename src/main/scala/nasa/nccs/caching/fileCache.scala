@@ -107,7 +107,7 @@ class CDASPartitioner( val cache_id: String, val roi: ma2.Section, dataType: ma2
     val cacheFilePath = getCacheFilePath(partIndex)
     val startIndex = partIndex * nSlicesPerPart
     val partSize = Math.min( nSlicesPerPart, baseShape(0) - startIndex )
-    Partition(partIndex, cacheFilePath, 0, startIndex, partSize, nChunksPerPart, sliceMemorySize, roi.getShape )
+    Partition(partIndex, cacheFilePath, 0, startIndex, partSize, nSlicesPerChunk, sliceMemorySize, roi.getShape )
   }
   def getPartitions: Array[Partition] = ( 0 until nPartitions ).map( getPartition(_) ).toArray
 
