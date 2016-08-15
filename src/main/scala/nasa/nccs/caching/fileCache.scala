@@ -44,10 +44,12 @@ class CacheChunk( val offset: Int, val elemSize: Int, val shape: Array[Int], val
   def byteOffset = offset * elemSize
 }
 
-class Partitions( val id: String, val roi: ma2.Section, val parts: Array[Partition] ) {
-  def getShape = roi.getShape
+class Partitions( val id: String, private val _section: ma2.Section, val parts: Array[Partition] ) {
+  private val baseShape = _section.getShape
+  def getShape = baseShape
   def getPart( partId: Int ): Partition = parts(partId)
   def getPartData( partId: Int, missing_value: Float ): CDFloatArray = parts(partId).data( missing_value )
+  def roi: ma2.Section = _section.clone.asInstanceOf[ma2.Section]
 }
 
 object Partition {
@@ -86,9 +88,9 @@ object Defaults {
 //  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
-class CDASPartitioner( val cache_id: String, val roi: ma2.Section, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment" ) extends Loggable  {
+class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment" ) extends Loggable  {
   private val elemSize = dataType.getSize
-  private val baseShape = roi.getShape
+  private val baseShape = _section.getShape
   private val nProcessors: Int = Defaults.nProcessors
   private val maxChunkSize: Int =  Defaults.maxChunkSize
   private val maxBufferSize: Int =  Defaults.maxBufferSize
@@ -99,8 +101,10 @@ class CDASPartitioner( val cache_id: String, val roi: ma2.Section, dataType: ma2
   private val nSlicesPerPart = nChunksPerPart * nSlicesPerChunk
   private val nPartitions = math.ceil(baseShape(0) / nSlicesPerPart.toFloat).toInt
   private val nCoresPerPart = 1
+  def roi: ma2.Section = _section.clone.asInstanceOf[ma2.Section]
+
   logger.info(s" *** Generating partitions for fragment $cache_id with $nPartitions partitions, %d processors, %d partsPerProc, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk, shape=(%s)"
-    .format( partIndexArray.size, partIndexArray(0).size, roi.getShape.mkString(",") ))
+    .format( partIndexArray.size, partIndexArray(0).size, baseShape.mkString(",") ))
 
   def getPartition( partIndex: Int ): Partition = {
 //    val sizes: IndexedSeq[Int] = for (iChunk <- (0 until nChunksPerPart); startLoc = iChunk * nSlicesPerChunk + partIndex * nSlicesPerPart; if (startLoc < baseShape(0))) yield { Math.min(startLoc + nSlicesPerChunk - 1, baseShape(0)-1)- startLoc + 1 }
@@ -108,7 +112,7 @@ class CDASPartitioner( val cache_id: String, val roi: ma2.Section, dataType: ma2
     val cacheFilePath = getCacheFilePath(partIndex)
     val startIndex = partIndex * nSlicesPerPart
     val partSize = Math.min( nSlicesPerPart, baseShape(0) - startIndex )
-    Partition(partIndex, cacheFilePath, 0, startIndex, partSize, nSlicesPerChunk, sliceMemorySize, roi.getShape )
+    Partition(partIndex, cacheFilePath, 0, startIndex, partSize, nSlicesPerChunk, sliceMemorySize, baseShape )
   }
   def getPartitions: Array[Partition] = ( 0 until nPartitions ).map( getPartition(_) ).toArray
 
@@ -129,11 +133,13 @@ class CDASPartitioner( val cache_id: String, val roi: ma2.Section, dataType: ma2
   }
 }
 
-class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
+class FileToCacheStream( val ncVariable: nc2.Variable, private val _section: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
   val attributes = nc2.Attribute.makeMap(ncVariable.getAttributes).toMap
   val missing_value: Float = getAttributeValue( "missing_value", "" ) match { case "" => Float.MaxValue; case s => s.toFloat }
+  private val baseShape = _section.getShape
   val cacheId = "a" + System.nanoTime.toHexString
   val dType = ncVariable.getDataType
+  def roi: ma2.Section = _section.clone.asInstanceOf[ma2.Section]
   val partitioner = new CDASPartitioner( cacheId, roi, dType )
   def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last; case None => default_value }
 
@@ -168,7 +174,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
 
   def cacheChunk( partition: Partition, iChunk: Int, outStr: BufferedOutputStream ) = {
     logger.info( "CacheChunk: part=%d, chunk=%d".format( partition.index, iChunk ) )
-    val subsection: ma2.Section = partition.chunkSection( iChunk, partitioner.roi )
+    val subsection: ma2.Section = partition.chunkSection( iChunk, roi )
     val t0 = System.nanoTime()
     logger.info("Reading data chunk %d, part %d, startTimIndex = %d, subsection [%s], nElems = %d ".format(iChunk, partition.index, partition.startIndex, subsection.getShape.mkString(","), subsection.getShape.foldLeft(1L)(_ * _)))
     val data = ncVariable.read(subsection)
@@ -186,8 +192,8 @@ class FileToCacheStream( val ncVariable: nc2.Variable, val roi: ma2.Section, val
   }
 
   def cachePartition( partition: Partition, stream: BufferedOutputStream ) = {
-    logger.info( "Caching Partition(%d): chunk start indices: (%s), roi: %s".format( partition.index,partition.chunkIndexArray.map(partition.chunkStartIndex(_)).mkString(","), partitioner.roi.getShape.mkString(",")) )
-    for (iChunk <- partition.chunkIndexArray; startLoc = partition.chunkStartIndex(iChunk); if ( startLoc < partitioner.roi.getShape(0)) ) yield cacheChunk( partition, iChunk, stream  )
+    logger.info( "Caching Partition(%d): chunk start indices: (%s), roi: %s".format( partition.index,partition.chunkIndexArray.map(partition.chunkStartIndex(_)).mkString(","), baseShape.mkString(",")) )
+    for (iChunk <- partition.chunkIndexArray; startLoc = partition.chunkStartIndex(iChunk); if ( startLoc < baseShape(0)) ) yield cacheChunk( partition, iChunk, stream  )
   }
 }
 
