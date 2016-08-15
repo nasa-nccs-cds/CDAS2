@@ -99,7 +99,8 @@ class CDASPartitioner( val cache_id: String, val roi: ma2.Section, dataType: ma2
   private val nSlicesPerPart = nChunksPerPart * nSlicesPerChunk
   private val nPartitions = math.ceil(baseShape(0) / nSlicesPerPart.toFloat).toInt
   private val nCoresPerPart = 1
-  logger.info(s" *** Generating partitions for fragment $cache_id with $nPartitions partitions, %d processors, %d partsPerProc, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk".format( partIndexArray.size, partIndexArray(0).size ))
+  logger.info(s" *** Generating partitions for fragment $cache_id with $nPartitions partitions, %d processors, %d partsPerProc, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk, shape=(%s)"
+    .format( partIndexArray.size, partIndexArray(0).size, roi.getShape.mkString(",") ))
 
   def getPartition( partIndex: Int ): Partition = {
 //    val sizes: IndexedSeq[Int] = for (iChunk <- (0 until nChunksPerPart); startLoc = iChunk * nSlicesPerChunk + partIndex * nSlicesPerPart; if (startLoc < baseShape(0))) yield { Math.min(startLoc + nSlicesPerChunk - 1, baseShape(0)-1)- startLoc + 1 }
