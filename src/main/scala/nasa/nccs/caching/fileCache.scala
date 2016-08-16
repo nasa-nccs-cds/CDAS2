@@ -104,8 +104,8 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
   private val nChunksPerPart = math.ceil( nSlicesPerPart / nSlicesPerChunk.toFloat ).toInt
   private val nCoresPerPart = 1
   def roi: ma2.Section = new ma2.Section( _section )
-
-  logger.info(s" *** Generating partitions for fragment $cache_id with $nPartitions partitions, %d processors, %d partsPerProc, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk, shape=(%s)"
+  logger.info(s" ~~~~ Generating partitions: sliceMemorySize: $sliceMemorySize, memoryDistFract: $memoryDistFract, nSlicesPerPart: $nSlicesPerPart, nPartitions: $nPartitions, partitionMemorySize: $partitionMemorySize, " )
+  logger.info(s" ~~~~ Generating partitions for fragment $cache_id with $nPartitions partitions, $nProcessors processors, %d bins, %d partsPerBin, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk, shape=(%s)"
     .format( partIndexArray.size, partIndexArray(0).size, baseShape.mkString(",") ))
 
   def getPartition( partIndex: Int ): Partition = {
