@@ -100,10 +100,11 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
   private lazy val nSlicesPerPart = math.min( math.floor( baseShape(0) / memoryDistFract ).toInt, math.ceil( baseShape(0) / nProcessors.toFloat ).toInt )
   private lazy val nPartitions = math.ceil( baseShape(0) / nSlicesPerPart.toFloat ).toInt
   private lazy val partitionMemorySize: Long = getMemorySize(nSlicesPerPart)
-  private lazy val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min((maxChunkSize / sliceMemorySize).toInt, baseShape(0))
-  private lazy val chunkMemorySize: Long = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize(nSlicesPerChunk)
-  private lazy val nChunksPerPart = math.ceil( nSlicesPerPart / nSlicesPerChunk.toFloat ).toInt
+  private lazy val nChunksPerPart = math.ceil( partitionMemorySize / maxChunkSize.toFloat ).toInt
+  private lazy val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min( math.ceil( nSlicesPerPart / nChunksPerPart.toFloat  ).toInt, baseShape(0))
+  private lazy val chunkMemorySize: Long = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize( nSlicesPerChunk )
   private lazy val nCoresPerPart = 1
+  
   def roi: ma2.Section = new ma2.Section( _section )
   logger.info(s" ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, maxBufferSize: $maxBufferSize, sliceMemorySize: $sliceMemorySize, memoryDistFract: $memoryDistFract, nSlicesPerPart: $nSlicesPerPart, nPartitions: $nPartitions, partitionMemorySize: $partitionMemorySize, " )
   logger.info(s" ~~~~ Generating partitions for fragment $cache_id with $nPartitions partitions, $nProcessors processors, %d bins, %d partsPerBin, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk, shape=(%s)"
