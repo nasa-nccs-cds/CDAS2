@@ -5,20 +5,20 @@ import nasa.nccs.cdapi.cdm._
 import nasa.nccs.esgf.process._
 import org.slf4j.LoggerFactory
 import java.io.{File, IOException, PrintWriter, StringWriter}
-import scala.concurrent.ExecutionContext.Implicits.global
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.caching.collectionDataCache
 import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
-import scala.util.Random
+import scala.util.{ Random, Success, Failure }
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Future, Await}
+import scala.concurrent.{Await, Future}
 
 object Port {
   def apply( name: String, cardinality: String, description: String="", datatype: String="", identifier: String="" ) = {
@@ -169,17 +169,22 @@ abstract class Kernel extends Loggable {
   def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]]
 
   def execute( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
-    logger.info( s"Kernel[$name($id)].execute: " + context.operation.toString )
+    val t0 = System.nanoTime()
     val inputs: List[PartitionedFragment] = inputVars( context )
     var opResult: Future[Option[DataFragment]] = mapReduce( inputs, context, nprocs )
+    opResult.onComplete {
+      case Success(dataFragOpt) => logger.info(s"********** Completed Execution of Kernel[$name($id)]: %s , total time = %.3f sec  ********** \n".format(context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
+      case Failure(t) =>  logger.info(s"********** Failed Execution of Kernel[$name($id)]: %s -> %s ********** \n".format(context.operation.toString, t.getMessage ))
+    }
     createResponse( postOp( opResult, context  ), inputs, context )
   }
   def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = future_result
   def reduce( future_results: IndexedSeq[Future[Option[DataFragment]]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = Future.reduce(future_results)(reduceOp(context) _)
 
   def reduceOp(context: CDASExecutionContext)(a0op: Option[DataFragment], a1op: Option[DataFragment]): Option[DataFragment] = {
+    val t0 = System.nanoTime
     val axes: AxisIndices = context.request.getAxisIndices(context.operation.config("axes", ""))
-    a0op match {
+    val rv = a0op match {
       case Some(a0) =>
         a1op match {
           case Some(a1) =>
@@ -193,6 +198,8 @@ abstract class Kernel extends Loggable {
           case None => None
         }
     }
+    logger.info("Executed %s reduce op, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
+    rv
   }
   def createResponse( resultFut: Future[Option[DataFragment]], inputs: List[PartitionedFragment], context: CDASExecutionContext ): ExecutionResult = {
     val inputVar: PartitionedFragment = inputs.head
@@ -271,15 +278,14 @@ abstract class SingularKernel extends Kernel {
     reduce( future_results, context )
   }
   def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
+    val t0 = System.nanoTime
     val inputVar = inputs.head
     val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
     inputVar.domainDataFragment(partIndex).map { (dataFrag) =>
       val async = context.request.config("async", "false").toBoolean
       val resultFragSpec = dataFrag.getReducedSpec(axes)
-      val t10 = System.nanoTime
       val result_val_masked: CDFloatArray = dataFrag.data.reduce(combineOp, axes.args, initValue)
-      val t11 = System.nanoTime
-      logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (t11 - t10) / 1.0E9))
+      logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
       new DataFragment(resultFragSpec, result_val_masked)
     }
   }

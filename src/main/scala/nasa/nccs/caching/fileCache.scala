@@ -53,14 +53,14 @@ class Partitions( val id: String, private val _section: ma2.Section, val parts: 
 }
 
 object Partition {
-  def apply( index: Int, path: String, dimIndex: Int, startIndex: Int, partSize: Int, chunkSize: Int, sliceMemorySize: Int, fragShape: Array[Int] ): Partition = {
+  def apply( index: Int, path: String, dimIndex: Int, startIndex: Int, partSize: Int, chunkSize: Int, sliceMemorySize: Long, fragShape: Array[Int] ): Partition = {
     val partShape = getPartitionShape(partSize,fragShape)
     new Partition( index, path, dimIndex, startIndex, partSize, chunkSize, sliceMemorySize, partShape )
   }
   def getPartitionShape( partSize: Int, fragShape: Array[Int] ): Array[Int] = { var shape = fragShape.clone(); shape(0) = partSize; shape }
 }
 
-class Partition( val index: Int, val path: String, val dimIndex: Int, val startIndex: Int, val partSize: Int, val chunkSize: Int, val sliceMemorySize: Int, val shape: Array[Int] ) {
+class Partition( val index: Int, val path: String, val dimIndex: Int, val startIndex: Int, val partSize: Int, val chunkSize: Int, val sliceMemorySize: Long, val shape: Array[Int] ) {
   logger.info(s" *** Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s)".format( shape.mkString(",") ))
   def data( missing_value: Float ): CDFloatArray = {
     val file = new RandomAccessFile( path,"r" )
@@ -82,7 +82,7 @@ object Defaults {
   val M = 1000000
   val maxChunkSize = 200*M
   val maxBufferSize = Int.MaxValue
-  val nProcessors = 16
+  val maxProcessors = 16
 }
 //class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {
 //  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
@@ -91,15 +91,17 @@ object Defaults {
 class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment" ) extends Loggable  {
   private val elemSize = dataType.getSize
   private val baseShape = _section.getShape
-  private val nProcessors: Int = Defaults.nProcessors
+  private val nProcessors: Int = math.min( Runtime.getRuntime().availableProcessors(), Defaults.maxProcessors )
   private val maxChunkSize: Int =  Defaults.maxChunkSize
   private val maxBufferSize: Int =  Defaults.maxBufferSize
-  private val sliceMemorySize: Int =  getMemorySize(1)
-  private val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min((maxChunkSize / sliceMemorySize), baseShape(0))
-  private val chunkMemorySize: Int = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize(nSlicesPerChunk)
-  private val nChunksPerPart = maxBufferSize / chunkMemorySize
-  private val nSlicesPerPart = nChunksPerPart * nSlicesPerChunk
-  private val nPartitions = math.ceil(baseShape(0) / nSlicesPerPart.toFloat).toInt
+  private val sliceMemorySize: Long =  getMemorySize(1)
+  private val minNPart: Int = math.floor(getMemorySize(1)/maxBufferSize.toFloat).toInt
+  private val nPartitions: Int = math.min( baseShape(0), math.max( math.ceil( baseShape(0) / nProcessors.toFloat ).toInt, minNPart ) )
+  private val nSlicesPerPart = math.ceil( baseShape(0) / nPartitions.toFloat ).toInt
+  private val partitionMemorySize: Long = getMemorySize(nSlicesPerPart)
+  private val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min((maxChunkSize / sliceMemorySize).toInt, baseShape(0))
+  private val chunkMemorySize: Long = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize(nSlicesPerChunk)
+  private val nChunksPerPart = math.ceil( nSlicesPerPart / nSlicesPerChunk.toFloat ).toInt
   private val nCoresPerPart = 1
   def roi: ma2.Section = new ma2.Section( _section )
 
@@ -122,10 +124,10 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
     val blockSize = getBlockSize
     (0 until nPartitions).sliding(blockSize,blockSize).toArray
   }
-  def getMemorySize( nSlicesPerPart: Int ): Int = {
+  def getMemorySize( nSlices: Int = -1 ): Long = {
     var full_shape = baseShape.clone()
-    full_shape(0) = nSlicesPerPart
-    full_shape.foldLeft(4)(_ * _)
+    if( nSlices > 0 ) { full_shape(0) = nSlices }
+    full_shape.foldLeft(4L)(_ * _)
   }
   def getCacheFilePath( partIndex: Int ): String = {
     val cache_file = cache_id + "-" + partIndex.toString
