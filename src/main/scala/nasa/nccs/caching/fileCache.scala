@@ -82,7 +82,7 @@ object Defaults {
   val M = 1000000
   val maxChunkSize = 200*M
   val maxBufferSize = Int.MaxValue
-  val maxProcessors = 16
+  val maxProcessors = 8
 }
 //class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {
 //  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
@@ -91,7 +91,7 @@ object Defaults {
 class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment" ) extends Loggable  {
   private val elemSize = dataType.getSize
   private val baseShape = _section.getShape
-  private val nProcessors: Int = math.min( Runtime.getRuntime().availableProcessors(), Defaults.maxProcessors )
+  private val nProcessors: Int = Defaults.maxProcessors // math.min( Runtime.getRuntime().availableProcessors(), Defaults.maxProcessors )
   private val maxChunkSize: Int =  Defaults.maxChunkSize
   private val maxBufferSize: Int =  Defaults.maxBufferSize
   private val sliceMemorySize: Long =  getMemorySize(1)
