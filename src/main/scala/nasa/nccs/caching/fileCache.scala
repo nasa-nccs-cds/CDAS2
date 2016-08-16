@@ -95,9 +95,8 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
   private val maxChunkSize: Int =  Defaults.maxChunkSize
   private val maxBufferSize: Int =  Defaults.maxBufferSize
   private val sliceMemorySize: Long =  getMemorySize(1)
-  private val minNPart: Int = math.floor(getMemorySize()/maxBufferSize.toFloat).toInt
-  private val nPartitionsBound: Int = math.min( baseShape(0), math.max( nProcessors, minNPart ) )
-  private val nSlicesPerPart = baseShape(0) / nPartitionsBound
+  private val memoryDistFract: Double = math.min( getMemorySize()/maxBufferSize.toDouble, 1.0 )
+  private val nSlicesPerPart = math.floor( baseShape(0) / memoryDistFract ).toInt
   private val nPartitions = math.ceil( baseShape(0) / nSlicesPerPart.toFloat ).toInt
   private val partitionMemorySize: Long = getMemorySize(nSlicesPerPart)
   private val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min((maxChunkSize / sliceMemorySize).toInt, baseShape(0))
