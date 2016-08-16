@@ -106,18 +106,14 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
         }
       }
       case None => {
-        logger.info( "reduce: None" )
         for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
-          logger.info( "array_value: %f, indices: %s".format(array_value,coordIndices.mkString(",")) )
           if (valid(array_value)) {
             val reduced_value = reductionOp(accumulator.getValue(coordIndices), array_value)
-            logger.info( "reduced_value: %f".format(reduced_value) )
             accumulator.setValue(coordIndices, reduced_value)
           }
         }
       }
     }
-    logger.info( "reduce: accumulator" )
     accumulator.getReducedArray
   }
 
@@ -190,6 +186,8 @@ object CDFloatArray {
     case "short"  => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toFloat ) )
     case x        => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Byte]].map( _.toFloat ) )
   }
+
+  def empty: CDFloatArray = { new CDFloatArray( CDIndexMap.empty, FloatBuffer.allocate(0), Float.MaxValue ) }
 
   def toFloatBuffer( buffer: Buffer ): FloatBuffer = buffer match {
     case x: FloatBuffer  => buffer.asInstanceOf[ FloatBuffer ]

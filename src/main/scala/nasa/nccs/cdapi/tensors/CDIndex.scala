@@ -20,7 +20,8 @@ import scala.collection.JavaConverters._
 object CDIndexMap {
 
   def factory(index: CDIndexMap): CDIndexMap = new CDIndexMap(index.getShape, index.getStride, index.getOffset )
-  def factory(shape: Array[Int], stride: Array[Int]=Array.emptyIntArray, offset: Int = 0): CDIndexMap = new CDIndexMap(shape, stride, offset )
+  def factory(shape: Array[Int]=Array.emptyIntArray, stride: Array[Int]=Array.emptyIntArray, offset: Int = 0): CDIndexMap = new CDIndexMap(shape, stride, offset )
+  def empty = factory()
 }
 
 abstract class IndexMapIterator extends collection.Iterator[Int] {
