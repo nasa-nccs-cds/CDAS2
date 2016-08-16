@@ -90,12 +90,13 @@ object Defaults {
 
 class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment" ) extends Loggable  {
   private val elemSize = dataType.getSize
+  private val sectionMemorySize = getMemorySize()
   private val baseShape = _section.getShape
   private val nProcessors: Int = Defaults.maxProcessors // math.min( Runtime.getRuntime().availableProcessors(), Defaults.maxProcessors )
   private val maxChunkSize: Int =  Defaults.maxChunkSize
   private val maxBufferSize: Int =  Defaults.maxBufferSize
   private val sliceMemorySize: Long =  getMemorySize(1)
-  private val memoryDistFract: Double = math.min( getMemorySize()/maxBufferSize.toDouble, 1.0 )
+  private val memoryDistFract: Double = math.min( sectionMemorySize/maxBufferSize.toDouble, 1.0 )
   private val nSlicesPerPart = math.floor( baseShape(0) / memoryDistFract ).toInt
   private val nPartitions = math.ceil( baseShape(0) / nSlicesPerPart.toFloat ).toInt
   private val partitionMemorySize: Long = getMemorySize(nSlicesPerPart)
@@ -104,7 +105,7 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
   private val nChunksPerPart = math.ceil( nSlicesPerPart / nSlicesPerChunk.toFloat ).toInt
   private val nCoresPerPart = 1
   def roi: ma2.Section = new ma2.Section( _section )
-  logger.info(s" ~~~~ Generating partitions: sliceMemorySize: $sliceMemorySize, memoryDistFract: $memoryDistFract, nSlicesPerPart: $nSlicesPerPart, nPartitions: $nPartitions, partitionMemorySize: $partitionMemorySize, " )
+  logger.info(s" ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, maxBufferSize: $maxBufferSize, sliceMemorySize: $sliceMemorySize, memoryDistFract: $memoryDistFract, nSlicesPerPart: $nSlicesPerPart, nPartitions: $nPartitions, partitionMemorySize: $partitionMemorySize, " )
   logger.info(s" ~~~~ Generating partitions for fragment $cache_id with $nPartitions partitions, $nProcessors processors, %d bins, %d partsPerBin, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk, shape=(%s)"
     .format( partIndexArray.size, partIndexArray(0).size, baseShape.mkString(",") ))
 
