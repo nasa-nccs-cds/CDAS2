@@ -367,6 +367,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   }
 
   def reSection( newSection: ma2.Section ): DataFragmentSpec = {
+    println( " ++++ ReSection: newSection=(%s), roi=(%s)".format( newSection.toString, roi.toString ) )
     val newRanges = for( iR <- roi.getRanges.indices; r0 = roi.getRange(iR); rNew = newSection.getRange(iR) ) yield new ma2.Range(r0.getName,rNew)
     new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), domainSectOpt, missing_value, mask )
   }
