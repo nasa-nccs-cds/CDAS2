@@ -102,6 +102,7 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
     } catch {
       case ex: Exception =>
         logger.warn( s"Failed getting data fragment $partIndex: " + ex.getMessage )
+        logger.error( ex.getStackTrace.mkString("\n\t") )
         None
     }
   }
