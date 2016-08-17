@@ -59,6 +59,7 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
 //  private var dataStore: Option[ CDFloatArray ] = Some( array )
 //  private val cdIndexMap: CDIndexMap = array.getIndex
 //  private val invalid: Float = array.getInvalid
+  println( "new PartitionedFragment: fragSect=(%s)\n %s ".format( fragmentSpec.roi.toString, Thread.currentThread().getStackTrace().mkString("\n") ))
 
 //  def this() = this( CDFloatArray( Array(0), Array.emptyFloatArray, Float.MaxValue ), None, new DataFragmentSpec() )
   def toBoundsString = fragmentSpec.toBoundsString
@@ -91,16 +92,19 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
   def domainDataFragment( partIndex: Int ): Option[DataFragment] = {
     try {
       val partition = partitions.getPart(partIndex)
-      val domainData = fragmentSpec.domainSectOpt match {
-        case None => partition.data(fragmentSpec.missing_value);
+      val domainDataOpt: Option[CDFloatArray] = fragmentSpec.domainSectOpt match {
+        case None => Some( partition.data(fragmentSpec.missing_value) )
         case Some(domainSect) =>
           val pFragSpec = partFragSpec( partIndex )
-          val newFragSpec = pFragSpec.cutIntersection(domainSect)
-          logger.info( "Domain Partition(%d) Fragment: fragSect=(%s), newFragSect=(%s), domainSect=(%s)".format( partIndex, pFragSpec.roi.toString, newFragSpec.roi, domainSect.toString))
-          val dataSection = newFragSpec.roi.shiftOrigin(pFragSpec.roi)
-          partition.data(fragmentSpec.missing_value).section( dataSection.getRanges.toList )
+          pFragSpec.cutIntersection(domainSect) match {
+            case Some(newFragSpec) =>
+              logger.info ("Domain Partition(%d) Fragment: fragSect=(%s), newFragSect=(%s), domainSect=(%s)".format (partIndex, pFragSpec.roi.toString, newFragSpec.roi, domainSect.toString) )
+              val dataSection = newFragSpec.roi.shiftOrigin (pFragSpec.roi)
+              Some( partition.data (fragmentSpec.missing_value).section (dataSection.getRanges.toList) )
+            case None => None
+          }
       }
-      Some( new DataFragment(domainFragSpec(partIndex), domainData) )
+      domainDataOpt.map( new DataFragment(domainFragSpec(partIndex), _ ) )
     } catch {
       case ex: Exception =>
         logger.warn( s"Failed getting data fragment $partIndex: " + ex.getMessage )

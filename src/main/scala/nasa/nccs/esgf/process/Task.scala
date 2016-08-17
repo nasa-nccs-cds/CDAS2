@@ -266,7 +266,7 @@ class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray ) {
 }
 
 class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
-                        val longname: String="", val roi: ma2.Section = new ma2.Section(), val domainSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None )  {
+                        val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None )  {
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
@@ -275,6 +275,9 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
       case Some(maskId) => <input varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
+  def roi = new ma2.Section( _section )
+  def domainSectOpt = _domSectOpt.map( sect => new ma2.Section( sect ) )
+
   def toBoundsString = { targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
   def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), domainSectOpt, missing_value, mask )
@@ -322,8 +325,11 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
     case Some(cutSection) => new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask )
   }
 
-  def cutIntersection( cutSection: ma2.Section ): DataFragmentSpec =
-    new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask )
+  def cutIntersection( cutSection: ma2.Section ): Option[DataFragmentSpec] =
+    if( roi.intersects( cutSection ) ) {
+      printf( " xxxxxxx INTERSECTS: (%s) (%s) ".format( roi.toString, cutSection.toString ) )
+      Some( new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask ) )
+    }  else None
 
   def getReducedSection( axisIndices: Set[Int], newsize: Int = 1 ): ma2.Section = {
     new ma2.Section( roi.getRanges.zipWithIndex.map( rngIndx => if( axisIndices(rngIndx._2) ) collapse( rngIndx._1, newsize ) else rngIndx._1 ):_* )
