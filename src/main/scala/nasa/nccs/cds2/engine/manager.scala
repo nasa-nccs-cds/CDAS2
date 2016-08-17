@@ -204,18 +204,13 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       new ExecutionResults(List(new UtilityExecutionResult("dres", <deleted results={resIds.mkString(",")}/> )))
     case x if x.startsWith("gres") =>
       val resId: String = request.variableMap.values.head.uid
-      println( "GRES: " + request.variableMap.values.head.toString + ", util_id =" + util_id )
       collectionDataCache.getExistingResult( resId ) match {
         case None => new ExecutionResults( List( new ErrorExecutionResult( new Exception("Unrecognized resId: " + resId )) ) )
         case Some( fut_result ) =>
-          println( "fut_result: " + x  )
           if (fut_result.isCompleted) {
-            println( "await fut_result:" )
             val result = Await.result( fut_result, Duration.Inf )
-            println( "result"  )
             x.split(':')(1) match {
               case "xml" =>
-                println( "xml" )
                 new ExecutionResults(List(new UtilityExecutionResult(resId,result.toXml(resId))))
               case "netcdf" =>
                 result.dataFragOpt match {

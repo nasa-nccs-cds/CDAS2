@@ -73,7 +73,9 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
 
   def partFragSpec( partIndex: Int ): DataFragmentSpec = {
     val part = partitions.getPart(partIndex)
-    fragmentSpec.reSection( fragmentSpec.roi.replaceRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
+     val rv = fragmentSpec.reSection( fragmentSpec.roi.replaceRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
+     logger.info( "partFragSpec(%d) Fragment: fragSect=(%s), newFragSect=(%s), part=%s".format( partIndex, fragmentSpec.roi.toString, rv.roi, part.toString))
+     rv
   }
 
   def domainFragSpec( partIndex: Int ): DataFragmentSpec = {
@@ -94,8 +96,8 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
         case Some(domainSect) =>
           val pFragSpec = partFragSpec( partIndex )
           val newFragSpec = pFragSpec.cutIntersection(domainSect)
+          logger.info( "Domain Partition(%d) Fragment: fragSect=(%s), newFragSect=(%s), domainSect=(%s)".format( partIndex, pFragSpec.roi.toString, newFragSpec.roi, domainSect.toString))
           val dataSection = newFragSpec.roi.shiftOrigin(pFragSpec.roi)
-          logger.info( "Domain Partition(%d) Fragment: dataSection=(%s), fragSect=(%s), domainSect=(%s)".format( partIndex, dataSection.toString, pFragSpec.roi.toString, domainSect.toString))
           partition.data(fragmentSpec.missing_value).section( dataSection.getRanges.toList )
       }
       Some( new DataFragment(domainFragSpec(partIndex), domainData) )

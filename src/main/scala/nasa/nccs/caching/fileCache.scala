@@ -78,6 +78,7 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
   def chunkStartIndex(iChunk: Int) = { iChunk * chunkSize + startIndex }
   def chunkIndexArray: IndexedSeq[Int] = (0 until nChunks)
   def chunkMemorySize = chunkSize * sliceMemorySize
+  override def toString = s"Part[$index]{dim=$dimIndex, start=$startIndex, size=$partSize, shape=(%s)}".format( shape.mkString(",") )
 }
 
 object Defaults {
