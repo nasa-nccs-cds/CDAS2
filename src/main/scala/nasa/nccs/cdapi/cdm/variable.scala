@@ -91,7 +91,10 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
       val partition = partitions.getPart(partIndex)
       val domainData = fragmentSpec.domainSectOpt match {
         case None => partition.data(fragmentSpec.missing_value);
-        case Some(domainSect) => partition.data(fragmentSpec.missing_value).section( partition.partSection(domainSect) )
+        case Some(domainSect) =>
+          val pFragSpec = partFragSpec( partIndex )
+          val newFragSpec = pFragSpec.cutIntersection(domainSect)
+          partition.data(fragmentSpec.missing_value).section( newFragSpec.roi.shiftOrigin(pFragSpec.roi).getRanges.toList )
       }
       Some( new DataFragment(domainFragSpec(partIndex), domainData) )
     } catch {
@@ -128,4 +131,11 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
 
   def size: Int = fragmentSpec.roi.computeSize.toInt
   def contains( requestedSection: ma2.Section ): Boolean = fragmentSpec.roi.contains( requestedSection )
+}
+
+object sectionTest1 extends App {
+  val offset = new ma2.Section( Array( 20, 0, 0 ), Array( 0, 0, 0 ) )
+  val section = new ma2.Section( Array( 20, 50, 30 ), Array( 100, 100, 100 ) )
+  val section1 = section.compose( offset )
+  println( section1.toString )
 }
