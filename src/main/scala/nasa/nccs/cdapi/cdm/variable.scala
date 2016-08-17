@@ -91,7 +91,7 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
       val partition = partitions.getPart(partIndex)
       val domainData = fragmentSpec.domainSectOpt match {
         case None => partition.data(fragmentSpec.missing_value);
-        case Some(domainSect) => partition.data(fragmentSpec.missing_value).section(domainSect)
+        case Some(domainSect) => partition.data(fragmentSpec.missing_value).section( partition.partSection(domainSect) )
       }
       Some( new DataFragment(domainFragSpec(partIndex), domainData) )
     } catch {

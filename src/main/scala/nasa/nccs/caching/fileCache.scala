@@ -70,9 +70,11 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
     new CDFloatArray( shape, buffer.asFloatBuffer, missing_value )
   }
   def chunkSection( iChunk: Int, section: ma2.Section ): ma2.Section = {  new ma2.Section( section ).replaceRange( dimIndex, chunkRange(iChunk) ) }
+  def partSection( section: ma2.Section ): ma2.Section = {  new ma2.Section( section ).replaceRange( dimIndex, partRange ) }
   def nChunks = math.ceil( partSize / chunkSize.toDouble ).toInt
   def endIndex = startIndex + partSize - 1
   def chunkRange(iChunk: Int): ma2.Range = { val start = chunkStartIndex(iChunk); new ma2.Range( start, Math.min(start+chunkSize-1,endIndex) ) }
+  def partRange: ma2.Range = { new ma2.Range( startIndex, endIndex ) }
   def chunkStartIndex(iChunk: Int) = { iChunk * chunkSize + startIndex }
   def chunkIndexArray: IndexedSeq[Int] = (0 until nChunks)
   def chunkMemorySize = chunkSize * sliceMemorySize
