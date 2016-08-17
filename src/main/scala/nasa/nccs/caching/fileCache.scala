@@ -451,7 +451,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
             None
           } else {
             val fragment = Await.result(fragmentFuture, Duration.Inf)
-            Some(fragment.cutIntersection(partIndex, fragSpec.roi))
+            fragment.cutIntersection(partIndex, fragSpec.roi)
           }
         case None => cutExistingFragment(partIndex, fragSpec, abortSizeFraction)
       }

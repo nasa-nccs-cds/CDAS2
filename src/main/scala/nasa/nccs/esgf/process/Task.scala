@@ -261,7 +261,7 @@ class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray ) {
   }
   def getReducedSpec( axes: AxisIndices ): DataFragmentSpec =  spec.reduce(Set(axes.getAxes:_*))
   def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)
-  def subset( section: ma2.Section ): DataFragment = new DataFragment( spec.cutIntersection( section ), data.section(section) )
+  def subset( section: ma2.Section ): Option[DataFragment] = spec.cutIntersection( section ) map { dataFragSpec => new DataFragment( dataFragSpec, data.section(section) ) }
 
 }
 

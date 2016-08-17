@@ -131,11 +131,12 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
 
   override def toString = { "{Fragment: shape = [%s], section = [%s]}".format( partitions.getShape.mkString(","), fragmentSpec.roi.toString ) }
 
-  def cutIntersection( partIndex: Int, cutSection: ma2.Section, copy: Boolean = true ): DataFragment = {
+  def cutIntersection( partIndex: Int, cutSection: ma2.Section, copy: Boolean = true ): Option[DataFragment] = {
     val pFragSpec = partFragSpec( partIndex )
-    val newFragSpec = pFragSpec.cutIntersection(cutSection)
-    val newDataArray: CDFloatArray = data(partIndex).section( newFragSpec.roi.shiftOrigin(pFragSpec.roi).getRanges.toList )
-    new DataFragment( newFragSpec, if(copy) newDataArray.dup() else newDataArray )
+    pFragSpec.cutIntersection(cutSection) map { newFragSpec =>
+        val newDataArray: CDFloatArray = data (partIndex).section (newFragSpec.roi.shiftOrigin (pFragSpec.roi).getRanges.toList)
+        new DataFragment ( newFragSpec, if (copy) newDataArray.dup () else newDataArray )
+    }
   }
 
   def size: Int = fragmentSpec.roi.computeSize.toInt
