@@ -94,7 +94,9 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
         case Some(domainSect) =>
           val pFragSpec = partFragSpec( partIndex )
           val newFragSpec = pFragSpec.cutIntersection(domainSect)
-          partition.data(fragmentSpec.missing_value).section( newFragSpec.roi.shiftOrigin(pFragSpec.roi).getRanges.toList )
+          val dataSection = newFragSpec.roi.shiftOrigin(pFragSpec.roi)
+          logger.info( "Domain Partition(%d) Fragment: dataSection=(%s), fragSect=(%s), domainSect=(%s)".format( partIndex, dataSection.toString, pFragSpec.roi.toString, domainSect.toString))
+          partition.data(fragmentSpec.missing_value).section( dataSection.getRanges.toList )
       }
       Some( new DataFragment(domainFragSpec(partIndex), domainData) )
     } catch {
