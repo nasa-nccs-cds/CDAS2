@@ -73,12 +73,12 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
 
   def partFragSpec( partIndex: Int ): DataFragmentSpec = {
     val part = partitions.getPart(partIndex)
-    fragmentSpec.reSection( fragmentSpec.roi.insertRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
+    fragmentSpec.reSection( fragmentSpec.roi.replaceRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
   }
 
   def domainFragSpec( partIndex: Int ): DataFragmentSpec = {
     val part = partitions.getPart(partIndex)
-    fragmentSpec.domainSpec.reSection( fragmentSpec.roi.insertRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
+    fragmentSpec.domainSpec.reSection( fragmentSpec.roi.replaceRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
   }
 
   def partDataFragment( partIndex: Int ): DataFragment = {

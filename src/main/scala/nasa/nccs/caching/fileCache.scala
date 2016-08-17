@@ -94,7 +94,7 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
   private lazy val elemSize = dataType.getSize
   private lazy val baseShape = _section.getShape
   private lazy val sectionMemorySize = getMemorySize()
-  private lazy val nProcessors: Int = Defaults.maxProcessors // math.min( Runtime.getRuntime().availableProcessors(), Defaults.maxProcessors )
+  private lazy val nProcessors: Int = math.min( Runtime.getRuntime.availableProcessors(), Defaults.maxProcessors )
   private lazy val maxChunkSize: Int =  Defaults.maxChunkSize
   private lazy val maxBufferSize: Int =  Defaults.maxBufferSize
   private lazy val sliceMemorySize: Long =  getMemorySize(1)

@@ -362,7 +362,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
 
   def merge( dfSpec: DataFragmentSpec, dimIndex: Int = 0 ): DataFragmentSpec = {
     val combinedRange = roi.getRange(dimIndex).union( dfSpec.roi.getRange(dimIndex) )
-    val newSection: ma2.Section = roi.insertRange( dimIndex, combinedRange )
+    val newSection: ma2.Section = roi.replaceRange( dimIndex, combinedRange )
     reSection( newSection )
   }
 
