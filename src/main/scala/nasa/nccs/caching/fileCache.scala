@@ -630,11 +630,9 @@ object Cachetest extends App {
 }
 
 object PartitionTest extends App {
-  val nPartitions = 18
-  val blockSize = 3
-  val partIndexChunks: Iterator[IndexedSeq[Int]] = (0 until nPartitions).sliding(blockSize,blockSize)
-  val indexArrays = partIndexChunks.toArray
-  indexArrays.foreach( iArray => println( "Index chunk values: " + iArray.mkString(",")))
+  val section0 = new ma2.Section( Array(319944,361,576) )
+  val section1 = new ma2.Section( Array(248,42,144,288) )
+  val partitioner = new CDASPartitioner( "0000", section1 )
 }
 
 
