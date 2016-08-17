@@ -70,9 +70,11 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
     new CDFloatArray( shape, buffer.asFloatBuffer, missing_value )
   }
   def chunkSection( iChunk: Int, section: ma2.Section ): ma2.Section = {  new ma2.Section( section ).replaceRange( dimIndex, chunkRange(iChunk) ) }
+  def partSection( section: ma2.Section ): ma2.Section = {  new ma2.Section( section ).replaceRange( dimIndex, partRange ) }
   def nChunks = math.ceil( partSize / chunkSize.toDouble ).toInt
   def endIndex = startIndex + partSize - 1
   def chunkRange(iChunk: Int): ma2.Range = { val start = chunkStartIndex(iChunk); new ma2.Range( start, Math.min(start+chunkSize-1,endIndex) ) }
+  def partRange: ma2.Range = { new ma2.Range( startIndex, endIndex ) }
   def chunkStartIndex(iChunk: Int) = { iChunk * chunkSize + startIndex }
   def chunkIndexArray: IndexedSeq[Int] = (0 until nChunks)
   def chunkMemorySize = chunkSize * sliceMemorySize
@@ -82,7 +84,7 @@ object Defaults {
   val M = 1000000
   val maxChunkSize = 200*M
   val maxBufferSize = Int.MaxValue
-  val maxProcessors = 8
+  val maxProcessors = 64
 }
 //class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {
 //  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
@@ -92,7 +94,7 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
   private lazy val elemSize = dataType.getSize
   private lazy val baseShape = _section.getShape
   private lazy val sectionMemorySize = getMemorySize()
-  private lazy val nProcessors: Int = Defaults.maxProcessors // math.min( Runtime.getRuntime().availableProcessors(), Defaults.maxProcessors )
+  private lazy val nProcessors: Int = math.min( Runtime.getRuntime.availableProcessors(), Defaults.maxProcessors )
   private lazy val maxChunkSize: Int =  Defaults.maxChunkSize
   private lazy val maxBufferSize: Int =  Defaults.maxBufferSize
   private lazy val sliceMemorySize: Long =  getMemorySize(1)
@@ -630,11 +632,9 @@ object Cachetest extends App {
 }
 
 object PartitionTest extends App {
-  val nPartitions = 18
-  val blockSize = 3
-  val partIndexChunks: Iterator[IndexedSeq[Int]] = (0 until nPartitions).sliding(blockSize,blockSize)
-  val indexArrays = partIndexChunks.toArray
-  indexArrays.foreach( iArray => println( "Index chunk values: " + iArray.mkString(",")))
+  val section0 = new ma2.Section( Array(319944,361,576) )
+  val section1 = new ma2.Section( Array(248,42,144,288) )
+  val partitioner = new CDASPartitioner( "0000", section1 )
 }
 
 

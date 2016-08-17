@@ -174,7 +174,10 @@ abstract class Kernel extends Loggable {
     var opResult: Future[Option[DataFragment]] = mapReduce( inputs, context, nprocs )
     opResult.onComplete {
       case Success(dataFragOpt) => logger.info(s"********** Completed Execution of Kernel[$name($id)]: %s , total time = %.3f sec  ********** \n".format(context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
-      case Failure(t) =>  logger.info(s"********** Failed Execution of Kernel[$name($id)]: %s -> %s ********** \n".format(context.operation.toString, t.getMessage ))
+      case Failure(t) =>
+        logger.error(s"********** Failed Execution of Kernel[$name($id)]: %s ********** \n".format(context.operation.toString ))
+        logger.error( " ---> Cause: " + t.getCause.getMessage )
+        logger.error( "\n" + t.getCause.getStackTrace.mkString("\n") + "\n" )
     }
     createResponse( postOp( opResult, context  ), inputs, context )
   }
