@@ -74,10 +74,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   def getSize: Int =  cdIndexMap.getSize
   def getSizeBytes: Int =  cdIndexMap.getSize * getElementSize
   def getRangeIterator(ranges: List[ma2.Range] ): CDIterator = section(ranges).getIterator
-  def getStorage: Buffer = {
-    printf( " >>>> getStorage: cap=%d, index=%s".format( storage.capacity(), cdIndexMap.toString ) )
-    storage
-  }
+  def getStorage: Buffer = { storage }
   def copySectionData( maxSize: Int = Int.MaxValue ): Buffer
   def getSectionData( maxSize: Int = Int.MaxValue ): Buffer = if( isStorageCongruent ) getStorage else copySectionData(maxSize)
   def section( subsection: ma2.Section ): CDArray[T] = section( subsection.getRanges.toList )
