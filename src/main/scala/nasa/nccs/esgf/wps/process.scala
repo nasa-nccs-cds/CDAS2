@@ -46,6 +46,7 @@ class ProcessList(val process_list: List[Process]) {
 class ProcessManager( serverConfiguration: Map[String,String] ) {
   val logger = LoggerFactory.getLogger(this.getClass)
   def apiManager = new APIManager( serverConfiguration )
+  logger.info( "ProcessManager: serverConfiguration= " + serverConfiguration.mkString(",") )
 
   def printLoggerInfo = {
     import ch.qos.logback.classic.LoggerContext
@@ -123,4 +124,27 @@ class ParserTest extends FunSuite {
 
 }
 */
+
+object wpsExecutionTest extends App {
+  val serverConfiguration = Map[String,String]()
+  val webProcessManager = new ProcessManager( serverConfiguration )
+
+  val async = false
+  val t0 = System.nanoTime()
+  val service = "cds2"
+  val identifier = "CDS.workflow"
+  val operation = "CDS.sum"
+  val level = 30
+  val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString )
+  val datainputs="[domain=[{\"name\":\"d1\",\"lev\":{\"start\":%d,\"end\":%d,\"system\":\"indices\"}}],variable=[{\"uri\":\"fragment:/t|merra/daily|0,0,0,0|248,42,144,288\",\"name\":\"t:v1\",\"domain\":\"d1\"}],operation=[{\"name\":\"%s\",\"input\":\"v1\",\"axes\":\"t\"}]]".format( level, level, operation )
+  val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
+  val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
+  webProcessManager.logger.info( "Completed request '%s' in %.4f sec".format( identifier, (System.nanoTime()-t0)/1.0E9) )
+  webProcessManager.logger.info( response.toString )
+  System.exit(0)
+}
+
+object assortTest extends App {
+ println( true.toString )
+}
 

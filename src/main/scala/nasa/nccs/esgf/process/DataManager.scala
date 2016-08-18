@@ -231,6 +231,8 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
   def toXml: xml.Elem = <grid> { axes.map(_.toXml) } </grid>
 
   def getSection: ma2.Section = new ma2.Section( axes.map( _.getIndexRange ): _* )
+  def addRangeNames( section: ma2.Section ): ma2.Section = new ma2.Section( getRanges( section )  )
+  def getRanges( section: ma2.Section ): IndexedSeq[ma2.Range] = for( ir <- section.getRanges.indices; r0 = section.getRange(ir); axspec = getAxisSpec(ir) ) yield new ma2.Range( axspec.getCFAxisName, r0 )
 
   def getSubGrid( section: ma2.Section ): GridSpec = {
     assert( section.getRank == getRank, "Section with wrong rank for subgrid: %d vs %d ".format( section.getRank, getRank) )
@@ -263,6 +265,8 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
 class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) extends CDSVariable(variable.name, variable.dataset, variable.ncVariable ) {
   val grid = GridSpec( variable, roiOpt )
   def toBoundsString = roiOpt.map( _.map( _.toBoundsString ).mkString( "{ ", ", ", " }") ).getOrElse("")
+
+  def addSectionMetadata( section: ma2.Section ): ma2.Section = grid.addRangeNames( section )
 
   def getSubGrid( section: ma2.Section ): TargetGrid = {
     assert( section.getRank == grid.getRank, "Section with wrong rank for subgrid: %d vs %d ".format( section.getRank, grid.getRank) )

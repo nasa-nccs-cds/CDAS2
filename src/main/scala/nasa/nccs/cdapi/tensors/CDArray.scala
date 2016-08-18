@@ -114,7 +114,8 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
         }
       }
     }
-    accumulator.getReducedArray
+    val rv = accumulator.getReducedArray
+    rv
   }
 
 
