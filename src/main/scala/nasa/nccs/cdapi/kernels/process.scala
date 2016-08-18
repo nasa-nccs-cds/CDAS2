@@ -122,7 +122,8 @@ abstract class Kernel extends Loggable {
   val identifier: String = ""
   val metadata: String = ""
 
-  val combineOp: ReduceOpFlt  = ( x, y ) => { math.max(x,y) }
+  val mapCombineOpt: Option[ReduceOpFlt] = None
+  val reduceCombineOpt: Option[ReduceOpFlt] = None
   val initValue: Float = 0f
 
   def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]]
@@ -150,9 +151,12 @@ abstract class Kernel extends Loggable {
     val rv = a0op match {
       case Some(a0) =>
         a1op match {
-          case Some(a1) =>
-            if (axes.includes(0)) { Some(new DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))) }
-            else { Some( a0 ++ a1 ) }
+          case Some(a1) => reduceCombineOpt match {
+            case Some(combineOp) =>
+              if (axes.includes(0)) { Some(new DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))) }
+              else { Some(a0 ++ a1) }
+            case None => { Some(a0 ++ a1) }
+          }
           case None => Some(a0)
         }
       case None =>
@@ -247,7 +251,10 @@ abstract class SingularKernel extends Kernel {
     inputVar.domainDataFragment(partIndex).map { (dataFrag) =>
       val async = context.request.config("async", "false").toBoolean
       val resultFragSpec = dataFrag.getReducedSpec(axes)
-      val result_val_masked: CDFloatArray = dataFrag.data.reduce(combineOp, axes.args, initValue)
+      val result_val_masked: CDFloatArray = mapCombineOpt match {
+        case Some( combineOp ) => dataFrag.data.reduce( combineOp, axes.args, initValue )
+        case None => dataFrag.data
+      }
       logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
       new DataFragment(resultFragSpec, result_val_masked)
     }
@@ -257,7 +264,6 @@ abstract class SingularKernel extends Kernel {
 class KernelModule {
   val logger = LoggerFactory.getLogger(this.getClass)
   val identifiers = this.getClass.getName.split('$').flatMap( _.split('.') )
-  logger.info( "---> new KernelModule: " + identifiers.mkString(", ") )
   def package_path = identifiers.dropRight(1).mkString(".")
   def name: String = identifiers.last
   val version = ""

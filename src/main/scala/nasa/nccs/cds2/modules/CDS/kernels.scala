@@ -21,7 +21,8 @@ class CDS extends KernelModule with KernelTools {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Maximum over Axes on Input Fragment"
-    override val combineOp: ReduceOpFlt  = ( x, y ) => { math.max(x,y) }
+    override val mapCombineOpt: Option[ReduceOpFlt]  = Some( ( x, y ) => { math.max(x,y) } )
+    override val reduceCombineOpt = mapCombineOpt
     override val initValue: Float = -Float.MaxValue
   }
 
@@ -51,7 +52,8 @@ class CDS extends KernelModule with KernelTools {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Minimum over Axes on Input Fragment"
-    override val combineOp: ReduceOpFlt  = ( x, y ) => { math.min(x,y) }
+    override val mapCombineOpt: Option[ReduceOpFlt]  = Some( ( x, y ) => { math.min(x,y) } )
+    override val reduceCombineOpt = mapCombineOpt
     override val initValue: Float = Float.MaxValue
 
   }
@@ -60,7 +62,8 @@ class CDS extends KernelModule with KernelTools {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Sum over Axes on Input Fragment"
-    override val combineOp: ReduceOpFlt  = ( x, y ) => { x+y }
+    override val mapCombineOpt: Option[ReduceOpFlt]  = Some( ( x, y ) => { x+y } )
+    override val reduceCombineOpt = mapCombineOpt
     override val initValue: Float = 0f
   }
 

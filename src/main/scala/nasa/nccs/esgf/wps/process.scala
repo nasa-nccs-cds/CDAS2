@@ -46,7 +46,6 @@ class ProcessList(val process_list: List[Process]) {
 class ProcessManager( serverConfiguration: Map[String,String] ) {
   val logger = LoggerFactory.getLogger(this.getClass)
   def apiManager = new APIManager( serverConfiguration )
-  logger.info( "ProcessManager: serverConfiguration= " + serverConfiguration.mkString(",") )
 
   def printLoggerInfo = {
     import ch.qos.logback.classic.LoggerContext
