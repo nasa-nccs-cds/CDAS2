@@ -7,7 +7,6 @@ import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
 import java.util.Comparator
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
-import nasa.nccs.cdapi.cdm.ncWriteTest._
 import nasa.nccs.cds2.utilities.runtime
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.kernels.TransientFragment
@@ -49,7 +48,7 @@ class Partitions( val id: String, private val _section: ma2.Section, val parts: 
   def getShape = baseShape
   def getPart( partId: Int ): Partition = parts(partId)
   def getPartData( partId: Int, missing_value: Float ): CDFloatArray = parts(partId).data( missing_value )
-  def roi: ma2.Section = new ma2.Section( _section )
+  def roi: ma2.Section = new ma2.Section( _section.getRanges )
 }
 
 object Partition {
@@ -60,8 +59,8 @@ object Partition {
   def getPartitionShape( partSize: Int, fragShape: Array[Int] ): Array[Int] = { var shape = fragShape.clone(); shape(0) = partSize; shape }
 }
 
-class Partition( val index: Int, val path: String, val dimIndex: Int, val startIndex: Int, val partSize: Int, val chunkSize: Int, val sliceMemorySize: Long, val shape: Array[Int] ) {
-  logger.info(s" *** Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s)".format( shape.mkString(",") ))
+class Partition( val index: Int, val path: String, val dimIndex: Int, val startIndex: Int, val partSize: Int, val chunkSize: Int, val sliceMemorySize: Long, val shape: Array[Int] ) extends Loggable {
+//  logger.info(s" *** Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s)".format( shape.mkString(",") ))
   def data( missing_value: Float ): CDFloatArray = {
     val file = new RandomAccessFile( path,"r" )
     val channel: FileChannel  = file.getChannel()
@@ -69,8 +68,8 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
     channel.close(); file.close()
     new CDFloatArray( shape, buffer.asFloatBuffer, missing_value )
   }
-  def chunkSection( iChunk: Int, section: ma2.Section ): ma2.Section = {  new ma2.Section( section ).replaceRange( dimIndex, chunkRange(iChunk) ) }
-  def partSection( section: ma2.Section ): ma2.Section = {  new ma2.Section( section ).replaceRange( dimIndex, partRange ) }
+  def chunkSection( iChunk: Int, section: ma2.Section ): ma2.Section = {  new ma2.Section( section.getRanges ).replaceRange( dimIndex, chunkRange(iChunk) ) }
+  def partSection( section: ma2.Section ): ma2.Section = {  new ma2.Section( section.getRanges ).replaceRange( dimIndex, partRange ) }
   def nChunks = math.ceil( partSize / chunkSize.toDouble ).toInt
   def endIndex = startIndex + partSize - 1
   def chunkRange(iChunk: Int): ma2.Range = { val start = chunkStartIndex(iChunk); new ma2.Range( start, Math.min(start+chunkSize-1,endIndex) ) }
@@ -78,6 +77,7 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
   def chunkStartIndex(iChunk: Int) = { iChunk * chunkSize + startIndex }
   def chunkIndexArray: IndexedSeq[Int] = (0 until nChunks)
   def chunkMemorySize = chunkSize * sliceMemorySize
+  override def toString = s"Part[$index]{dim=$dimIndex, start=$startIndex, size=$partSize, shape=(%s)}".format( shape.mkString(",") )
 }
 
 object Defaults {
@@ -107,7 +107,7 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
   private lazy val chunkMemorySize: Long = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize( nSlicesPerChunk )
   private lazy val nCoresPerPart = 1
 
-  def roi: ma2.Section = new ma2.Section( _section )
+  def roi: ma2.Section = new ma2.Section( _section.getRanges )
   logger.info(s" ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, maxBufferSize: $maxBufferSize, sliceMemorySize: $sliceMemorySize, memoryDistFract: $memoryDistFactor, nSlicesPerPart: $nSlicesPerPart, nPartitions: $nPartitions, partitionMemorySize: $partitionMemorySize, " )
   logger.info(s" ~~~~ Generating partitions for fragment $cache_id with $nPartitions partitions, $nProcessors processors, %d bins, %d partsPerBin, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk, shape=(%s)"
     .format( partIndexArray.size, partIndexArray(0).size, baseShape.mkString(",") ))
@@ -145,7 +145,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, private val _section: ma2
   private val baseShape = _section.getShape
   val cacheId = "a" + System.nanoTime.toHexString
   val dType = ncVariable.getDataType
-  def roi: ma2.Section = new ma2.Section( _section )
+  def roi: ma2.Section = new ma2.Section( _section.getRanges )
   val partitioner = new CDASPartitioner( cacheId, roi, dType )
   def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last; case None => default_value }
 
@@ -450,7 +450,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
             None
           } else {
             val fragment = Await.result(fragmentFuture, Duration.Inf)
-            Some(fragment.cutIntersection(partIndex, fragSpec.roi))
+            fragment.cutIntersection(partIndex, fragSpec.roi)
           }
         case None => cutExistingFragment(partIndex, fragSpec, abortSizeFraction)
       }

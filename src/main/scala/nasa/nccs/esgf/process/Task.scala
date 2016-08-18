@@ -261,12 +261,13 @@ class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray ) {
   }
   def getReducedSpec( axes: AxisIndices ): DataFragmentSpec =  spec.reduce(Set(axes.getAxes:_*))
   def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)
-  def subset( section: ma2.Section ): DataFragment = new DataFragment( spec.cutIntersection( section ), data.section(section) )
+  def subset( section: ma2.Section ): Option[DataFragment] = spec.cutIntersection( section ) map { dataFragSpec => new DataFragment( dataFragSpec, data.section(section) ) }
 
 }
 
 class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
-                        val longname: String="", val roi: ma2.Section = new ma2.Section(), val domainSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None )  {
+                        val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None )  {
+  printf( "DataFragmentSpec" )
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
@@ -275,6 +276,12 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
       case Some(maskId) => <input varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
+  def roi = targetGridOpt match {
+    case None => new ma2.Section( _section )
+    case Some( targetGrid ) => targetGrid.addSectionMetadata( _section )
+  }
+  def domainSectOpt = _domSectOpt.map( sect => new ma2.Section( sect ) )
+
   def toBoundsString = { targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
   def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), domainSectOpt, missing_value, mask )
@@ -322,8 +329,16 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
     case Some(cutSection) => new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask )
   }
 
-  def cutIntersection( cutSection: ma2.Section ): DataFragmentSpec =
-    new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask )
+  def intersectRoi( cutSection: ma2.Section ): ma2.Section = {
+    val base_sect = roi;      val raw_intersection = base_sect.intersect(cutSection)
+    val ranges = for( ir <- raw_intersection.getRanges.indices; r0 = raw_intersection.getRange(ir); r1 = base_sect.getRange(ir) ) yield new ma2.Range( r1.getName, r0 )
+    new ma2.Section( ranges )
+  }
+
+  def cutIntersection( cutSection: ma2.Section ): Option[DataFragmentSpec] =
+    if( roi.intersects( cutSection ) ) {
+      Some( new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, intersectRoi(cutSection), domainSectOpt, missing_value, mask ) )
+    }  else None
 
   def getReducedSection( axisIndices: Set[Int], newsize: Int = 1 ): ma2.Section = {
     new ma2.Section( roi.getRanges.zipWithIndex.map( rngIndx => if( axisIndices(rngIndx._2) ) collapse( rngIndx._1, newsize ) else rngIndx._1 ):_* )
@@ -367,7 +382,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   }
 
   def reSection( newSection: ma2.Section ): DataFragmentSpec = {
-    println( " ++++ ReSection: newSection=(%s), roi=(%s)".format( newSection.toString, roi.toString ) )
+//    println( " ++++ ReSection: newSection=(%s), roi=(%s)".format( newSection.toString, roi.toString ) )
     val newRanges = for( iR <- roi.getRanges.indices; r0 = roi.getRange(iR); rNew = newSection.getRange(iR) ) yield new ma2.Range(r0.getName,rNew)
     new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), domainSectOpt, missing_value, mask )
   }
@@ -518,7 +533,8 @@ class DomainContainer( val name: String, val axes: List[DomainAxis] = List.empty
 
 object DomainAxis extends ContainerBase {
   object Type extends Enumeration { val X, Y, Z, T = Value }
-  def fromCFAxisName( cfName: String ): Type.Value = cfName.toLowerCase match { case "x" => Type.X; case "y" => Type.Y; case "z" => Type.Z; case "t" => Type.T; }
+  def fromCFAxisName( cfName: String ): Type.Value =
+    cfName.toLowerCase match { case "x" => Type.X; case "y" => Type.Y; case "z" => Type.Z; case "t" => Type.T; }
 
   def coordAxisName(axistype: DomainAxis.Type.Value): String = {
     import DomainAxis.Type._

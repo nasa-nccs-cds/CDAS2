@@ -49,9 +49,9 @@ class UtilityExecutionResult( val id: String, val response: xml.Elem )  extends 
 }
 class BlockingExecutionResult( val id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray ) extends ExecutionResult {
   def toXml = {
-    val idToks = id.split('~')
+    val idToks = id.split('-')
     logger.info( "BlockingExecutionResult-> result_tensor: \n" + result_tensor.toString )
-    <result id={idToks(1)} op={idToks(0)}> { intputSpecs.map( _.toXml ) } { gridSpec.toXml } <data undefined={result_tensor.getInvalid.toString}> {result_tensor.mkDataString(",")}  </data>  </result>
+    <result id={id} op={idToks.head}> { intputSpecs.map( _.toXml ) } { gridSpec.toXml } <data undefined={result_tensor.getInvalid.toString}> {result_tensor.mkDataString(",")}  </data>  </result>
   }
 }
 
@@ -76,8 +76,6 @@ class XmlExecutionResult( val id: String,  val responseXml: xml.Node ) extends E
   }
 }
 
-// cdsutils.cdata(
-
 class AsyncExecutionResult( val results: List[String] )  extends ExecutionResult  {
   def this( resultOpt: Option[String]  ) { this( resultOpt.toList ) }
   def toXml = <result> {  results.mkString(",")  } </result>
@@ -90,50 +88,11 @@ class ExecutionResults( val results: List[ExecutionResult] ) {
 
 case class ResultManifest( val name: String, val dataset: String, val description: String, val units: String )
 
-//class SingleInputExecutionResult( val operation: String, manifest: ResultManifest, result_data: Array[Float] ) extends ExecutionResult(result_data) {
-//  val name = manifest.name
-//  val description = manifest.description
-//  val units = manifest.units
-//  val dataset =  manifest.dataset
-//
-//  override def toXml =
-//    <operation id={ operation }>
-//      <input name={ name } dataset={ dataset } units={ units } description={ description }  />
-//      { super.toXml }
-//    </operation>
-//}
-
-
 class AxisIndices( private val axisIds: Set[Int] = Set.empty ) {
   def getAxes: Seq[Int] = axisIds.toSeq
   def args = axisIds.toArray
   def includes( axisIndex: Int ): Boolean = axisIds.contains( axisIndex )
 }
-// , val binArrayOpt: Option[BinnedArrayFactory], val dataManager: DataManager, val serverConfiguration: Map[String, String], val args: Map[String, String],
-
-//class ExecutionContext( operation: OperationContext, val domains: Map[String,DomainContainer], val dataManager: DataManager ) {
-//
-//
-//  def id: String = operation.identifier
-//  def getConfiguration( cfg_type: String ): Map[String,String] = operation.getConfiguration( cfg_type )
-//  def binArrayOpt = dataManager.getBinnedArrayFactory( operation )
-//  def inputs: List[PartitionedFragment] = for( uid <- operation.inputs ) yield new PartitionedFragment( dataManager.getVariableData(uid), dataManager.getAxisIndices(uid) )
-//
-//
-//  //  def getSubset( var_uid: String, domain_id: String ) = {
-////    dataManager.getSubset( var_uid, getDomain(domain_id) )
-////  }
-//  def getDataSources: Map[String,DataFragmentSpec] = dataManager.getDataSources
-//
-//  def async: Boolean = getConfiguration("run").getOrElse("async", "false").toBoolean
-//
-//  def getFragmentSpec( uid: String ): DataFragmentSpec = dataManager.getOperationInputSpec(uid) match {
-//    case None => throw new Exception( "Missing Data Fragment Spec: " + uid )
-//    case Some( inputSpec ) => inputSpec.data
-//  }
-//
-//  def getAxisIndices( uid: String ): AxisIndices = dataManager.getAxisIndices( uid )
-//}
 
 object Kernel {
   def getResultFile( serverConfiguration: Map[String,String], resultId: String, deleteExisting: Boolean = false ): File = {
@@ -173,7 +132,8 @@ abstract class Kernel extends Loggable {
     val inputs: List[PartitionedFragment] = inputVars( context )
     var opResult: Future[Option[DataFragment]] = mapReduce( inputs, context, nprocs )
     opResult.onComplete {
-      case Success(dataFragOpt) => logger.info(s"********** Completed Execution of Kernel[$name($id)]: %s , total time = %.3f sec  ********** \n".format(context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
+      case Success(dataFragOpt) =>
+        logger.info(s"********** Completed Execution of Kernel[$name($id)]: %s , total time = %.3f sec  ********** \n".format(context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
       case Failure(t) =>
         logger.error(s"********** Failed Execution of Kernel[$name($id)]: %s ********** \n".format(context.operation.toString ))
         logger.error( " ---> Cause: " + t.getCause.getMessage )

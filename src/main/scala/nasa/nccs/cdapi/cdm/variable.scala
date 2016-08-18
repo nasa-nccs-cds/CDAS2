@@ -1,16 +1,13 @@
 package nasa.nccs.cdapi.cdm
 
-import nasa.nccs.caching.{Partition, Partitions}
-import nasa.nccs.cdapi.kernels.AxisIndices
-import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray, CDIndexMap}
+import nasa.nccs.caching.{Partitions}
+import nasa.nccs.cdapi.tensors.{ CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.esgf.process._
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
 import nasa.nccs.utilities.Loggable
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import scala.concurrent.Future
-import scala.xml.XML
 
 object BoundsRole extends Enumeration { val Start, End = Value }
 
@@ -41,7 +38,6 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
       { for( dim: nc2.Dimension <- dims; name=dim.getFullName; dlen=dim.getLength ) yield  <dimension name={name} length={dlen.toString}/>  }
       { for( name <- attributes.keys ) yield <attribute name={name}> { getAttributeValue(name) }</attribute> }
     </variable>
-    // dims: %s, }\n  --> Variable Attributes: %s".format(name, description, shape.mkString("[", " ", "]"), dims.mkString("[", ",", "]"), attributes.mkString("\n\t\t", "\n\t\t", "\n"))
 
 
   def read( section: ma2.Section ) = ncVariable.read(section)
@@ -56,11 +52,6 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
 
 class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  ) extends Loggable  {
   val LOG = org.slf4j.LoggerFactory.getLogger(this.getClass)
-//  private var dataStore: Option[ CDFloatArray ] = Some( array )
-//  private val cdIndexMap: CDIndexMap = array.getIndex
-//  private val invalid: Float = array.getInvalid
-
-//  def this() = this( CDFloatArray( Array(0), Array.emptyFloatArray, Float.MaxValue ), None, new DataFragmentSpec() )
   def toBoundsString = fragmentSpec.toBoundsString
 
   def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] = {
@@ -89,16 +80,19 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
   def domainDataFragment( partIndex: Int ): Option[DataFragment] = {
     try {
       val partition = partitions.getPart(partIndex)
-      val domainData = fragmentSpec.domainSectOpt match {
-        case None => partition.data(fragmentSpec.missing_value);
+      val domainDataOpt: Option[CDFloatArray] = fragmentSpec.domainSectOpt match {
+        case None => Some( partition.data(fragmentSpec.missing_value) )
         case Some(domainSect) =>
           val pFragSpec = partFragSpec( partIndex )
-          val newFragSpec = pFragSpec.cutIntersection(domainSect)
-          val dataSection = newFragSpec.roi.shiftOrigin(pFragSpec.roi)
-          logger.info( "Domain Partition(%d) Fragment: dataSection=(%s), fragSect=(%s), domainSect=(%s)".format( partIndex, dataSection.toString, pFragSpec.roi.toString, domainSect.toString))
-          partition.data(fragmentSpec.missing_value).section( dataSection.getRanges.toList )
+          pFragSpec.cutIntersection(domainSect) match {
+            case Some(newFragSpec) =>
+              logger.info ("Domain Partition(%d) Fragment: fragSect=(%s), newFragSect=(%s), domainSect=(%s)".format (partIndex, pFragSpec.roi.toString, newFragSpec.roi, domainSect.toString) )
+              val dataSection = newFragSpec.roi.shiftOrigin (pFragSpec.roi)
+              Some( partition.data (fragmentSpec.missing_value).section (dataSection.getRanges.toList) )
+            case None => None
+          }
       }
-      Some( new DataFragment(domainFragSpec(partIndex), domainData) )
+      domainDataOpt.map( new DataFragment(domainFragSpec(partIndex), _ ) )
     } catch {
       case ex: Exception =>
         logger.warn( s"Failed getting data fragment $partIndex: " + ex.getMessage )
@@ -108,28 +102,18 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
   }
 
   def isMapped(partIndex: Int): Boolean = partitions.getPartData( partIndex, fragmentSpec.missing_value ).isMapped
-
-//  def data: CDFloatArray = dataStore match {
-//    case Some( array ) => array
-//    case None => restore match {
-//      case Some(array) => new CDFloatArray( cdIndexMap, array, invalid )
-//      case None => throw new Exception( "Error restoring data for fragment: "+ fragmentSpec.toString )
-//    }
-//  }
-//  def restore: Option[ Array[Float] ] = FragmentPersistence.getFragmentData( fragmentSpec: DataFragmentSpec )
-//  def free = { dataStore = None }
-
   def mask: Option[CDByteArray] = maskOpt
   def shape: List[Int] = partitions.getShape.toList
   def getValue(partIndex: Int, indices: Array[Int] ): Float = data(partIndex).getValue( indices )
 
   override def toString = { "{Fragment: shape = [%s], section = [%s]}".format( partitions.getShape.mkString(","), fragmentSpec.roi.toString ) }
 
-  def cutIntersection( partIndex: Int, cutSection: ma2.Section, copy: Boolean = true ): DataFragment = {
+  def cutIntersection( partIndex: Int, cutSection: ma2.Section, copy: Boolean = true ): Option[DataFragment] = {
     val pFragSpec = partFragSpec( partIndex )
-    val newFragSpec = pFragSpec.cutIntersection(cutSection)
-    val newDataArray: CDFloatArray = data(partIndex).section( newFragSpec.roi.shiftOrigin(pFragSpec.roi).getRanges.toList )
-    new DataFragment( newFragSpec, if(copy) newDataArray.dup() else newDataArray )
+    pFragSpec.cutIntersection(cutSection) map { newFragSpec =>
+        val newDataArray: CDFloatArray = data (partIndex).section (newFragSpec.roi.shiftOrigin (pFragSpec.roi).getRanges.toList)
+        new DataFragment ( newFragSpec, if (copy) newDataArray.dup () else newDataArray )
+    }
   }
 
   def size: Int = fragmentSpec.roi.computeSize.toInt
