@@ -7,7 +7,7 @@ import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDTimeCoordMap}
 import nasa.nccs.cds2.kernels.KernelTools
 import nasa.nccs.esgf.process.{DataFragment, _}
 import ucar.ma2
-
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
@@ -86,17 +86,26 @@ class CDS extends KernelModule with KernelTools {
         val resultFragSpec = dataFrag.getReducedSpec(axes)
         val t10 = System.nanoTime
         val weighting_type = context.operation.config("weights", if (context.operation.config("axes", "").contains('y')) "cosine" else "")
-        val weightsOpt: Option[CDFloatArray] = weighting_type match {
-          case "" => None
-          case "cosine" => context.server.getAxisData(inputVar.fragmentSpec, 'y').map(axis_data => dataFrag.data.computeWeights(weighting_type, Map('y' -> axis_data)))
-          case x => throw new NoSuchElementException("Can't recognize weighting method: %s".format(x))
+        val weights: CDFloatArray = weighting_type match {
+          case "cosine" =>
+            context.server.getAxisData(inputVar.fragmentSpec, 'y') match {
+              case Some(axis_data) => dataFrag.data.computeWeights(weighting_type, Map( 'y' -> axis_data) )
+              case None => logger.warn( "Can't access AxisData for variable %s => Using constant weighting.".format(inputVar.fragmentSpec.varname) ); dataFrag.data := 1f
+            }
+          case x =>
+            if( !x.isEmpty ) { logger.warn( "Can't recognize weighting method: %s => Using constant weighting.".format(x) )}
+            dataFrag.data := 1f
         }
-        val result_val_masked: CDFloatArray = dataFrag.data.mean(axes.args, weightsOpt)
+        val weighted_value_sum_masked: CDFloatArray = ( dataFrag.data * weights ).sum(axes.args)
+        val weights_sum_masked: CDFloatArray = weights.sum(axes.args)
         val t11 = System.nanoTime
-        logger.info("Mean_val_masked, time = %.4f s, reduction dims = (%s), sample results = %s".format((t11 - t10) / 1.0E9, axes.args.mkString(","), getDataSample(result_val_masked).mkString(",") ))
-        new DataFragment(resultFragSpec, result_val_masked)
+        logger.info("Mean_val_masked, time = %.4f s, reduction dims = (%s), sample weighted_value_sum = %s".format((t11 - t10) / 1.0E9, axes.args.mkString(","), getDataSample(weighted_value_sum_masked).mkString(",") ))
+        new DataFragment(resultFragSpec, weighted_value_sum_masked, Some(weights_sum_masked) )
       }
     }
+    override def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
+    override def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = weightedValueSumPostOp( future_result, context )
+
   }
 
   class subset extends SingularKernel {
@@ -144,16 +153,17 @@ class CDS extends KernelModule with KernelTools {
         val timeData = cdTimeCoordMap.getTimeIndexIterator("month").toArray
         logger.info("Binned array, timeData = [ %s ]".format(timeData.mkString(",")))
         logger.info("Binned array, coordMap = %s".format(coordMap.toString))
-        val binned_array: CDFloatArray = dataFrag.data.weightedReduce(dataFrag.data.getOp("add"), axes.args, 0f, None, Some(coordMap)) match {
+        dataFrag.data.weightedReduce(dataFrag.data.getOp("add"), axes.args, 0f, None, Some(coordMap)) match {
           case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
-            values_sum / weights_sum
+            val t11 = System.nanoTime
+            logger.info("Binned array, time = %.4f s, result sample = %s".format((t11 - t10) / 1.0E9, getDataSample(values_sum).mkString(",")))
+            val resultFragSpec = dataFrag.getReducedSpec(Set(axes.args(0)), values_sum.getShape(axes.args(0)))
+            new DataFragment(resultFragSpec, values_sum, Some(weights_sum) )
         }
-        val t11 = System.nanoTime
-        logger.info("Binned array, time = %.4f s, result sample = %s".format((t11 - t10) / 1.0E9, getDataSample(binned_array).mkString(",")))
-        val resultFragSpec = dataFrag.getReducedSpec(Set(axes.args(0)), binned_array.getShape(axes.args(0)))
-        new DataFragment(resultFragSpec, binned_array)
       }
     }
+    override def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
+    override def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = weightedValueSumPostOp( future_result, context )
   }
 
   class anomaly extends SingularKernel {

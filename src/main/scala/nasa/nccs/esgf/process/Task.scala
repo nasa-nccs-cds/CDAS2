@@ -255,9 +255,9 @@ class MergeDataFragment( val wrappedDataFragOpt: Option[DataFragment] = None ) {
   }
 }
 
-class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray ) {
+class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val optData: Option[CDFloatArray] = None ) {
   def ++( dfrag: DataFragment ): DataFragment = {
-    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data) )
+    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data), optData.map( data1 => data1.merge(dfrag.optData.get) ) )
   }
   def getReducedSpec( axes: AxisIndices ): DataFragmentSpec =  spec.reduce(Set(axes.getAxes:_*))
   def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)

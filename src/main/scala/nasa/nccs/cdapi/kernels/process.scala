@@ -145,18 +145,20 @@ abstract class Kernel extends Loggable {
   def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = future_result
   def reduce( future_results: IndexedSeq[Future[Option[DataFragment]]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = Future.reduce(future_results)(reduceOp(context) _)
 
+  def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment = reduceCombineOpt match {
+    case Some(combineOp) =>
+      if (axes.includes(0)) new DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))
+      else { a0 ++ a1 }
+    case None => { a0 ++ a1 }
+  }
+
   def reduceOp(context: CDASExecutionContext)(a0op: Option[DataFragment], a1op: Option[DataFragment]): Option[DataFragment] = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.request.getAxisIndices(context.operation.config("axes", ""))
     val rv = a0op match {
       case Some(a0) =>
         a1op match {
-          case Some(a1) => reduceCombineOpt match {
-            case Some(combineOp) =>
-              if (axes.includes(0)) { Some(new DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))) }
-              else { Some(a0 ++ a1) }
-            case None => { Some(a0 ++ a1) }
-          }
+          case Some(a1) => Some( combine(context)(a0,a1,axes) )
           case None => Some(a0)
         }
       case None =>
@@ -258,6 +260,21 @@ abstract class SingularKernel extends Kernel {
       logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
       new DataFragment(resultFragSpec, result_val_masked)
     }
+  }
+  def weightedValueSumCombiner(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  {
+    if ( axes.includes(0) ) {
+      val vTot = a0.data + a1.data
+      val wTot = a0.optData.map( w => w + a1.optData.get )
+      new DataFragment( a0.spec, vTot, wTot )
+    }
+    else { a0 ++ a1 }
+  }
+
+  def weightedValueSumPostOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = {
+    future_result.map( _.map( (result: DataFragment) => result.optData match {
+      case Some( weights_sum ) => new DataFragment( result.spec, result.data / weights_sum, result.optData )
+      case None => result
+    } ) )
   }
 }
 

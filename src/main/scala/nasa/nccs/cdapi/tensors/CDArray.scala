@@ -65,6 +65,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   def getStride: Array[Int] = cdIndexMap.getStride
   def getOffset: Int = cdIndexMap.getOffset
   def getReducedShape: Array[Int] = cdIndexMap.getReducedShape
+  def getSubspaceSize(subAxes: Array[Int]): Int = subAxes.map(getShape(_)).foldLeft(1)(_*_)
   def getStorageValue( index: StorageIndex ): T
   def getValue( indices: Array[Int] ): T = getStorageValue( cdIndexMap.getStorageIndex(indices) )
   def getFlatValue( index: FlatIndex ): T = getStorageValue( getIterator.flatToStorage(index) )
@@ -318,7 +319,6 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     FloatBuffer.wrap(floatData.toArray)
   }
   def merge( other: CDFloatArray ): CDFloatArray = {
-    assert( !isMapped && !other.isMapped, "Attempt to merge a mapped array: Not supported.")
     val (a0, a1)  = (dup(), other.dup())
     val newIndex = a0.getIndex.append( a1.getIndex )
     val new_storage = FloatBuffer.wrap( a0.getStorageArray ++ a1.getStorageArray )
