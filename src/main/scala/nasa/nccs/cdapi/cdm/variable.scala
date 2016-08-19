@@ -95,8 +95,8 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
       domainDataOpt.map( new DataFragment(domainFragSpec(partIndex), _ ) )
     } catch {
       case ex: Exception =>
-        logger.warn( s"Failed getting data fragment $partIndex: " + ex.getMessage )
-        logger.error( ex.getStackTrace.mkString("\n\t") )
+        logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )
+//        logger.error( ex.getStackTrace.mkString("\n\t") )
         None
     }
   }

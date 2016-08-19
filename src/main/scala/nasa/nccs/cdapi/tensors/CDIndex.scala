@@ -220,7 +220,7 @@ class CDCoordMap( val dimIndex: Int, val mapArray: Array[Int] ) extends CDCoordM
     result( dimIndex ) = mapArray( coordIndices(dimIndex) )
     result
   }
-  override def toString = "[ %s ]".format( mapArray.mkString(", "))
+  override def toString = "CDCoordMap{ nbins=%d, dim=%d, mapArray=[ %s ]}".format( nBins, dimIndex, mapArray.mkString(", ") )
 }
 
 class IndexValueAccumulator( start_value: Int = 0 ) {
