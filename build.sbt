@@ -32,6 +32,7 @@ libraryDependencies ++= Dependencies.netcdf
 
 fork in run:= true
 fork in test:= true
+logBuffered in Test := false
 
 javaOptions in run ++= Seq( "-Xmx64000M", "-Xms512M")
 

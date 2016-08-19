@@ -38,8 +38,8 @@ object Library {
   val breeze         = "org.scalanlp"      %% "breeze"          % "0.12"
   val sprayCache     = "io.spray"       % "spray-caching_2.11" % "1.3.3"
   val sprayUtil      = "io.spray"       % "spray-util_2.11"    % "1.3.3"
-  val scalactic      = "org.scalactic" %% "scalactic" % "2.2.6"
-  val scalatest      = "org.scalatest" %% "scalatest" % "2.2.6" % "test"
+  val scalactic      = "org.scalactic" %% "scalactic" % "3.0.0"
+  val scalatest      = "org.scalatest" %% "scalatest" % "3.0.0" % "test"
   val concurrentlinkedhashmap = "com.googlecode.concurrentlinkedhashmap" % "concurrentlinkedhashmap-lru" % "1.4.2"
 }
 
