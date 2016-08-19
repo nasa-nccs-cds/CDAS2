@@ -133,10 +133,10 @@ class CDS extends KernelModule with KernelTools {
         val optargs: Map[String, String] = context.operation.getConfiguration
         val axes: AxisIndices = context.request.getAxisIndices(context.operation.config("axes", ""))
 
-        val period = getIntArg(optargs, "period", Some(1))
-        val mod = getIntArg(optargs, "mod", Some(Int.MaxValue))
-        val unit = getStringArg(optargs, "unit")
-        val offset = getIntArg(optargs, "offset", Some(0))
+        val period = getIntArg(optargs, "period", Some(1) )
+        val mod = getIntArg(optargs, "mod",  Some(12) )
+        val unit = getStringArg(optargs, "unit",  Some("month") )
+        val offset = getIntArg(optargs, "offset", Some(0) )
 
         val t10 = System.nanoTime
         val cdTimeCoordMap: CDTimeCoordMap = new CDTimeCoordMap(context.request.targetGrid)
