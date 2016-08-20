@@ -10,29 +10,31 @@ class wpsSuite extends LocalExecutionTestSuite {
   val fragment = getConfigValue("fragment")
   val varName = fragment.split('|').head
   val level = 0
+  val lat = 50
+  val lon = 20
 
   test("op") {
-    val datainputs = "[domain=[{\"name\":\"d1\",\"lev\":{\"start\":%d,\"end\":%d,\"system\":\"indices\"}}],variable=[{\"uri\":\"fragment:/%s\",\"name\":\"%s:v1\",\"domain\":\"d1\"}],operation=[{\"name\":\"%s\",\"input\":\"v1\",\"axes\":\"t\"}]]".format(level, level, operation, fragment, varName)
+    val datainputs = "[domain=[{\"name\":\"d1\",\"lev\":{\"start\":%d,\"end\":%d,\"system\":\"indices\"}}],variable=[{\"uri\":\"fragment:/%s\",\"name\":\"%s:v1\",\"domain\":\"d1\"}],operation=[{\"name\":\"%s\",\"input\":\"v1\",\"axes\":\"t\"}]]".format( level, level, operation, fragment, varName)
     executeTest(datainputs)
   }
   test("anomaly_1D", Tag("anomaly")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":30.0,"end":30.0,"system":"values"},"lon":{"start":30.0,"end":30.0,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.anomaly","input":"v1","axes":"t"}]]""".format( level, level, fragment, varName )
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.anomaly","input":"v1","axes":"t"}]]""".format( lat, lat, lon, lon, level, level, fragment, varName )
     executeTest(datainputs)
   }
   test("subset_1D", Tag("subset")) {
-    val datainputs =  """[domain=[{"name":"d2","lat":{"start":20.0,"end":20.0,"system":"values"},"lon":{"start":20.0,"end":20.0,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.subset","input":"v1","axes":"t"}]]""".format( level, level, fragment, varName )
+    val datainputs =  """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.subset","input":"v1","axes":"t"}]]""".format( lat, lat, lon, lon, level, level, fragment, varName )
     executeTest(datainputs)
   }
   test("average_1D", Tag("average")) {
-    val datainputs =  """[domain=[{"name":"d2","lat":{"start":20.0,"end":20.0,"system":"values"},"lon":{"start":20.0,"end":20.0,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.average","input":"v1","axes":"t"}]]""".format( level, level, fragment, varName )
+    val datainputs =  """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.average","input":"v1","axes":"t"}]]""".format( lat, lat, lon, lon, level, level, fragment, varName )
     executeTest(datainputs)
   }
   test("subset_0D") {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":20.0,"end":20.0,"system":"values"},"lon":{"start":20.0,"end":20.0,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"},"time":{"start":100,"end":100,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.subset","input":"v1","axes":"t"}]]""".format( level, level, fragment, varName )
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"},"time":{"start":100,"end":100,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.subset","input":"v1","axes":"t"}]]""".format( lat, lat, lon, lon, level, level, fragment, varName )
     executeTest(datainputs)
   }
   test("yearly_cycle_1D", Tag("yearly_cycle") ) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":20.0,"end":20.0,"system":"values"},"lon":{"start":20.0,"end":20.0,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.timeBin","input":"v1","axes":"t","unit":"month","period":"1","mod":"12"}]]""".format( level, level, fragment, varName )
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.timeBin","input":"v1","axes":"t","unit":"month","period":"1","mod":"12"}]]""".format( lat, lat, lon, lon, level, level, fragment, varName )
     val response = executeTest(datainputs)
     assert( response != None, " Test completed ")
   }
