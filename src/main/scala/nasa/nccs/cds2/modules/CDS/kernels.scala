@@ -184,6 +184,7 @@ class CDS extends KernelModule with KernelTools {
           case wtype => context.server.getAxisData(inputVar.fragmentSpec, 'y').map(axis_data => dataFrag.data.computeWeights(wtype, Map('y' -> axis_data)))
         }
         val anomaly_result: CDFloatArray = dataFrag.data.anomaly(axes.args, weightsOpt)
+        logger.info( "Partition[%d], generated anomaly result: shape = [ %s ]".format(partIndex,anomaly_result.getShape.mkString(",") ) )
         val t11 = System.nanoTime
         new DataFragment(resultFragSpec, anomaly_result)
       }
