@@ -7,6 +7,9 @@ import scala.io.Source
 import org.scalatest.Tag
 
 // Execution Example (tag = yearly_cycle):   >> sbt test-only *wpsSuite -- -n yearly_cycle
+// Define frag id in ~/.cdas/test_config.txt
+// sample test_config.txt:
+// fragment=t|merra/daily|0,0,0,0|248,42,144,288
 
 class wpsSuite extends LocalExecutionTestSuite {
   val fragment = getConfigValue("fragment")
