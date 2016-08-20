@@ -6,8 +6,7 @@ import org.scalatest._
 import scala.io.Source
 import org.scalatest.Tag
 
-@WrapWith(classOf[ConfigMapWrapperSuite])
-class wpsSuite( configMap: ConfigMap ) extends LocalExecutionTestSuite( configMap ) {
+class wpsSuite extends LocalExecutionTestSuite {
   val fragment = getConfigValue("fragment")
   val varName = fragment.split('|').head
   val level = 30
@@ -39,8 +38,9 @@ class wpsSuite( configMap: ConfigMap ) extends LocalExecutionTestSuite( configMa
   }
 }
 
-class LocalExecutionTestSuite( val configMap: ConfigMap ) extends FunSuite with Matchers {
+class LocalExecutionTestSuite extends FunSuite with Matchers {
   val serverConfiguration = Map[String,String]()
+  val configMap = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
   val service = "cds2"
   val identifier = "CDS.workflow"
