@@ -10,8 +10,8 @@ class wpsSuite extends LocalExecutionTestSuite {
   val fragment = getConfigValue("fragment")
   val varName = fragment.split('|').head
   val level = 0
-  val lat = 50
-  val lon = 20
+  val lat = 50f
+  val lon = 20f
 
   test("op") {
     val datainputs = "[domain=[{\"name\":\"d1\",\"lev\":{\"start\":%d,\"end\":%d,\"system\":\"indices\"}}],variable=[{\"uri\":\"fragment:/%s\",\"name\":\"%s:v1\",\"domain\":\"d1\"}],operation=[{\"name\":\"%s\",\"input\":\"v1\",\"axes\":\"t\"}]]".format( level, level, operation, fragment, varName)
