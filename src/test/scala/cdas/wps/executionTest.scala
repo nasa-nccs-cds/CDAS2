@@ -4,8 +4,10 @@ import java.nio.file.Paths
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import org.scalatest._
 import scala.io.Source
+import org.scalatest.Tag
 
-class LocalExecutionTests extends LocalExecutionTestSuite {
+@WrapWith(classOf[ConfigMapWrapperSuite])
+class wpsSuite( configMap: ConfigMap ) extends LocalExecutionTestSuite( configMap ) {
   val fragment = getConfigValue("fragment")
   val varName = fragment.split('|').head
   val level = 30
@@ -14,15 +16,15 @@ class LocalExecutionTests extends LocalExecutionTestSuite {
     val datainputs = "[domain=[{\"name\":\"d1\",\"lev\":{\"start\":%d,\"end\":%d,\"system\":\"indices\"}}],variable=[{\"uri\":\"fragment:/%s\",\"name\":\"%s:v1\",\"domain\":\"d1\"}],operation=[{\"name\":\"%s\",\"input\":\"v1\",\"axes\":\"t\"}]]".format(level, level, operation, fragment, varName)
     executeTest(datainputs)
   }
-  test("anomaly_1D") {
+  test("anomaly_1D", Tag("anomaly")) {
     val datainputs = """[domain=[{"name":"d2","lat":{"start":30.0,"end":30.0,"system":"values"},"lon":{"start":30.0,"end":30.0,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.anomaly","input":"v1","axes":"t"}]]""".format( level, level, fragment, varName )
     executeTest(datainputs)
   }
-  test("subset_1D") {
+  test("subset_1D", Tag("subset")) {
     val datainputs =  """[domain=[{"name":"d2","lat":{"start":20.0,"end":20.0,"system":"values"},"lon":{"start":20.0,"end":20.0,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.subset","input":"v1","axes":"t"}]]""".format( level, level, fragment, varName )
     executeTest(datainputs)
   }
-  test("average_1D") {
+  test("average_1D", Tag("average")) {
     val datainputs =  """[domain=[{"name":"d2","lat":{"start":20.0,"end":20.0,"system":"values"},"lon":{"start":20.0,"end":20.0,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.average","input":"v1","axes":"t"}]]""".format( level, level, fragment, varName )
     executeTest(datainputs)
   }
@@ -30,21 +32,21 @@ class LocalExecutionTests extends LocalExecutionTestSuite {
     val datainputs = """[domain=[{"name":"d2","lat":{"start":20.0,"end":20.0,"system":"values"},"lon":{"start":20.0,"end":20.0,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"},"time":{"start":100,"end":100,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.subset","input":"v1","axes":"t"}]]""".format( level, level, fragment, varName )
     executeTest(datainputs)
   }
-  test("yearly_cycle_1D") {
+  test("yearly_cycle_1D", Tag("yearly_cycle") ) {
     val datainputs = """[domain=[{"name":"d2","lat":{"start":20.0,"end":20.0,"system":"values"},"lon":{"start":20.0,"end":20.0,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.timeBin","input":"v1","axes":"t","unit":"month","period":"1","mod":"12"}]]""".format( level, level, fragment, varName )
     val response = executeTest(datainputs)
     assert( response != None, " Test completed ")
   }
 }
 
-class LocalExecutionTestSuite extends FunSuite with Matchers {
+class LocalExecutionTestSuite( val configMap: ConfigMap ) extends FunSuite with Matchers {
   val serverConfiguration = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
   val service = "cds2"
   val identifier = "CDS.workflow"
   val operation = "CDS.sum"
   val config_file_path = Paths.get(  System.getProperty("user.home"), ".cdas", "test_config.txt" ).toString
-  val config = getConfiguration
+  lazy val config = getConfiguration
 
   def executeTest( datainputs: String, async: Boolean = false ): xml.Elem = {
     val t0 = System.nanoTime()
@@ -56,13 +58,16 @@ class LocalExecutionTestSuite extends FunSuite with Matchers {
     response
   }
 
-  def getConfigValue( key: String, defaultVal: Option[String] = None ): String = {
-    config.get(key) match {
-      case Some( value ) => value
-      case None => defaultVal match {
-        case Some( dval ) => dval
-        case None => throw new Exception( "Config file '" + config_file_path + "' is missing required config value: " + key )
-      }
+  def getConfigValue(key: String, defaultVal: Option[String] = None): String = {
+    configMap.get(key) match {
+      case Some(value) => value.toString
+      case None => config.get(key) match {
+          case Some(value) => value
+          case None => defaultVal match {
+            case Some(dval) => dval
+            case None => throw new Exception("Config file '" + config_file_path + "' is missing required config value: " + key)
+          }
+        }
     }
   }
 
