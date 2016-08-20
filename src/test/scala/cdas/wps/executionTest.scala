@@ -9,7 +9,7 @@ import org.scalatest.Tag
 class wpsSuite extends LocalExecutionTestSuite {
   val fragment = getConfigValue("fragment")
   val varName = fragment.split('|').head
-  val level = 30
+  val level = 0
 
   test("op") {
     val datainputs = "[domain=[{\"name\":\"d1\",\"lev\":{\"start\":%d,\"end\":%d,\"system\":\"indices\"}}],variable=[{\"uri\":\"fragment:/%s\",\"name\":\"%s:v1\",\"domain\":\"d1\"}],operation=[{\"name\":\"%s\",\"input\":\"v1\",\"axes\":\"t\"}]]".format(level, level, operation, fragment, varName)
