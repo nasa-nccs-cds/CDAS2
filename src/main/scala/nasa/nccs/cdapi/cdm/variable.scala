@@ -89,7 +89,9 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
               logger.info ("Domain Partition(%d) Fragment: fragSect=(%s), newFragSect=(%s), domainSect=(%s)".format (partIndex, pFragSpec.roi.toString, newFragSpec.roi, domainSect.toString) )
               val dataSection = newFragSpec.roi.shiftOrigin (pFragSpec.roi)
               Some( partition.data (fragmentSpec.missing_value).section (dataSection.getRanges.toList) )
-            case None => None
+            case None =>
+              logger.warn( "Domain Partition(%d) EMPTY INTERSECTION: fragSect=(%s), domainSect=(%s)".format (partIndex, pFragSpec.roi.toString, domainSect.toString) )
+              None
           }
       }
       domainDataOpt.map( new DataFragment(domainFragSpec(partIndex), _ ) )
