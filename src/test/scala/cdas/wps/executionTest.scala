@@ -6,6 +6,8 @@ import org.scalatest._
 import scala.io.Source
 import org.scalatest.Tag
 
+// Execution Example (tag = yearly_cycle):   >> sbt test-only *wpsSuite -- -n yearly_cycle
+
 class wpsSuite extends LocalExecutionTestSuite {
   val fragment = getConfigValue("fragment")
   val varName = fragment.split('|').head
@@ -36,7 +38,6 @@ class wpsSuite extends LocalExecutionTestSuite {
   test("yearly_cycle_1D", Tag("yearly_cycle") ) {
     val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.timeBin","input":"v1","axes":"t","unit":"month","period":"1","mod":"12"}]]""".format( lat, lat, lon, lon, level, level, fragment, varName )
     val response = executeTest(datainputs)
-    assert( response != None, " Test completed ")
   }
 }
 
