@@ -251,8 +251,7 @@ object Collections extends XmlResource {
     else {
       val uri_parts = uri.split(":/")
       val url_type = normalize(uri_parts.head)
-      if(uri_parts.length == 2) (url_type, uri_parts.last)
-      else throw new Exception("Unrecognized uri format: " + uri + ", type = " + uri_parts.head + ", nparts = " + uri_parts.length.toString + ", value = " + uri_parts.last)
+      (url_type, uri_parts.last)
     }
   }
 
