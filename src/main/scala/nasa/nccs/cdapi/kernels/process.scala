@@ -242,6 +242,7 @@ abstract class Kernel extends Loggable {
 //  }
 //}
 
+/*
 abstract class DualOperationKernel extends Kernel {
 
   def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]] = {
@@ -281,6 +282,7 @@ abstract class DualOperationKernel extends Kernel {
     } ) )
   }
 }
+*/
 abstract class SingularKernel extends Kernel {
 
   def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]] = {
