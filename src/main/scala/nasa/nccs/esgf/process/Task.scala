@@ -509,7 +509,7 @@ object DataContainer extends ContainerBase {
       val recognizedUrlTypes = List( "file", "collection", "fragment" )
       val uri_parts = uri.split(":")
       val url_type = normalize(uri_parts.head)
-      if ( recognizedUrlTypes.contains(url_type) && (uri_parts.length == 2) ) {
+      if ( recognizedUrlTypes.contains( url_type ) ) {
         val value = uri_parts.last.toLowerCase
         if( List( "collection", "fragment" ).contains( url_type ) ) value.stripPrefix("/").stripPrefix("/") else value
       } else throw new Exception("Unrecognized uri format: " + uri + ", type = " + uri_parts.head + ", nparts = " + uri_parts.length.toString + ", value = " + uri_parts.last)

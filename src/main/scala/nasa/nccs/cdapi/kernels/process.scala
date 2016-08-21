@@ -242,6 +242,45 @@ abstract class Kernel extends Loggable {
 //  }
 //}
 
+abstract class DualOperationKernel extends Kernel {
+
+  def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]] = {
+    val future_results1: IndexedSeq[Future[Option[DataFragment]]] = (0 until nprocs).map( iproc => Future { map1(iproc,inputs,context) } )
+    reduce1( future_results1, context )
+    val future_results2: IndexedSeq[Future[Option[DataFragment]]] = (0 until nprocs).map2( iproc => Future { map(iproc,inputs,context) } )
+    reduce2( future_results2, context )
+  }
+  def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
+    val t0 = System.nanoTime
+    val inputVar = inputs.head
+    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+    inputVar.domainDataFragment(partIndex).map { (dataFrag) =>
+      val async = context.request.config("async", "false").toBoolean
+      val resultFragSpec = dataFrag.getReducedSpec(axes)
+      val result_val_masked: CDFloatArray = mapCombineOpt match {
+        case Some( combineOp ) => dataFrag.data.reduce( combineOp, axes.args, initValue )
+        case None => dataFrag.data
+      }
+      logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
+      new DataFragment(resultFragSpec, result_val_masked)
+    }
+  }
+  def weightedValueSumCombiner(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  {
+    if ( axes.includes(0) ) {
+      val vTot = a0.data + a1.data
+      val wTot = a0.optData.map( w => w + a1.optData.get )
+      new DataFragment( a0.spec, vTot, wTot )
+    }
+    else { a0 ++ a1 }
+  }
+
+  def weightedValueSumPostOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = {
+    future_result.map( _.map( (result: DataFragment) => result.optData match {
+      case Some( weights_sum ) => new DataFragment( result.spec, result.data / weights_sum, result.optData )
+      case None => result
+    } ) )
+  }
+}
 abstract class SingularKernel extends Kernel {
 
   def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]] = {
