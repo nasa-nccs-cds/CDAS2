@@ -8,7 +8,7 @@ import java.util.Comparator
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.cds2.utilities.runtime
-import nasa.nccs.cdapi.cdm._
+import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
 import nasa.nccs.cdapi.kernels.TransientFragment
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
 import nasa.nccs.cds2.loaders.Masks
@@ -272,17 +272,20 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 //  }\\
 
 
-
-  def restore( fragSpec: DataFragmentSpec ): Option[Future[PartitionedFragment]] = {
+  def restore(fragSpec: DataFragmentSpec): Option[Future[PartitionedFragment]] = {
     val fragKey = fragSpec.getKey
-    logger.info( "FragmentPersistence.restore: fragKey: " + fragKey + ", existing keys: " + fragmentIdCache.keys.mkString( "{ ", ", ", " }" ) )
-    fragmentIdCache.get(fragKey.toStrRep) match {
-      case Some( cache_id_fut ) => Some( cache_id_fut.map( (cache_id: String ) => {
-        logger.info( "----> Cached frag " + cache_id )
-        val partitioner = new CDASPartitioner( cache_id, fragSpec.roi )
-        new PartitionedFragment( new Partitions( cache_id, fragSpec.roi, partitioner.getPartitions ), None, fragSpec )
-      }
-      ))
+    logger.info("FragmentPersistence.restore: fragKey: " + fragKey  )
+    findEnclosingFragmentData(fragSpec) match {
+      case Some(foundFragKey) =>
+        fragmentIdCache.get(fragKey.toStrRep) match {
+          case Some(cache_id_fut) => Some(cache_id_fut.map((cache_id: String) => {
+            logger.info("----> Cached frag " + cache_id)
+            val partitioner = new CDASPartitioner(cache_id, fragSpec.roi)
+            new PartitionedFragment(new Partitions(cache_id, fragSpec.roi, partitioner.getPartitions), None, fragSpec)
+          }
+          ))
+          case None => None
+        }
       case None => None
     }
   }
@@ -313,16 +316,9 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     fragmentIdCache.persist()
   }
 
-  def getEnclosingFragmentData( fragSpec: DataFragmentSpec ): Option[ ( DataFragmentKey, Future[PartitionedFragment] ) ] = {
-    val fragKeys = findEnclosingFragSpecs(  fragmentIdCache.keys.map( DataFragmentKey(_) ), fragSpec.getKey )
-    fragKeys.headOption match {
-      case Some( fkey ) => restore(fragSpec) match {
-        case Some(pfrag) => Some( (fkey-> pfrag ) )
-        case None => None
-      }
-      case None => None
-    }
-  }
+  def findEnclosingFragmentData( fragSpec: DataFragmentSpec ): Option[ DataFragmentKey ] =
+    findEnclosingFragSpecs( fragmentIdCache.keys.map( DataFragmentKey(_) ), fragSpec.getKey ).headOption
+
 }
 
 trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {
@@ -334,9 +330,9 @@ trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {
     }).map(_ match { case fkey: DataFragmentKey => fkey })
 
 
-  def findEnclosingFragSpecs(keys: Set[DataFragmentKey], fkey: DataFragmentKey, admitEquality: Boolean = true): Set[DataFragmentKey] = {
+  def findEnclosingFragSpecs(keys: Set[DataFragmentKey], fkey: DataFragmentKey, admitEquality: Boolean = true): List[DataFragmentKey] = {
     val variableFrags = getFragSpecsForVariable(keys, fkey.collId, fkey.varname)
-    variableFrags.filter(fkeyParent => fkeyParent.contains(fkey, admitEquality))
+    variableFrags.filter(fkeyParent => fkeyParent.contains(fkey, admitEquality)).toList.sortWith( _.getSize < _.getSize )
   }
 
   def findEnclosedFragSpecs(keys: Set[DataFragmentKey], fkeyParent: DataFragmentKey, admitEquality: Boolean = false): Set[DataFragmentKey] = {
@@ -760,3 +756,10 @@ object PartitionTest extends App {
 //    }
 //  }
 //}
+
+object appTest extends App {
+  val list = List( 2, 4, 6, 8, 9, 4 ,2, 1 )
+  val l1 = list.sortWith( _ < _ )
+  println( l1.mkString(", "))
+  println( l1.headOption.get )
+}
