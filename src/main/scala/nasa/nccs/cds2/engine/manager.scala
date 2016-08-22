@@ -351,7 +351,8 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 
   def operationExecution( operationCx: OperationContext, requestCx: RequestContext ): ExecutionResult = {
     val opName = operationCx.name.toLowerCase
-    val module_name = opName.split('.')(0)
+    val module_name = opName.split('.').head
+    logger.info( " ***** Operation Execution: opName=%s, module_name=%s >> Operation = %s ".format(opName, module_name, operationCx.toString ) )
     module_name match {
       case "util" => executeUtility( new CDASExecutionContext( operationCx, requestCx, serverContext ) )
       case x => getKernel( opName ).execute( new CDASExecutionContext( operationCx, requestCx, serverContext ), nprocs )
