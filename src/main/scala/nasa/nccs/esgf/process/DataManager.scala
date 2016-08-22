@@ -105,7 +105,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
 
   def getBounds( range: ma2.Range ): Array[Double] = Array( _data(range.first), _data(range.last ) )
 
-  def getBoundedCalDate(coordAxis1DTime: CoordinateAxis1DTime, caldate: CalendarDate, role: BoundsRole.Value, strict: Boolean = true): CalendarDate = {
+  def getBoundedCalDate(coordAxis1DTime: CoordinateAxis1DTime, caldate: CalendarDate, role: BoundsRole.Value, strict: Boolean = false): CalendarDate = {
     val date_range: CalendarDateRange = coordAxis1DTime.getCalendarDateRange
     if (!date_range.includes(caldate)) {
       if (strict) throw new IllegalStateException("CDS2-CDSVariable: Time value %s outside of time bounds %s".format(caldate.toString, date_range.toString))
@@ -152,14 +152,14 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     case x => throw new IllegalStateException("CDS2-CDSVariable: Can't create time axis from type type: %s ".format(coordAxis.getClass.getName))
   }
 
-  def getTimeCoordIndex( tval: String, role: BoundsRole.Value, strict: Boolean = true): Int = {
+  def getTimeCoordIndex( tval: String, role: BoundsRole.Value, strict: Boolean = false): Int = {
     val coordAxis1DTime: CoordinateAxis1DTime = getTimeAxis
     val caldate: CalendarDate = cdsutils.dateTimeParser.parse(tval)
     val caldate_bounded: CalendarDate = getBoundedCalDate(coordAxis1DTime, caldate, role, strict)
     coordAxis1DTime.findTimeIndexFromCalendarDate(caldate_bounded)
   }
 
-  def getTimeIndexBounds( startval: String, endval: String, strict: Boolean = true): ma2.Range = {
+  def getTimeIndexBounds( startval: String, endval: String, strict: Boolean = false): ma2.Range = {
     val startIndex = getTimeCoordIndex( startval, BoundsRole.Start, strict)
     val endIndex = getTimeCoordIndex( endval, BoundsRole.End, strict )
     new ma2.Range( getCFAxisName, startIndex, endIndex)
@@ -201,7 +201,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     new ma2.Range( getCFAxisName, startIndex, endIndex )
   }
 
-  def getIndexBounds( startval: GenericNumber, endval: GenericNumber, strict: Boolean = true): ma2.Range = {
+  def getIndexBounds( startval: GenericNumber, endval: GenericNumber, strict: Boolean = false): ma2.Range = {
     val indexRange = if (coordAxis.getAxisType == nc2.constants.AxisType.Time) getTimeIndexBounds( startval.toString, endval.toString ) else getGridIndexBounds( startval, endval)
     assert(indexRange.last >= indexRange.first, "CDS2-CDSVariable: Coordinate bounds appear to be inverted: start = %s, end = %s".format(startval.toString, endval.toString))
     indexRange
