@@ -278,7 +278,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     findEnclosingFragmentData(fragSpec) match {
       case Some(foundFragKey) =>
         logger.info("Found enclosing fragKey: " + foundFragKey  )
-        fragmentIdCache.get(fragKey.toStrRep) match {
+        fragmentIdCache.get(foundFragKey.toStrRep) match {
           case Some(cache_id_fut) => Some(cache_id_fut.map((cache_id: String) => {
             logger.info("----> Cached frag " + cache_id)
             val partitioner = new CDASPartitioner(cache_id, fragSpec.roi)
