@@ -178,10 +178,7 @@ abstract class Kernel extends Loggable {
     } else {
       val resultOpt: Option[DataFragment] = Await.result( resultFut, Duration.Inf )
       resultOpt match {
-        case Some(result) =>
-          val rv = new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data)
-          logger.info( "Created XML response: " + rv.toXml.toString )
-          rv
+        case Some(result) => new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data)
         case None =>
           logger.error( "Operation %s returned empty result".format( context.operation.identifier ) )
           new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid, CDFloatArray.empty )
