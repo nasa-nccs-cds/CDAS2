@@ -56,7 +56,6 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
 
   def toXml: xml.Elem = {
     val varData = vars.mkString(";")
-    println( "Collection.toXml: vardata = " + varData )
     if (path.isEmpty) {
       <collection id={id} url={url} title={title}> {varData} </collection>
     } else if (fileFilter.isEmpty) {
