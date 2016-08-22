@@ -82,7 +82,7 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
 
 object Defaults {
   val M = 1000000
-  val maxChunkSize = 400*M
+  val maxChunkSize = 800*M
   val maxBufferSize = Int.MaxValue
   val maxProcessors =  64 //   serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
 }
