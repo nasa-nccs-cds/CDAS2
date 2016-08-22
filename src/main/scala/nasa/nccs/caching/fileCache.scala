@@ -275,7 +275,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
   def restore( fragSpec: DataFragmentSpec ): Option[Future[PartitionedFragment]] = {
     val fragKey = fragSpec.getKey
-    logger.info( "FragmentPersistence.restor: fragKey: " + fragKey )
+    logger.info( "FragmentPersistence.restore: fragKey: " + fragKey + ", existing keys: " + fragmentIdCache.keys.mkString( "{ ", ", ", " }" ) )
     fragmentIdCache.get(fragKey.toStrRep) match {
       case Some( cache_id_fut ) => Some( cache_id_fut.map( (cache_id: String ) => {
         logger.info( "----> Cached frag " + cache_id )
