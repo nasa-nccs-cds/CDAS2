@@ -35,7 +35,7 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
   override def toString = "Collection( id=%s, url=%s, path=%s, title=%s, fileFilter=%s )".format( id, url, path, title, fileFilter )
   def isEmpty = url.isEmpty
   lazy val varNames = vars.map( varStr => varStr.split(':').head )
-  println( s"====> Collection($id), vars = %s".format( vars.mkString(",")))
+//  println( s"====> Collection($id), vars = %s".format( vars.mkString(",")))
 
   def getUri( varName: String = "" ) = {
     ctype match {

@@ -215,11 +215,11 @@ object Collections extends XmlResource {
     val datasets = new ConcurrentLinkedHashMap.Builder[String, Collection].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).build()
     for ( ( scope, filePath ) <- filePaths.iterator ) if( Files.exists( Paths.get(filePath) ) ) {
         try {
-          logger.info( "Loading collections from file: " + filePath )
+ //         logger.info( "Loading collections from file: " + filePath )
           XML.loadFile(filePath).child.foreach(node => node.attribute("id") match {
             case None => None;
             case Some(id) =>
-              logger.info( "Loading collection: " + id.toString.toLowerCase )
+//              logger.info( "Loading collection: " + id.toString.toLowerCase )
               datasets.put(id.toString.toLowerCase, getCollection(node, scope))
           })
         } catch {
