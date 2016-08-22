@@ -277,6 +277,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     logger.info("FragmentPersistence.restore: fragKey: " + fragKey  )
     findEnclosingFragmentData(fragSpec) match {
       case Some(foundFragKey) =>
+        logger.info("Found enclosing fragKey: " + foundFragKey  )
         fragmentIdCache.get(fragKey.toStrRep) match {
           case Some(cache_id_fut) => Some(cache_id_fut.map((cache_id: String) => {
             logger.info("----> Cached frag " + cache_id)
@@ -286,7 +287,9 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
           ))
           case None => None
         }
-      case None => None
+      case None =>
+        logger.info("Can't find enclosing fragKey"  )
+        None
     }
   }
 
@@ -337,6 +340,7 @@ trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {
 
   def findEnclosedFragSpecs(keys: Set[DataFragmentKey], fkeyParent: DataFragmentKey, admitEquality: Boolean = false): Set[DataFragmentKey] = {
     val variableFrags = getFragSpecsForVariable(keys, fkeyParent.collId, fkeyParent.varname)
+    logger.info("Searching variable frags: \n\t --> " + variableFrags.mkString("\n\t --> ")  )
     variableFrags.filter(fkey => fkeyParent.contains(fkey, admitEquality))
   }
 
