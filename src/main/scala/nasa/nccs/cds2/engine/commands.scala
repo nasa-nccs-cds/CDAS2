@@ -2,8 +2,6 @@ package nasa.nccs.cds2.engine
 import nasa.nccs.esgf.process.TaskRequest
 import java.io.{IOException, PrintWriter, StringWriter}
 import java.nio.FloatBuffer
-
-import nasa.nccs.cdapi.cdm.{Collection, PartitionedFragment, _}
 import nasa.nccs.cds2.loaders.{Collections, Masks}
 import nasa.nccs.esgf.process._
 import org.slf4j.{Logger, LoggerFactory}
