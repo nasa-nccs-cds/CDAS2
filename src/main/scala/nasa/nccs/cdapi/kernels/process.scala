@@ -180,7 +180,7 @@ abstract class Kernel extends Loggable {
       resultOpt match {
         case Some(result) =>
           val rv = new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data)
-          logger.info( "Created XML response: " + rv.toString )
+          logger.info( "Created XML response: " + rv.toXml.toString )
           rv
         case None =>
           logger.error( "Operation %s returned empty result".format( context.operation.identifier ) )
