@@ -35,7 +35,11 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
   def getAttributeValue( name: String ): String =  attributes.getOrElse(name, new nc2.Attribute(new unidata.util.Parameter("",""))).getValue(0).toString
   def toXml: xml.Node =
     <variable name={name} fullname={fullname} description={description} shape={shape.mkString("[", " ", "]")} units={units}>
-      { for( dim: nc2.Dimension <- dims; name=dim.getFullName; dlen=dim.getLength ) yield  <dimension name={name} length={dlen.toString}/>  }
+      { for( dim: nc2.Dimension <- dims; name=dim.getFullName; dlen=dim.getLength ) yield getCoordinateAxis( name ) match {
+          case None => <dimension name={name} length={dlen.toString}/>
+          case Some( axis ) =>  <dimension name={name} length={dlen.toString} start={axis.getStart} units={axis.getUnitsString} step={axis.getIncrement}/>
+        }
+      }
       { for( name <- attributes.keys ) yield <attribute name={name}> { getAttributeValue(name) }</attribute> }
     </variable>
 
