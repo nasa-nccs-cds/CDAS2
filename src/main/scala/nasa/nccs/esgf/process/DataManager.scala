@@ -428,7 +428,7 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     rv
   }
 
-  def cacheInputData( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid ): Future[PartitionedFragment] = {
+  def cacheInputData( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid ): ( DataFragmentKey, Future[PartitionedFragment] ) = {
     val data_source: DataSource = dataContainer.getSource
     val variable: CDSVariable = dataLoader.getVariable(data_source.collection, data_source.name)
     val maskOpt: Option[String] = domain_container_opt.flatMap( domain_container => domain_container.mask )
@@ -436,7 +436,7 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     val domainSect: Option[ma2.Section] = domain_container_opt.map( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
     val fragSpec: DataFragmentSpec = new DataFragmentSpec( variable.name, variable.dataset.collection, data_source.fragIdOpt, Some(targetGrid), variable.ncVariable.getDimensionsString,
       variable.ncVariable.getUnitsString, variable.getAttributeValue( "long_name", variable.ncVariable.getFullName ), section, domainSect, variable.missing, maskOpt )
-    dataLoader.cacheFragmentFuture( fragSpec )
+    ( fragSpec.getKey -> dataLoader.cacheFragmentFuture( fragSpec ) )
   }
 
 }

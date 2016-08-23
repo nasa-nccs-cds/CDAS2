@@ -94,7 +94,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     rv
   }
 
-  def cacheInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ):  Iterable[Future[PartitionedFragment]] = {
+  def cacheInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ):  Iterable[ ( DataFragmentKey, Future[PartitionedFragment] ) ] = {
     val sourceContainers = request.variableMap.values.filter(_.isSource)
     for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
       yield serverContext.cacheInputData(data_container, domainOpt, targetGrid )
@@ -185,9 +185,9 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       val collectionNodes =  request.variableMap.values.map( ds => aggCollection( ds.getSource.collection ) )
       new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "cache" =>
-      cacheInputData(request, createTargetGrid(request), run_args)
+      val cached_data: Iterable[(DataFragmentKey,Future[PartitionedFragment])] = cacheInputData(request, createTargetGrid(request), run_args)
       FragmentPersistence.close()
-      new ExecutionResults(List(new UtilityExecutionResult("cache", <cache/> )))
+      new ExecutionResults( cached_data.map( cache_result => new UtilityExecutionResult( cache_result._1.toStrRep, <cache/> ) ).toList )
     case "dcol" =>
       val colIds = request.variableMap.values.map( _.getSource.collection.id )
       val deletedCollections = Collections.removeCollections( colIds.toArray )
@@ -228,14 +228,9 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 
   def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[ExecutionResults] = Future {
     logger.info("Executing task request " + request.name )
-    val req_ids = request.name.split('.')
-    req_ids(0) match {
-      case "util" => executeUtilityRequest(req_ids(1), request, run_args)
-      case _ =>
-        val targetGrid: TargetGrid = createTargetGrid(request)
-        val requestContext = loadInputData(request, targetGrid, run_args)
-        executeWorkflows(request, requestContext)
-    }
+    val targetGrid: TargetGrid = createTargetGrid(request)
+    val requestContext = loadInputData(request, targetGrid, run_args)
+    executeWorkflows(request, requestContext)
   }
 
   def getRequestContext( request: TaskRequest, run_args: Map[String,String] ): RequestContext = loadInputData( request, createTargetGrid( request ), run_args )
@@ -284,18 +279,26 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     if(resultFile.exists) Some(resultFile.getAbsolutePath) else None
   }
 
-  def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): ( String, Future[ExecutionResults] ) = {
+  def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): ( Map[String,String], Future[ExecutionResults] ) = {
     logger.info("Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
     runtime.printMemoryUsage(logger)
     val jobId = collectionDataCache.addJob( request.getJobRec(run_args) )
     val async = run_args.getOrElse("async", "false").toBoolean
-    val futureResult = this.futureExecute( request, Map( "jobId" -> jobId ) ++ run_args )
-    futureResult onSuccess { case results: ExecutionResults =>
-      println("Process Completed: " + results.toString )
-      processAsyncResult( jobId, results )
+    val req_ids = request.name.split('.')
+    req_ids(0) match {
+      case "util" =>
+        val util_result = executeUtilityRequest(req_ids(1), request, Map("jobId" -> jobId) ++ run_args )
+        val fragIds = util_result.results.flatMap( result => result match { case ures: UtilityExecutionResult => Some(ures.id); case x => None } )
+        ( Map( "fragments" -> fragIds.mkString(";") ), Future(util_result))
+      case _ =>
+        val futureResult = this.futureExecute(request, Map("jobId" -> jobId) ++ run_args)
+        futureResult onSuccess { case results: ExecutionResults =>
+          println("Process Completed: " + results.toString)
+          processAsyncResult(jobId, results)
+        }
+        futureResult onFailure { case e: Throwable => fatal(e); collectionDataCache.removeJob(jobId); throw e }
+        ( Map( "job" -> jobId ), futureResult)
     }
-    futureResult onFailure {  case e: Throwable =>  fatal( e ); collectionDataCache.removeJob( jobId ); throw e }
-    (jobId, futureResult)
   }
 
   def processAsyncResult( jobId: String, results: ExecutionResults ) = {
@@ -409,31 +412,6 @@ object SampleTaskRequests {
       "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggtest", "name" -> "t:v0", "domain" -> "d0")),  // collection://merra300/hourly/asm_Cp
       "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
     TaskRequest( "CDS.anomaly", dataInputs )
-  }
-}
-
-object executionTest extends App {
-  val request = SampleTaskRequests.getAnomalyTest
-  val async = false
-  val run_args = Map( "async" -> async.toString )
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val t0 = System.nanoTime
-  if(async) {
-    cds2ExecutionManager.asyncExecute(request, run_args) match {
-      case ( resultId: String, futureResult: Future[ExecutionResults] ) =>
-        val t1 = System.nanoTime
-        println ("Initial Result, time = %.4f ".format ((t1 - t0) / 1.0E9) )
-        val result = Await.result (futureResult, Duration.Inf)
-        val t2 = System.nanoTime
-        println ("Final Result, time = %.4f, result = %s ".format ((t2 - t1) / 1.0E9, result.toString) )
-      case x => println( "Unrecognized result from executeAsync: " + x.toString )
-    }
-   }
-  else {
-    val t1 = System.nanoTime
-    val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-    val t2 = System.nanoTime
-    println("Final Result, time = %.4f (%.4f): %s ".format( (t2-t1)/1.0E9, (t2-t0)/1.0E9, final_result.toString) )
   }
 }
 
@@ -691,27 +669,6 @@ object AveArray extends SyncExecutor {
 
 object SpatialAve1 extends SyncExecutor {
   def getTaskRequest(args: Array[String]): TaskRequest = SampleTaskRequests.getSpatialAve("/MERRA/mon/atmos", "ta", "cosine")
-}
-
-
-object execConstantTest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val async = true
-  val run_args = Map( "async" -> async.toString )
-  val request = SampleTaskRequests.getConstant( "/MERRA/mon/atmos", "ta", 10 )
-  if(async) {
-    cds2ExecutionManager.asyncExecute(request, run_args) match {
-      case ( resultId: String, futureResult: Future[ExecutionResults] ) =>
-        val result = Await.result (futureResult, Duration.Inf)
-        println(">>>> Async Result: " + result )
-      case x => println( "Unrecognized result from executeAsync: " + x.toString )
-    }
-  }
-  else {
-    val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-    val printer = new scala.xml.PrettyPrinter(200, 3)
-    println(">>>> Final Result: " + printer.format(final_result.toXml))
-  }
 }
 
 object cdscan extends App with Loggable {

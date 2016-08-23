@@ -66,7 +66,11 @@ class cds2ServiceProvider( serverConfiguration: Map[String,String] ) extends Ser
       cdsutils.time( logger, "-->> Process %s: Total Execution Time: ".format(process_name) ) {
         if( runargs.getOrElse("async","false").toBoolean ) {
           cds2ExecutionManager.asyncExecute(TaskRequest(process_name, datainputs), runargs) match {
-            case ( resultId: String, futureResult: Future[ExecutionResults] ) => <result url={"http://server:port/wps/results?id=%s".format(resultId)}> {resultId} </result>
+            case ( mdata: Map[String,String], futureResult: Future[ExecutionResults] ) =>
+              mdata.get("fragments") match {
+                case Some(fragments) => <result fragments={fragments}/>
+                case None => <result url={"http://server:port/wps/results?id=%s".format(mdata.getOrElse("job",""))} />
+              }
             case x =>  <error id="Execution Error"> {"Malformed response from cds2ExecutionManager" } </error>
           }
         }
