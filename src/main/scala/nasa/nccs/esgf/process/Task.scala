@@ -284,7 +284,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
 
   def toBoundsString = { targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
-  def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), domainSectOpt, missing_value, mask )
+  def reshape( newSection: ma2.Section ): DataFragmentSpec = new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newSection), domainSectOpt, missing_value, mask )
 
   def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
     case Some( array ) => array
