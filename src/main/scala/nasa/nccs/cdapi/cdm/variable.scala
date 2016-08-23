@@ -36,11 +36,11 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
   def toXml: xml.Node =
     <variable name={name} fullname={fullname} description={description} shape={shape.mkString("[", " ", "]")} units={units}>
       { for( dim: nc2.Dimension <- dims; name=dim.getFullName; dlen=dim.getLength ) yield getCoordinateAxis( name ) match {
-          case None => <dimension name={name} length={dlen.toString}/>
-          case Some( axis ) =>  <dimension name={name} length={dlen.toString} start={axis.getStart.toString} units={axis.getUnitsString} step={axis.getIncrement.toString} cfname={axis.getAxisType.getCFAxisName}/>
+          case None=> <dimension name={name} length={dlen.toString}/>
+          case Some(axis)=> <dimension name={name} length={dlen.toString} start={axis.getStart.toString} units={axis.getUnitsString} step={axis.getIncrement.toString} cfname={axis.getAxisType.getCFAxisName}/>
         }
       }
-      { for( name <- attributes.keys ) yield <attribute name={name}> { getAttributeValue(name) }</attribute> }
+      { for( name <- attributes.keys ) yield <attribute name={name}> { getAttributeValue(name) } </attribute> }
     </variable>
 
 
