@@ -210,6 +210,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
   def getCacheType = "fragment"
   def keys: Set[String] = fragmentIdCache.keys
+  def keyObjects: Set[String] = fragmentIdCache.keys
   def values: Iterable[Future[String]] = fragmentIdCache.values
 
 //  def persist(fragSpec: DataFragmentSpec, frag: PartitionedFragment): Future[String] = {
@@ -274,21 +275,29 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
   def restore(fragSpec: DataFragmentSpec): Option[Future[PartitionedFragment]] = {
     val fragKey = fragSpec.getKey
-    logger.info("FragmentPersistence.restore: fragKey: " + fragKey  )
+    logger.info("FragmentPersistence.restore: fragKey: " + fragKey)
     findEnclosingFragmentData(fragSpec) match {
       case Some(foundFragKey) =>
-        logger.info("Found enclosing fragKey: " + foundFragKey  )
-        fragmentIdCache.get(foundFragKey.toStrRep) match {
-          case Some(cache_id_fut) => Some(cache_id_fut.map((cache_id: String) => {
-            logger.info("----> Cached frag " + cache_id)
-            val partitioner = new CDASPartitioner(cache_id, fragSpec.roi)
-            new PartitionedFragment(new Partitions(cache_id, fragSpec.roi, partitioner.getPartitions), None, fragSpec)
-          }
-          ))
-          case None => None
+        logger.info("Found enclosing fragKey: " + foundFragKey)
+        collectionDataCache.getFragment(foundFragKey) match {
+          case Some(partFut) => Some(partFut)
+          case None =>
+            fragmentIdCache.get(foundFragKey.toStrRep) match {
+              case Some(cache_id_fut) => Some(cache_id_fut.map((cache_id: String) => {
+                logger.info("----> Cached frag " + cache_id)
+                val roi = foundFragKey.getRoi
+                val partitioner = new CDASPartitioner(cache_id, roi)
+                fragSpec.cutIntersection(roi) match {
+                  case Some(section) => new PartitionedFragment(new Partitions(cache_id, roi, partitioner.getPartitions), None, section)
+                  case None => throw new Exception("No intersection in enclosing fragment")
+                }
+              }
+              ))
+              case None => None
+            }
         }
       case None =>
-        logger.info("Can't find enclosing fragKey"  )
+        logger.info("Can't find enclosing fragKey")
         None
     }
   }
@@ -441,22 +450,19 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
 
   def getVariable(fragSpec: DataFragmentSpec): CDSVariable = getVariable(fragSpec.collection, fragSpec.varname)
 
-  private def cutExistingFragment( partIndex: Int, fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f ): Option[DataFragment] = {
-    findEnclosingFragSpec(fragmentCache.keys, fragSpec.getKey, FragmentSelectionCriteria.Smallest) match {
-      case Some(fkey: DataFragmentKey) => getExistingFragment(fragSpec) match {
-        case Some(fragmentFuture) =>
-          if (!fragmentFuture.isCompleted && (fkey.getSize * abortSizeFraction > fragSpec.getSize)) {
-            logger.info("Cache Chunk[%s] found but not yet ready, abandoning cache access attempt".format(fkey.shape.mkString(",")))
-            None
-          } else {
-            val fragment = Await.result(fragmentFuture, Duration.Inf)
-            fragment.cutIntersection(partIndex, fragSpec.roi)
-          }
-        case None => cutExistingFragment(partIndex, fragSpec, abortSizeFraction)
-      }
-      case None => None
-    }
-  }
+//  private def cutExistingFragment( partIndex: Int, fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f ): Option[DataFragment] = {
+//    getExistingFragment(fragSpec) match {
+//      case Some(fragmentFuture) =>
+//        if (!fragmentFuture.isCompleted && (fragSpec.getSize * abortSizeFraction > fragSpec.getSize)) {
+//          logger.info("Cache Chunk[%s] found but not yet ready, abandoning cache access attempt".format(fragSpec.getShape.mkString(",")))
+//          None
+//        } else {
+//          val fragment = Await.result(fragmentFuture, Duration.Inf)
+//          fragment.cutIntersection(partIndex, fragSpec.roi)
+//        }
+//      case None => cutExistingFragment(partIndex, fragSpec, abortSizeFraction)
+//    }
+//  }
 //    fragOpt match {
 //      case None =>
 //        FragmentPersistence.getEnclosingFragmentData(fragSpec) match {
@@ -587,7 +593,9 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     rv
   }
 
-  def restoreFromCache( fragSpec: DataFragmentSpec ): DataFragmentKey = {
+  def getFragment( fragKey: DataFragmentKey ): Option[Future[PartitionedFragment]] = fragmentCache.get( fragKey )
+
+  def getExistingFragment( fragSpec: DataFragmentSpec ): Option[Future[PartitionedFragment]] = {
     val fkey = fragSpec.getKey
     if ( !fragmentCache.keys.contains(fkey) ) {
       logger.info("Restoring frag from cache: " + fkey.toString )
@@ -595,20 +603,16 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
         case Some( partFragFut ) =>
           val partFrag = Await.result( partFragFut, Duration.Inf )
           fragmentCache.put(fkey, partFrag )
-        case None => logger.warn( "Unable to restore frag from cache: " + fkey.toString )
+          Some( partFragFut )
+        case None =>
+          logger.warn( "Unable to restore frag from cache: " + fkey.toString )
+          None
       }
+    } else {
+      val rv = fragmentCache.get( fkey )
+      logger.info( ">>>>>>>>>>>>>>>> Get frag from cache: search key = " + fkey.toString + ", existing keys = " + fragmentCache.keys.mkString("[",",","]") + ", Success = " + rv.isDefined.toString )
+      rv
     }
-    fkey
-  }
-
-  def getExistingFragment( fragSpec: DataFragmentSpec  ): Option[Future[PartitionedFragment]] = {
-    val fkey = restoreFromCache( fragSpec )
-    val rv: Option[Future[PartitionedFragment]] = fragmentCache.get( fkey ) match {
-      case Some( result ) => Some( result )
-      case None =>  None
-    }
-    logger.info( ">>>>>>>>>>>>>>>> Get frag from cache: search key = " + fkey.toString + ", existing keys = " + fragmentCache.keys.mkString("[",",","]") + ", Success = " + rv.isDefined.toString )
-    rv
   }
 
   def deleteFragment( fkey: DataFragmentKey  ): Option[Future[PartitionedFragment]] = fragmentCache.remove(fkey)

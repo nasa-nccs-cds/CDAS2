@@ -1,7 +1,7 @@
 package nasa.nccs.esgf.process
 import java.util.Formatter
 
-import nasa.nccs.caching.{FileToCacheStream, FragmentPersistence, Partition, Partitions}
+import nasa.nccs.caching._
 import nasa.nccs.cdapi.cdm._
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, VariableDS}
 import java.util.Formatter
@@ -17,7 +17,7 @@ import ucar.nc2.constants.AxisType
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.concurrent.{Await, Future }
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
 
 sealed abstract class DataAccessMode
@@ -436,7 +436,10 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     val domainSect: Option[ma2.Section] = domain_container_opt.map( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
     val fragSpec: DataFragmentSpec = new DataFragmentSpec( variable.name, variable.dataset.collection, data_source.fragIdOpt, Some(targetGrid), variable.ncVariable.getDimensionsString,
       variable.ncVariable.getUnitsString, variable.getAttributeValue( "long_name", variable.ncVariable.getFullName ), section, domainSect, variable.missing, maskOpt )
-    ( fragSpec.getKey -> dataLoader.cacheFragmentFuture( fragSpec ) )
+    dataLoader.getExistingFragment( fragSpec ) match {
+      case Some( partFut ) => (fragSpec.getKey -> partFut )
+      case None => (fragSpec.getKey -> dataLoader.cacheFragmentFuture(fragSpec) )
+    }
   }
 
 }
