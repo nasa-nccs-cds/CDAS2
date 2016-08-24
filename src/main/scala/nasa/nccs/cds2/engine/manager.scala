@@ -288,8 +288,8 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     req_ids(0) match {
       case "util" =>
         val util_result = executeUtilityRequest(req_ids(1), request, Map("jobId" -> jobId) ++ run_args )
-        val fragIds = util_result.results.flatMap( result => result match { case ures: UtilityExecutionResult => Some(ures.id); case x => None } )
-        ( Map( "fragments" -> fragIds.mkString(";") ), Future(util_result))
+        val fragIds = util_result.results.map( _.id )
+        ( Map( "results" -> fragIds.mkString(";") ), Future(util_result) )
       case _ =>
         val futureResult = this.futureExecute(request, Map("jobId" -> jobId) ++ run_args)
         futureResult onSuccess { case results: ExecutionResults =>

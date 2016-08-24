@@ -39,23 +39,23 @@ class Port( val name: String, val cardinality: String, val description: String, 
 
 class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) {}
 
-trait ExecutionResult {
+class ExecutionResult( val id: String ) {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
-  def toXml: xml.Elem
+  def toXml: xml.Elem = <result id={id} > </result>
 }
 
-class UtilityExecutionResult( val id: String, val response: xml.Elem )  extends ExecutionResult {
-  def toXml = <result id={id}> {response} </result>
+class UtilityExecutionResult( id: String, val response: xml.Elem )  extends ExecutionResult(id) {
+  override def toXml = <result id={id}> {response} </result>
 }
-class BlockingExecutionResult( val id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray ) extends ExecutionResult {
-  def toXml = {
+class BlockingExecutionResult( id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray ) extends ExecutionResult(id) {
+  override def toXml = {
     val idToks = id.split('-')
     logger.info( "BlockingExecutionResult-> result_tensor: \n" + result_tensor.toString )
     <result id={id} op={idToks.head}> { intputSpecs.map( _.toXml ) } { gridSpec.toXml } <data undefined={result_tensor.getInvalid.toString}> {result_tensor.mkDataString(",")}  </data>  </result>
   }
 }
 
-class ErrorExecutionResult( val err: Throwable ) extends ExecutionResult {
+class ErrorExecutionResult( val err: Throwable ) extends ExecutionResult( err.getClass.getName ) {
 
   def fatal(): String = {
     logger.error( "\nError Executing Kernel: %s\n".format(err.getMessage) )
@@ -65,20 +65,19 @@ class ErrorExecutionResult( val err: Throwable ) extends ExecutionResult {
     err.getMessage
   }
 
-  def toXml = <error> {fatal()} </error>
+  override def toXml = <error> {fatal()} </error>
 
 }
 
-class XmlExecutionResult( val id: String,  val responseXml: xml.Node ) extends ExecutionResult {
-  def toXml = {
+class XmlExecutionResult( id: String,  val responseXml: xml.Node ) extends ExecutionResult(id) {
+  override def toXml = {
     val idToks = id.split('~')
     <result id={idToks(1)} op={idToks(0)}> { responseXml }  </result>
   }
 }
 
-class AsyncExecutionResult( val results: List[String] )  extends ExecutionResult  {
-  def this( resultOpt: Option[String]  ) { this( resultOpt.toList ) }
-  def toXml = <result> {  results.mkString(",")  } </result>
+class AsyncExecutionResult( id: String )  extends ExecutionResult(id)  {
+  def this( resultOpt: Option[String]  ) { this( resultOpt.getOrElse("empty") ) }
 }
 
 class ExecutionResults( val results: List[ExecutionResult] ) {
