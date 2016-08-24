@@ -67,7 +67,7 @@ class cds2ServiceProvider( serverConfiguration: Map[String,String] ) extends Ser
         if( runargs.getOrElse("async","false").toBoolean ) {
           cds2ExecutionManager.asyncExecute(TaskRequest(process_name, datainputs), runargs) match {
             case ( mdata: Map[String,String], futureResult: Future[ExecutionResults] ) =>
-              mdata.get("fragments") match {
+              mdata.get("results") match {
                 case Some(fragments) => <result fragments={fragments}/>
                 case None => <result url={"http://server:port/wps/results?id=%s".format(mdata.getOrElse("job",""))} />
               }
