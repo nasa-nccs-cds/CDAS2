@@ -348,10 +348,11 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
   def getVariable( collection: Collection, varname: String ): CDSVariable = dataLoader.getVariable( collection, varname )
 
   def getVariableData( fragSpec: DataFragmentSpec ): PartitionedFragment = {
-    dataLoader.getExistingFragment( fragSpec ) match {
-      case Some( fragFut ) => Await.result( fragFut, Duration.Inf )
-      case None => throw new Exception( "Fragment defined by key (%s) can't be found".format(fragSpec.getKey) )
+    val fragFut = dataLoader.getExistingFragment( fragSpec ) match {
+      case Some( fragFut ) => fragFut
+      case None => cacheInputData( fragSpec )
     }
+    Await.result( fragFut, Duration.Inf )
   }
 
   def inputs( inputSpecs: List[DataFragmentSpec] ): List[PartitionedFragment] =
@@ -426,6 +427,13 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     val t3 = System.nanoTime
     logger.info( " LoadVariableDataT: %.4f %.4f %.4f, T = %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, (t3-t0)/1.0E9 ) )
     rv
+  }
+
+  def cacheInputData( fragSpec: DataFragmentSpec ): Future[PartitionedFragment] = {
+    dataLoader.getExistingFragment(fragSpec) match {
+      case Some(partFut) => partFut
+      case None => dataLoader.cacheFragmentFuture(fragSpec)
+    }
   }
 
   def cacheInputData( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid ): ( DataFragmentKey, Future[PartitionedFragment] ) = {
