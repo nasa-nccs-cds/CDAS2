@@ -184,6 +184,9 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     case "agg" =>
       val collectionNodes =  request.variableMap.values.map( ds => aggCollection( ds.getSource.collection ) )
       new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
+    case "clearCache" =>
+      val fragIds = FragmentPersistence.clearCache
+      new ExecutionResults( List( new UtilityExecutionResult( "clearCache", <deleted fragments={fragIds.mkString(",")}/> ) ) )
     case "cache" =>
       val cached_data: Iterable[(DataFragmentKey,Future[PartitionedFragment])] = cacheInputData(request, createTargetGrid(request), run_args)
       FragmentPersistence.close()

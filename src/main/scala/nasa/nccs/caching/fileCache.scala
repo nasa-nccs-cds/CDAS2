@@ -147,7 +147,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, private val _section: ma2
   val dType = ncVariable.getDataType
   def roi: ma2.Section = new ma2.Section( _section.getRanges )
   val partitioner = new CDASPartitioner( cacheId, roi, dType )
-  def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last; case None => default_value }
+  def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last.trim; case None => default_value }
 
   def getReadBuffer(cache_id: String): (FileChannel, MappedByteBuffer) = {
     val channel = new FileInputStream(cache_id).getChannel
@@ -312,6 +312,8 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
 
   def close(): Unit = Await.result( Future.sequence( fragmentIdCache.values ), Duration.Inf )
+
+  def clearCache(): Set[String] = fragmentIdCache.clear()
 
   def deleteEnclosing( fragSpec: DataFragmentSpec ) =
     delete( findEnclosingFragSpecs(  fragmentIdCache.keys.map( DataFragmentKey(_) ), fragSpec.getKey ) )

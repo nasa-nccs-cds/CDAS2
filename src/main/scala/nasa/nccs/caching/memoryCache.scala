@@ -63,7 +63,7 @@ trait Cache[K,V] { cache ⇒
   /**
     * Clears the cache by removing all entries.
     */
-  def clear()
+  def clear(): Set[K]
 
   def persist()
 
@@ -108,7 +108,7 @@ object ValueMagnet {
 final class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boolean ) extends Cache[K,V] with Loggable {
   val maxCapacity: Int=10000
   val initialCapacity: Int=64
-  val cacheFile = DiskCacheFileMgr.getDiskCacheFilePath( cname, ctype )
+  val cacheFile = DiskCacheFileMgr.getDiskCacheFilePath( ctype, cname )
   require(maxCapacity >= 0, "maxCapacity must not be negative")
   require(initialCapacity <= maxCapacity, "initialCapacity must be <= maxCapacity")
 
@@ -143,6 +143,14 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
     ostr.close()
   }
 
+  def clear(): Set[K] =
+    if( persistent ) {
+      val keys: Set[K] = Set[K](store.keys.toSeq:_*)
+      Files.deleteIfExists( Paths.get(cacheFile).getParent )
+      store.clear()
+      keys
+    }  else Set.empty[K]
+
   protected def restore: Option[ Array[(K,V)] ] = {
     try {
       val istr = new ObjectInputStream(new FileInputStream(cacheFile))
@@ -174,8 +182,6 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
   }
 
   def remove(key: K) = Option(store.remove(key))
-
-  def clear(): Unit = { store.clear() }
 
   def keys: Set[K] = store.keySet().asScala.toSet
   def values: Iterable[Future[V]] = store.values().asScala
