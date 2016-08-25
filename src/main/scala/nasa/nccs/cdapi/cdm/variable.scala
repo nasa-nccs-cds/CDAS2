@@ -1,11 +1,13 @@
 package nasa.nccs.cdapi.cdm
 
-import nasa.nccs.caching.{Partitions}
-import nasa.nccs.cdapi.tensors.{ CDByteArray, CDFloatArray, CDIndexMap}
+import nasa.nccs.caching.Partitions
+import nasa.nccs.cdapi.kernels.CDASExecutionContext
+import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.esgf.process._
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
 import nasa.nccs.utilities.Loggable
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
@@ -57,6 +59,9 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
 class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  ) extends Loggable  {
   val LOG = org.slf4j.LoggerFactory.getLogger(this.getClass)
   def toBoundsString = fragmentSpec.toBoundsString
+
+  def getKey: DataFragmentKey = fragmentSpec.getKey
+  def getKeyString: String = fragmentSpec.getKeyString
 
   def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] = {
     fragmentSpec.getVariableMetadata(serverContext) ++ Map( metaData.map( item => (item._1 -> new nc2.Attribute(item._1,item._2)) ) :_* )

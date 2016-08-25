@@ -16,9 +16,9 @@ class wpsSuite extends LocalExecutionTestSuite {
   val fragment = getConfigValue("fragment")
   val varName = fragment.split('|').head
   val collection =  fragment.split('|')(1)
-  val level = 0
-  val lat = 50f
-  val lon = 20f
+  val level = 30
+  val lat = -40f
+  val lon = 0f
 
   test("op") {
     val datainputs = "[domain=[{\"name\":\"d1\",\"lev\":{\"start\":%d,\"end\":%d,\"system\":\"indices\"}}],variable=[{\"uri\":\"fragment:/%s\",\"name\":\"%s:v1\",\"domain\":\"d1\"}],operation=[{\"name\":\"%s\",\"input\":\"v1\",\"axes\":\"t\"}]]".format(level, level, operation, fragment, varName)
@@ -33,7 +33,7 @@ class wpsSuite extends LocalExecutionTestSuite {
     executeTest(datainputs)
   }
   test("subset_1D_cache", Tag("subset+cache")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.subset","input":"v1","domain":"d2"}]]""".format(lat, lat, lon, lon, level, level, collection, varName)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.subset","input":"v1","domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, collection, varName)
     executeTest(datainputs)
   }
   test("average_1D", Tag("average")) {

@@ -114,19 +114,7 @@ class CDS extends KernelModule with KernelTools {
     override val description = "Subset of Input Fragment"
 
     override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
-      val inputVar: PartitionedFragment = inputs.head
-      inputVar.domainDataFragment(partIndex) match {
-        case Some(dataFrag) =>
-          val async = context.request.config("async", "false").toBoolean
-          val axes: AxisIndices = context.request.getAxisIndices(context.operation.config("axes", ""))
-          val resultFragSpec = dataFrag.getReducedSpec(axes)
-          val optargs: Map[String, String] = context.operation.getConfiguration
-          optargs.get("domain") match {
-            case None => Some(dataFrag)
-            case Some(domainId) =>  dataFrag.subset(context.request.targetGrid.grid.getSubSection(context.request.getDomain(domainId).axes))
-          }
-          case None => None
-      }
+        inputs.head.domainDataFragment( partIndex )
     }
   }
 

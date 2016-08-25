@@ -47,11 +47,11 @@ class ExecutionResult( val id: String ) {
 class UtilityExecutionResult( id: String, val response: xml.Elem )  extends ExecutionResult(id) {
   override def toXml = <result id={id}> {response} </result>
 }
-class BlockingExecutionResult( id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray ) extends ExecutionResult(id) {
+class BlockingExecutionResult( id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray, val fragments:String="" ) extends ExecutionResult(id) {
   override def toXml = {
     val idToks = id.split('-')
     logger.info( "BlockingExecutionResult-> result_tensor: \n" + result_tensor.toString )
-    <result id={id} op={idToks.head}> { intputSpecs.map( _.toXml ) } { gridSpec.toXml } <data undefined={result_tensor.getInvalid.toString}> {result_tensor.mkDataString(",")}  </data>  </result>
+    <result id={id} op={idToks.head} fragments={fragments}> { intputSpecs.map( _.toXml ) } { gridSpec.toXml } <data undefined={result_tensor.getInvalid.toString}> {result_tensor.mkDataString(",")}  </data>  </result>
   }
 }
 
@@ -76,8 +76,9 @@ class XmlExecutionResult( id: String,  val responseXml: xml.Node ) extends Execu
   }
 }
 
-class AsyncExecutionResult( id: String )  extends ExecutionResult(id)  {
-  def this( resultOpt: Option[String]  ) { this( resultOpt.getOrElse("empty") ) }
+class AsyncExecutionResult( id: String, val fragments:String="" )  extends ExecutionResult(id)  {
+  def this( resultOpt: Option[String], fragments:String="" ) { this( resultOpt.getOrElse("empty"), fragments ) }
+  override def toXml = { <result id={id} fragments={fragments}> </result> }
 }
 
 class ExecutionResults( val results: List[ExecutionResult] ) {
@@ -171,16 +172,17 @@ abstract class Kernel extends Loggable {
   }
   def createResponse( resultFut: Future[Option[DataFragment]], inputs: List[PartitionedFragment], context: CDASExecutionContext ): ExecutionResult = {
     val inputVar: PartitionedFragment = inputs.head
+    val fragments = inputs.map( _.getKeyString )
     val async = context.request.config("async", "false").toBoolean
     if(async) {
-      new AsyncExecutionResult( cacheResult( resultFut, context, inputVar.getVariableMetadata(context.server) ) )
+      new AsyncExecutionResult( cacheResult( resultFut, context, inputVar.getVariableMetadata(context.server) ), fragments.mkString(";") )
     } else {
       val resultOpt: Option[DataFragment] = Await.result( resultFut, Duration.Inf )
       resultOpt match {
-        case Some(result) => new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data)
+        case Some(result) => new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data, fragments.mkString(";"))
         case None =>
           logger.error( "Operation %s returned empty result".format( context.operation.identifier ) )
-          new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid, CDFloatArray.empty )
+          new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid, CDFloatArray.empty, fragments.mkString(";") )
       }
     }
   }
@@ -217,7 +219,17 @@ abstract class Kernel extends Loggable {
     }
   }
 
-  def inputVars( context: CDASExecutionContext ): List[PartitionedFragment] = context.server.inputs( context.operation.inputs.map( context.request.getInputSpec ) )
+  def inputVars( context: CDASExecutionContext ): List[PartitionedFragment] = {
+    val optargs: Map[String, String] = context.operation.getConfiguration
+    val op_section: Option[ma2.Section] = optargs.get("domain").map( domainId => context.request.targetGrid.grid.getSubSection(context.request.getDomain(domainId).axes) )
+    context.server.inputs(context.operation.inputs.map(uid => {
+      val frag: DataFragmentSpec = context.request.getInputSpec(uid)
+      op_section match {
+        case None => frag
+        case Some( section ) => frag.cutIntersection( section ).getOrElse( frag )
+      }
+    }))
+  }
 
   def cacheResult( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
     try {

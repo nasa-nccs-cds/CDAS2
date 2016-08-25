@@ -261,8 +261,7 @@ class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val optD
   }
   def getReducedSpec( axes: AxisIndices ): DataFragmentSpec =  spec.reduce(Set(axes.getAxes:_*))
   def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)
-  def subset( section: ma2.Section ): Option[DataFragment] = spec.cutIntersection( section ) map { dataFragSpec => new DataFragment( dataFragSpec, data.section(section) ) }
-
+  def subset( section: ma2.Section ): Option[DataFragment] = spec.cutIntersection( section ) map { dataFragSpec => new DataFragment( dataFragSpec, data.section( dataFragSpec.getIntersection(section) ) ) }
 }
 
 class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
@@ -345,6 +344,9 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   }
 
   def reduce( axisIndices: Set[Int], newsize: Int = 1 ): DataFragmentSpec =  reSection( getReducedSection(axisIndices,newsize) )
+
+  def getIntersection( subsection: ma2.Section  ): ma2.Section = { subsection.intersect( _section ) }
+  def intersects( subsection: ma2.Section  ): Boolean = { subsection.intersects( _section ) }
 
   def getSubSection( subsection: ma2.Section  ): ma2.Section = {
     new ma2.Section( roi.getRanges.zipWithIndex.map( rngIndx => {
