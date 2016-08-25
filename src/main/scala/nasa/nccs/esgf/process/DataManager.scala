@@ -430,6 +430,7 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
   }
 
   def cacheInputData( fragSpec: DataFragmentSpec ): Future[PartitionedFragment] = {
+    logger.info( " ****>>>>>>>>>>>>> Cache Input Data: " + fragSpec.getKeyString )
     dataLoader.getExistingFragment(fragSpec) match {
       case Some(partFut) => partFut
       case None => dataLoader.cacheFragmentFuture(fragSpec)
