@@ -76,8 +76,8 @@ class XmlExecutionResult( id: String,  val responseXml: xml.Node ) extends Execu
   }
 }
 
-class AsyncExecutionResult( id: String, val fragments:String="" )  extends ExecutionResult(id)  {
-  def this( resultOpt: Option[String], fragments:String="" ) { this( resultOpt.getOrElse("empty"), fragments ) }
+class AsyncExecutionResult( id: String, val fragments:String )  extends ExecutionResult(id)  {
+  def this( resultOpt: Option[String], fragments:String ) { this( resultOpt.getOrElse("empty"), fragments ) }
   override def toXml = { <result id={id} fragments={fragments}> </result> }
 }
 
