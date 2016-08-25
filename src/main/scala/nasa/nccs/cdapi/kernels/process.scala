@@ -172,7 +172,7 @@ abstract class Kernel extends Loggable {
   }
   def createResponse( resultFut: Future[Option[DataFragment]], inputs: List[PartitionedFragment], context: CDASExecutionContext ): ExecutionResult = {
     val inputVar: PartitionedFragment = inputs.head
-    val fragments = inputs.map( _.getKeyString )
+    val fragments = inputs.map( _.getKey.toStrRep )
     val async = context.request.config("async", "false").toBoolean
     if(async) {
       new AsyncExecutionResult( cacheResult( resultFut, context, inputVar.getVariableMetadata(context.server) ), fragments.mkString(";") )
