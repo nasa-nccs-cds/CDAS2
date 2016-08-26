@@ -86,11 +86,39 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
     new DataFragment( partFragSpec(partIndex), partition.data( fragmentSpec.missing_value ) )
   }
 
-  def domainDataFragment( partIndex: Int ): Option[DataFragment] = {
+  def domainDataFragment( partIndex: Int, context: CDASExecutionContext ): Option[DataFragment] = {
+    val optargs: Map[String, String] = context.operation.getConfiguration
+    val op_section: Option[ma2.Section] = optargs.get("domain").map(domainId => context.request.targetGrid.grid.getSubSection(context.request.getDomain(domainId).axes))
     try {
       val partition = partitions.getPart(partIndex)
-      Some( new DataFragment( domainFragSpec(partIndex), partition.data(fragmentSpec.missing_value) ) )
-//      val domainDataOpt: Option[CDFloatArray] = fragmentSpec.domainSectOpt match {
+      val partition_data = partition.data(fragmentSpec.missing_value)
+      val frag_section = partition.partSection(fragmentSpec.roi)
+      val domain_section = fragmentSpec.domainSectOpt match {
+        case Some(dsect) => frag_section.intersect(dsect)
+        case None => frag_section
+      }
+      val partFragSpec = domainFragSpec(partIndex)
+      val sub_section = op_section match {
+        case Some(osect) => domain_section.intersect(osect)
+        case None => domain_section
+      }
+      partFragSpec.cutIntersection( sub_section ) match {
+        case Some( cut_spec ) =>
+          val array_section = cut_spec.roi.shiftOrigin( frag_section )
+          Some(new DataFragment( cut_spec, CDFloatArray( partition_data.section( array_section ) ) ) )
+        case None =>None
+      }
+    } catch {
+      case ex: Exception =>
+        logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )
+        //        logger.error( ex.getStackTrace.mkString("\n\t") )
+        None
+    }
+  }
+
+
+
+      //      val domainDataOpt: Option[CDFloatArray] = fragmentSpec.domainSectOpt match {
 //        case None => Some( partition.data(fragmentSpec.missing_value) )
 //        case Some(domainSect) =>
 //          val pFragSpec = partFragSpec( partIndex )
@@ -105,13 +133,7 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
 //          }
 //      }
 //      domainDataOpt.map( new DataFragment(domainFragSpec(partIndex), _ ) )
-    } catch {
-      case ex: Exception =>
-        logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )
-//        logger.error( ex.getStackTrace.mkString("\n\t") )
-        None
-    }
-  }
+
 
   def isMapped(partIndex: Int): Boolean = partitions.getPartData( partIndex, fragmentSpec.missing_value ).isMapped
   def mask: Option[CDByteArray] = maskOpt

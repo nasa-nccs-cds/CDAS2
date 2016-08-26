@@ -132,7 +132,7 @@ abstract class Kernel extends Loggable {
   }
 
   def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
-    inputs.head.domainDataFragment( partIndex )
+    inputs.head.domainDataFragment( partIndex, context )
   }
 
   def executeProcess( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
@@ -227,18 +227,7 @@ abstract class Kernel extends Loggable {
   }
 
   def inputVars( context: CDASExecutionContext ): List[PartitionedFragment] = {
-    val optargs: Map[String, String] = context.operation.getConfiguration
-    val op_section: Option[ma2.Section] = optargs.get("domain").map( domainId => context.request.targetGrid.grid.getSubSection(context.request.getDomain(domainId).axes) )
-    val rv = context.server.inputs(context.operation.inputs.map(uid => {
-      val frag: DataFragmentSpec = context.request.getInputSpec(uid)
-      logger.info( " ***INPUT***(%s) op_section: %s, frag: %s ".format( uid, op_section.getOrElse("null").toString, frag.toString ) )
-      op_section match {
-        case None => frag
-        case Some( section ) => frag.cutIntersection( section ).getOrElse( frag )
-      }
-    }))
-    logger.info( " ***INPUT*** op intersected fragment=(%s) ".format( rv.head.fragmentSpec.toString ) )
-    rv
+    context.server.inputs(context.operation.inputs.map(uid => { context.request.getInputSpec(uid) } ) )
   }
 
   def cacheResult( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
@@ -326,7 +315,7 @@ abstract class SingularKernel extends Kernel {
     val t0 = System.nanoTime
     val inputVar = inputs.head
     val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
-    inputVar.domainDataFragment(partIndex).map { (dataFrag) =>
+    inputVar.domainDataFragment(partIndex,context).map { (dataFrag) =>
       val async = context.request.config("async", "false").toBoolean
       val resultFragSpec = dataFrag.getReducedSpec(axes)
       val result_val_masked: CDFloatArray = mapCombineOpt match {
