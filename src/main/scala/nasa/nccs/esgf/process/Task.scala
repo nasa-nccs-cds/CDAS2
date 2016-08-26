@@ -266,7 +266,7 @@ class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val optD
 
 class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
                         val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None ) extends Loggable {
-  logger.info( "DATA FRAGMENT SPEC: _domSectOpt: " + _domSectOpt.getOrElse("null").toString )
+  logger.info( "DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s".format( _section, _domSectOpt.getOrElse("null").toString ) )
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
