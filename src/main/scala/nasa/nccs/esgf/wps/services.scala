@@ -60,10 +60,13 @@ class cds2ServiceProvider( serverConfiguration: Map[String,String] ) extends Ser
 
   val cds2ExecutionManager = new CDS2ExecutionManager( serverConfiguration )
 
+  def datainputs2Str( datainputs: Map[String, Seq[Map[String, Any]]] ): String = {
+    datainputs.map { case ( key:String, value:Seq[Map[String, Any]] ) => key  + ":" + value.map( _.map { case (k1, v1) => k1 + "=" + v1.toString } ) }.mkString("{ ",", "," }")
+  }
 
   override def executeProcess(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
     try {
-      cdsutils.time( logger, "-->> Process %s: Total Execution Time: ".format(process_name) ) {
+      cdsutils.time( logger, "\n\n-->> Process %s, datainputs: %s \n\n".format( process_name, datainputs2Str(datainputs) ) ) {
         if( runargs.getOrElse("async","false").toBoolean ) {
           cds2ExecutionManager.asyncExecute(TaskRequest(process_name, datainputs), runargs) match {
             case ( mdata: Map[String,String], futureResult: Future[ExecutionResults] ) =>
