@@ -88,13 +88,13 @@ object Defaults {
   val M = 1000000
   val maxChunkSize = 200*M
   val maxBufferSize = Int.MaxValue
-  val maxProcessors =  1 //   serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
+  val maxProcessors =  4 //   serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
 }
 //class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {
 //  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
-class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment" ) extends Loggable  {
+class CDASPartitioner( private val _section: ma2.Section, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment" ) extends Loggable  {
   private lazy val elemSize = dataType.getSize
   private lazy val baseShape = _section.getShape
   private lazy val sectionMemorySize = getMemorySize()
@@ -110,10 +110,11 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
   private lazy val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min( math.ceil( nSlicesPerPart / nChunksPerPart.toFloat  ).toInt, baseShape(0))
   private lazy val chunkMemorySize: Long = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize( nSlicesPerChunk )
   private lazy val nCoresPerPart = 1
+  val cacheId = "a" + System.nanoTime.toHexString + "-" + nPartitions
 
   def roi: ma2.Section = new ma2.Section( _section.getRanges )
   logger.info(s" ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, maxBufferSize: $maxBufferSize, sliceMemorySize: $sliceMemorySize, memoryDistFract: $memoryDistFactor, nSlicesPerPart: $nSlicesPerPart, nPartitions: $nPartitions, partitionMemorySize: $partitionMemorySize, " )
-  logger.info(s" ~~~~ Generating partitions for fragment $cache_id with $nPartitions partitions, $nProcessors processors, %d bins, %d partsPerBin, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk, shape=(%s)"
+  logger.info(s" ~~~~ Generating partitions for fragment $cacheId with $nPartitions partitions, $nProcessors processors, %d bins, %d partsPerBin, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk, shape=(%s)"
     .format( partIndexArray.size, partIndexArray(0).size, baseShape.mkString(",") ))
 
   def getPartition( partIndex: Int ): Partition = {
@@ -138,7 +139,7 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
     full_shape.foldLeft(4L)(_ * _)
   }
   def getCacheFilePath( partIndex: Int ): String = {
-    val cache_file = cache_id + "-" + partIndex.toString
+    val cache_file = cacheId  + "-" + partIndex.toString
     DiskCacheFileMgr.getDiskCacheFilePath(cacheType, cache_file)
   }
 }
@@ -147,10 +148,9 @@ class FileToCacheStream( val ncVariable: nc2.Variable, private val _section: ma2
   val attributes = nc2.Attribute.makeMap(ncVariable.getAttributes).toMap
   val missing_value: Float = getAttributeValue( "missing_value", "" ) match { case "" => Float.MaxValue; case s => s.toFloat }
   private val baseShape = _section.getShape
-  val cacheId = "a" + System.nanoTime.toHexString
   val dType = ncVariable.getDataType
   def roi: ma2.Section = new ma2.Section( _section.getRanges )
-  val partitioner = new CDASPartitioner( cacheId, roi, dType )
+  val partitioner = new CDASPartitioner( roi, dType )
   def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last.trim; case None => default_value }
 
   def getReadBuffer(cache_id: String): (FileChannel, MappedByteBuffer) = {
@@ -167,10 +167,10 @@ class FileToCacheStream( val ncVariable: nc2.Variable, private val _section: ma2
   def execute(missing_value: Float): Partitions = {
     val t0 = System.nanoTime()
     val partIndexArray: Array[IndexedSeq[Int]] = partitioner.partIndexArray
-    val future_partitions: Array[ Future[IndexedSeq[Partition] ] ] = for ( pIndices <- partIndexArray ) yield Future { processChunkedPartitions( cacheId, pIndices, missing_value ) }
+    val future_partitions: Array[ Future[IndexedSeq[Partition] ] ] = for ( pIndices <- partIndexArray ) yield Future { processChunkedPartitions( partitioner.cacheId, pIndices, missing_value ) }
     val partitions: Array[Partition] = Await.result( Future.sequence( future_partitions.toList ), Duration.Inf ).flatten.toArray
     logger.info( "\n ********** Completed Cache Op, total time = %.3f min  ********** \n".format( (System.nanoTime() - t0) / 6.0E10 ) )
-    new Partitions( cacheId, roi, partitions )
+    new Partitions( partitioner.cacheId, roi, partitions )
   }
 
   def processChunkedPartitions(cache_id: String, partIndices: IndexedSeq[Int], missing_value: Float): IndexedSeq[Partition] = {
@@ -290,9 +290,9 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
               case Some(cache_id_fut) => Some(cache_id_fut.map((cache_id: String) => {
                 logger.info("----> Cached frag " + cache_id)
                 val roi = foundFragKey.getRoi
-                val partitioner = new CDASPartitioner(cache_id, roi)
+                val partitioner = new CDASPartitioner( roi )
                 fragSpec.cutIntersection(roi) match {
-                  case Some(section) => new PartitionedFragment(new Partitions(cache_id, roi, partitioner.getPartitions), None, section)
+                  case Some(section) => new PartitionedFragment(new Partitions( partitioner.cacheId, roi, partitioner.getPartitions), None, section)
                   case None => throw new Exception("No intersection in enclosing fragment")
                 }
               }
@@ -640,14 +640,6 @@ object Cachetest extends App {
   val cacheStream = new FileToCacheStream( variable, roi, None  )
   val result = cacheStream.execute( Float.MaxValue )
 }
-
-object PartitionTest extends App {
-  val section0 = new ma2.Section( Array(319944,361,576) )
-  val section1 = new ma2.Section( Array(248,42,144,288) )
-  val partitioner = new CDASPartitioner( "0000", section1 )
-}
-
-
 
 // class FileToCacheStream1( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
 //  private val chunkCache = new ConcurrentLinkedHashMap.Builder[Int,CacheChunk].initialCapacity(500).maximumWeightedCapacity(1000000).build()
