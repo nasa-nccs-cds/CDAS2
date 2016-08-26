@@ -425,7 +425,7 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     val t2 = System.nanoTime
     val rv = dataContainer.uid -> fragSpec
     val t3 = System.nanoTime
-    logger.info( " LoadVariableDataT: %.4f %.4f %.4f, T = %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, (t3-t0)/1.0E9 ) )
+    logger.info( " LoadVariableDataT: section=%s, domainSect=%s, %.4f %.4f %.4f, T = %.4f ".format( section.toString, domainSect.getOrElse("null").toString, (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, (t3-t0)/1.0E9 ) )
     rv
   }
 
