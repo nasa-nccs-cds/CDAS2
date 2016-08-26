@@ -7,7 +7,7 @@ import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
 import org.joda.time.{DateTime, DateTimeZone}
-
+import nasa.nccs.utilities.Loggable
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.util.matching.Regex
@@ -265,7 +265,7 @@ class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val optD
 }
 
 class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
-                        val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None )  {
+                        val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None ) extends Loggable {
   printf( "DataFragmentSpec" )
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
@@ -336,7 +336,9 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
 
   def cutIntersection( cutSection: ma2.Section ): Option[DataFragmentSpec] =
     if( roi.intersects( cutSection ) ) {
-      Some( new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, intersectRoi(cutSection), domainSectOpt, missing_value, mask ) )
+      val intersection = intersectRoi(cutSection)
+      logger.info( "DOMAIN INTERSECTION:  %s <-> %s  => %s".format( roi.toString, cutSection.toString, intersection.toString ))
+      Some( new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, intersection, domainSectOpt, missing_value, mask ) )
     }  else None
 
   def getReducedSection( axisIndices: Set[Int], newsize: Int = 1 ): ma2.Section = {
