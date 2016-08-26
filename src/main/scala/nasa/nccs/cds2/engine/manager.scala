@@ -362,7 +362,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     logger.info( " ***** Operation Execution: opName=%s, module_name=%s >> Operation = %s ".format(opName, module_name, operationCx.toString ) )
     module_name match {
       case "util" => executeUtility( new CDASExecutionContext( operationCx, requestCx, serverContext ) )
-      case x => getKernel( opName ).execute( new CDASExecutionContext( operationCx, requestCx, serverContext ), nprocs )
+      case x => getKernel( opName ).executeProcess( new CDASExecutionContext( operationCx, requestCx, serverContext ), nprocs )
     }
   }
 }

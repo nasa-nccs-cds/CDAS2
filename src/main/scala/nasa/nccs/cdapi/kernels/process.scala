@@ -135,7 +135,7 @@ abstract class Kernel extends Loggable {
     inputs.head.domainDataFragment( partIndex )
   }
 
-  def execute( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
+  def executeProcess( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
     val t0 = System.nanoTime()
     val inputs: List[PartitionedFragment] = inputVars( context )
     var opResult: Future[Option[DataFragment]] = mapReduce( inputs, context, nprocs )
@@ -229,6 +229,7 @@ abstract class Kernel extends Loggable {
   def inputVars( context: CDASExecutionContext ): List[PartitionedFragment] = {
     val optargs: Map[String, String] = context.operation.getConfiguration
     val op_section: Option[ma2.Section] = optargs.get("domain").map( domainId => context.request.targetGrid.grid.getSubSection(context.request.getDomain(domainId).axes) )
+    logger.info( "\n ***INPUT*** inputs=(%s) ".format( context.operation.inputs.mkString(",") ) )
     context.server.inputs(context.operation.inputs.map(uid => {
       val frag: DataFragmentSpec = context.request.getInputSpec(uid)
       logger.info( "\n ***INPUT***(%s) op_section: %s, frag: %s ".format( uid, op_section.getOrElse("null").toString, frag.toString ) )
