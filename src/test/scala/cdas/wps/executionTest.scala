@@ -7,7 +7,7 @@ import scala.io.Source
 import org.scalatest.Tag
 
 // Execution Example (tag = yearly_cycle):
-// >> sbt test-only *wpsSuite -J-Xmx16000M -- -n yearly_cycle
+// >> sbt test-only *wpsSuite -J-Xmx16000M -- -n subset+cache
 // Define frag id in ~/.cdas/test_config.txt
 // sample test_config.txt:
 // fragment=t|merra/daily|0,0,0,0|248,42,144,288
@@ -17,7 +17,7 @@ class wpsSuite extends LocalExecutionTestSuite {
   val varName = fragment.split('|').head
   val collection =  fragment.split('|')(1)
   val level = 30
-  val lat = -40f
+  val lat = -20f
   val lon = 0f
 
   test("op") {

@@ -108,14 +108,10 @@ class CDS extends KernelModule with KernelTools {
 
   }
 
-  class subset extends SingularKernel {
+  class subset extends Kernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
     override val description = "Subset of Input Fragment"
-
-    override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
-        inputs.head.domainDataFragment( partIndex )
-    }
   }
 
   class timeBin extends SingularKernel {

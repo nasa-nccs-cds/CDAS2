@@ -126,7 +126,14 @@ abstract class Kernel extends Loggable {
   val reduceCombineOpt: Option[ReduceOpFlt] = None
   val initValue: Float = 0f
 
-  def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]]
+  def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]] = {
+    val future_results: IndexedSeq[Future[Option[DataFragment]]] = (0 until nprocs).map( iproc => Future { map(iproc,inputs,context) } )
+    reduce( future_results, context )
+  }
+
+  def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
+    inputs.head.domainDataFragment( partIndex )
+  }
 
   def execute( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
     val t0 = System.nanoTime()
@@ -296,11 +303,7 @@ abstract class DualOperationKernel extends Kernel {
 */
 abstract class SingularKernel extends Kernel {
 
-  def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]] = {
-    val future_results: IndexedSeq[Future[Option[DataFragment]]] = (0 until nprocs).map( iproc => Future { map(iproc,inputs,context) } )
-    reduce( future_results, context )
-  }
-  def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
+  override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
     val t0 = System.nanoTime
     val inputVar = inputs.head
     val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
