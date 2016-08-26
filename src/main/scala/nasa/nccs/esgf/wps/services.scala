@@ -61,7 +61,8 @@ class cds2ServiceProvider( serverConfiguration: Map[String,String] ) extends Ser
   val cds2ExecutionManager = new CDS2ExecutionManager( serverConfiguration )
 
   def datainputs2Str( datainputs: Map[String, Seq[Map[String, Any]]] ): String = {
-    datainputs.map { case ( key:String, value:Seq[Map[String, Any]] ) => key  + ": { " + value.map( _.map { case (k1, v1) => k1 + "=" + v1.toString + ", " } ) + " }" }.mkString("{ ",", "," }")
+    datainputs.map { case ( key:String, value:Seq[Map[String, Any]] ) =>
+      key  + ": " + value.map( _.map { case (k1:String, v1:Any) => k1 + "=" + v1.toString  }.mkString(", ") ).mkString("{ ",", "," }")  }.mkString("{ ",", "," }")
   }
 
   override def executeProcess(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
