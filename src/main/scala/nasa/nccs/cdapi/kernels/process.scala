@@ -231,7 +231,7 @@ abstract class Kernel extends Loggable {
     val op_section: Option[ma2.Section] = optargs.get("domain").map( domainId => context.request.targetGrid.grid.getSubSection(context.request.getDomain(domainId).axes) )
     context.server.inputs(context.operation.inputs.map(uid => {
       val frag: DataFragmentSpec = context.request.getInputSpec(uid)
-      logger.info( "\n ***INPUT*** Vars: %s, op_section: %s, frag: %s ".format( op_section.getOrElse("null").toString, frag.toString ) )
+      logger.info( "\n ***INPUT***(%s) op_section: %s, frag: %s ".format( uid, op_section.getOrElse("null").toString, frag.toString ) )
       op_section match {
         case None => frag
         case Some( section ) => frag.cutIntersection( section ).getOrElse( frag )
