@@ -137,6 +137,7 @@ class CDS extends KernelModule with KernelTools {
         val timeData = cdTimeCoordMap.getTimeIndexIterator("month").toArray
         logger.info("Binned array, timeData = [ %s ]".format(timeData.mkString(",")))
         logger.info("Binned array, coordMap = %s".format(coordMap.toString))
+        logger.info("Binned array, input shape = %s, spec=%s".format( dataFrag.data.getShape.mkString(","), dataFrag.spec.toString ) )
         dataFrag.data.weightedReduce(dataFrag.data.getOp("add"), axes.args, 0f, None, Some(coordMap)) match {
           case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
             val t11 = System.nanoTime
