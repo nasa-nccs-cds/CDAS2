@@ -120,7 +120,7 @@ class CDS extends KernelModule with KernelTools {
     override val description = "Aggregate data into bins using specified reduce function"
 
     override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
-      val inputVar: PartitionedFragment = inputs.head
+      val inputVar: PartitionedFragment = inputs.head   
       logger.info( " ***timeBin*** inputVar FragSpec=(%s) ".format( inputVar.fragmentSpec.toString ) )
       inputVar.domainDataFragment(partIndex) map { dataFrag =>
         val async = context.request.config("async", "false").toBoolean
