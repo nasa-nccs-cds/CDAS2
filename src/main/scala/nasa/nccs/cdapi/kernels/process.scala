@@ -229,15 +229,16 @@ abstract class Kernel extends Loggable {
   def inputVars( context: CDASExecutionContext ): List[PartitionedFragment] = {
     val optargs: Map[String, String] = context.operation.getConfiguration
     val op_section: Option[ma2.Section] = optargs.get("domain").map( domainId => context.request.targetGrid.grid.getSubSection(context.request.getDomain(domainId).axes) )
-    logger.info( "\n ***INPUT*** inputs=(%s) ".format( context.operation.inputs.mkString(",") ) )
-    context.server.inputs(context.operation.inputs.map(uid => {
+    val rv = context.server.inputs(context.operation.inputs.map(uid => {
       val frag: DataFragmentSpec = context.request.getInputSpec(uid)
-      logger.info( "\n ***INPUT***(%s) op_section: %s, frag: %s ".format( uid, op_section.getOrElse("null").toString, frag.toString ) )
+      logger.info( " ***INPUT***(%s) op_section: %s, frag: %s ".format( uid, op_section.getOrElse("null").toString, frag.toString ) )
       op_section match {
         case None => frag
         case Some( section ) => frag.cutIntersection( section ).getOrElse( frag )
       }
     }))
+    logger.info( " ***INPUT*** op intersected fragment=(%s) ".format( rv.head.fragmentSpec.toString ) )
+    rv
   }
 
   def cacheResult( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
