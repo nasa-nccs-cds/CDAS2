@@ -250,6 +250,22 @@ abstract class Kernel extends Loggable {
       case ex: Exception => logger.error( "Can't cache result: " + ex.getMessage ); None
     }
   }
+
+  def weightedValueSumCombiner(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  {
+    if ( axes.includes(0) ) {
+      val vTot = a0.data + a1.data
+      val wTot = a0.optData.map( w => w + a1.optData.get )
+      new DataFragment( a0.spec, vTot, wTot )
+    }
+    else { a0 ++ a1 }
+  }
+
+  def weightedValueSumPostOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = {
+    future_result.map( _.map( (result: DataFragment) => result.optData match {
+      case Some( weights_sum ) => new DataFragment( result.spec, result.data / weights_sum, result.optData )
+      case None => result
+    } ) )
+  }
 }
 
 //abstract class MultiKernel  extends Kernel {
@@ -321,21 +337,7 @@ abstract class SingularKernel extends Kernel {
       new DataFragment(resultFragSpec, result_val_masked)
     }
   }
-  def weightedValueSumCombiner(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  {
-    if ( axes.includes(0) ) {
-      val vTot = a0.data + a1.data
-      val wTot = a0.optData.map( w => w + a1.optData.get )
-      new DataFragment( a0.spec, vTot, wTot )
-    }
-    else { a0 ++ a1 }
-  }
 
-  def weightedValueSumPostOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = {
-    future_result.map( _.map( (result: DataFragment) => result.optData match {
-      case Some( weights_sum ) => new DataFragment( result.spec, result.data / weights_sum, result.optData )
-      case None => result
-    } ) )
-  }
 }
 
 class KernelModule {

@@ -57,8 +57,8 @@ class wpsSuite extends LocalExecutionTestSuite {
     val response = executeTest(datainputs)
   }
   test("createV", Tag("createV")) {
-    val datainputs = """ [domain=[{"name":"r0","longitude":{"start":-125.875,"end":-125.875,"system":"values"},"latitude":{"start":-3.7604263305664176,"end":-3.7604263305664176,"system":"values"},"level":{"start":100000,"end":100000,"system":"values"}},{"name":"r1","time":{"start":"2010-01-16T12:00:00","end":"2010-01-16T12:00:00","system":"values"}}];variable={"uri":"fragment:/%s","name":"%s:v0","domain":"r0"};operation=[{"name":"CDS.anomaly","input":"v0","axes":"t"},{"name":"CDS.timeBin","input":"v0","axes":"t","bins":"t|month|ave|year"},{"name":"CDS.subset","input":"v0","domain":"r1"}]]""".format( fragment, varName)
-    val response = executeTest(datainputs)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.anomaly","input":"v1","domain":"d2","axes":"t"},{"name":"CDS.timeBin","input":"v1","domain":"d2","axes":"t","bins":"t|month|ave|year"}]]""".format(lat, lat, lon, lon, level, level, collection, varName)
+    executeTest(datainputs)
   }
 }
 
