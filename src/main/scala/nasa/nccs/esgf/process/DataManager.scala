@@ -418,14 +418,16 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     val variable: CDSVariable = dataLoader.getVariable(data_source.collection, data_source.name)
     val t1 = System.nanoTime
     val maskOpt: Option[String] = domain_container_opt.flatMap( domain_container => domain_container.mask )
-    val section: ma2.Section = data_source.fragIdOpt match { case Some(fragId) => DataFragmentKey(fragId).getRoi; case None => targetGrid.grid.getSection }
+    val fragRoiOpt = data_source.fragIdOpt.map( fragId => DataFragmentKey(fragId).getRoi )
+    val section: ma2.Section = fragRoiOpt match { case Some(roi) => roi; case None => targetGrid.grid.getSection }
     val domainSect: Option[ma2.Section] = domain_container_opt.map( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
     val fragSpec: DataFragmentSpec = new DataFragmentSpec( variable.name, variable.dataset.collection, data_source.fragIdOpt, Some(targetGrid), variable.ncVariable.getDimensionsString,
       variable.ncVariable.getUnitsString, variable.getAttributeValue( "long_name", variable.ncVariable.getFullName ), section, domainSect, variable.missing, maskOpt )
     val t2 = System.nanoTime
     val rv = dataContainer.uid -> fragSpec
     val t3 = System.nanoTime
-    logger.info( " LoadVariableDataT: section=%s, domainSect=%s, %.4f %.4f %.4f, T = %.4f ".format( section.toString, domainSect.getOrElse("null").toString, (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, (t3-t0)/1.0E9 ) )
+    logger.info( " LoadVariableDataT: section=%s, domainSect=%s, fragId=%s, fragRoi=%s, %.4f %.4f %.4f, T = %.4f ".format(
+      section.toString, domainSect.getOrElse("null").toString, data_source.fragIdOpt.getOrElse("null").toString, fragRoiOpt.getOrElse("null").toString, (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, (t3-t0)/1.0E9 ) )
     rv
   }
 
