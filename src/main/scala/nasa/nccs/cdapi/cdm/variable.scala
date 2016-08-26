@@ -89,21 +89,22 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
   def domainDataFragment( partIndex: Int ): Option[DataFragment] = {
     try {
       val partition = partitions.getPart(partIndex)
-      val domainDataOpt: Option[CDFloatArray] = fragmentSpec.domainSectOpt match {
-        case None => Some( partition.data(fragmentSpec.missing_value) )
-        case Some(domainSect) =>
-          val pFragSpec = partFragSpec( partIndex )
-          pFragSpec.cutIntersection(domainSect) match {
-            case Some(newFragSpec) =>
-              val dataSection = newFragSpec.roi.shiftOrigin (pFragSpec.roi)
-              logger.info ("Domain Partition(%d) Fragment: fragSect=(%s), newFragSect=(%s), domainSect=(%s), dataSection=(%s), partition.shape=(%s)".format (partIndex, pFragSpec.roi.toString, newFragSpec.roi, domainSect.toString, dataSection.toString, partition.shape.mkString(",")) )
-              Some( partition.data (fragmentSpec.missing_value).section (dataSection.getRanges.toList) )
-            case None =>
-              logger.warn( "Domain Partition(%d) EMPTY INTERSECTION: fragSect=(%s), domainSect=(%s)".format (partIndex, pFragSpec.roi.toString, domainSect.toString) )
-              None
-          }
-      }
-      domainDataOpt.map( new DataFragment(domainFragSpec(partIndex), _ ) )
+      Some( new DataFragment( domainFragSpec(partIndex), partition.data(fragmentSpec.missing_value) ) )
+//      val domainDataOpt: Option[CDFloatArray] = fragmentSpec.domainSectOpt match {
+//        case None => Some( partition.data(fragmentSpec.missing_value) )
+//        case Some(domainSect) =>
+//          val pFragSpec = partFragSpec( partIndex )
+//          pFragSpec.cutIntersection(domainSect) match {
+//            case Some(newFragSpec) =>
+//              val dataSection = partition.getRelativeSection( newFragSpec.roi ).shiftOrigin( domainSect )
+//              logger.info ("Domain Partition(%d) Fragment: fragSect=(%s), newFragSect=(%s), domainSect=(%s), dataSection=(%s), partition.shape=(%s)".format (partIndex, pFragSpec.roi.toString, newFragSpec.roi, domainSect.toString, dataSection.toString, partition.shape.mkString(",")) )
+//              Some( partition.data (fragmentSpec.missing_value).section (dataSection.getRanges.toList) )
+//            case None =>
+//              logger.warn( "Domain Partition(%d) EMPTY INTERSECTION: fragSect=(%s), domainSect=(%s)".format (partIndex, pFragSpec.roi.toString, domainSect.toString) )
+//              None
+//          }
+//      }
+//      domainDataOpt.map( new DataFragment(domainFragSpec(partIndex), _ ) )
     } catch {
       case ex: Exception =>
         logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )

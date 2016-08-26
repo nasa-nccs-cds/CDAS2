@@ -78,6 +78,10 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
   def chunkIndexArray: IndexedSeq[Int] = (0 until nChunks)
   def chunkMemorySize = chunkSize * sliceMemorySize
   override def toString = s"Part[$index]{dim=$dimIndex, start=$startIndex, size=$partSize, shape=(%s)}".format( shape.mkString(",") )
+  def getRelativeSection( global_section: ma2.Section ): ma2.Section = {
+    val relative_ranges = for( ir <- global_section.getRanges.indices; r = global_section.getRange(ir) ) yield { if(ir == dimIndex) { r.shiftOrigin(startIndex) } else r }
+    new ma2.Section( relative_ranges )
+  }
 }
 
 object Defaults {
