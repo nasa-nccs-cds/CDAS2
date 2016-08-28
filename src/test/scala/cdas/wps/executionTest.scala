@@ -1,6 +1,7 @@
 package cdas.wps
 
 import java.nio.file.Paths
+import nasa.nccs.caching.FragmentPersistence
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import org.scalatest._
 import scala.io.Source
@@ -53,6 +54,7 @@ class wpsSuite extends LocalExecutionTestSuite {
     executeTest(datainputs)
   }
   test("yearly_cycle_1D", Tag("yearly_cycle")) {
+//    clearCache
     val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.timeBin","input":"v1","axes":"t","unit":"month","period":"1","mod":"12"}]]""".format(lat, lat, lon, lon, level, level, fragment, varName)
     val response = executeTest(datainputs)
   }
@@ -81,6 +83,8 @@ class LocalExecutionTestSuite extends FunSuite with Matchers {
     webProcessManager.logger.info(response.toString)
     response
   }
+
+  def clearCache(): Unit = FragmentPersistence.clearCache()
 
   def getConfigValue(key: String, defaultVal: Option[String] = None): String = {
     configMap.get(key) match {

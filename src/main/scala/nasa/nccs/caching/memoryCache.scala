@@ -3,6 +3,8 @@ package nasa.nccs.caching
 import java.io._
 import java.nio.file.{Files, Paths}
 
+import org.apache.commons.io.FileUtils
+
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.utilities.{Loggable, Timestamp}
@@ -146,7 +148,7 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
   def clear(): Set[K] =
     if( persistent ) {
       val keys: Set[K] = Set[K](store.keys.toSeq:_*)
-      Files.deleteIfExists( Paths.get(cacheFile).getParent )
+      FileUtils.deleteDirectory( Paths.get(cacheFile).getParent.toFile )
       store.clear()
       keys
     }  else Set.empty[K]
