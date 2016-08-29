@@ -16,6 +16,9 @@ class wpsSuite extends LocalExecutionTestSuite {
   val fragment = getConfigValue("fragment")
   val varName = fragment.split('|').head
   val collection =  fragment.split('|')(1)
+  val opendap_url = "http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/mon/atmos"
+  val opendap_collection_id = "MERRA/mon/atmos"
+  val opendap_varname = "ta"
   val level = 30
   val lat = -20f
   val lon = 0f
@@ -60,6 +63,14 @@ class wpsSuite extends LocalExecutionTestSuite {
     val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.anomaly","input":"v1","domain":"d2","axes":"t"},{"name":"CDS.timeBin","input":"v1","domain":"d2","axes":"t","bins":"t|month|ave|year"}]]""".format(lat, lat, lon, lon, level, level, collection, varName)
     executeTest(datainputs)
   }
+  test("OpenDAP_Collection", Tag("agg")) {
+    val datainputs = """[variable=[{"uri":"%s","collection":"%s","name":"%s"}]]""".format( opendap_url, opendap_collection_id, opendap_varname )
+    executeTest(datainputs,false,"util.agg")
+  }
+  test("OpenDAP_Cache", Tag("cache")) {
+    val datainputs = """[domain=[{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"collection":"%s","name":"%s","domain":"d1"}]]""".format(  level, level, opendap_collection_id, opendap_varname )
+    executeTest(datainputs,false,"util.cache")
+  }
 }
 
 class LocalExecutionTestSuite extends FunSuite with Matchers {
@@ -67,12 +78,11 @@ class LocalExecutionTestSuite extends FunSuite with Matchers {
   val configMap = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
   val service = "cds2"
-  val identifier = "CDS.workflow"
   val operation = "CDS.sum"
   val config_file_path = Paths.get(  System.getProperty("user.home"), ".cdas", "test_config.txt" ).toString
   lazy val config = getConfiguration
 
-  def executeTest( datainputs: String, async: Boolean = false ): xml.Elem = {
+  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDS.workflow" ): xml.Elem = {
     val t0 = System.nanoTime()
     val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString )
     val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)

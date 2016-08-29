@@ -162,11 +162,18 @@ object Collections extends XmlResource {
     removedCids
   }
 
-  def addCollection( uri: String, path: String, fileFilter: String="", title: String, vars: List[String] = List.empty[String] ): Collection = {
+  def addCollection( uri: String, path: String, fileFilter: String, title: String, vars: List[String] ): Collection = {
     val url = "file:" + NCMLWriter.getCachePath("NCML").resolve( uriToFile(uri) )
     val id = uri.split(":").last.stripPrefix("/").stripPrefix("/").toLowerCase
     val cvars = if(vars.isEmpty) getVariableList( path ) else vars
     val collection = Collection( id, url, path, fileFilter, "local", title, cvars )
+    datasets.put( id, collection  )
+    persistLocalCollections()
+    collection
+  }
+
+  def addCollection( uri: String, id: String, title: String, vars: List[String] ): Collection = {
+    val collection = Collection( id, uri, "", "", "local", title, vars )
     datasets.put( id, collection  )
     persistLocalCollections()
     collection

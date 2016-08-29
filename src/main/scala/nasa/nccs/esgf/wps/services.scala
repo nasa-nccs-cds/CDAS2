@@ -78,7 +78,9 @@ class cds2ServiceProvider( serverConfiguration: Map[String,String] ) extends Ser
             case x =>  <error id="Execution Error"> {"Malformed response from cds2ExecutionManager" } </error>
           }
         }
-        else  cds2ExecutionManager.blockingExecute(TaskRequest(process_name, datainputs), runargs).toXml
+        else  {
+          cds2ExecutionManager.blockingExecute(TaskRequest(process_name, datainputs), runargs).toXml
+        }
       }
     } catch { case e: Exception => fatal(e) }
   }

@@ -10,8 +10,6 @@ organization := "nasa.nccs"
 
 lazy val root = project in file(".")
 
-//  ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
-
 resolvers += "Unidata maven repository" at "http://artifacts.unidata.ucar.edu/content/repositories/unidata-releases"
 resolvers += "Java.net repository" at "http://download.java.net/maven/2"
 resolvers += "Open Source Geospatial Foundation Repository" at "http://download.osgeo.org/webdav/geotools"

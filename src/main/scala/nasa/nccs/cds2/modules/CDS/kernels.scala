@@ -7,9 +7,11 @@ import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDTimeCoordMap}
 import nasa.nccs.cds2.kernels.KernelTools
 import nasa.nccs.esgf.process.{DataFragment, _}
 import ucar.ma2
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
+import scala.util.{Failure, Success}
 
 class CDS extends KernelModule with KernelTools {
   override val version = "1.0-SNAPSHOT"
@@ -139,7 +141,7 @@ class CDS extends KernelModule with KernelTools {
         logger.info("Binned array, timeData = [ %s ]".format(timeData.mkString(",")))
         logger.info("Binned array, coordMap = %s".format(coordMap.toString))
         logger.info("Binned array, input shape = %s, spec=%s".format( dataFrag.data.getShape.mkString(","), dataFrag.spec.toString ) )
-        dataFrag.data.weightedReduce(dataFrag.data.getOp("add"), axes.args, 0f, None, Some(coordMap)) match {
+        dataFrag.data.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, None, Some(coordMap)) match {
           case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
             val t11 = System.nanoTime
             logger.info("Binned array, time = %.4f s, result sample = %s".format((t11 - t10) / 1.0E9, getDataSample(values_sum).mkString(",")))
@@ -151,6 +153,72 @@ class CDS extends KernelModule with KernelTools {
     override def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
     override def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = weightedValueSumPostOp( future_result, context )
   }
+
+//  class createV extends Kernel {
+//    val inputs = List(Port("input fragment", "1"))
+//    val outputs = List(Port("result", "1"))
+//    override val description = "Aggregate data into bins using specified reduce function"
+//
+//    def mapReduce1( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]] = {
+//      val future_results: IndexedSeq[Future[Option[DataFragment]]] = (0 until nprocs).map( iproc => Future { map(iproc,inputs,context) } )
+//      reduce( future_results, context )
+//    }
+//
+//    override def executeProcess( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
+//      val t0 = System.nanoTime()
+//      val inputs: List[PartitionedFragment] = inputVars( context )
+//      var opResult1: Future[Option[DataFragment]] = mapReduce1( inputs, context, nprocs )
+//      opResult1.onComplete {
+//        case Success(dataFragOpt) =>
+//          logger.info(s"********** Completed Execution of Kernel[$name($id)]: %s , total time = %.3f sec  ********** \n".format(context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
+//        case Failure(t) =>
+//          logger.error(s"********** Failed Execution of Kernel[$name($id)]: %s ********** \n".format(context.operation.toString ))
+//          logger.error( " ---> Cause: " + t.getCause.getMessage )
+//          logger.error( "\n" + t.getCause.getStackTrace.mkString("\n") + "\n" )
+//      }
+//      val timeBinResult = postOp( opResult1, context  )
+//      createResponse( timeBinResult, inputs, context )
+//    }
+//    def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = future_result
+//    override def reduce( future_results: IndexedSeq[Future[Option[DataFragment]]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = Future.reduce(future_results)(reduceOp(context) _)
+//
+//    override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
+//      val inputVar: PartitionedFragment = inputs.head
+//      logger.info( " ***timeBin*** inputVar FragSpec=(%s) ".format( inputVar.fragmentSpec.toString ) )
+//      inputVar.domainDataFragment(partIndex,context) map { dataFrag =>
+//        val async = context.request.config("async", "false").toBoolean
+//        val optargs: Map[String, String] = context.operation.getConfiguration
+//        val axes: AxisIndices = context.request.getAxisIndices(context.operation.config("axes", ""))
+//
+//        val period = getIntArg(optargs, "period", Some(1) )
+//        val mod = getIntArg(optargs, "mod",  Some(12) )
+//        val unit = getStringArg(optargs, "unit",  Some("month") )
+//        val offset = getIntArg(optargs, "offset", Some(0) )
+//
+//        val t10 = System.nanoTime
+//        val cdTimeCoordMap: CDTimeCoordMap = new CDTimeCoordMap(context.request.targetGrid)
+//        val coordMap: CDCoordMap = cdTimeCoordMap.getTimeCycleMap(period, unit, mod, offset)
+//        val timeData = cdTimeCoordMap.getTimeIndexIterator("month").toArray
+//        logger.info("Binned array, timeData = [ %s ]".format(timeData.mkString(",")))
+//        logger.info("Binned array, coordMap = %s".format(coordMap.toString))
+//        logger.info("Binned array, input shape = %s, spec=%s".format( dataFrag.data.getShape.mkString(","), dataFrag.spec.toString ) )
+//        dataFrag.data.weightedReduce( CDFloatArray.getOp("add"), axes.args, 0f, None, Some(coordMap)) match {
+//          case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
+//            val t11 = System.nanoTime
+//            logger.info("Binned array, time = %.4f s, result sample = %s".format((t11 - t10) / 1.0E9, getDataSample(values_sum).mkString(",")))
+//            val resultFragSpec = dataFrag.getReducedSpec(Set(axes.args(0)), values_sum.getShape(axes.args(0)))
+//            new DataFragment(resultFragSpec, values_sum, Some(weights_sum) )
+//        }
+//      }
+//    }
+//    override def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
+//    override def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = {
+//      val timeBinResult = weightedValueSumPostOp( future_result, context )
+//      val anomalyArray = CDFloatArray.combine( CDFloatArray.subtractOp, dataFrag.data, timeBinResult, coordMap )
+//      val anomalyResult = new DataFragment(resultFragSpec, anomalyArray )
+//      timeBinResult
+//    }
+//  }
 
   class anomaly extends SingularKernel {
     val inputs = List(Port("input fragment", "1"))

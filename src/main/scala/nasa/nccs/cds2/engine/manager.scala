@@ -156,11 +156,28 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       case e: IOException => logger.error("ERROR creating file %s%n%s".format(resultFile.getAbsolutePath, e.getMessage() ) ); None
     }
   }
+  def aggCollection( dsource: DataSource ): xml.Elem = {
+    val col = dsource.collection
+    logger.info( "Creating collection '" + col.id + "' path: " + col.path + "', url: " + col.url )
+    val url = if ( col.url.startsWith("http:") ) {
+      col.getUri( dsource.name )
+    } else {
+      col.createNCML()
+      col.ncmlFile.toString
+    }
+    _aggCollection( NetcdfDataset.openDataset(url), col )
+  }
 
-  def aggCollection( col: Collection ): xml.Elem = {
-    logger.info( "Creating collection '" + col.id + "' using path: "  + col.path )
+  def aggCollection( colId: String, path: File ): xml.Elem = {
+    val uri = "file:" + NCMLWriter.getCachePath("NCML").resolve(Collections.uriToFile(colId))
+    val col = new Collection(colId, uri, path.getAbsolutePath )
+    logger.info("Creating collection '" + col.id + "' using path: " + col.path)
     col.createNCML()
     val dataset = NetcdfDataset.openDataset(col.ncmlFile.toString)
+    _aggCollection( dataset, col )
+  }
+
+  private def _aggCollection( dataset: NetcdfDataset, col: Collection ): xml.Elem = {
     val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => Collections.getVariableString(v) ).toList
     val title: String = Collections.findAttribute( dataset, List( "Title", "LongName" ) )
     val newCollection = Collection(col.id, col.url, col.path, col.fileFilter, col.scope, title, vars)
@@ -175,14 +192,13 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
         val base_dir = new File(pcol.path)
         val base_id = pcol.id
         val col_dirs: Array[File] = base_dir.listFiles
-        for( col_file <- col_dirs; if col_file.isDirectory; col_id = base_id + "/" + col_file.getName ) yield {
-          val uri = "file:" + NCMLWriter.getCachePath("NCML").resolve(Collections.uriToFile(col_id))
-          aggCollection( new Collection(col_id, uri, col_file.getAbsolutePath ) )
+        for( col_path <- col_dirs; if col_path.isDirectory; col_id = base_id + "/" + col_path.getName ) yield {
+          aggCollection( col_id, col_path )
         }
       })
       new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "agg" =>
-      val collectionNodes =  request.variableMap.values.map( ds => aggCollection( ds.getSource.collection ) )
+      val collectionNodes =  request.variableMap.values.map( ds => aggCollection( ds.getSource ) )
       new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "clearCache" =>
       val fragIds = FragmentPersistence.clearCache

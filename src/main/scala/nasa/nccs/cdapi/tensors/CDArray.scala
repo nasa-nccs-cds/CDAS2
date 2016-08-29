@@ -176,6 +176,22 @@ object CDFloatArray {
   implicit def toUcarArray( target: CDFloatArray ): ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, target.getShape, target.getSectionData().array() )
   val bTrue: Byte = 1
   val bFalse: Byte = 0
+  val addOp: ReduceOpFlt = (x:Float, y:Float) => ( x + y )
+  val subtractOp: ReduceOpFlt = (x:Float, y:Float) => ( x - y )
+  val multiplyOp: ReduceOpFlt = (x:Float, y:Float) => ( x * y )
+  val divideOp: ReduceOpFlt = (x:Float, y:Float) => ( x / y )
+  val maxOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x > y ) x else y )
+  val minOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x < y ) x else y )
+  val eqOp: ReduceOpFlt = (x:Float, y:Float) => ( y )
+  def getOp( opName: String ): ReduceOpFlt = opName match {
+    case x if x.startsWith("sum") => addOp
+    case x if x.startsWith("add") => addOp
+    case x if x.startsWith("sub") => subtractOp
+    case x if x.startsWith("mul") => multiplyOp
+    case x if x.startsWith("div") => divideOp
+    case x if x.startsWith("max") => maxOp
+    case x if x.startsWith("min") => minOp
+  }
 
   def apply( cdIndexMap: CDIndexMap, floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( cdIndexMap, FloatBuffer.wrap(floatData),  invalid )
   def apply( shape: Array[Int], floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( shape, FloatBuffer.wrap(floatData),  invalid )
@@ -229,6 +245,14 @@ object CDFloatArray {
     new CDFloatArray( iter.getShape, FloatBuffer.wrap(result.toArray), input0.invalid )
   }
 
+  def combine( reductionOp: ReduceOpFlt, input: CDFloatArray, mappedInput: CDFloatArray, coordMap: CDCoordMap ): CDFloatArray = {
+    val iter = new CDArrayIndexIterator( input.getIndex  )
+    val result = for (flatIndex <- iter; coords = iter.getCoordinateIndices; mappedCoords = coordMap.map(coords); v0 = input.getValue(coords); v1 = mappedInput.getValue(mappedCoords) ) yield {
+      if (!input.valid(v0)) input.invalid else if (!mappedInput.valid(v1)) mappedInput.invalid else reductionOp(v0, v1)
+    }
+    new CDFloatArray( iter.getShape, FloatBuffer.wrap(result.toArray), input.invalid )
+  }
+
   def accumulate( reductionOp: ReduceOpFlt, input0: CDFloatArray, input1: CDFloatArray ): Unit = {
     val sameStructure = input0.getStride.sameElements(input1.getStride)
     val iter = DualArrayIterator(input0,input1)
@@ -247,23 +271,7 @@ object CDFloatArray {
 }
 
 class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, protected val invalid: Float ) extends CDArray[Float](cdIndexMap,floatStorage) {
-  type ReduceOpFlt = CDFloatArray.ReduceOpFlt
-  val addOp: ReduceOpFlt = (x:Float, y:Float) => ( x + y )
-  val subtractOp: ReduceOpFlt = (x:Float, y:Float) => ( x - y )
-  val multiplyOp: ReduceOpFlt = (x:Float, y:Float) => ( x * y )
-  val divideOp: ReduceOpFlt = (x:Float, y:Float) => ( x / y )
-  val maxOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x > y ) x else y )
-  val minOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x < y ) x else y )
-  val eqOp: ReduceOpFlt = (x:Float, y:Float) => ( y )
-  def getOp( opName: String ): ReduceOpFlt = opName match {
-    case x if x.startsWith("sum") => addOp
-    case x if x.startsWith("add") => addOp
-    case x if x.startsWith("sub") => subtractOp
-    case x if x.startsWith("mul") => multiplyOp
-    case x if x.startsWith("div") => divideOp
-    case x if x.startsWith("max") => maxOp
-    case x if x.startsWith("min") => minOp
-  }
+  import CDFloatArray._
   def getStorageValue( index: StorageIndex ): Float = floatStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Float ): Unit = floatStorage.put( index, value )
   def this( shape: Array[Int], storage: FloatBuffer, invalid: Float ) = this( CDIndexMap.factory(shape), storage, invalid )

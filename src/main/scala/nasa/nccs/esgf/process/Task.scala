@@ -457,11 +457,12 @@ object DataContainer extends ContainerBase {
     val uri = metadata.getOrElse("uri","").toString
     val varsList: List[String] = metadata.getOrElse("name","").toString.split(",").map( item => stripQuotes( item.split(':').head ) ).toList
     val path =  metadata.getOrElse("path","").toString
+    val collection =  metadata.getOrElse("collection","").toString
     val title =  metadata.getOrElse("title","").toString
     val fileFilter = metadata.getOrElse("fileFilter","").toString
     val id = parseUri(uri)
     logger.info( s" >>>>>>>>>>>----> getCollection, uri=$uri, id=$id")
-    val colId = uri match {
+    val colId = if(!collection.isEmpty) { collection } else uri match {
       case colUri if(colUri.startsWith("collection")) => id
       case fragUri if(fragUri.startsWith("fragment")) => id.split('|')(1)
       case x => ""
@@ -472,9 +473,13 @@ object DataContainer extends ContainerBase {
         if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.path)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id,collection.path,path) ) }
         ( collection, fragIdOpt )
       case None =>
-        val fpath = if(new java.io.File(id).isFile) id else path
-        if ( colId.isEmpty || fpath.isEmpty ) logger.warn(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", ") )
-        ( Collections.addCollection( uri, fpath, fileFilter, title, varsList ), fragIdOpt )
+        if( path.isEmpty && !collection.isEmpty ) {
+          (Collections.addCollection(uri, colId, title, varsList), fragIdOpt)
+        } else {
+          val fpath = if (new java.io.File(id).isFile) id else path
+          if (colId.isEmpty || fpath.isEmpty) logger.warn(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", "))
+          (Collections.addCollection(uri, fpath, fileFilter, title, varsList), fragIdOpt)
+        }
     }
   }
 
@@ -510,13 +515,17 @@ object DataContainer extends ContainerBase {
 
   def parseUri( uri: String ): String = {
     if(uri.isEmpty) "" else {
-      val recognizedUrlTypes = List( "file", "collection", "fragment" )
+      val recognizedUrlTypes = List("file", "collection", "fragment")
       val uri_parts = uri.split(":")
       val url_type = normalize(uri_parts.head)
-      if ( recognizedUrlTypes.contains( url_type ) ) {
-        val value = uri_parts.last.toLowerCase
-        if( List( "collection", "fragment" ).contains( url_type ) ) value.stripPrefix("/").stripPrefix("/") else value
-      } else throw new Exception("Unrecognized uri format: " + uri + ", type = " + uri_parts.head + ", nparts = " + uri_parts.length.toString + ", value = " + uri_parts.last)
+      if (url_type == "http") {
+        uri
+      } else {
+        if (recognizedUrlTypes.contains(url_type)) {
+          val value = uri_parts.last.toLowerCase
+          if (List("collection", "fragment").contains(url_type)) value.stripPrefix("/").stripPrefix("/") else value
+        } else throw new Exception("Unrecognized uri format: " + uri + ", type = " + uri_parts.head + ", nparts = " + uri_parts.length.toString + ", value = " + uri_parts.last)
+      }
     }
   }
 }

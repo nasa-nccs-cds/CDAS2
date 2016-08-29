@@ -38,10 +38,16 @@ object NCMLWriter extends Loggable {
   def getCachePath( subdir: String ): Path = {  FileSystems.getDefault().getPath( getCacheDir, subdir ) }
 
   def getNcFiles(file: File): Iterable[File] = {
-    val children = new Iterable[File] {
-      def iterator = if (file.isDirectory) file.listFiles.iterator else Iterator.empty
+    try {
+      val children = new Iterable[File] {
+        def iterator = if (file.isDirectory) file.listFiles.iterator else Iterator.empty
+      }
+      (Seq(file) ++: children.flatMap(getNcFiles(_))).filter(NCMLWriter.isNcFile(_))
+    } catch {
+      case err: NullPointerException =>
+        logger.warn( "Empty collection directory: " + file.toString )
+        Iterable.empty[File]
     }
-    ( Seq(file) ++: children.flatMap(getNcFiles(_)) ).filter( NCMLWriter.isNcFile(_) )
   }
 
   def getNcFiles(args: Iterator[String]): Iterator[File] =
