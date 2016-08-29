@@ -43,7 +43,10 @@ class YearOfCenturyIter( timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[D
   def getValue( count_index: Int ): Int = toDate(timeAxis.getCalendarDate(count_index+index_offset)).getYearOfCentury
 }
 class MonthOfYearIter( timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis] ) extends TimeIndexMapIterator(timeAxis,domainAxisOpt) {
-  def getValue( count_index: Int ): Int = toDate(timeAxis.getCalendarDate(count_index+index_offset)).getMonthOfYear
+  def getValue( count_index: Int ): Int = {
+    val rdate = toDate(timeAxis.getCalendarDate(count_index + index_offset))
+    rdate.getMonthOfYear
+  }
 }
 class DayOfYearIter( timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis] ) extends TimeIndexMapIterator(timeAxis,domainAxisOpt) {
   def getValue( count_index: Int ): Int = toDate(timeAxis.getCalendarDate(count_index+index_offset)).getDayOfYear

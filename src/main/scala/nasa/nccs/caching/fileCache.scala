@@ -207,7 +207,6 @@ class FileToCacheStream( val ncVariable: nc2.Variable, private val _section: ma2
   }
 }
 
-
 object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   private val fragmentIdCache: Cache[String,String] = new FutureCache("CacheIdMap","fragment",true)
   val M = 1000000
