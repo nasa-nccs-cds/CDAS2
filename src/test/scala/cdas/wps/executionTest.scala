@@ -20,6 +20,7 @@ class wpsSuite extends LocalExecutionTestSuite {
   val opendap_url = "http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/mon/atmos"
   val opendap_collection_id = "MERRA/mon/atmos"
   val opendap_varname = "ta"
+  val collection_path = "/Users/tpmaxwel/Data/MERRA_MONTHLY"
   val tstart = 0
   val tend = 30
   val level = 0
@@ -79,6 +80,10 @@ class wpsSuite extends LocalExecutionTestSuite {
   test("OpenDAP_Cache", Tag("cache")) {
     val datainputs = """[domain=[{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"collection":"%s","name":"%s","domain":"d1"}]]""".format(  level, level, opendap_collection_id, opendap_varname )
     executeTest(datainputs,false,"util.cache")
+  }
+  test("MERRA_Collection", Tag("aggM")) {
+    val datainputs = """[variable=[{"collection":"%s","name":"%s","path":"%s"}]]""".format( collection, varName, collection_path )
+    executeTest(datainputs,false,"util.agg")
   }
 }
 

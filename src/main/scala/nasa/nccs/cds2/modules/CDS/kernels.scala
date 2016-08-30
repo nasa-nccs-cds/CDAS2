@@ -138,7 +138,7 @@ class CDS extends KernelModule with KernelTools {
         val cdTimeCoordMap: CDTimeCoordMap = new CDTimeCoordMap( context.request.targetGrid, dataFrag.spec.roi )
         val coordMap: CDCoordMap = cdTimeCoordMap.getMontlyBinMap()
 //        val coordMap: CDCoordMap = cdTimeCoordMap.getTimeCycleMap(period, unit, mod, offset)
-        val timeData = cdTimeCoordMap.getTimeIndexIterator("month").toArray
+        val timeData = cdTimeCoordMap.getTimeIndexIterator( "month", dataFrag.spec.roi.getRange(0) ).toArray
         logger.info("Binned array, timeData = [ %s ]".format(timeData.mkString(",")))
         logger.info("Binned array, coordMap = %s".format(coordMap.toString))
         logger.info("Binned array, dates = %s".format(cdTimeCoordMap.getDates.mkString(", ")))

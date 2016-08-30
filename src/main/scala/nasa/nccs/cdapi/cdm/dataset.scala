@@ -65,7 +65,7 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
     }
   }
 
-  def createNCML( recreate: Boolean = false ): Boolean = {
+  def createNCML( recreate: Boolean = true ): Boolean = {
     if( !ncmlFile.exists || recreate ) {
       ncmlFile.getParentFile.mkdirs
       val ncmlWriter = NCMLWriter(path)
@@ -73,7 +73,6 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
       true
     } else { false }
   }
-
 }
 
 object DiskCacheFileMgr extends XmlResource {

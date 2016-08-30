@@ -1,6 +1,7 @@
 package nasa.nccs.cdapi.cdm
 
 import java.io._
+import java.nio._
 import java.nio.file.{FileSystems, Path, Paths}
 import java.util.Formatter
 
@@ -11,7 +12,7 @@ import nasa.nccs.utilities.Loggable
 import nasa.nccs.utilities.cdsutils
 import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
-import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, NetcdfDataset, VariableDS}
+import ucar.nc2.dataset._
 import ucar.nc2.time.CalendarDate
 
 import collection.mutable.ListBuffer
@@ -223,6 +224,7 @@ object FileHeader extends Loggable {
       }
     } finally { ncDataset.close() }
   }
+
 
   def getTimeValues( ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index : Int = 0, end_index : Int = -1, stride: Int = 1 ): Array[Double] = {
     val sec_in_day = 60 * 60 * 24

@@ -7,6 +7,7 @@ import nasa.nccs.esgf.process._
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
 import nasa.nccs.utilities.Loggable
+import ucar.nc2.constants.AxisType
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -39,7 +40,9 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
     <variable name={name} fullname={fullname} description={description} shape={shape.mkString("[", " ", "]")} units={units}>
       { for( dim: nc2.Dimension <- dims; name=dim.getFullName; dlen=dim.getLength ) yield getCoordinateAxis( name ) match {
           case None=> <dimension name={name} length={dlen.toString}/>
-          case Some(axis)=> <dimension name={name} length={dlen.toString} start={axis.getStart.toString} units={axis.getUnitsString} step={axis.getIncrement.toString} cfname={axis.getAxisType.getCFAxisName}/>
+          case Some(axis)=>
+              val units = axis.getAxisType match { case AxisType.Time => "days since 1970-1-1" case x => axis.getUnitsString }
+              <dimension name={name} length={dlen.toString} start={axis.getStart.toString} units={units} step={axis.getIncrement.toString} cfname={axis.getAxisType.getCFAxisName}/>
         }
       }
       { for( name <- attributes.keys ) yield <attribute name={name}> { getAttributeValue(name) } </attribute> }
