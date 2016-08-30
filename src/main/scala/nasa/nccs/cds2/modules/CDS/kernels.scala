@@ -123,7 +123,7 @@ class CDS extends KernelModule with KernelTools {
 
     override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
       val inputVar: PartitionedFragment = inputs.head
-      logger.info( " ***timeBin*** inputVar FragSpec=(%s) ".format( inputVar.fragmentSpec.toString ) )
+//      logger.info( " ***timeBin*** inputVar FragSpec=(%s) ".format( inputVar.fragmentSpec.toString ) )
       inputVar.domainDataFragment(partIndex,context) map { dataFrag =>
         val async = context.request.config("async", "false").toBoolean
         val optargs: Map[String, String] = context.operation.getConfiguration
@@ -139,14 +139,14 @@ class CDS extends KernelModule with KernelTools {
         val coordMap: CDCoordMap = cdTimeCoordMap.getMontlyBinMap()
 //        val coordMap: CDCoordMap = cdTimeCoordMap.getTimeCycleMap(period, unit, mod, offset)
         val timeData = cdTimeCoordMap.getTimeIndexIterator( "month", dataFrag.spec.roi.getRange(0) ).toArray
-        logger.info("Binned array, timeData = [ %s ]".format(timeData.mkString(",")))
-        logger.info("Binned array, coordMap = %s".format(coordMap.toString))
-        logger.info("Binned array, dates = %s".format(cdTimeCoordMap.getDates.mkString(", ")))
-        logger.info("Binned array, input data = %s".format(dataFrag.data.toDataString))
+//        logger.info("Binned array, timeData = [ %s ]".format(timeData.mkString(",")))
+ //       logger.info("Binned array, coordMap = %s".format(coordMap.toString))
+//        logger.info("Binned array, dates = %s".format(cdTimeCoordMap.getDates.mkString(", ")))
+//        logger.info("Binned array, input data = %s".format(dataFrag.data.toDataString))
         dataFrag.data.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, None, Some(coordMap)) match {
           case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
             val t11 = System.nanoTime
-            logger.info("Binned array, time = %.4f s, section = %s\n *** values = %s\n *** weights=%s".format((t11 - t10) / 1.0E9, dataFrag.spec.roi.toString, values_sum.toDataString, weights_sum.toDataString ))
+//            logger.info("Binned array, time = %.4f s, section = %s\n *** values = %s\n *** weights=%s".format((t11 - t10) / 1.0E9, dataFrag.spec.roi.toString, values_sum.toDataString, weights_sum.toDataString ))
             val resultFragSpec = dataFrag.getReducedSpec(Set(axes.args(0)), values_sum.getShape(axes.args(0)))
             new DataFragment(resultFragSpec, values_sum, Some(weights_sum) )
         }
