@@ -251,7 +251,9 @@ abstract class Kernel extends Loggable {
 
   def weightedValueSumPostOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = {
     future_result.map( _.map( (result: DataFragment) => result.optData match {
-      case Some( weights_sum ) => new DataFragment( result.spec, result.data / weights_sum, result.optData )
+      case Some( weights_sum ) =>
+        logger.info( "weightedValueSumPostOp, values = %s, weights = %s".format( result.data.toDataString, weights_sum.toDataString ) )
+        new DataFragment( result.spec, result.data / weights_sum, result.optData )
       case None => result
     } ) )
   }

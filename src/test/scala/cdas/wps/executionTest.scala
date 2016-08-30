@@ -20,8 +20,10 @@ class wpsSuite extends LocalExecutionTestSuite {
   val opendap_url = "http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/mon/atmos"
   val opendap_collection_id = "MERRA/mon/atmos"
   val opendap_varname = "ta"
-  val level = 30
-  val lat = -20f
+  val tstart = 0
+  val tend = 30
+  val level = 0
+  val lat = -40f
   val lon = 0f
 
   test("op") {
@@ -57,8 +59,13 @@ class wpsSuite extends LocalExecutionTestSuite {
     executeTest(datainputs)
   }
   test("yearly_cycle_1D", Tag("yearly_cycle")) {
-//    clearCache
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.timeBin","input":"v1","axes":"t","unit":"month","period":"1","mod":"12"}]]""".format(lat, lat, lon, lon, level, level, fragment, varName)
+    clearCache
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"},"time":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.timeBin","input":"v1","axes":"t","unit":"month","period":"1","mod":"12"}]]""".format(lat, lat, lon, lon, level, level, tstart, tend, collection, varName)
+    val response = executeTest(datainputs)
+  }
+  test("timeseries_ave", Tag("tsave")) {
+    clearCache
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.average","input":"v1","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, fragment, varName)
     val response = executeTest(datainputs)
   }
   test("createV", Tag("createV")) {

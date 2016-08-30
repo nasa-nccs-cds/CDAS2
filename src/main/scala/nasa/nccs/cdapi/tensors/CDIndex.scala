@@ -33,22 +33,24 @@ abstract class IndexMapIterator extends collection.Iterator[Int] {
   def getLength: Int
 }
 
-abstract class TimeIndexMapIterator( val timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis]  ) extends IndexMapIterator {
-  val index_offset: Int = domainAxisOpt match { case None => 0; case Some(domainAxis) =>  domainAxis.start.toInt }
-  override def getLength: Int =  domainAxisOpt match { case None => timeAxis.getSize.toInt; case Some(domainAxis) =>  domainAxis.end.toInt - domainAxis.start.toInt + 1 }
+abstract class TimeIndexMapIterator( val timeAxis: CoordinateAxis1DTime, range: ma2.Range  ) extends IndexMapIterator {
+  val index_offset: Int = range.first()
+  override def getLength: Int =  range.last() - range.first() + 1
   def toDate( cd: CalendarDate ): DateTime = new DateTime( cd.toDate )
 }
 
-class YearOfCenturyIter( timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis] ) extends TimeIndexMapIterator(timeAxis,domainAxisOpt) {
+class YearOfCenturyIter( timeAxis: CoordinateAxis1DTime, range: ma2.Range ) extends TimeIndexMapIterator(timeAxis,range) {
   def getValue( count_index: Int ): Int = toDate(timeAxis.getCalendarDate(count_index+index_offset)).getYearOfCentury
 }
-class MonthOfYearIter( timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis] ) extends TimeIndexMapIterator(timeAxis,domainAxisOpt) {
+
+class MonthOfYearIter( timeAxis: CoordinateAxis1DTime, range: ma2.Range ) extends TimeIndexMapIterator(timeAxis,range) {
   def getValue( count_index: Int ): Int = {
     val rdate = toDate(timeAxis.getCalendarDate(count_index + index_offset))
-    rdate.getMonthOfYear
+    ( ( (rdate.getDayOfYear-1) / 365.0 ) * 12.0 ).round.toInt % 12
   }
 }
-class DayOfYearIter( timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis] ) extends TimeIndexMapIterator(timeAxis,domainAxisOpt) {
+
+class DayOfYearIter( timeAxis: CoordinateAxis1DTime, range: ma2.Range ) extends TimeIndexMapIterator(timeAxis,range) {
   def getValue( count_index: Int ): Int = toDate(timeAxis.getCalendarDate(count_index+index_offset)).getDayOfYear
 }
 
@@ -235,7 +237,7 @@ class IndexValueAccumulator( start_value: Int = 0 ) {
   }
 }
 
-class CDTimeCoordMap( val  gridSpec: TargetGrid ) {
+class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val axisSpec: GridCoordSpec = getAxisSpec
   val timeAxis: CoordinateAxis1DTime = getTimeAxis
@@ -244,20 +246,28 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid ) {
     case Some(axisSpec) => axisSpec
     case None => throw new Exception("Can't timeBin a variable with no apparent time axis: %s ".format(gridSpec.ncVariable.getNameAndDimensions))
   }
+  def getDates(): List[String] = { timeAxis.getCalendarDates.map( _.toString ).toList  }
 
   def getTimeAxis: CoordinateAxis1DTime = axisSpec.coordAxis.getAxisType match {
-    case AxisType.Time => CoordinateAxis1DTime.factory(gridSpec.dataset.ncDataset, axisSpec.coordAxis, new Formatter())
+    case AxisType.Time =>
+      CoordinateAxis1DTime.factory( gridSpec.dataset.ncDataset, axisSpec.coordAxis, new Formatter() )
     case x => throw new Exception("Binning not yet implemented for this axis type: %s".format(x.getClass.getName))
   }
 
   def getTimeIndexIterator( unit: String ) = unit match {
-    case x if x.toLowerCase.startsWith("yea") => new YearOfCenturyIter(timeAxis,axisSpec.domainAxisOpt);
-    case x if x.toLowerCase.startsWith("mon") => new MonthOfYearIter(timeAxis,axisSpec.domainAxisOpt);
-    case x if x.toLowerCase.startsWith("day") => new DayOfYearIter(timeAxis,axisSpec.domainAxisOpt);
+    case x if x.toLowerCase.startsWith("yea") => new YearOfCenturyIter( timeAxis, section.getRange(0) );
+    case x if x.toLowerCase.startsWith("mon") => new MonthOfYearIter( timeAxis, section.getRange(0) );
+    case x if x.toLowerCase.startsWith("day") => new DayOfYearIter( timeAxis, section.getRange(0) );
   }
 
   def pos_mod(initval: Int, period: Int): Int = if (initval >= 0) initval else pos_mod(initval + period, period)
 
+  def getMontlyBinMap(): CDCoordMap = {
+    val timeIter = new MonthOfYearIter(timeAxis, section.getRange(0) );
+    val accum = new IndexValueAccumulator()
+    val timeIndices = for( time_index <- timeIter ) yield {time_index}
+    new CDCoordMap( axisSpec.index, timeIndices.toArray )
+  }
   def getTimeCycleMap(period: Int, unit: String, mod: Int, offset: Int): CDCoordMap = {
     val timeIter = getTimeIndexIterator( unit )
     val start_value = timeIter.getValue(0)-1

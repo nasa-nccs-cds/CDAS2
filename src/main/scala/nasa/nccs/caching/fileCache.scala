@@ -88,7 +88,7 @@ object Defaults {
   val M = 1000000
   val maxChunkSize = 200*M
   val maxBufferSize = Int.MaxValue
-  val maxProcessors =  8 //   serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
+  val maxProcessors =  2 //   serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
 }
 //class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {
 //  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
