@@ -275,6 +275,11 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
       case Some(maskId) => <input varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
+  def combine( other: DataFragmentSpec ): DataFragmentSpec = {
+    val combined_varname = varname + ":" + other.varname
+    val combined_longname = longname + ":" + other.longname
+    new DataFragmentSpec( combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, _section, _domSectOpt, missing_value, mask )
+  }
   def roi = targetGridOpt match {
     case None => new ma2.Section( _section )
     case Some( targetGrid ) => targetGrid.addSectionMetadata( _section )

@@ -312,7 +312,6 @@ abstract class DualOperationKernel extends Kernel {
 }
 */
 abstract class SingularKernel extends Kernel {
-
   override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
     val t0 = System.nanoTime
     val inputVar = inputs.head
@@ -328,7 +327,26 @@ abstract class SingularKernel extends Kernel {
       new DataFragment(resultFragSpec, result_val_masked)
     }
   }
+}
 
+abstract class DualKernel extends Kernel {
+  override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
+    val t0 = System.nanoTime
+    val inputVar0 = inputs(0)
+    val inputVar1 = inputs(1)
+    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+    inputVar0.domainDataFragment(partIndex,context).flatMap { (dataFrag0) =>
+      inputVar1.domainDataFragment(partIndex,context).map { (dataFrag1) =>
+        val async = context.request.config("async", "false").toBoolean
+        val result_val_masked: CDFloatArray = mapCombineOpt match {
+          case Some(combineOp) => CDFloatArray.combine( combineOp, dataFrag0.data, dataFrag1.data)
+          case None => dataFrag0.data
+        }
+        logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
+        new DataFragment( dataFrag0.spec.combine(dataFrag1.spec), result_val_masked )
+      }
+    }
+  }
 }
 
 class KernelModule {

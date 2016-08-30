@@ -50,6 +50,44 @@ class CDS extends KernelModule with KernelTools {
     }
   }
 
+  class min2 extends DualKernel {
+    val inputs = List(Port("input fragment", "2"))
+    val outputs = List(Port("result", "1"))
+    override val description = "Element-wise minimum of two Input Fragments"
+    override val mapCombineOpt: Option[ReduceOpFlt]  = Some( minOp )
+  }
+  class max2 extends DualKernel {
+    val inputs = List(Port("input fragment", "2"))
+    val outputs = List(Port("result", "1"))
+    override val description = "Element-wise maximum of two Input Fragments"
+    override val mapCombineOpt: Option[ReduceOpFlt]  = Some( maxOp )
+  }
+  class sum2 extends DualKernel {
+    val inputs = List(Port("input fragment", "2"))
+    val outputs = List(Port("result", "1"))
+    override val description = "Element-wise sum of two Input Fragments"
+    override val mapCombineOpt: Option[ReduceOpFlt]  = Some( addOp )
+  }
+  class diff2 extends DualKernel {
+    val inputs = List(Port("input fragment", "2"))
+    val outputs = List(Port("result", "1"))
+    override val description = "Element-wise difference of two Input Fragments"
+    override val mapCombineOpt: Option[ReduceOpFlt]  = Some( subtractOp )
+  }
+  class mult2 extends DualKernel {
+    val inputs = List(Port("input fragment", "2"))
+    val outputs = List(Port("result", "1"))
+    override val description = "Element-wise multiplication of two Input Fragments"
+    override val mapCombineOpt: Option[ReduceOpFlt]  = Some( multiplyOp )
+  }
+  class div2 extends DualKernel {
+    val inputs = List(Port("input fragment", "2"))
+    val outputs = List(Port("result", "1"))
+    override val description = "Element-wise division of two Input Fragments"
+    override val mapCombineOpt: Option[ReduceOpFlt]  = Some( divideOp )
+  }
+
+
   class min extends SingularKernel {
     val inputs = List(Port("input fragment", "1"))
     val outputs = List(Port("result", "1"))
