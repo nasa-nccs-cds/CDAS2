@@ -65,7 +65,7 @@ cdasProperties := {
     case err: Exception => println("No property file found")
   }
   println("Loaded properties: " + prop.values.toArray.map( _.toString ).mkString(", ") )
-  prop
+  prop   
 }
 
 def getCacheDir(): File =
