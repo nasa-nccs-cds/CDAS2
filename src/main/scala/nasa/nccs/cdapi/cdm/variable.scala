@@ -62,7 +62,7 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
 class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  ) extends Loggable  {
   val LOG = org.slf4j.LoggerFactory.getLogger(this.getClass)
   def toBoundsString = fragmentSpec.toBoundsString
-
+  def delete = partitions.delete
   def getKey: DataFragmentKey = fragmentSpec.getKey
   def getKeyString: String = fragmentSpec.getKeyString
 

@@ -15,7 +15,7 @@ import nasa.nccs.cds2.loaders.Masks
 import nasa.nccs.cds2.utilities.GeoTools
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.Loggable
-import org.apache.commons.io.IOUtils
+import org.apache.commons.io.{FileUtils, IOUtils}
 import sun.nio.ch.FileChannelImpl
 import ucar.nc2.dataset.NetcdfDataset
 import ucar.{ma2, nc2}
@@ -49,6 +49,7 @@ class Partitions( val id: String, private val _section: ma2.Section, val parts: 
   def getPart( partId: Int ): Partition = parts(partId)
   def getPartData( partId: Int, missing_value: Float ): CDFloatArray = parts(partId).data( missing_value )
   def roi: ma2.Section = new ma2.Section( _section.getRanges )
+  def delete = parts.map( _.delete )
 }
 
 object Partition {
@@ -68,6 +69,7 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
     channel.close(); file.close()
     new CDFloatArray( shape, buffer.asFloatBuffer, missing_value )
   }
+  def delete() = { FileUtils.deleteQuietly( new File( path ) ) }
   def chunkSection( iChunk: Int, section: ma2.Section ): ma2.Section = {  new ma2.Section( section.getRanges ).replaceRange( dimIndex, chunkRange(iChunk) ) }
   def partSection( section: ma2.Section ): ma2.Section = {  new ma2.Section( section.getRanges ).replaceRange( dimIndex, partRange ) }
   def nChunks = math.ceil( partSize / chunkSize.toDouble ).toInt
@@ -84,23 +86,24 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
   }
 }
 
-object Defaults {
-  val M = 1000000
-  val maxChunkSize = 200*M
-  val maxBufferSize = Int.MaxValue
-  val maxProcessors =  1 //   serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
-}
 //class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {
 //  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
+object CDASPartitioner {
+  val M = 1000000
+  val maxChunkSize = 200*M
+  val maxBufferSize = Int.MaxValue
+  val maxProcessors =  8 //   serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
+  val nProcessors = math.min( Runtime.getRuntime.availableProcessors(), maxProcessors )
+  val nCoresPerPart = 1
+}
+
 class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment" ) extends Loggable  {
+  import CDASPartitioner._
   private lazy val elemSize = dataType.getSize
   private lazy val baseShape = _section.getShape
   private lazy val sectionMemorySize = getMemorySize()
-  private lazy val nProcessors: Int = math.min( Runtime.getRuntime.availableProcessors(), Defaults.maxProcessors )
-  private lazy val maxChunkSize: Int =  Defaults.maxChunkSize
-  private lazy val maxBufferSize: Int =  Defaults.maxBufferSize
   private lazy val sliceMemorySize: Long =  getMemorySize(1)
   private lazy val memoryDistFactor: Double = math.max( sectionMemorySize/maxBufferSize.toDouble, 1.0 )
   private lazy val nSlicesPerPart = math.min( math.floor( baseShape(0) / memoryDistFactor ).toInt, math.ceil( baseShape(0) / nProcessors.toFloat ).toInt )
@@ -109,7 +112,6 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
   private lazy val nChunksPerPart = math.ceil( partitionMemorySize / maxChunkSize.toFloat ).toInt
   private lazy val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min( math.ceil( nSlicesPerPart / nChunksPerPart.toFloat  ).toInt, baseShape(0))
   private lazy val chunkMemorySize: Long = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize( nSlicesPerChunk )
-  private lazy val nCoresPerPart = 1
 
   def roi: ma2.Section = new ma2.Section( _section.getRanges )
   logger.info(s" ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, maxBufferSize: $maxBufferSize, sliceMemorySize: $sliceMemorySize, memoryDistFract: $memoryDistFactor, nSlicesPerPart: $nSlicesPerPart, nPartitions: $nPartitions, partitionMemorySize: $partitionMemorySize, " )
@@ -374,14 +376,17 @@ class JobRecord( val id: String ) {
 }
 
 class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with FragSpecKeySet {
-  private val fragmentCache: Cache[DataFragmentKey,PartitionedFragment] = new FutureCache("Store","fragment",false)
+  private val fragmentCache: Cache[DataFragmentKey,PartitionedFragment] = new FutureCache[DataFragmentKey,PartitionedFragment]("Store","fragment",false) {
+    override def evictionNotice( key: DataFragmentKey, value: Future[PartitionedFragment] ) = {
+      value.onSuccess { case pfrag => logger.info("Clearing fragment %s".format(key.toString)); pfrag.delete }
+    }
+  }
   private val transientFragmentCache: Cache[String,TransientFragment] = new FutureCache("Store","result",false)
-  private val execJobCache = new ConcurrentLinkedHashMap.Builder[ String, JobRecord ].initialCapacity(64).maximumWeightedCapacity(10000).build()
+  private val execJobCache = new ConcurrentLinkedHashMap.Builder[ String, JobRecord ].initialCapacity(64).maximumWeightedCapacity(64).build()
   private val datasetCache: Cache[String,CDSDataset] = new FutureCache("Store","dataset",false)
   private val variableCache: Cache[String,CDSVariable] = new FutureCache("Store","variable",false)
   private val maskCache: Cache[MaskKey,CDByteArray] = new FutureCache("Store","mask",false)
-  def clearFragmentCache() = fragmentCache.clear
-
+  def clearFragment( key: DataFragmentKey, value: Future[PartitionedFragment] ) =
   def addJob( jrec: JobRecord ): String = { execJobCache.put( jrec.id, jrec ); jrec.id }
   def removeJob( jid: String ) = execJobCache.remove( jid )
 
@@ -543,8 +548,10 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     logger.info( " cacheFragment: Start => Future" )
     val fragFuture = fragmentCache( fragSpec.getKey ) { cacheFragmentFromFiles( fragSpec ) _ }
     fragFuture onComplete {
-      case Success(fragment) => logger.info( " cache fragment: Success " )
-      case Failure(err) => logger.warn( " Failed to cache fragment due to error: " + err.getMessage )
+      case Success(fragment) =>
+        logger.info( " cache fragment: Success " )
+      case Failure(err) =>
+        logger.warn( " Failed to cache fragment due to error: " + err.getMessage )
     }
     logger.info( ">>>>>>>>>>>>>>>> Put frag in cache: " + fragSpec.toString + ", keys = " + fragmentCache.keys.mkString("[",",","]") )
     fragFuture

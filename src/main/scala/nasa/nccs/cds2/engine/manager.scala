@@ -40,7 +40,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   val logger = LoggerFactory.getLogger(this.getClass)
   val kernelManager = new KernelMgr()
   private val counter = new Counter
-  val nprocs: Int = math.min( Runtime.getRuntime.availableProcessors(), Defaults.maxProcessors )
+  val nprocs: Int = CDASPartitioner.nProcessors
 
   def getKernelModule( moduleName: String  ): KernelModule = {
     kernelManager.getModule( moduleName ) match {

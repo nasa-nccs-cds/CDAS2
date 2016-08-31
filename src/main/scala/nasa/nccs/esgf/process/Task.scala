@@ -1,13 +1,14 @@
 package nasa.nccs.esgf.process
 
-import nasa.nccs.caching.JobRecord
+import nasa.nccs.caching.{CDASPartitioner, JobRecord}
 import nasa.nccs.cdapi.cdm.{CDSDataset, CDSVariable, Collection, PartitionedFragment}
 import nasa.nccs.cdapi.kernels.AxisIndices
-import nasa.nccs.cdapi.tensors.CDFloatArray
+import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray}
 import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
 import org.joda.time.{DateTime, DateTimeZone}
 import nasa.nccs.utilities.Loggable
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.util.matching.Regex
@@ -213,7 +214,7 @@ class DataSource(val name: String, val collection: Collection, val domain: Strin
 
 class DataFragmentKey( val varname: String, val collId: String, val origin: Array[Int], val shape: Array[Int] ) extends Serializable {
   override def toString =  "DataFragmentKey{ name = %s, collection = %s, origin = [ %s ], shape = [ %s ] }".format( varname, collId, origin.mkString(", "), shape.mkString(", "))
-  def toStrRep =  "%s|%s|%s|%s".format( varname, collId, origin.mkString(","), shape.mkString(","))
+  def toStrRep =  "%s|%s|%s|%s|%d".format( varname, collId, origin.mkString(","), shape.mkString(","), CDASPartitioner.nProcessors )
   def sameVariable( otherCollId: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collId == otherCollId) }
   def getRoi: ma2.Section = new ma2.Section(origin,shape)
   def equalRoi( df: DataFragmentKey ): Boolean = ( shape.sameElements(df.shape) && origin.sameElements(df.origin ) )
@@ -255,13 +256,16 @@ class MergeDataFragment( val wrappedDataFragOpt: Option[DataFragment] = None ) {
   }
 }
 
-class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val optData: Option[CDFloatArray] = None ) {
+class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val optData: Option[CDFloatArray] = None, val coordMap: Option[CDCoordMap] = None ) {
   def ++( dfrag: DataFragment ): DataFragment = {
-    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data), optData.map( data1 => data1.merge(dfrag.optData.get) ) )
+    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data), optData.map( data1 => data1.merge(dfrag.optData.get) ), coordMap )
   }
   def getReducedSpec( axes: AxisIndices ): DataFragmentSpec =  spec.reduce(Set(axes.getAxes:_*))
   def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)
-  def subset( section: ma2.Section ): Option[DataFragment] = spec.cutIntersection( section ) map { dataFragSpec => new DataFragment( dataFragSpec, data.section( dataFragSpec.getIntersection(section) ) ) }
+  def subset( section: ma2.Section ): Option[DataFragment] = spec.cutIntersection( section ) map { dataFragSpec =>
+    val new_section = dataFragSpec.getIntersection(section)
+    new DataFragment( dataFragSpec, data.section( new_section ), optData.map( data1 => data1.section( new_section ) ), coordMap )
+  }
 }
 
 class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",

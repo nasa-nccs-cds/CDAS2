@@ -6,7 +6,7 @@ import java.nio.file.{Files, Paths}
 import org.apache.commons.io.FileUtils
 
 import collection.mutable
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
+import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EvictionListener}
 import nasa.nccs.utilities.{Loggable, Timestamp}
 import nasa.nccs.cdapi.cdm.DiskCacheFileMgr
 
@@ -18,7 +18,7 @@ import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 
 trait Cache[K,V] { cache ⇒
-
+  type KeyEventNotifier[K] = (String,K) => Unit
   /**
     * Selects the (potentially non-existing) cache entry with the given key.
     */
@@ -107,7 +107,11 @@ object ValueMagnet {
   * entries cause old ones to be evicted in a last-recently-used manner, i.e. the entries that haven't been accessed for
   * the longest time are evicted first.
   */
-final class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boolean ) extends Cache[K,V] with Loggable {
+
+//class DeletionListener[K,Future[V]]( val cache: Int ) extends EvictionListener[K,Future[V]] {
+//  override def onEviction(key: K, value: V ) {;}
+//}
+class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boolean ) extends Cache[K,V] with Loggable {
   val maxCapacity: Int=10000
   val initialCapacity: Int=64
   val cacheFile = DiskCacheFileMgr.getDiskCacheFilePath( ctype, cname )
@@ -116,8 +120,11 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
 
   private[caching] val store = getStore()
 
+  def evictionNotice( key: K, value: Future[V] ) = { logger.info( "Evicting Key %s".format( key.toString ) ) }
+
   def getStore(): ConcurrentLinkedHashMap[K, Future[V]] = {
-    val hmap = new ConcurrentLinkedHashMap.Builder[K, Future[V]].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).build()
+    val listener = new EvictionListener[K,Future[V]]{ def onEviction(key: K, value: Future[V] ) { evictionNotice(key,value) } }
+    val hmap = new ConcurrentLinkedHashMap.Builder[K, Future[V]].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).listener( listener ).build()
     if(persistent) restore match {
       case Some( entryArray ) => entryArray.foreach { case (key,value) => hmap.put(key,Future(value)) }
       case None => Unit
