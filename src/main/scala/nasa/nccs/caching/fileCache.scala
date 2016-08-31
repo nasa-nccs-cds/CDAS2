@@ -386,7 +386,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   private val datasetCache: Cache[String,CDSDataset] = new FutureCache("Store","dataset",false)
   private val variableCache: Cache[String,CDSVariable] = new FutureCache("Store","variable",false)
   private val maskCache: Cache[MaskKey,CDByteArray] = new FutureCache("Store","mask",false)
-  def clearFragment( key: DataFragmentKey, value: Future[PartitionedFragment] ) =
+  def clearFragmentCache() = fragmentCache.clear
   def addJob( jrec: JobRecord ): String = { execJobCache.put( jrec.id, jrec ); jrec.id }
   def removeJob( jid: String ) = execJobCache.remove( jid )
 
