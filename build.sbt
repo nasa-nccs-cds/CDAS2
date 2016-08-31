@@ -2,8 +2,6 @@ import java.nio.file.Files.copy
 import java.nio.file.Paths.get
 import sbt._
 
-def toPath (filename: SettingKey[File]) = filename.value.toPath
-
 val kernelPackages = settingKey[ Seq[String] ]("A list of user-defined Kernel packages")
 
 name := "cdas2"
@@ -58,7 +56,7 @@ cdasProperties := {
   val prop = new Properties()
   try{ IO.load( prop, cdasPropertiesFile.value ) } catch {
     case err: Exception =>
-      copy( toPath(cdasDefaultPropertiesFile), toPath(cdasPropertiesFile) )
+      copy( cdasDefaultPropertiesFile.value.toPath, cdasPropertiesFile.value.toPath )
       try{ IO.load( prop, cdasPropertiesFile.value ) } catch {
         case err: Exception => println("No property file found")
       }
@@ -73,16 +71,6 @@ def getCacheDir(): File =
   }
 
 
-
-def getPublishDir( properties: Properties ): File =
-  sys.env.get("SBT_PUBLISH_DIR") match {
-    case Some(pub_dir) => { val pdir = file(pub_dir); pdir.mkdirs(); pdir }
-    case None =>
-      val pub_dir = properties.getProperty("publish.dir", "")
-      if(pub_dir.isEmpty) { cdas_cache_dir.value } else { val pdir = file(pub_dir); pdir.mkdirs(); pdir }
-  }
-
-
 cdasLocalCollectionsFile :=  {
   val collections_file = cdas_cache_dir.value / "local_collections.xml"
   if( !collections_file.exists ) { xml.XML.save( collections_file.getAbsolutePath, <collections></collections> ) }
@@ -93,7 +81,12 @@ unmanagedClasspath in Compile += cdas_cache_dir.value
 unmanagedClasspath in Runtime += cdas_cache_dir.value
 unmanagedClasspath in Test += cdas_cache_dir.value
 
-publishTo := Some(Resolver.file( "file", getPublishDir( cdasProperties.value ) ) )
+publishTo := Some(Resolver.file( "file",  sys.env.get("SBT_PUBLISH_DIR") match {
+  case Some(pub_dir) => { val pdir = file(pub_dir); pdir.mkdirs(); pdir }
+  case None =>
+    val pub_dir = cdasProperties.value.getProperty("publish.dir", "")
+    if(pub_dir.isEmpty) { cdas_cache_dir.value } else { val pdir = file(pub_dir); pdir.mkdirs(); pdir }
+} ) )
 
 
 //lazy val md = taskKey[Unit]("Prints 'Hello World'")
