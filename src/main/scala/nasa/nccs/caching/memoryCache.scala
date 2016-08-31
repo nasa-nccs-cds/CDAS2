@@ -6,9 +6,10 @@ import java.nio.file.{Files, Paths}
 import org.apache.commons.io.FileUtils
 
 import collection.mutable
-import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EvictionListener}
+import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EntryWeigher, EvictionListener}
 import nasa.nccs.utilities.{Loggable, Timestamp}
 import nasa.nccs.cdapi.cdm.DiskCacheFileMgr
+import nasa.nccs.cds2.utilities.appParameters
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConversions._
@@ -112,7 +113,8 @@ object ValueMagnet {
 //  override def onEviction(key: K, value: V ) {;}
 //}
 class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boolean ) extends Cache[K,V] with Loggable {
-  val maxCapacity: Int=10000
+  val G = 1000000000
+  val maxCapacity: Int=appParameters(Array(ctype.toLowerCase,cname.toLowerCase,"capacity").mkString("."),"30").toInt * G
   val initialCapacity: Int=64
   val cacheFile = DiskCacheFileMgr.getDiskCacheFilePath( ctype, cname )
   require(maxCapacity >= 0, "maxCapacity must not be negative")
@@ -121,10 +123,12 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
   private[caching] val store = getStore()
 
   def evictionNotice( key: K, value: Future[V] ) = { logger.info( "Evicting Key %s".format( key.toString ) ) }
+  def entrySize( key: K, value: Future[V] ): Int = { 1 }
 
   def getStore(): ConcurrentLinkedHashMap[K, Future[V]] = {
-    val listener = new EvictionListener[K,Future[V]]{ def onEviction(key: K, value: Future[V] ) { evictionNotice(key,value) } }
-    val hmap = new ConcurrentLinkedHashMap.Builder[K, Future[V]].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).listener( listener ).build()
+    val evictionListener = new EvictionListener[K,Future[V]]{ def onEviction(key: K, value: Future[V] ): Unit = { evictionNotice(key,value) } }
+    val sizeWeighter = new EntryWeigher[K,Future[V]]{ def weightOf(key: K, value: Future[V] ): Int = { entrySize(key,value) } }
+    val hmap = new ConcurrentLinkedHashMap.Builder[K, Future[V]].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).listener( evictionListener ).weigher( sizeWeighter ).build()
     if(persistent) restore match {
       case Some( entryArray ) => entryArray.foreach { case (key,value) => hmap.put(key,Future(value)) }
       case None => Unit

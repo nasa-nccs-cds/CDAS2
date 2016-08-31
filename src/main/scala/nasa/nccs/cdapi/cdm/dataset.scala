@@ -10,6 +10,7 @@ import java.nio._
 
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.XmlResource
+import nasa.nccs.cds2.utilities.{appParameters}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateSystem, NetcdfDataset, VariableDS}
@@ -80,19 +81,12 @@ object DiskCacheFileMgr extends XmlResource {
 
   def getDiskCacheFilePath( cachetype: String, cache_file: String ): String =
     if (cache_file.startsWith("/")) {cache_file} else {
-      val cacheFilePath = Paths.get( getCacheDirectory, cachetype, cache_file )
+      val cacheFilePath = Paths.get( appParameters.cacheDir, cachetype, cache_file )
       Files.createDirectories( cacheFilePath.getParent )
       cacheFilePath.toString
     }
 
-  def getCacheDirectory: String = {
-    sys.env.get("CDAS_CACHE_DIR") match {
-      case Some(cache_path) => cache_path
-      case None =>
-        val home = System.getProperty("user.home")
-        Paths.get(home, ".cdas", "cache" ).toString
-    }
-  }
+
 
   protected def getDiskCache( id: String = "main" ) = diskCacheMap.get(id) match {
     case None => throw new Exception( "No disk cache defined: " + id )

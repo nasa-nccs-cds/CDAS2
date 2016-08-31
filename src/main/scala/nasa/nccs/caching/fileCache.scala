@@ -7,12 +7,11 @@ import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
 import java.util.Comparator
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
-import nasa.nccs.cds2.utilities.runtime
+import nasa.nccs.cds2.utilities.{GeoTools, appParameters, runtime}
 import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
 import nasa.nccs.cdapi.kernels.TransientFragment
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
 import nasa.nccs.cds2.loaders.Masks
-import nasa.nccs.cds2.utilities.GeoTools
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.Loggable
 import org.apache.commons.io.{FileUtils, IOUtils}
@@ -94,7 +93,7 @@ object CDASPartitioner {
   val M = 1000000
   val maxChunkSize = 200*M
   val maxBufferSize = Int.MaxValue
-  val maxProcessors =  8 //   serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
+  val maxProcessors =  appParameters("max.procs","8").toInt //   serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
   val nProcessors = math.min( Runtime.getRuntime.availableProcessors(), maxProcessors )
   val nCoresPerPart = 1
 }
@@ -380,6 +379,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     override def evictionNotice( key: DataFragmentKey, value: Future[PartitionedFragment] ) = {
       value.onSuccess { case pfrag => logger.info("Clearing fragment %s".format(key.toString)); pfrag.delete }
     }
+    override def entrySize( key: DataFragmentKey, value: Future[PartitionedFragment] ): Int = { key.getSize * 4 }
   }
   private val transientFragmentCache: Cache[String,TransientFragment] = new FutureCache("Store","result",false)
   private val execJobCache = new ConcurrentLinkedHashMap.Builder[ String, JobRecord ].initialCapacity(64).maximumWeightedCapacity(64).build()
