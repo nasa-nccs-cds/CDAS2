@@ -54,13 +54,17 @@ cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
 
 cdasProperties := {
   val prop = new Properties()
-  try{ IO.load( prop, cdasPropertiesFile.value ) } catch {
-    case err: Exception =>
+  try{
+    if( !cdasPropertiesFile.value.exists() ) {
+      println("Copying default  property file: " + cdasDefaultPropertiesFile.value.toString )
       copy( cdasDefaultPropertiesFile.value.toPath, cdasPropertiesFile.value.toPath )
-      try{ IO.load( prop, cdasPropertiesFile.value ) } catch {
-        case err: Exception => println("No property file found")
-      }
+    }
+    println("Loading property file: " + cdasPropertiesFile.value.toString )
+    IO.load( prop, cdasPropertiesFile.value )
+  } catch {
+    case err: Exception => println("No property file found")
   }
+  println("Loaded properties: " + prop.values.toArray.map( _.toString ).mkString(", ") )
   prop
 }
 
