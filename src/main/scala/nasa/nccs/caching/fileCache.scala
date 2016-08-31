@@ -379,10 +379,10 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     override def evictionNotice( key: DataFragmentKey, value: Future[PartitionedFragment] ) = {
       value.onSuccess { case pfrag => logger.info("Clearing fragment %s".format(key.toString)); pfrag.delete }
     }
-    override def entrySize( key: DataFragmentKey, value: Future[PartitionedFragment] ): Int = { key.getSize * 4 }
+    override def entrySize( key: DataFragmentKey, value: Future[PartitionedFragment] ): Long = { key.getSize * 4L }
   }
   private val transientFragmentCache: Cache[String,TransientFragment] = new FutureCache("Store","result",false)
-  private val execJobCache = new ConcurrentLinkedHashMap.Builder[ String, JobRecord ].initialCapacity(64).maximumWeightedCapacity(64).build()
+  private val execJobCache = new ConcurrentLinkedHashMap.Builder[ String, JobRecord ].initialCapacity(64).maximumWeightedCapacity(128).build()
   private val datasetCache: Cache[String,CDSDataset] = new FutureCache("Store","dataset",false)
   private val variableCache: Cache[String,CDSVariable] = new FutureCache("Store","variable",false)
   private val maskCache: Cache[MaskKey,CDByteArray] = new FutureCache("Store","mask",false)

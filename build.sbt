@@ -56,7 +56,7 @@ cdasProperties := {
   val prop = new Properties()
   try{
     if( !cdasPropertiesFile.value.exists() ) {
-      println("Copying default  property file: " + cdasDefaultPropertiesFile.value.toString )
+      println("Copying default property file: " + cdasDefaultPropertiesFile.value.toString )
       copy( cdasDefaultPropertiesFile.value.toPath, cdasPropertiesFile.value.toPath )
     }
     println("Loading property file: " + cdasPropertiesFile.value.toString )
@@ -64,8 +64,7 @@ cdasProperties := {
   } catch {
     case err: Exception => println("No property file found")
   }
-  println("Loaded properties: " + prop.values.toArray.map( _.toString ).mkString(", ") )
-  prop   
+  prop
 }
 
 def getCacheDir(): File =
