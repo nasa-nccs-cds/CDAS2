@@ -243,17 +243,17 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   def expandKey( fragKey: String ): String = {
     val bounds = getBounds(fragKey)
     val toks = fragKey.split('|')
-    "variable= %s; origin= (%s); shape= (%s); coll= %s; bounds= %s".format(toks(0),toks(2),toks(3),toks(1),bounds)
+    "variable= %s; origin= (%s); shape= (%s); coll= %s; maxParts=%s; bounds= %s".format(toks(0),toks(2),toks(3),toks(1),toks(4),bounds)
   }
 
   def expandKeyXml( fragKey: String ):  xml.Elem = {
     val toks = fragKey.split('|')
-     <fragment variable={toks(0)} origin={toks(2)} shape={toks(3)} coll={toks(1)}> { getBounds(fragKey) } </fragment>
+     <fragment variable={toks(0)} origin={toks(2)} shape={toks(3)} coll={toks(1)} maxParts={toks(4)}> { getBounds(fragKey) } </fragment>
   }
 
   def contractKey( fragDescription: String ): String = {
     val tok = fragDescription.split(';').map( _.split('=')(1).trim.stripPrefix("(").stripSuffix(")"))
-    Array( tok(0),tok(3),tok(1),tok(2) ).mkString("|")
+    Array( tok(0),tok(3),tok(1),tok(2),tok(4) ).mkString("|")
   }
 
   def fragKeyLT( fragKey1: String, fragKey2: String ): Boolean = {
