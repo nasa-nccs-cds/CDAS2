@@ -375,11 +375,12 @@ class JobRecord( val id: String ) {
 }
 
 class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with FragSpecKeySet {
+  val K = 1000f
   private val fragmentCache: Cache[DataFragmentKey,PartitionedFragment] = new FutureCache[DataFragmentKey,PartitionedFragment]("Store","fragment",false) {
     override def evictionNotice( key: DataFragmentKey, value: Future[PartitionedFragment] ) = {
       value.onSuccess { case pfrag => logger.info("Clearing fragment %s".format(key.toString)); pfrag.delete }
     }
-    override def entrySize( key: DataFragmentKey, value: Future[PartitionedFragment] ): Long = { key.getSize * 4L }
+    override def entrySize( key: DataFragmentKey, value: Future[PartitionedFragment] ): Int = { (( key.getSize * 4 ) / K ).round }
   }
   private val transientFragmentCache: Cache[String,TransientFragment] = new FutureCache("Store","result",false)
   private val execJobCache = new ConcurrentLinkedHashMap.Builder[ String, JobRecord ].initialCapacity(64).maximumWeightedCapacity(128).build()
