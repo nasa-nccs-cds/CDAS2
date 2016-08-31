@@ -46,10 +46,7 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
   def getConfiguration = configuration
   def missing_variable(uid: String) = throw new Exception("Can't find Variable '%s' in uids: [ %s ]".format(uid, inputs.keySet.mkString(", ")))
   def getDataSources: Map[String, DataFragmentSpec] = inputs
-  def getInputSpec( uid: String = "" ): DataFragmentSpec = inputs.get( uid ) match {
-    case Some(inputSpec) => inputSpec
-    case None => inputs.head._2
-  }
+  def getInputSpec( uid: String ): Option[DataFragmentSpec] = inputs.get( uid )
   def getDataset( serverContext: ServerContext, uid: String = "" ): CDSDataset = inputs.get( uid ) match {
     case Some(inputSpec) => inputSpec.getDataset(serverContext)
     case None =>inputs.head._2.getDataset(serverContext)
@@ -354,9 +351,6 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
     }
     Await.result( fragFut, Duration.Inf )
   }
-
-  def inputs( inputSpecs: List[DataFragmentSpec] ): List[PartitionedFragment] =
-    for( inputSpec <- inputSpecs ) yield getVariableData( inputSpec )
 
   def getAxisData( fragSpec: DataFragmentSpec, axis: Char ): Option[( Int, ma2.Array )] = {
     val variable: CDSVariable = dataLoader.getVariable(fragSpec.collection, fragSpec.varname)

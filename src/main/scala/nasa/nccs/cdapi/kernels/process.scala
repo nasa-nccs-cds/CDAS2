@@ -76,9 +76,9 @@ class XmlExecutionResult( id: String,  val responseXml: xml.Node ) extends Execu
   }
 }
 
-class AsyncExecutionResult( id: String, val fragments:String )  extends ExecutionResult(id)  {
-  def this( resultOpt: Option[String], fragments:String ) { this( resultOpt.getOrElse("empty"), fragments ) }
-  override def toXml = { <result id={id} fragments={fragments}> </result> }
+class AsyncExecutionResult( id: String )  extends ExecutionResult(id)  {
+  def this( resultOpt: Option[String] ) { this( resultOpt.getOrElse("empty") ) }
+  override def toXml = { <result id={id} > </result> }
 }
 
 class ExecutionResults( val results: List[ExecutionResult] ) {
@@ -126,19 +126,29 @@ abstract class Kernel extends Loggable {
   val reduceCombineOpt: Option[ReduceOpFlt] = None
   val initValue: Float = 0f
 
-  def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]] = {
-    val future_results: IndexedSeq[Future[Option[DataFragment]]] = (0 until nprocs).map( iproc => Future { map(iproc,inputs,context) } )
-    reduce( future_results, context )
+  def mapReduce(context: CDASExecutionContext, nprocs: Int): Future[Option[DataFragment]] = {
+    val future_results: IndexedSeq[Future[Option[DataFragment]]] = ( 0 until nprocs ).map( iproc => {
+        val inputs: List[Option[DataFragment]] = for ( uid <- context.operation.inputs ) yield {
+          context.request.getInputSpec(uid) match {
+            case Some(inputSpec) => Future {
+              context.server.getVariableData(inputSpec).domainDataFragment(iproc, context)
+              map(iproc, inputs, context)
+            }
+            case None => collectionDataCache.getExistingResult( uid ) match {
+              case Some( tFragFut ) => tFragFut.result()
+            }
+          }
+        }
+      }
+    )
+    reduce(future_results, context)
   }
 
-  def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
-    inputs.head.domainDataFragment( partIndex, context )
-  }
+  def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = { inputs.head }
 
   def executeProcess( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
     val t0 = System.nanoTime()
-    val inputs: List[PartitionedFragment] = inputVars( context )
-    var opResult: Future[Option[DataFragment]] = mapReduce( inputs, context, nprocs )
+    var opResult: Future[Option[DataFragment]] = mapReduce( context, nprocs )
     opResult.onComplete {
       case Success(dataFragOpt) =>
         logger.info(s"********** Completed Execution of Kernel[$name($id)]: %s , total time = %.3f sec  ********** \n".format(context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
@@ -147,7 +157,7 @@ abstract class Kernel extends Loggable {
         logger.error( " ---> Cause: " + t.getCause.getMessage )
         logger.error( "\n" + t.getCause.getStackTrace.mkString("\n") + "\n" )
     }
-    createResponse( postOp( opResult, context  ), inputs, context )
+    createResponse( postOp( opResult, context  ), context )
   }
   def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = future_result
   def reduce( future_results: IndexedSeq[Future[Option[DataFragment]]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = Future.reduce(future_results)(reduceOp(context) _)
@@ -177,19 +187,18 @@ abstract class Kernel extends Loggable {
 //    logger.info("Executed %s reduce op, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
     rv
   }
-  def createResponse( resultFut: Future[Option[DataFragment]], inputs: List[PartitionedFragment], context: CDASExecutionContext ): ExecutionResult = {
-    val inputVar: PartitionedFragment = inputs.head
-    val fragments = inputs.map( _.getKey.toStrRep )
+  def createResponse( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext ): ExecutionResult = {
+    val var_mdata = Map[String,Attribute]()
     val async = context.request.config("async", "false").toBoolean
     if(async) {
-      new AsyncExecutionResult( cacheResult( resultFut, context, inputVar.getVariableMetadata(context.server) ), fragments.mkString(";") )
+      new AsyncExecutionResult( cacheResult( resultFut, context, var_mdata /*, inputVar.getVariableMetadata(context.server) */ ) )
     } else {
       val resultOpt: Option[DataFragment] = Await.result( resultFut, Duration.Inf )
       resultOpt match {
-        case Some(result) => new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data, fragments.mkString(";"))
+        case Some(result) => new BlockingExecutionResult (context.operation.identifier, List(result.spec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data )
         case None =>
           logger.error( "Operation %s returned empty result".format( context.operation.identifier ) )
-          new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid, CDFloatArray.empty, fragments.mkString(";") )
+          new BlockingExecutionResult (context.operation.identifier, List(), context.request.targetGrid, CDFloatArray.empty )
       }
     }
   }
@@ -224,10 +233,6 @@ abstract class Kernel extends Loggable {
       case Some( sval ) => try { sval.toFloat } catch { case err: NumberFormatException => throw new Exception( s"Parameter $argname must ba a float: $sval" ) }
       case None => defaultVal match { case None => throw new Exception( s"Parameter $argname (float) is reqired for operation " + this.id ); case Some(fval) => fval }
     }
-  }
-
-  def inputVars( context: CDASExecutionContext ): List[PartitionedFragment] = {
-    context.server.inputs(context.operation.inputs.map(uid => { context.request.getInputSpec(uid) } ) )
   }
 
   def cacheResult( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
