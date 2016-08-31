@@ -1,14 +1,19 @@
 package nasa.nccs.cds2.utilities
 import java.nio.file.Paths
+import nasa.nccs.utilities.Loggable
 import scala.io.Source
 
 
-object appParameters {
+object appParameters extends Loggable {
 
   val cacheDir = getCacheDirectory
   private val _map: Map[String,String]  = getParameterMap
 
-  def apply( key: String, default: String ): String = _map.getOrElse(key,default)
+  def apply( key: String, default: String ): String = {
+    val value = _map.getOrElse( key, default )
+    logger.info( "Retrieving parameter value from appParameters: %s -> %s".format( key, value ) )
+    value
+  }
   def keySet: Set[String] = _map.keySet
 
   def getCacheDirectory: String = {
