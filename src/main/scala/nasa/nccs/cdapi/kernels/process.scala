@@ -164,7 +164,9 @@ abstract class Kernel extends Loggable {
     case Some(combineOp) =>
       if (axes.includes(0)) new DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))
       else { a0 ++ a1 }
-    case None => { a0 ++ a1 }
+    case None => {
+      a0 ++ a1
+    }
   }
 
   def reduceOp(context: CDASExecutionContext)(a0op: Option[DataFragment], a1op: Option[DataFragment]): Option[DataFragment] = {
@@ -249,7 +251,7 @@ abstract class Kernel extends Loggable {
     if ( axes.includes(0) ) {
       val vTot = a0.data + a1.data
       val wTot = a0.optData.map( w => w + a1.optData.get )
-      new DataFragment( a0.spec, vTot, wTot )
+      new DataFragment( a0.spec, vTot, wTot, DataFragment.combineCoordMaps(a0,a1) )
     }
     else { a0 ++ a1 }
   }
@@ -258,7 +260,7 @@ abstract class Kernel extends Loggable {
     future_result.map( _.map( (result: DataFragment) => result.optData match {
       case Some( weights_sum ) =>
         logger.info( "weightedValueSumPostOp, values = %s, weights = %s".format( result.data.toDataString, weights_sum.toDataString ) )
-        new DataFragment( result.spec, result.data / weights_sum, result.optData )
+        new DataFragment( result.spec, result.data / weights_sum, result.optData, result.optCoordMap )
       case None => result
     } ) )
   }

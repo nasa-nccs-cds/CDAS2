@@ -229,6 +229,15 @@ class CDCoordMap( val dimIndex: Int, val mapArray: Array[Int] ) extends CDCoordM
     result
   }
   override def toString = "CDCoordMap{ nbins=%d, dim=%d, mapArray=[ %s ]}".format( nBins, dimIndex, mapArray.mkString(", ") )
+
+  def ++( cmap: CDCoordMap ): CDCoordMap = {
+    assert( dimIndex == cmap.dimIndex, "Attempt to combine incommensurate index maps" )
+    if( dimIndex == 0 ) { new CDCoordMap( dimIndex, mapArray ++ cmap.mapArray ) }
+    else {
+      assert( mapArray == cmap.mapArray, "Attempt to combine incommensurate index maps" )
+      clone.asInstanceOf[CDCoordMap]
+    }
+  }
 }
 
 class IndexValueAccumulator( start_value: Int = 0 ) {

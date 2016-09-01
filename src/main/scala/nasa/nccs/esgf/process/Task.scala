@@ -266,13 +266,16 @@ object DataFragment {
         case None => CDFloatArray.combine( reductionOp, input0.data, input1.data )
       }
     }
-    new DataFragment( input0.spec.combine(input1.spec) , data )
+    val ( fragSpec, mergeStatus )  = input0.spec.combine(input1.spec)
+    new DataFragment( fragSpec, data )
   }
+  def combineCoordMaps(a0: DataFragment, a1: DataFragment): Option[CDCoordMap] = a0.optCoordMap.flatMap( coordMap0 => a1.optCoordMap.map( coordMap1 => coordMap0 ++ coordMap1 ))
 }
 
 class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val optData: Option[CDFloatArray] = None, val optCoordMap: Option[CDCoordMap] = None ) {
+  import DataFragment._
   def ++( dfrag: DataFragment ): DataFragment = {
-    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data), optData.map( data1 => data1.merge(dfrag.optData.get) ), optCoordMap )
+    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data), optData.map( data1 => data1.merge(dfrag.optData.get) ), combineCoordMaps( this,dfrag ) )
   }
   def getReducedSpec( axes: AxisIndices ): DataFragmentSpec =  spec.reduce(Set(axes.getAxes:_*))
   def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)
@@ -280,6 +283,14 @@ class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val optD
     val new_section = dataFragSpec.getIntersection(section)
     new DataFragment( dataFragSpec, data.section( new_section ), optData.map( data1 => data1.section( new_section ) ), optCoordMap )
   }
+}
+
+object SectionMerge {
+  type Status = Int
+  val Overlap: Status = 0
+  val Append: Status = 1
+  val Prepend: Status = 1
+  def incommensurate( s0: ma2.Section, s1: ma2.Section ) = { "Attempt to combine incommensurate sections: %s vs %s".format( s0.toString, s1.toString ) }
 }
 
 class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
@@ -293,10 +304,11 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
       case Some(maskId) => <input varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
-  def combine( other: DataFragmentSpec ): DataFragmentSpec = {
+  def combine( other: DataFragmentSpec ): ( DataFragmentSpec, SectionMerge.Status ) = {
     val combined_varname = varname + ":" + other.varname
     val combined_longname = longname + ":" + other.longname
-    new DataFragmentSpec( combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, _section, _domSectOpt, missing_value, mask )
+    val ( combined_section, mergeStatus ) = combineRoi( other.roi )
+    ( new DataFragmentSpec( combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, missing_value, mask ) -> mergeStatus )
   }
   def roi = targetGridOpt match {
     case None => new ma2.Section( _section )
@@ -355,6 +367,26 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
     val base_sect = roi;      val raw_intersection = base_sect.intersect(cutSection)
     val ranges = for( ir <- raw_intersection.getRanges.indices; r0 = raw_intersection.getRange(ir); r1 = base_sect.getRange(ir) ) yield new ma2.Range( r1.getName, r0 )
     new ma2.Section( ranges )
+  }
+  def combineRoi( otherSection: ma2.Section ): ( ma2.Section, SectionMerge.Status ) = {
+    logger.info( "\n\nCombine SECTIONS: %s - %s \n\n".format( _section.toString, otherSection.toString ))
+    return ( roi -> SectionMerge.Overlap )
+    var sectionMerge: SectionMerge.Status = SectionMerge.Overlap
+    val new_ranges: IndexedSeq[ma2.Range] = for( iR <- _section.getRanges.indices; r0 = _section.getRange(iR); r1 = otherSection.getRange(iR) ) yield {
+      if( r0 == r1 ) { r0 }
+      else if( (r0.last + 1) == (r1.first) ) {
+        assert( sectionMerge == SectionMerge.Overlap, SectionMerge.incommensurate( _section, otherSection ) )
+        sectionMerge = SectionMerge.Append;
+        new ma2.Range( r0.first, r1.last, r0.stride )
+      }
+      else if( (r1.last + 1) == (r0.first) ) {
+        assert( sectionMerge == SectionMerge.Overlap, SectionMerge.incommensurate( _section, otherSection ) )
+        sectionMerge = SectionMerge.Prepend;
+        new ma2.Range( r1.first, r0.last, r0.stride )
+      }
+      else throw new Exception( SectionMerge.incommensurate( _section, otherSection ) )
+    }
+    ( new ma2.Section( new_ranges:_* ) -> sectionMerge )
   }
 
   def cutIntersection( cutSection: ma2.Section ): Option[DataFragmentSpec] =
