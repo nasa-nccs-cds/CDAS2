@@ -34,9 +34,8 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Sets Input Fragment to constant value"
 
-    override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
-      val inputVar: PartitionedFragment = inputs.head
-      inputVar.domainDataFragment(partIndex,context) map { dataFrag  =>
+    override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = {
+      inputs.head.map( dataFrag => {
         val axes: AxisIndices = context.request.getAxisIndices (context.operation.config ("axes", "") )
         val async = context.request.config ("async", "false").toBoolean
         val resultFragSpec = dataFrag.getReducedSpec (axes)
@@ -46,7 +45,7 @@ class CDS extends KernelModule with KernelTools {
         val t11 = System.nanoTime
         logger.info ("Constant op, time = %.4f s, result sample = %s".format ((t11 - t10) / 1.0E9, getDataSample(result_val_masked).mkString(",").toString) )
         new DataFragment (resultFragSpec, result_val_masked)
-      }
+      } )
     }
   }
 
@@ -118,9 +117,8 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Weighted Average over Axes on Input Fragment"
 
-    override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
-      val inputVar: PartitionedFragment = inputs.head
-      inputVar.domainDataFragment(partIndex,context) map { dataFrag =>
+    override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = {
+      inputs.head.map( dataFrag => {
         val async = context.request.config("async", "false").toBoolean
         val axes: AxisIndices = context.request.getAxisIndices(context.operation.config("axes", ""))
         val resultFragSpec = dataFrag.getReducedSpec(axes)
@@ -128,9 +126,9 @@ class CDS extends KernelModule with KernelTools {
         val weighting_type = context.operation.config("weights", if (context.operation.config("axes", "").contains('y')) "cosine" else "")
         val weights: CDFloatArray = weighting_type match {
           case "cosine" =>
-            context.server.getAxisData(inputVar.fragmentSpec, 'y') match {
+            context.request.targetGrid.getAxisData( 'y', dataFrag.spec.roi ) match {
               case Some(axis_data) => dataFrag.data.computeWeights(weighting_type, Map( 'y' -> axis_data) )
-              case None => logger.warn( "Can't access AxisData for variable %s => Using constant weighting.".format(inputVar.fragmentSpec.varname) ); dataFrag.data := 1f
+              case None => logger.warn( "Can't access AxisData for variable %s => Using constant weighting.".format(dataFrag.spec.varname) ); dataFrag.data := 1f
             }
           case x =>
             if( !x.isEmpty ) { logger.warn( "Can't recognize weighting method: %s => Using constant weighting.".format(x) )}
@@ -141,7 +139,7 @@ class CDS extends KernelModule with KernelTools {
         val t11 = System.nanoTime
         logger.info("Mean_val_masked, time = %.4f s, reduction dims = (%s), sample weighted_value_sum = %s".format((t11 - t10) / 1.0E9, axes.args.mkString(","), getDataSample(weighted_value_sum_masked).mkString(",") ))
         new DataFragment(resultFragSpec, weighted_value_sum_masked, Some(weights_sum_masked) )
-      }
+      } )
     }
     override def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
     override def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = weightedValueSumPostOp( future_result, context )
@@ -159,10 +157,8 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Aggregate data into bins using specified reduce function"
 
-    override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
-      val inputVar: PartitionedFragment = inputs.head
-//      logger.info( " ***timeBin*** inputVar FragSpec=(%s) ".format( inputVar.fragmentSpec.toString ) )
-      inputVar.domainDataFragment(partIndex,context) map { dataFrag =>
+    override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = {
+      inputs.head.map( dataFrag => {
         val async = context.request.config("async", "false").toBoolean
         val optargs: Map[String, String] = context.operation.getConfiguration
         val axes: AxisIndices = context.request.getAxisIndices(context.operation.config("axes", ""))
@@ -188,7 +184,7 @@ class CDS extends KernelModule with KernelTools {
             val resultFragSpec = dataFrag.getReducedSpec(Set(axes.args(0)), values_sum.getShape(axes.args(0)))
             new DataFragment(resultFragSpec, values_sum, Some(weights_sum), Some(coordMap) )
         }
-      }
+      })
     }
     override def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
     override def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = weightedValueSumPostOp( future_result, context )
@@ -265,9 +261,8 @@ class CDS extends KernelModule with KernelTools {
     val outputs = List(Port("result", "1"))
     override val description = "Anomaly over Input Fragment"
 
-    override def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
-      val inputVar: PartitionedFragment = inputs.head
-      inputVar.domainDataFragment(partIndex,context) map { dataFrag =>
+    override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = {
+      inputs.head.map( dataFrag => {
         val async = context.request.config("async", "false").toBoolean
         val axes: AxisIndices = context.request.getAxisIndices(context.operation.config("axes", ""))
         val resultFragSpec = dataFrag.getReducedSpec(axes)
@@ -275,13 +270,13 @@ class CDS extends KernelModule with KernelTools {
         val weighting_type = context.request.config("weights", if (context.operation.config("axis", "").contains('y')) "cosine" else "")
         val weightsOpt: Option[CDFloatArray] = weighting_type match {
           case "" => None
-          case wtype => context.server.getAxisData(inputVar.fragmentSpec, 'y').map(axis_data => dataFrag.data.computeWeights(wtype, Map('y' -> axis_data)))
+          case wtype => context.request.targetGrid.getAxisData( 'y', dataFrag.spec.roi ).map(axis_data => dataFrag.data.computeWeights(wtype, Map('y' -> axis_data)))
         }
         val anomaly_result: CDFloatArray = dataFrag.data.anomaly(axes.args, weightsOpt)
         logger.info( "Partition[%d], generated anomaly result: %s".format(partIndex, anomaly_result.toDataString ) )
         val t11 = System.nanoTime
         new DataFragment(resultFragSpec, anomaly_result)
-      }
+      } )
     }
   }
 }

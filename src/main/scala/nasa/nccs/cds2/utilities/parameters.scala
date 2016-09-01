@@ -7,13 +7,21 @@ import scala.io.Source
 object appParameters extends Loggable {
 
   val cacheDir = getCacheDirectory
+  val parmFile = Paths.get( cacheDir, "cdas.properties" ).toString
   private val _map: Map[String,String]  = getParameterMap
 
-  def apply( key: String, default: String ): String = {
-    val value = _map.getOrElse( key, default )
-    logger.info( "Retrieving parameter value from appParameters: %s -> %s".format( key, value ) )
-    value
+  def apply( key: String, default: String ): String = _map.getOrElse( key, default )
+
+  def apply( key: String ): String = _map.get( key ) match {
+    case Some( value ) => value
+    case None => throw new Exception( "Missing required parameter in appParameters file(%s): %s".format( parmFile, key ) )
   }
+
+  def bool( key: String, default: Boolean ): Boolean = _map.get( key ) match {
+    case Some( value ) => value.toLowerCase.trim.startsWith("t")
+    case None => default
+  }
+
   def keySet: Set[String] = _map.keySet
 
   def getCacheDirectory: String = {
@@ -26,7 +34,6 @@ object appParameters extends Loggable {
   }
 
   def getParameterMap: Map[String,String] = {
-    val parmFile = Paths.get( cacheDir, "cdas.properties" ).toString
     val items = Source.fromFile( parmFile ).getLines.map( _.split("=") ).flatMap(
       toks => if( toks.length == 2 ) Some( toks(0).trim -> toks(1).trim ) else None
     )

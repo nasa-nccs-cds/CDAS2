@@ -1,9 +1,12 @@
 package cdas.wps
 
 import java.nio.file.Paths
+
 import nasa.nccs.caching.FragmentPersistence
+import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import org.scalatest._
+
 import scala.io.Source
 import org.scalatest.Tag
 
@@ -14,13 +17,13 @@ import org.scalatest.Tag
 // fragment=t|merra/daily|0,0,0,0|248,42,144,288
 
 class wpsSuite extends LocalExecutionTestSuite {
-  val fragment = getConfigValue("fragment")
+  val fragment = appParameters("sample.local.input")
   val varName = fragment.split('|').head
   val collection =  fragment.split('|')(1)
-  val opendap_url = "http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/mon/atmos"
-  val opendap_collection_id = "MERRA/mon/atmos"
-  val opendap_varname = "ta"
-  val collection_path = "/Users/tpmaxwel/Data/MERRA_MONTHLY"
+  val opendap_url = appParameters("sample.opendap.url")
+  val opendap_collection_id = appParameters("sample.opendap.collection")
+  val opendap_varname = appParameters("sample.opendap.variable")
+  val collection_path = appParameters("sample.local.collection")
   val tstart = 0
   val tend = 30
   val level = 0
@@ -60,17 +63,15 @@ class wpsSuite extends LocalExecutionTestSuite {
     executeTest(datainputs)
   }
   test("yearly_cycle_1D", Tag("yearly_cycle")) {
-    clearCache
     val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.timeBin","input":"v1","axes":"t","unit":"month","period":"1","mod":"12"}]]""".format(lat, lat, lon, lon, level, level, collection, varName)
     val response = executeTest(datainputs)
   }
   test("timeseries_ave", Tag("tsave")) {
-    clearCache
     val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.average","input":"v1","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, fragment, varName)
     val response = executeTest(datainputs)
   }
   test("createV", Tag("createV")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.anomaly","input":"v1","domain":"d2","axes":"t"},{"name":"CDS.timeBin","input":"v1","domain":"d2","axes":"t","bins":"t|month|ave|year"}]]""".format(lat, lat, lon, lon, level, level, collection, varName)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.timeBin","input":"v1","result":"r0","domain":"d2","axes":"t","bins":"t|month|ave|year"},{"name":"CDS.diff2","input":["v1","r0"],"domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, collection, varName)
     executeTest(datainputs)
   }
   test("OpenDAP_Collection", Tag("agg")) {

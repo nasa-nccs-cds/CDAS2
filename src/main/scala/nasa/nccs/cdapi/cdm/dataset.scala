@@ -66,7 +66,8 @@ class Collection( val id: String="",  val url: String="", val path: String = "",
     }
   }
 
-  def createNCML( recreate: Boolean = true ): Boolean = {
+  def createNCML(): Boolean = {
+    val recreate =  appParameters.bool("ncml.recreate",false)
     if( !ncmlFile.exists || recreate ) {
       ncmlFile.getParentFile.mkdirs
       val ncmlWriter = NCMLWriter(path)

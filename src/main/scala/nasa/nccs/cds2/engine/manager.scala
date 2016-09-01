@@ -232,13 +232,9 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
               case "xml" =>
                 new ExecutionResults(List(new UtilityExecutionResult(resId,result.toXml(resId))))
               case "netcdf" =>
-                result.dataFragOpt match {
-                  case Some(dataFrag) =>
-                    saveResultToFile(resId, dataFrag.data, result.request, serverContext, result.varMetadata, List.empty[nc2.Attribute]) match {
-                      case Some(resultFilePath) => new ExecutionResults(List(new UtilityExecutionResult(resId, <file> {resultFilePath} </file>)))
-                      case None => new ExecutionResults(List(new UtilityExecutionResult(resId, <error> {"Error writing resultFile"} </error>)))
-                    }
-                  case None => new ExecutionResults(List(new UtilityExecutionResult(resId, <error> {"Empty result"} </error>)))
+                saveResultToFile(resId, result.dataFrag.data, result.request, serverContext, result.metadata, List.empty[nc2.Attribute]) match {
+                  case Some(resultFilePath) => new ExecutionResults(List(new UtilityExecutionResult(resId, <file> {resultFilePath} </file>)))
+                  case None => new ExecutionResults(List(new UtilityExecutionResult(resId, <error> {"Error writing resultFile"} </error>)))
                 }
             }
           } else { new ExecutionResults(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }

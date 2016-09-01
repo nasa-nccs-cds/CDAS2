@@ -279,16 +279,14 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
   def restore(fragSpec: DataFragmentSpec): Option[Future[PartitionedFragment]] = {
     val fragKey = fragSpec.getKey
-    logger.info("FragmentPersistence.restore: fragKey: " + fragKey)
+//    logger.info("FragmentPersistence.restore: fragKey: " + fragKey)
     findEnclosingFragmentData(fragSpec) match {
       case Some(foundFragKey) =>
-        logger.info("Found enclosing fragKey: " + foundFragKey)
         collectionDataCache.getFragment(foundFragKey) match {
           case Some(partFut) => Some(partFut)
           case None =>
             fragmentIdCache.get(foundFragKey.toStrRep) match {
               case Some(cache_id_fut) => Some(cache_id_fut.map((cache_id: String) => {
-                logger.info("----> Cached frag " + cache_id)
                 val roi = foundFragKey.getRoi
                 val partitioner = new CDASPartitioner(cache_id, roi)
                 fragSpec.cutIntersection(roi) match {
@@ -429,7 +427,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     result
   }
   def deleteResult( resultId: String  ): Option[Future[TransientFragment]] = transientFragmentCache.remove(resultId)
-  def putResult( resultId: String, result: Future[TransientFragment]  ) = transientFragmentCache.putF(resultId,result)
+  def putResult( resultId: String, resultFut: Future[Option[TransientFragment]]  ) = resultFut.onSuccess { case resultOpt => resultOpt.map( result => transientFragmentCache.put(resultId, result) ) }
   def getResultListXml(): xml.Elem = <results> { for( rkey <- transientFragmentCache.keys ) yield <result id={rkey} /> } </results>
   def getResultIdList = transientFragmentCache.keys
   def getJobListXml(): xml.Elem = <jobs> { for( jrec: JobRecord <- execJobCache.values ) yield jrec.toXml } </jobs>
@@ -611,7 +609,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   def getExistingFragment( fragSpec: DataFragmentSpec ): Option[Future[PartitionedFragment]] = {
     val fkey = fragSpec.getKey
     if ( !fragmentCache.keys.contains(fkey) ) {
-      logger.info("Restoring frag from cache: " + fkey.toString )
+//      logger.info("Restoring frag from cache: " + fkey.toString )
       FragmentPersistence.restore(fragSpec) match {
         case Some( partFragFut ) =>
           val partFrag = Await.result( partFragFut, Duration.Inf )

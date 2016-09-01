@@ -59,19 +59,25 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
   def getCoordinateAxesList = dataset.getCoordinateAxes
 }
 
-class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArray], val fragmentSpec: DataFragmentSpec, val metaData: (String, String)*  ) extends Loggable  {
-  val LOG = org.slf4j.LoggerFactory.getLogger(this.getClass)
+abstract class OperationInput( val fragmentSpec: DataFragmentSpec, val metadata: Map[String,nc2.Attribute] ) extends Loggable {
   def toBoundsString = fragmentSpec.toBoundsString
-  def delete = partitions.delete
   def getKey: DataFragmentKey = fragmentSpec.getKey
   def getKeyString: String = fragmentSpec.getKeyString
+  def size: Int = fragmentSpec.roi.computeSize.toInt
+  def contains( requestedSection: ma2.Section ): Boolean = fragmentSpec.roi.contains( requestedSection )
+  def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] = { fragmentSpec.getVariableMetadata(serverContext) ++ metadata }
+  def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = { fragmentSpec.getDatasetMetadata(serverContext) }
 
-  def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] = {
-    fragmentSpec.getVariableMetadata(serverContext) ++ Map( metaData.map( item => (item._1 -> new nc2.Attribute(item._1,item._2)) ) :_* )
-  }
-  def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = {
-    fragmentSpec.getDatasetMetadata(serverContext)
-  }
+  def domainDataFragment( partIndex: Int, context: CDASExecutionContext ): Option[DataFragment]
+  def data(partIndex: Int ): CDFloatArray
+  def delete
+}
+
+class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArray], fragSpec: DataFragmentSpec, mdata: Map[String,nc2.Attribute] = Map.empty ) extends OperationInput(fragSpec,mdata)  {
+  val LOG = org.slf4j.LoggerFactory.getLogger(this.getClass)
+
+  def delete = partitions.delete
+
   def data(partIndex: Int ): CDFloatArray = partitions.getPartData(partIndex, fragmentSpec.missing_value )
 
   def partFragSpec( partIndex: Int ): DataFragmentSpec = {
@@ -152,9 +158,6 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
         new DataFragment ( newFragSpec, if (copy) newDataArray.dup () else newDataArray )
     }
   }
-
-  def size: Int = fragmentSpec.roi.computeSize.toInt
-  def contains( requestedSection: ma2.Section ): Boolean = fragmentSpec.roi.contains( requestedSection )
 }
 
 object sectionTest1 extends App {

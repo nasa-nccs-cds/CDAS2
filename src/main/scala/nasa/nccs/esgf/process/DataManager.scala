@@ -47,6 +47,7 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
   def missing_variable(uid: String) = throw new Exception("Can't find Variable '%s' in uids: [ %s ]".format(uid, inputs.keySet.mkString(", ")))
   def getDataSources: Map[String, DataFragmentSpec] = inputs
   def getInputSpec( uid: String ): Option[DataFragmentSpec] = inputs.get( uid )
+  def getInputSpec(): DataFragmentSpec = inputs.head._2
   def getDataset( serverContext: ServerContext, uid: String = "" ): CDSDataset = inputs.get( uid ) match {
     case Some(inputSpec) => inputSpec.getDataset(serverContext)
     case None =>inputs.head._2.getDataset(serverContext)
@@ -288,6 +289,13 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
   def getAxisIndex( cfAxisName: String, default_val: Int = -1 ): Int = grid.getAxisSpec( cfAxisName.toLowerCase ).map( gcs => gcs.index ).getOrElse( default_val )
   def getCFAxisName( dimension_index: Int ): String = grid.getAxisSpec( dimension_index ).getCFAxisName
 
+  def getAxisData( axis: Char, section: ma2.Section ): Option[( Int, ma2.Array )] = {
+    grid.getAxisSpec(axis.toString).map(axisSpec => {
+      val range = section.getRange(axisSpec.index)
+      axisSpec.index -> axisSpec.coordAxis.read( List( range) )
+    })
+  }
+
   def getBounds( section: ma2.Section ): Option[Array[Double]] = {
     val xrangeOpt: Option[Array[Double]] = Option(section.find("x")).flatMap( (r: ma2.Range) => grid.getAxisSpec("x").map( (gs: GridCoordSpec) => gs.getBounds(r) ) )
     val yrangeOpt: Option[Array[Double]] = Option(section.find("y")).flatMap( (r: ma2.Range) => grid.getAxisSpec("y").map( (gs: GridCoordSpec) => gs.getBounds(r) ) )
@@ -344,7 +352,7 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
   def getConfiguration = configuration
   def getVariable( collection: Collection, varname: String ): CDSVariable = dataLoader.getVariable( collection, varname )
 
-  def getVariableData( fragSpec: DataFragmentSpec ): PartitionedFragment = {
+  def getOperationInput( fragSpec: DataFragmentSpec ): OperationInput = {
     val fragFut = dataLoader.getExistingFragment( fragSpec ) match {
       case Some( fragFut ) => fragFut
       case None => cacheInputData( fragSpec )

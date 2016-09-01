@@ -3,6 +3,7 @@ package nasa.nccs.esgf.process
 import nasa.nccs.caching.{CDASPartitioner, JobRecord}
 import nasa.nccs.cdapi.cdm.{CDSDataset, CDSVariable, Collection, PartitionedFragment}
 import nasa.nccs.cdapi.kernels.AxisIndices
+import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray}
 import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
@@ -256,21 +257,34 @@ class MergeDataFragment( val wrappedDataFragOpt: Option[DataFragment] = None ) {
   }
 }
 
-class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val optData: Option[CDFloatArray] = None, val coordMap: Option[CDCoordMap] = None ) {
+object DataFragment {
+  def combine( reductionOp: ReduceOpFlt, input0: DataFragment, input1: DataFragment ): DataFragment = {
+    val data = input0.optCoordMap match {
+      case Some( coordMap ) =>  CDFloatArray.combine( reductionOp, input1.data, input0.data, coordMap )
+      case None => input1.optCoordMap match {
+        case Some( coordMap ) => CDFloatArray.combine( reductionOp, input0.data, input1.data, coordMap )
+        case None => CDFloatArray.combine( reductionOp, input0.data, input1.data )
+      }
+    }
+    new DataFragment( input0.spec.combine(input1.spec) , data )
+  }
+}
+
+class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val optData: Option[CDFloatArray] = None, val optCoordMap: Option[CDCoordMap] = None ) {
   def ++( dfrag: DataFragment ): DataFragment = {
-    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data), optData.map( data1 => data1.merge(dfrag.optData.get) ), coordMap )
+    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data), optData.map( data1 => data1.merge(dfrag.optData.get) ), optCoordMap )
   }
   def getReducedSpec( axes: AxisIndices ): DataFragmentSpec =  spec.reduce(Set(axes.getAxes:_*))
   def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)
   def subset( section: ma2.Section ): Option[DataFragment] = spec.cutIntersection( section ) map { dataFragSpec =>
     val new_section = dataFragSpec.getIntersection(section)
-    new DataFragment( dataFragSpec, data.section( new_section ), optData.map( data1 => data1.section( new_section ) ), coordMap )
+    new DataFragment( dataFragSpec, data.section( new_section ), optData.map( data1 => data1.section( new_section ) ), optCoordMap )
   }
 }
 
 class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
                         val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None ) extends Loggable {
-  logger.info( "DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s".format( _section, _domSectOpt.getOrElse("null").toString ) )
+//  logger.info( "DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s".format( _section, _domSectOpt.getOrElse("null").toString ) )
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
@@ -346,7 +360,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   def cutIntersection( cutSection: ma2.Section ): Option[DataFragmentSpec] =
     if( roi.intersects( cutSection ) ) {
       val intersection = intersectRoi(cutSection)
-      logger.info( "DOMAIN INTERSECTION:  %s <-> %s  => %s".format( roi.toString, cutSection.toString, intersection.toString ))
+//      logger.info( "DOMAIN INTERSECTION:  %s <-> %s  => %s".format( roi.toString, cutSection.toString, intersection.toString ))
       Some( new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, intersection, domainSectOpt, missing_value, mask ) )
     }  else None
 
@@ -660,6 +674,7 @@ object WorkflowContainer extends ContainerBase {
 
 class OperationContext( val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext  {
   def getConfiguration = configuration
+  println( "OperationContext: " + rid )
 
   override def toString = {
     s"OperationContext { id = $identifier,  name = $name, rid = $rid, inputs = $inputs, configurations = $configuration }"
@@ -682,12 +697,11 @@ object OperationContext extends ContainerBase  {
     val op_name = metadata.getOrElse( "name", process_name ).toString.trim.toLowerCase
     val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim.toLowerCase )
     val input = metadata.getOrElse("input","").toString
-    val opLongName = op_name + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
+    val opLongName = op_name + ":" + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
-    val op_rid: String = Array( opLongName, dt.toString("MM.dd-hh.mm.ss") ).mkString("-")
-
-
-    new OperationContext( identifier = op_rid, name=op_name, rid = op_rid, inputs = op_inputs, optargs )
+    val identifier: String = Array( opLongName, dt.toString("MM.dd-hh.mm.ss") ).mkString("-")
+    val rid = metadata.getOrElse("result",identifier).toString
+    new OperationContext( identifier = identifier, name=op_name, rid = rid, inputs = op_inputs, optargs )
   }
   def generateResultId: String = { resultIndex += 1; "$v"+resultIndex.toString }
 }
