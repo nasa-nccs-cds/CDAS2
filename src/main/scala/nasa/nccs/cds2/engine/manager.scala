@@ -224,7 +224,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     case x if x.startsWith("gres") =>
       val resId: String = request.variableMap.values.head.uid
       collectionDataCache.getExistingResult( resId ) match {
-        case None => new ExecutionResults( List( new ErrorExecutionResult( new Exception("Unrecognized resId: " + resId )) ) )
+        case None => new ExecutionResults( List( new ErrorExecutionResult( new Exception("Unrecognized resId: " + resId + ", existing resIds: " + collectionDataCache.getResultIdList.mkString(", ") )) ) )
         case Some( fut_result ) =>
           if (fut_result.isCompleted) {
             val result = Await.result( fut_result, Duration.Inf )
