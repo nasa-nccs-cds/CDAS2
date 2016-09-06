@@ -256,17 +256,16 @@ class MergeDataFragment( val wrappedDataFragOpt: Option[DataFragment] = None ) {
     case Some( wrappedDataFrag ) => MergeDataFragment( wrappedDataFrag ++ dfrag )
   }
 }
-
+// DataFragmentSpec, SectionMerge.Status  DataFragmentSpec, SectionMerge.Status
 object DataFragment {
   def combine( reductionOp: ReduceOpFlt, input0: DataFragment, input1: DataFragment ): DataFragment = {
-    val data = input0.optCoordMap match {
-      case Some( coordMap ) =>  CDFloatArray.combine( reductionOp, input1.data, input0.data, coordMap )
+    val ( data, ( fragSpec, mergeStatus) ) = input0.optCoordMap match {
+      case Some( coordMap ) =>  ( CDFloatArray.combine( reductionOp, input1.data, input0.data, coordMap ), input1.spec.combine(input0.spec,false) )
       case None => input1.optCoordMap match {
-        case Some( coordMap ) => CDFloatArray.combine( reductionOp, input0.data, input1.data, coordMap )
-        case None => CDFloatArray.combine( reductionOp, input0.data, input1.data )
+        case Some( coordMap ) => ( CDFloatArray.combine( reductionOp, input0.data, input1.data, coordMap ), input0.spec.combine(input1.spec,false) )
+        case None => ( CDFloatArray.combine( reductionOp, input0.data, input1.data ), input0.spec.combine(input1.spec,true) )
       }
     }
-    val ( fragSpec, mergeStatus )  = input0.spec.combine(input1.spec)
     new DataFragment( fragSpec, data )
   }
   def combineCoordMaps(a0: DataFragment, a1: DataFragment): Option[CDCoordMap] = a0.optCoordMap.flatMap( coordMap0 => a1.optCoordMap.map( coordMap1 => coordMap0 ++ coordMap1 ))
@@ -304,10 +303,10 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
       case Some(maskId) => <input varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
-  def combine( other: DataFragmentSpec ): ( DataFragmentSpec, SectionMerge.Status ) = {
+  def combine( other: DataFragmentSpec, sectionMerge: Boolean = true ): ( DataFragmentSpec, SectionMerge.Status ) = {
     val combined_varname = varname + ":" + other.varname
     val combined_longname = longname + ":" + other.longname
-    val ( combined_section, mergeStatus ) = combineRoi( other.roi )
+    val ( combined_section, mergeStatus ) = if(sectionMerge) combineRoi( other.roi ) else ( roi, SectionMerge.Overlap )
     ( new DataFragmentSpec( combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, missing_value, mask ) -> mergeStatus )
   }
   def roi = targetGridOpt match {
@@ -370,7 +369,6 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   }
   def combineRoi( otherSection: ma2.Section ): ( ma2.Section, SectionMerge.Status ) = {
     logger.info( "\n\nCombine SECTIONS: %s - %s \n\n".format( _section.toString, otherSection.toString ))
-    return ( roi -> SectionMerge.Overlap )
     var sectionMerge: SectionMerge.Status = SectionMerge.Overlap
     val new_ranges: IndexedSeq[ma2.Range] = for( iR <- _section.getRanges.indices; r0 = _section.getRange(iR); r1 = otherSection.getRange(iR) ) yield {
       if( r0 == r1 ) { r0 }
