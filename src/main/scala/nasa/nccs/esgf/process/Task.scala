@@ -727,7 +727,7 @@ object OperationContext extends ContainerBase  {
     val op_name = metadata.getOrElse( "name", process_name ).toString.trim.toLowerCase
     val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim.toLowerCase )
     val input = metadata.getOrElse("input","").toString
-    val opLongName = op_name + ":" + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
+    val opLongName = op_name + "-" + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
     val identifier: String = Array( opLongName, dt.toString("MM.dd-hh.mm.ss") ).mkString("-")
     val rid = metadata.getOrElse("result",identifier).toString
