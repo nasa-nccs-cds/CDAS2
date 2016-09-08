@@ -25,7 +25,7 @@ class wpsSuite extends LocalExecutionTestSuite {
   val opendap_varname = appParameters("sample.opendap.variable")
   val collection_path = appParameters("sample.local.collection")
   val tstart = 0
-  val tend = 30
+  val tend = 12
   val level = 0
   val lat = -40f
   val lon = 0f
@@ -71,7 +71,7 @@ class wpsSuite extends LocalExecutionTestSuite {
     val response = executeTest(datainputs)
   }
   test("createV", Tag("createV")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.timeBin","input":"v1","result":"r0","domain":"d2","axes":"t","bins":"t|month|ave|year"},{"name":"CDS.diff2","input":["v1","r0"],"domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, collection, varName)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"time":{"start":%d,"end":%d,"system":"indices"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.timeBin","input":"v1","result":"r0","domain":"d2","axes":"t","bins":"t|month|ave|year"},{"name":"CDS.diff2","input":["v1","r0"],"domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, tstart, tend, level, level, collection, varName)
     executeTest(datainputs)
   }
   test("OpenDAP_Collection", Tag("agg")) {
