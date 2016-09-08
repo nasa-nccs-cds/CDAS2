@@ -34,6 +34,7 @@ object appParameters extends Loggable {
   }
 
   def getParameterMap: Map[String,String] = {
+    logger.info( "Loading parameters from parm file: " + parmFile )
     val items = Source.fromFile( parmFile ).getLines.map( _.split("=") ).flatMap(
       toks => if( toks.length == 2 ) Some( toks(0).trim -> toks(1).trim ) else None
     )
