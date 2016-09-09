@@ -260,9 +260,9 @@ class MergeDataFragment( val wrappedDataFragOpt: Option[DataFragment] = None ) {
 object DataFragment {
   def combine( reductionOp: ReduceOpFlt, input0: DataFragment, input1: DataFragment ): DataFragment = {
     val ( data, ( fragSpec, mergeStatus) ) = input0.optCoordMap match {
-      case Some( coordMap ) =>  ( CDFloatArray.combine( reductionOp, input1.data, input0.data, coordMap.subset(input0.spec.roi) ), input1.spec.combine(input0.spec,false) )
+      case Some( coordMap ) =>  ( CDFloatArray.combine( reductionOp, input1.data, input0.data, coordMap.subset(input1.spec.roi) ), input1.spec.combine(input0.spec,false) )
       case None => input1.optCoordMap match {
-        case Some( coordMap ) => ( CDFloatArray.combine( reductionOp, input0.data, input1.data, coordMap.subset(input1.spec.roi) ), input0.spec.combine(input1.spec,false) )
+        case Some( coordMap ) => ( CDFloatArray.combine( reductionOp, input0.data, input1.data, coordMap.subset(input0.spec.roi) ), input0.spec.combine(input1.spec,false) )
         case None => ( CDFloatArray.combine( reductionOp, input0.data, input1.data ), input0.spec.combine(input1.spec,true) )
       }
     }
