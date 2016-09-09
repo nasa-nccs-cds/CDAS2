@@ -225,10 +225,10 @@ class CDCoordMap( val dimIndex: Int, val dimOffset: Int, val mapArray: Array[Int
   val nBins: Int = mapArray.max + 1
   def map( coordIndices: Array[Int] ): Array[Int] = {
     val result = coordIndices.clone()
-    result( dimIndex ) = mapArray( coordIndices(dimIndex) + dimOffset )
+    result( dimIndex ) = mapArray( coordIndices(dimIndex) )
     result
   }
-  override def toString = "CDCoordMap{ nbins=%d, dim=%d, offset=%d, mapArray=[ %s ]}".format( nBins, dimIndex, dimOffset, mapArray.slice( dimOffset, mapArray.length ).mkString(", ") )
+  override def toString = "CDCoordMap{ nbins=%d, dim=%d, offset=%d, mapArray=[ %s ]}".format( nBins, dimIndex, dimOffset, mapArray.mkString(", ") )
 
   def ++( cmap: CDCoordMap ): CDCoordMap = {
     assert(dimIndex == cmap.dimIndex, "Attempt to combine incommensurate index maps, dimIndex mismatch: %d vs %d".format( dimIndex, cmap.dimIndex ) )

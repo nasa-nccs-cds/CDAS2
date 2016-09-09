@@ -25,7 +25,7 @@ class wpsSuite extends LocalExecutionTestSuite {
   val collection_varname = appParameters("sample.collection.variable")
   val collection_path = appParameters("sample.collection.path")
   val tstart = 0
-  val tend = 23
+  val tend = 420
   val level = 0
   val lat = -40f
   val lon = 0f
