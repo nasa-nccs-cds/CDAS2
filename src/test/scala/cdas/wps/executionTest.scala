@@ -25,7 +25,7 @@ class wpsSuite extends LocalExecutionTestSuite {
   val collection_varname = appParameters("sample.collection.variable")
   val collection_path = appParameters("sample.collection.path")
   val tstart = 0
-  val tend = 12
+  val tend = 23
   val level = 0
   val lat = -40f
   val lon = 0f
@@ -43,15 +43,15 @@ class wpsSuite extends LocalExecutionTestSuite {
     executeTest(datainputs)
   }
   test("subset_1D_cache", Tag("subset+cache")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"frag_collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.subset","input":"v1","domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.subset","input":"v1","domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
     executeTest(datainputs)
   }
   test("anomaly_1D_cache", Tag("subset+cache")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"frag_collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.anomaly","input":"v1","domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.anomaly","input":"v1","domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
     executeTest(datainputs)
   }
   test("binnedArray_1D_cache", Tag("subset+cache")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"frag_collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.timeBin","input":"v1","domain":"d2","axes":"t","bins":"t|month|ave|year"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.timeBin","input":"v1","domain":"d2","axes":"t","bins":"t|month|ave|year"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
     executeTest(datainputs)
   }
   test("average_1D", Tag("average")) {
@@ -63,7 +63,7 @@ class wpsSuite extends LocalExecutionTestSuite {
     executeTest(datainputs)
   }
   test("yearly_cycle_1D", Tag("yearly_cycle")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"frag_collection:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.timeBin","input":"v1","axes":"t","unit":"month","period":"1","mod":"12"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.timeBin","input":"v1","axes":"t","unit":"month","period":"1","mod":"12"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
     val response = executeTest(datainputs)
   }
   test("timeseries_ave", Tag("tsave")) {
@@ -71,7 +71,7 @@ class wpsSuite extends LocalExecutionTestSuite {
     val response = executeTest(datainputs)
   }
   test("createV", Tag("createV")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"time":{"start":%d,"end":%d,"system":"indices"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.timeBin","input":"v1","result":"r0","domain":"d2","axes":"t","bins":"t|month|ave|year"},{"name":"CDS.diff2","input":["v1","r0"],"domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, tstart, tend, level, level, collection_id, collection_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"time":{"start":%d,"end":%d,"system":"indices"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.timeBin","input":"v1","result":"r0","domain":"d2","axes":"t","bins":"t|month|ave|year"},{"name":"CDS.diff2","input":["v1","r0"],"domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, tstart, tend, level, level, fragment, frag_varname)
     executeTest(datainputs)
   }
   test("MERRA_Collection", Tag("aggM")) {

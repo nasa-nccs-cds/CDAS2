@@ -221,19 +221,21 @@ trait CDCoordMapBase {
   def mapShape( shape: Array[Int] ): Array[Int] = { val new_shape=shape.clone; new_shape(dimIndex)=nBins; new_shape }
 }
 
-class CDCoordMap( val dimIndex: Int, val mapArray: Array[Int] ) extends CDCoordMapBase {
+class CDCoordMap( val dimIndex: Int, val dimOffset: Int, val mapArray: Array[Int] ) extends CDCoordMapBase {
   val nBins: Int = mapArray.max + 1
   def map( coordIndices: Array[Int] ): Array[Int] = {
     val result = coordIndices.clone()
-    result( dimIndex ) = mapArray( coordIndices(dimIndex) )
+    result( dimIndex ) = mapArray( coordIndices(dimIndex) + dimOffset )
     result
   }
-  override def toString = "CDCoordMap{ nbins=%d, dim=%d, mapArray=[ %s ]}".format( nBins, dimIndex, mapArray.mkString(", ") )
+  override def toString = "CDCoordMap{ nbins=%d, dim=%d, offset=%d, mapArray=[ %s ]}".format( nBins, dimIndex, dimOffset, mapArray.slice( dimOffset, mapArray.length ).mkString(", ") )
 
   def ++( cmap: CDCoordMap ): CDCoordMap = {
-    assert( dimIndex == cmap.dimIndex, "Attempt to combine incommensurate index maps" )
-    if( dimIndex == 0 ) { new CDCoordMap( dimIndex, mapArray ++ cmap.mapArray ) }
-    else {
+    assert(dimIndex == cmap.dimIndex, "Attempt to combine incommensurate index maps, dimIndex mismatch: %d vs %d".format( dimIndex, cmap.dimIndex ) )
+    if (dimIndex == 0) {
+      assert(cmap.dimOffset == dimOffset + mapArray.length, "Attempt to combine incommensurate index maps, dimOffset mismatch: %d vs %d".format( cmap.dimOffset, dimOffset + mapArray.length )  )
+      new CDCoordMap(dimIndex, dimOffset, mapArray ++ cmap.mapArray)
+    } else {
       assert( mapArray == cmap.mapArray, "Attempt to combine incommensurate index maps" )
       clone.asInstanceOf[CDCoordMap]
     }
@@ -281,13 +283,13 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
 
   def pos_mod(initval: Int, period: Int): Int = if (initval >= 0) initval else pos_mod(initval + period, period)
 
-  def getMontlyBinMap(): CDCoordMap = {
+  def getMontlyBinMap( section: ma2.Section ): CDCoordMap = {
     val timeIter = new MonthOfYearIter( timeOffsets, section.getRange(0) );
     val accum = new IndexValueAccumulator()
     val timeIndices = for( time_index <- timeIter ) yield {time_index}
-    new CDCoordMap( axisSpec.index, timeIndices.toArray )
+    new CDCoordMap( axisSpec.index, section.getRange(axisSpec.index).first(), timeIndices.toArray )
   }
-  def getTimeCycleMap(period: Int, unit: String, mod: Int, offset: Int): CDCoordMap = {
+  def getTimeCycleMap(period: Int, unit: String, mod: Int, offset: Int, section: ma2.Section ): CDCoordMap = {
     val timeIter = getTimeIndexIterator( unit, section.getRange(0) )
     val start_value = timeIter.getValue(0)-1
     val accum = new IndexValueAccumulator()
@@ -297,7 +299,7 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
     val timeIndices = for (time_index <- timeIter; bin_index = accum.getValue(time_index)) yield {
       (( bin_index + op_offset ) / period) % mod
     }
-    new CDCoordMap(axisSpec.index, timeIndices.toArray.map(_.toInt) )
+    new CDCoordMap(axisSpec.index, section.getRange(axisSpec.index).first(), timeIndices.toArray.map(_.toInt) )
   }
 }
 
