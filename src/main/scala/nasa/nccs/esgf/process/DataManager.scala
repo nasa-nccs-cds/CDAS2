@@ -81,6 +81,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   def getStartValue: Double = bounds(0)
   def getEndValue: Double = bounds(1)
   def toXml: xml.Elem = <axis id={getAxisName} units={getUnits} cfName={getCFAxisName} type={getAxisType.toString} start={getStartValue.toString} end={getEndValue.toString} length={getLength.toString} > </axis>
+  override def toString: String = "GridCoordSpec{id=%s units=%s cfName=%s type=%s start=%f end=%f length=%d}".format(getAxisName,getUnits,getCFAxisName,getAxisType.toString,getStartValue,getEndValue,getLength)
 
   private def getAxisRange( variable: CDSVariable, coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): ma2.Range = domainAxisOpt match {
     case Some( domainAxis ) =>  domainAxis.system match {
@@ -245,6 +246,7 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
           val range = domainAxis.system match {
             case asys if asys.startsWith( "ind" ) => new ma2.Range(domainAxis.start.toInt, domainAxis.end.toInt)
             case asys if asys.startsWith( "val" ) =>
+              logger.info( "  %s getIndexBounds from %s".format( gridCoordSpec.toString, domainAxis.toString ) )
               val ibnds = gridCoordSpec.getIndexBounds( domainAxis.start, domainAxis.end )
               new ma2.Range(ibnds.first, ibnds.last )
             case _ => throw new IllegalStateException("CDSVariable: Illegal system value in axis bounds: " + domainAxis.system)
