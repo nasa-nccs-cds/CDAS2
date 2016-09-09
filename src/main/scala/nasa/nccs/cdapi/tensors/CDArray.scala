@@ -322,7 +322,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     new CDFloatArray( cdIndexMap, FloatBuffer.wrap(mappedData.toArray), invalid )
   }
   def copySectionData( maxValue: Int = Int.MaxValue ): FloatBuffer =  {
-    printf( " >>>> copySectionData: cap=%d, maxval=%d index=%s".format( floatStorage.capacity(), maxValue, cdIndexMap.toString ) )
+//    printf( " >>>> copySectionData: cap=%d, maxval=%d index=%s".format( floatStorage.capacity(), maxValue, cdIndexMap.toString ) )
     val floatData = ( for ( index <- getIterator; if(index<maxValue); value = floatStorage.get(index) ) yield { value } );
     FloatBuffer.wrap(floatData.toArray)
   }

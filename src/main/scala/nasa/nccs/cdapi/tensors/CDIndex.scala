@@ -222,13 +222,21 @@ trait CDCoordMapBase {
 }
 
 class CDCoordMap( val dimIndex: Int, val dimOffset: Int, val mapArray: Array[Int] ) extends CDCoordMapBase {
+  def this( dimIndex: Int, section: ma2.Section, mapArray: Array[Int] ) =  this( dimIndex, section.getRange(dimIndex).first(), mapArray )
   val nBins: Int = mapArray.max + 1
+
   def map( coordIndices: Array[Int] ): Array[Int] = {
     val result = coordIndices.clone()
     result( dimIndex ) = mapArray( coordIndices(dimIndex) )
     result
   }
   override def toString = "CDCoordMap{ nbins=%d, dim=%d, offset=%d, mapArray=[ %s ]}".format( nBins, dimIndex, dimOffset, mapArray.mkString(", ") )
+
+  def subset( section: ma2.Section ): CDCoordMap = {
+    assert( dimOffset==0, "Attempt to subset a partitioned CoordMap: not supported.")
+    val start: Int = section.getRange(dimIndex).first()
+    new CDCoordMap( dimIndex, start, mapArray.slice( start, mapArray.length ) )
+  }
 
   def ++( cmap: CDCoordMap ): CDCoordMap = {
     assert(dimIndex == cmap.dimIndex, "Attempt to combine incommensurate index maps, dimIndex mismatch: %d vs %d".format( dimIndex, cmap.dimIndex ) )
