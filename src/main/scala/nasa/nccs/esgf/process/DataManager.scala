@@ -87,8 +87,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     case Some( domainAxis ) =>  domainAxis.system match {
       case asys if asys.startsWith("ind") =>
         new ma2.Range( getCFAxisName, domainAxis.start.toInt, domainAxis.end.toInt, 1 )
-      case asys if asys.startsWith("val") =>
-        getGridIndexBounds( domainAxis.start, domainAxis.end )
+      case asys if asys.startsWith("val") => getIndexBounds( domainAxis.start, domainAxis.end )
       case _ => throw new IllegalStateException("CDSVariable: Illegal system value in axis bounds: " + domainAxis.system)
     }
     case None => new ma2.Range( getCFAxisName, 0, coordAxis.getShape(0)-1, 1 )
@@ -201,7 +200,9 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   }
 
   def getIndexBounds( startval: GenericNumber, endval: GenericNumber, strict: Boolean = false): ma2.Range = {
-    val indexRange = if (coordAxis.getAxisType == nc2.constants.AxisType.Time) getTimeIndexBounds( startval.toString, endval.toString ) else getGridIndexBounds( startval, endval)
+    val indexRange = if (coordAxis.getAxisType == nc2.constants.AxisType.Time) {
+      getTimeIndexBounds( startval.toString, endval.toString )
+    } else getGridIndexBounds( startval, endval)
     assert(indexRange.last >= indexRange.first, "CDS2-CDSVariable: Coordinate bounds appear to be inverted: start = %s, end = %s".format(startval.toString, endval.toString))
     indexRange
   }

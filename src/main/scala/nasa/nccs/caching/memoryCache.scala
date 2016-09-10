@@ -176,7 +176,9 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
     }
   }
 
-  def put( key: K, value: V ) = store.put( key, Future(value) )
+  def put( key: K, value: V ) =
+    store.put( key, Future(value) )
+
   def putF( key: K, fvalue: Future[V] ) = store.put( key, fvalue )
 
   def apply(key: K, genValue: () ⇒ Future[V])(implicit ec: ExecutionContext): Future[V] = {
