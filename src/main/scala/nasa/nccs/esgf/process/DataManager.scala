@@ -103,22 +103,30 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
 
   def getBounds( range: ma2.Range ): Array[Double] = Array( _data(range.first), _data(range.last ) )
 
-  def getBoundedCalDate(coordAxis1DTime: CoordinateAxis1DTime, caldate: CalendarDate, role: BoundsRole.Value, strict: Boolean = false): CalendarDate = {
+  def getBoundedCalDate(coordAxis1DTime: CoordinateAxis1DTime, caldate: CalendarDate, role: BoundsRole.Value, strict: Boolean = false): Option[CalendarDate] = {
     val date_range: CalendarDateRange = coordAxis1DTime.getCalendarDateRange
     if (!date_range.includes(caldate)) {
       if (strict) throw new IllegalStateException("CDS2-CDSVariable: Time value %s outside of time bounds %s".format(caldate.toString, date_range.toString))
       else {
         if (role == BoundsRole.Start) {
-          val startDate: CalendarDate = date_range.getStart
-          logger.warn("Time value %s outside of time bounds %s, resetting value to range start date %s".format(caldate.toString, date_range.toString, startDate.toString))
-          startDate
+          if( caldate.isAfter( date_range.getEnd ) ) {
+            None
+          } else {
+            val startDate: CalendarDate = date_range.getStart
+            logger.warn("Time value %s outside of time bounds %s, resetting value to range start date %s".format(caldate.toString, date_range.toString, startDate.toString))
+            Some(startDate)
+          }
         } else {
-          val endDate: CalendarDate = date_range.getEnd
-          logger.warn("Time value %s outside of time bounds %s, resetting value to range end date %s".format(caldate.toString, date_range.toString, endDate.toString))
-          endDate
+          if( caldate.isBefore( date_range.getStart ) ) {
+            None
+          } else {
+            val endDate: CalendarDate = date_range.getEnd
+            logger.warn("Time value %s outside of time bounds %s, resetting value to range end date %s".format(caldate.toString, date_range.toString, endDate.toString))
+            Some(endDate)
+          }
         }
       }
-    } else caldate
+    } else Some(caldate)
   }
 
   def getCoordinateValues: Array[Double] = {
@@ -150,17 +158,16 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     case x => throw new IllegalStateException("CDS2-CDSVariable: Can't create time axis from type type: %s ".format(coordAxis.getClass.getName))
   }
 
-  def getTimeCoordIndex( tval: String, role: BoundsRole.Value, strict: Boolean = false): Int = {
+  def getTimeCoordIndex( tval: String, role: BoundsRole.Value, strict: Boolean = false): Option[Int] = {
     val coordAxis1DTime: CoordinateAxis1DTime = getTimeAxis
     val caldate: CalendarDate = cdsutils.dateTimeParser.parse(tval)
-    val caldate_bounded: CalendarDate = getBoundedCalDate(coordAxis1DTime, caldate, role, strict)
-    coordAxis1DTime.findTimeIndexFromCalendarDate(caldate_bounded)
+    getBoundedCalDate(coordAxis1DTime, caldate, role, strict).map( caldate_bounded => coordAxis1DTime.findTimeIndexFromCalendarDate(caldate_bounded) )
   }
 
-  def getTimeIndexBounds( startval: String, endval: String, strict: Boolean = false): ma2.Range = {
-    val startIndex = getTimeCoordIndex( startval, BoundsRole.Start, strict)
-    val endIndex = getTimeCoordIndex( endval, BoundsRole.End, strict )
-    new ma2.Range( getCFAxisName, startIndex, endIndex)
+  def getTimeIndexBounds( startval: String, endval: String, strict: Boolean = false): Option[ma2.Range] = {
+    getTimeCoordIndex( startval, BoundsRole.Start, strict).flatMap( startIndex =>
+      getTimeCoordIndex( endval, BoundsRole.End, strict ).map( endIndex =>
+        new ma2.Range( getCFAxisName, startIndex, endIndex) ) )
   }
 
   def getNormalizedCoordinate( cval: Double ): Double = coordAxis.getAxisType match {
@@ -171,21 +178,31 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     case x => cval
   }
 
-  def getGridCoordIndex(cval: Double, role: BoundsRole.Value, strict: Boolean = true): Int = {
+  def getGridCoordIndex(cval: Double, role: BoundsRole.Value, strict: Boolean = true): Option[Int] = {
     val coordAxis1D = CDSVariable.toCoordAxis1D( coordAxis )
-    coordAxis1D.findCoordElement( getNormalizedCoordinate( cval ) ) match {
+    val cval = getNormalizedCoordinate( cval )
+    coordAxis1D.findCoordElement( cval ) match {
       case -1 =>
+        val end_index = coordAxis1D.getSize.toInt - 1
+        val grid_end = coordAxis1D.getCoordValue(end_index)
+        val grid_start = coordAxis1D.getCoordValue(0)
         if (role == BoundsRole.Start) {
-          val grid_start = coordAxis1D.getCoordValue(0)
-          logger.warn("Axis %s: ROI Start value %f outside of grid area, resetting to grid start: %f".format(coordAxis.getFullName, cval, grid_start))
-          0
+          if( cval > grid_end ) {
+            None
+          } else {
+            val grid_start = coordAxis1D.getCoordValue(0)
+            logger.warn("Axis %s: ROI Start value %f outside of grid area, resetting to grid start: %f".format(coordAxis.getFullName, cval, grid_start))
+            Some(0)
+          }
         } else {
-          val end_index = coordAxis1D.getSize.toInt - 1
-          val grid_end = coordAxis1D.getCoordValue(end_index)
-          logger.warn("Axis %s: ROI Start value %s outside of grid area, resetting to grid end: %f".format(coordAxis.getFullName, cval, grid_end))
-          end_index
+          if( cval <  grid_start ) {
+            None
+          } else {
+            logger.warn("Axis %s: ROI Start value %s outside of grid area, resetting to grid end: %f".format(coordAxis.getFullName, cval, grid_end))
+            Some(end_index)
+          }
         }
-      case ival => ival
+      case ival => Some(ival)
     }
   }
   def getNumericCoordValues( range: ma2.Range ): Array[Double] = {
@@ -193,18 +210,18 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     if (coord_values.length == range.length) coord_values else (0 until range.length).map(iE => coord_values(range.element(iE))).toArray
   }
 
-  def getGridIndexBounds( startval: Double, endval: Double, strict: Boolean = true): ma2.Range = {
-    val startIndex = getGridCoordIndex(startval, BoundsRole.Start, strict)
-    val endIndex = getGridCoordIndex(endval, BoundsRole.End, strict)
-    new ma2.Range( getCFAxisName, startIndex, endIndex )
+  def getGridIndexBounds( startval: Double, endval: Double, strict: Boolean = true): Option[ma2.Range] = {
+    getGridCoordIndex(startval, BoundsRole.Start, strict).flatMap( startIndex =>
+      getGridCoordIndex(endval, BoundsRole.End, strict).map( endIndex =>
+        new ma2.Range( getCFAxisName, startIndex, endIndex ) ) )
   }
 
-  def getIndexBounds( startval: GenericNumber, endval: GenericNumber, strict: Boolean = false): ma2.Range = {
-    val indexRange = if (coordAxis.getAxisType == nc2.constants.AxisType.Time) {
+  def getIndexBounds( startval: GenericNumber, endval: GenericNumber, strict: Boolean = false): Option[ma2.Range] = {
+    if (coordAxis.getAxisType == nc2.constants.AxisType.Time) {
       getTimeIndexBounds( startval.toString, endval.toString )
-    } else getGridIndexBounds( startval, endval)
-    assert(indexRange.last >= indexRange.first, "CDS2-CDSVariable: Coordinate bounds appear to be inverted: start = %s, end = %s".format(startval.toString, endval.toString))
-    indexRange
+    } else getGridIndexBounds( startval, endval )
+//    assert(indexRange.last >= indexRange.first, "CDS2-CDSVariable: Coordinate bounds appear to be inverted: start = %s, end = %s".format(startval.toString, endval.toString))
+//    indexRange
   }
 }
 
