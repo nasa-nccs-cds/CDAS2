@@ -97,7 +97,7 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
 
   def domainDataFragment( partIndex: Int, context: CDASExecutionContext ): Option[DataFragment] = {
     val optargs: Map[String, String] = context.operation.getConfiguration
-    val op_section: Option[ma2.Section] = optargs.get("domain").map(domainId => context.request.targetGrid.grid.getSubSection(context.request.getDomain(domainId).axes))
+    val optSection: Option[ma2.Section] = optargs.get("domain").flatMap(domainId => context.request.targetGrid.grid.getSubSection(context.request.getDomain(domainId).axes))
     try {
       val partition = partitions.getPart(partIndex)
       val partition_data = partition.data(fragmentSpec.missing_value)
@@ -107,7 +107,7 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
         case None => frag_section
       }
       val partFragSpec = domainFragSpec(partIndex)
-      val sub_section = op_section match {
+      val sub_section = optSection match {
         case Some(osect) => domain_section.intersect(osect)
         case None => domain_section
       }

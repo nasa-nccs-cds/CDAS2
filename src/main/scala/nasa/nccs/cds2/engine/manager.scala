@@ -87,14 +87,14 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     val sources = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
       yield serverContext.createInputSpec(data_container, domainOpt, targetGrid )
     val t2 = System.nanoTime
-    val sourceMap: Map[String,DataFragmentSpec] = Map(sources.toSeq:_*)
+    val sourceMap: Map[String,Option[DataFragmentSpec]] = Map(sources.toSeq:_*)
     val rv = new RequestContext (request.domainMap, sourceMap, targetGrid, run_args)
     val t3 = System.nanoTime
     logger.info( " LoadInputDataT: %.4f %.4f %.4f, MAXINT: %.2f G".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, Int.MaxValue/1.0E9 ) )
     rv
   }
 
-  def cacheInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ):  Iterable[ ( DataFragmentKey, Future[PartitionedFragment] ) ] = {
+  def cacheInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ):  Iterable[ Option[( DataFragmentKey, Future[PartitionedFragment] )] ] = {
     val sourceContainers = request.variableMap.values.filter(_.isSource)
     for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
       yield serverContext.cacheInputData(data_container, domainOpt, targetGrid )
@@ -111,49 +111,54 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   }
 
   def saveResultToFile( resultId: String, maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
-    val inputSpec = request.getInputSpec()
+    val optInputSpec: Option[DataFragmentSpec] = request.getInputSpec()
     val targetGrid = request.targetGrid
-    val dataset: CDSDataset = request.getDataset(server)
-    val varname = searchForValue( varMetadata, List("varname","fullname","standard_name","original_name","long_name"), "Nd4jMaskedTensor" )
-    val resultFile = Kernel.getResultFile( server.getConfiguration, resultId, true )
-    val writer: nc2.NetcdfFileWriter = nc2.NetcdfFileWriter.createNew(nc2.NetcdfFileWriter.Version.netcdf4, resultFile.getAbsolutePath )
-    assert(targetGrid.grid.getRank == maskedTensor.getRank, "Axes not the same length as data shape in saveResult")
-    val coordAxes = dataset.getCoordinateAxes
-    val dims: IndexedSeq[nc2.Dimension] = targetGrid.grid.axes.indices.map( idim => writer.addDimension(null, targetGrid.grid.getAxisSpec(idim).getAxisName, maskedTensor.getShape(idim)))
-    val dimsMap: Map[String,nc2.Dimension] = Map( dims.map( dim => (dim.getFullName -> dim ) ): _* )
-    val newCoordVars: List[ (nc2.Variable,ma2.Array) ] = ( for( coordAxis <- coordAxes ) yield inputSpec.getRange( coordAxis.getFullName ) match {
-      case Some( range ) =>
-        val coordVar: nc2.Variable = writer.addVariable( null, coordAxis.getFullName, coordAxis.getDataType, coordAxis.getFullName )
-        for( attr <- coordAxis.getAttributes ) writer.addVariableAttribute( coordVar, attr )
-        val newRange = dimsMap.get( coordAxis.getFullName ) match { case None => range; case Some(dim) => if( dim.getLength < range.length ) new ma2.Range(dim.getLength) else range }
-        Some( coordVar, coordAxis.read( List(newRange) ) )
-      case None => None
-    } ).flatten
-    logger.info( "Writing result %s to file '%s', varname=%s, dims=(%s), shape=[%s], coords = [%s]".format(
-      resultId, resultFile.getAbsolutePath, varname, dims.map(_.toString).mkString(","), maskedTensor.getShape.mkString(","),
-      newCoordVars.map { case (cvar, data) => "%s: (%s)".format(cvar.getFullName,data.getShape.mkString(",") ) }.mkString(",") ) )
-    val variable: nc2.Variable = writer.addVariable(null, varname, ma2.DataType.FLOAT, dims.toList)
-    varMetadata.values.foreach( attr => variable.addAttribute(attr) )
-    variable.addAttribute( new nc2.Attribute( "missing_value", maskedTensor.getInvalid ) )
-    dsetMetadata.foreach( attr => writer.addGroupAttribute(null, attr ) )
-    try {
-      writer.create()
-      for( newCoordVar <- newCoordVars ) {
-        newCoordVar match {
-          case ( coordVar, coordData ) =>
-            logger.info( "Writing cvar %s: shape = [%s]".format( coordVar.getFullName, coordData.getShape.mkString(",") ) )
-            writer.write( coordVar, coordData )
+    request.getDataset(server) map { dataset =>
+      val varname = searchForValue(varMetadata, List("varname", "fullname", "standard_name", "original_name", "long_name"), "Nd4jMaskedTensor")
+      val resultFile = Kernel.getResultFile(server.getConfiguration, resultId, true)
+      val writer: nc2.NetcdfFileWriter = nc2.NetcdfFileWriter.createNew(nc2.NetcdfFileWriter.Version.netcdf4, resultFile.getAbsolutePath)
+      assert(targetGrid.grid.getRank == maskedTensor.getRank, "Axes not the same length as data shape in saveResult")
+      val coordAxes = dataset.getCoordinateAxes
+      val dims: IndexedSeq[nc2.Dimension] = targetGrid.grid.axes.indices.map(idim => writer.addDimension(null, targetGrid.grid.getAxisSpec(idim).getAxisName, maskedTensor.getShape(idim)))
+      val dimsMap: Map[String, nc2.Dimension] = Map(dims.map(dim => (dim.getFullName -> dim)): _*)
+      val newCoordVars: List[(nc2.Variable, ma2.Array)] = (for (coordAxis <- coordAxes) yield optInputSpec flatMap { inputSpec => inputSpec.getRange(coordAxis.getFullName) match {
+        case Some(range) =>
+          val coordVar: nc2.Variable = writer.addVariable(null, coordAxis.getFullName, coordAxis.getDataType, coordAxis.getFullName)
+          for (attr <- coordAxis.getAttributes) writer.addVariableAttribute(coordVar, attr)
+          val newRange = dimsMap.get(coordAxis.getFullName) match {
+            case None => range;
+            case Some(dim) => if (dim.getLength < range.length) new ma2.Range(dim.getLength) else range
+          }
+          Some(coordVar, coordAxis.read(List(newRange)))
+        case None => None
+      } }).flatten
+      logger.info("Writing result %s to file '%s', varname=%s, dims=(%s), shape=[%s], coords = [%s]".format(
+        resultId, resultFile.getAbsolutePath, varname, dims.map(_.toString).mkString(","), maskedTensor.getShape.mkString(","),
+        newCoordVars.map { case (cvar, data) => "%s: (%s)".format(cvar.getFullName, data.getShape.mkString(",")) }.mkString(",")))
+      val variable: nc2.Variable = writer.addVariable(null, varname, ma2.DataType.FLOAT, dims.toList)
+      varMetadata.values.foreach(attr => variable.addAttribute(attr))
+      variable.addAttribute(new nc2.Attribute("missing_value", maskedTensor.getInvalid))
+      dsetMetadata.foreach(attr => writer.addGroupAttribute(null, attr))
+      try {
+        writer.create()
+        for (newCoordVar <- newCoordVars) {
+          newCoordVar match {
+            case (coordVar, coordData) =>
+              logger.info("Writing cvar %s: shape = [%s]".format(coordVar.getFullName, coordData.getShape.mkString(",")))
+              writer.write(coordVar, coordData)
+          }
         }
+        writer.write(variable, maskedTensor)
+        //          for( dim <- dims ) {
+        //            val dimvar: nc2.Variable = writer.addVariable(null, dim.getFullName, ma2.DataType.FLOAT, List(dim) )
+        //            writer.write( dimvar, dimdata )
+        //          }
+        writer.close()
+        resultFile.getAbsolutePath
+      } catch {
+        case e: IOException => logger.error("ERROR creating file %s%n%s".format(resultFile.getAbsolutePath, e.getMessage()));
+          return None
       }
-      writer.write( variable, maskedTensor )
-      //          for( dim <- dims ) {
-      //            val dimvar: nc2.Variable = writer.addVariable(null, dim.getFullName, ma2.DataType.FLOAT, List(dim) )
-      //            writer.write( dimvar, dimdata )
-      //          }
-      writer.close()
-      Some(resultFile.getAbsolutePath)
-    } catch {
-      case e: IOException => logger.error("ERROR creating file %s%n%s".format(resultFile.getAbsolutePath, e.getMessage() ) ); None
     }
   }
   def aggCollection( dsource: DataSource ): xml.Elem = {
@@ -204,7 +209,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
       val fragIds = FragmentPersistence.clearCache
       new ExecutionResults( List( new UtilityExecutionResult( "clearCache", <deleted fragments={fragIds.mkString(",")}/> ) ) )
     case "cache" =>
-      val cached_data: Iterable[(DataFragmentKey,Future[PartitionedFragment])] = cacheInputData(request, createTargetGrid(request), run_args)
+      val cached_data: Iterable[(DataFragmentKey,Future[PartitionedFragment])] = cacheInputData(request, createTargetGrid(request), run_args).flatten
       FragmentPersistence.close()
       new ExecutionResults( cached_data.map( cache_result => new UtilityExecutionResult( cache_result._1.toStrRep, <cache/> ) ).toList )
     case "dcol" =>

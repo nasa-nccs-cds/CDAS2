@@ -42,7 +42,7 @@ class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
   test("Persistence") {
     val dataInputs = getSubsetDataInputs( merra_data )
     val request_context: RequestContext = getRequestContext( "CDS.metadata", dataInputs )
-    for( ospec <- request_context.inputs.values ) {
+    for( ospec <- request_context.inputs.values.flatten ) {
       FragmentPersistence.deleteEnclosing(ospec)
     }
     val result_array1: CDFloatArray = computeArray("CDS.subset", dataInputs)
