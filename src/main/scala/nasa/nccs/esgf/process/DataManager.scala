@@ -116,6 +116,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
       else {
         if (role == BoundsRole.Start) {
           if( caldate.isAfter( date_range.getEnd ) ) {
+            logger.warn("Start time value %s > time range %s".format(caldate.toString, date_range.toString ) )
             None
           } else {
             val startDate: CalendarDate = date_range.getStart
@@ -124,6 +125,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
           }
         } else {
           if( caldate.isBefore( date_range.getStart ) ) {
+            logger.warn("End time value %s < time range %s".format(caldate.toString, date_range.toString ) )
             None
           } else {
             val endDate: CalendarDate = date_range.getEnd
@@ -132,7 +134,10 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
           }
         }
       }
-    } else Some(caldate)
+    } else {
+      logger.warn("Date %s IN time range %s".format(caldate.toString, date_range.toString ) )
+      Some(caldate)
+    }
   }
 
   def getCoordinateValues: Array[Double] = _optRange match {
@@ -173,6 +178,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   }
 
   def getTimeIndexBounds( startval: String, endval: String, strict: Boolean = false): Option[ma2.Range] = {
+    logger.info( " getTimeIndexBounds: %s %s".format( startval, endval ) )
     getTimeCoordIndex( startval, BoundsRole.Start, strict).flatMap( startIndex =>
       getTimeCoordIndex( endval, BoundsRole.End, strict ).map( endIndex =>
         new ma2.Range( getCFAxisName, startIndex, endIndex) ) )
