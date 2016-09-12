@@ -323,8 +323,14 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   }
   def copySectionData( maxValue: Int = Int.MaxValue ): FloatBuffer =  {
 //    printf( " >>>> copySectionData: cap=%d, maxval=%d index=%s".format( floatStorage.capacity(), maxValue, cdIndexMap.toString ) )
-    val floatData = ( for ( index <- getIterator; if(index<maxValue); value = floatStorage.get(index) ) yield { value } );
-    FloatBuffer.wrap(floatData.toArray)
+    val size = getSize
+    logger.info( s" **copySectionData** >>>>>------> Size = $size" )
+    if( size == 0 ) {
+      FloatBuffer.allocate(0)
+    }  else {
+      val floatData = ( for ( index <- getIterator; if(index<maxValue); value = floatStorage.get(index) ) yield { value } );
+      FloatBuffer.wrap(floatData.toArray)
+    }
   }
   def merge( other: CDFloatArray ): CDFloatArray = {
     val (a0, a1)  = (dup(), other.dup())
