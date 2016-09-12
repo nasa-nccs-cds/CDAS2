@@ -277,7 +277,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def this( shape: Array[Int], storage: FloatBuffer, invalid: Float ) = this( CDIndexMap.factory(shape), storage, invalid )
   def this( storage: FloatBuffer, invalid: Float ) = this( CDIndexMap.factory( Array(storage.capacity()) ), storage, invalid )
   protected def getData: FloatBuffer = floatStorage
-  override def getSectionData( maxSize: Int = Int.MaxValue ): FloatBuffer = super.getSectionData(maxSize).asInstanceOf[FloatBuffer]
+  override def getSectionData( maxSize: Int = Int.MaxValue ): FloatBuffer = if( getSize > 0 ) { super.getSectionData(maxSize).asInstanceOf[FloatBuffer] } else FloatBuffer.allocate(0)
   def getStorageData: FloatBuffer = floatStorage
   def isMapped: Boolean = !floatStorage.hasArray
   def getStorageArray: Array[Float] = CDFloatArray.toArray( floatStorage )
