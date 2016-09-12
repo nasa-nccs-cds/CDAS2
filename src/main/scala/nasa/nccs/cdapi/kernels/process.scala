@@ -37,7 +37,20 @@ class Port( val name: String, val cardinality: String, val description: String, 
   }
 }
 
-class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) {}
+class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) {
+
+  def getOpSections: Option[ IndexedSeq[ma2.Section] ] = {
+    val optargs: Map[String, String] = operation.getConfiguration
+    val domains: IndexedSeq[DomainContainer] = optargs.get("domain") match {
+      case Some(domainIds) => domainIds.split(",").map(request.getDomain(_))
+      case None => return Some( IndexedSeq.empty[ma2.Section] )
+    }
+    Some( domains.map(dc => request.targetGrid.grid.getSubSection(dc.axes) match {
+      case Some(section) => section
+      case None => return None
+    }))
+  }
+}
 
 class ExecutionResult( val id: String ) {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)

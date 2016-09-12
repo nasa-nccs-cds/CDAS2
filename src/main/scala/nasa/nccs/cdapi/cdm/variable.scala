@@ -96,14 +96,15 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
   }
 
   def domainDataFragment( partIndex: Int, context: CDASExecutionContext ): Option[DataFragment] = {
-    val optargs: Map[String, String] = context.operation.getConfiguration
-    val optSection: Option[ma2.Section] = optargs.get("domain") match {
-      case Some( domainId ) =>
-        context.request.targetGrid.grid.getSubSection(context.request.getDomain(domainId).axes) match {
-          case Some( section ) => Some( section )
-          case None => return None
+    val optSection: Option[ma2.Section] = context.getOpSections match {
+      case None => return None
+      case Some( sections ) =>
+        if( sections.isEmpty ) None
+        else {
+          val result = sections.foldLeft(sections.head)( _.intersect(_) )
+          if (result.computeSize() > 0) { Some(result) }
+          else return None
         }
-      case None => None
     }
     try {
       val partition = partitions.getPart(partIndex)

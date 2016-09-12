@@ -59,7 +59,7 @@ class wpsSuite extends LocalExecutionTestSuite {
     executeTest(datainputs)
   }
   test("subset_0D") {
-    val datainputs = """[domain=[{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}},{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"time":{"start":"2006-06-18T10:00:00","end":"2006-06-18T10:00:00","system":"values"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.subset","input":"v1","domain":"d2","axes":"t"}]]""".format(level, level, lat, lat, lon, lon, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}},{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d3","time":{"start":"2006-06-18T10:00:00","end":"2006-06-18T10:00:00","system":"values"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.subset","input":"v1","domain":"d2,d3","axes":"t"}]]""".format(level, level, lat, lat, lon, lon, frag_collection, frag_varname)
     executeTest(datainputs)
   }
   test("subset_1Dts") {
