@@ -99,6 +99,7 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
     val optSection: Option[ma2.Section] = context.getOpSections match {
       case None => return None
       case Some( sections ) =>
+        logger.info( "OP sections: " + sections.map( _.toString ).mkString( "( ", ", ", " )") )
         if( sections.isEmpty ) None
         else {
           val result = sections.foldLeft(sections.head)( _.intersect(_) )
