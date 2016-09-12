@@ -14,15 +14,16 @@ import scala.collection.JavaConverters._
 
 object BoundsRole extends Enumeration { val Start, End = Value }
 
-object CDSVariable {
+object CDSVariable extends Loggable {
   def toCoordAxis1D(coordAxis: CoordinateAxis): CoordinateAxis1D = coordAxis match {
-    case coordAxis1D: CoordinateAxis1D => coordAxis1D
+    case coordAxis1D: CoordinateAxis1D =>
+      logger.info( "CoordinateAxis1D[%s): units = %s, values = %s".format( coordAxis1D.getFullName, coordAxis1D.getUnitsString, coordAxis1D.getCoordValues.mkString(",") ))
+      coordAxis1D
     case _ => throw new IllegalStateException("CDSVariable: 2D Coord axes not yet supported: " + coordAxis.getClass.getName)
   }
 }
 
-class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc2.Variable) {
-  val logger = org.slf4j.LoggerFactory.getLogger("nasa.nccs.cds2.cdm.CDSVariable")
+class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc2.Variable) extends Loggable {
   val description = ncVariable.getDescription
   val dims = ncVariable.getDimensionsAll.toList
   val units = ncVariable.getUnitsString
