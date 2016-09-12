@@ -37,7 +37,7 @@ class Port( val name: String, val cardinality: String, val description: String, 
   }
 }
 
-class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) {
+class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) extends Loggable {
 
   def getOpSections: Option[ IndexedSeq[ma2.Section] ] = {
     val optargs: Map[String, String] = operation.getConfiguration
@@ -45,6 +45,8 @@ class CDASExecutionContext( val operation: OperationContext, val request: Reques
       case Some(domainIds) => domainIds.split(",").map(request.getDomain(_))
       case None => return Some( IndexedSeq.empty[ma2.Section] )
     }
+    logger.info( "OPT DOMAIN Arg: " + optargs.getOrElse( "domain", "None" ) )
+    logger.info( "OPT Domains: " + domains.map(_.toString).mkString( ", " ) )
     Some( domains.map(dc => request.targetGrid.grid.getSubSection(dc.axes) match {
       case Some(section) => section
       case None => return None

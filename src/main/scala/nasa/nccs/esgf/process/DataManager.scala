@@ -275,7 +275,7 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
           val range = domainAxis.system match {
             case asys if asys.startsWith( "ind" ) => new ma2.Range(domainAxis.start.toInt, domainAxis.end.toInt)
             case asys if asys.startsWith( "val" ) =>
-              logger.info( "  %s getIndexBounds from %s".format( gridCoordSpec.toString, domainAxis.toString ) )
+ //             logger.info( "  %s getIndexBounds from %s".format( gridCoordSpec.toString, domainAxis.toString ) )
               gridCoordSpec.getIndexBounds( domainAxis.start, domainAxis.end ) match {
                 case Some(ibnds) => new ma2.Range (ibnds.first, ibnds.last)
                 case None => return None
