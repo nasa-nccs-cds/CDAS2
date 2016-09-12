@@ -51,7 +51,10 @@ class BlockingExecutionResult( id: String, val intputSpecs: List[DataFragmentSpe
   override def toXml = {
     val idToks = id.split('-')
     logger.info( "BlockingExecutionResult-> result_tensor: \n" + result_tensor.toString )
-    <result id={id} op={idToks.head} rid={resultId.getOrElse("")}> { intputSpecs.map( _.toXml ) } { gridSpec.toXml } <data undefined={result_tensor.getInvalid.toString}> {result_tensor.mkDataString(",")}  </data>  </result>
+    val inputs = intputSpecs.map( _.toXml )
+    val grid = gridSpec.toXml
+    val results = result_tensor.mkDataString(",")
+    <result id={id} op={idToks.head} rid={resultId.getOrElse("")}> { inputs } { grid } <data undefined={result_tensor.getInvalid.toString}> {results}  </data>  </result>
   }
 }
 

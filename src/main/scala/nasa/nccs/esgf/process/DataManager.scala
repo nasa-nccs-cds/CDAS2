@@ -282,6 +282,7 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
               }
             case _ => throw new IllegalStateException("CDSVariable: Illegal system value in axis bounds: " + domainAxis.system)
           }
+//          val irange = gridCoordSpec.getIndexRange.intersect( range )
           new ma2.Range( gridCoordSpec.getCFAxisName, range.first, range.last, 1)
         }
         case None => gridCoordSpec.getIndexRange match {

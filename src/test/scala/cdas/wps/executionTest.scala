@@ -58,12 +58,12 @@ class wpsSuite extends LocalExecutionTestSuite {
     val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.average","input":"v1","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, fragment, frag_varname)
     executeTest(datainputs)
   }
-  test("subset_1D_timeseries") {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.subset","input":"v1","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
-    executeTest(datainputs)
-  }
   test("subset_0D") {
     val datainputs = """[domain=[{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}},{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"time":{"start":"2006-06-18T10:00:00","end":"2006-06-18T10:00:00","system":"values"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.subset","input":"v1","domain":"d2","axes":"t"}]]""".format(level, level, lat, lat, lon, lon, frag_collection, frag_varname)
+    executeTest(datainputs)
+  }
+  test("subset_1Dts") {
+    val datainputs = """[domain=[{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}},{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.subset","input":"v1","domain":"d2","axes":"t"}]]""".format(level, level, lat, lat, lon, lon, frag_collection, frag_varname)
     executeTest(datainputs)
   }
   test("yearly_cycle_1D", Tag("yearly_cycle")) {

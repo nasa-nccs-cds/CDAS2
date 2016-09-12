@@ -97,7 +97,14 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
 
   def domainDataFragment( partIndex: Int, context: CDASExecutionContext ): Option[DataFragment] = {
     val optargs: Map[String, String] = context.operation.getConfiguration
-    val optSection: Option[ma2.Section] = optargs.get("domain").flatMap(domainId => context.request.targetGrid.grid.getSubSection(context.request.getDomain(domainId).axes))
+    val optSection: Option[ma2.Section] = optargs.get("domain") match {
+      case Some( domainId ) =>
+        context.request.targetGrid.grid.getSubSection(context.request.getDomain(domainId).axes) match {
+          case Some( section ) => Some( section )
+          case None => return None
+        }
+      case None => None
+    }
     try {
       val partition = partitions.getPart(partIndex)
       val partition_data = partition.data(fragmentSpec.missing_value)
@@ -108,9 +115,14 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
       }
       val partFragSpec = domainFragSpec(partIndex)
       val sub_section = optSection match {
-        case Some(osect) => domain_section.intersect(osect)
-        case None => domain_section
+        case Some(osect) =>
+          logger.info( "OP section intersect: " + osect.toString )
+          domain_section.intersect(osect)
+        case None =>
+          logger.info( "OP section empty" )
+          domain_section
       }
+      logger.info( s" +++++++++++++++++++++>>>> DomainDataFragment[$partIndex]-> section = " + sub_section.toString )
       partFragSpec.cutIntersection( sub_section ) match {
         case Some( cut_spec ) =>
           val array_section = cut_spec.roi.shiftOrigin( frag_section )
