@@ -103,7 +103,7 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
         if( sections.isEmpty ) None
         else {
           val result = sections.foldLeft(sections.head)( _.intersect(_) )
-          logger.info( "OP sections: %s >>>>---------> intersection: %s".format( sections.map( _.toString ).mkString( "( ", ", ", " )") ), result.toString )
+          logger.info( "OP sections: %s >>>>---------> intersection: %s".format( sections.map( _.toString ).mkString( "( ", ", ", " )"), result.toString ) )
           if (result.computeSize() > 0) { Some(result) }
           else return None
         }
