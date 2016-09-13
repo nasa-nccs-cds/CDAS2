@@ -2,17 +2,19 @@
 
 package nasa.nccs.cdapi.tensors
 import java.util.Formatter
-import ucar.nc2.time.Calendar;
-import ucar.nc2.time.CalendarDate;
+
+import ucar.nc2.time.Calendar
+import ucar.nc2.time.CalendarDate
 import nasa.nccs.cdapi.cdm.CDSVariable
 import nasa.nccs.esgf.process.{DomainAxis, GridCoordSpec, TargetGrid}
+import nasa.nccs.utilities.cdsutils
 
 import scala.collection.mutable.ListBuffer
 import ucar.ma2
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset.{CoordinateAxis1D, CoordinateAxis1DTime}
 import ucar.nc2.time.CalendarPeriod.Field._
-import ucar.nc2.time.{ CalendarDate, Calendar }
+import ucar.nc2.time.{Calendar, CalendarDate}
 import org.joda.time.DateTime
 
 import scala.collection.JavaConversions._
@@ -36,7 +38,7 @@ abstract class IndexMapIterator extends collection.Iterator[Int] {
 
 abstract class TimeIndexMapIterator( val timeOffsets: Array[Double], range: ma2.Range  ) extends IndexMapIterator {
   val index_offset: Int = range.first()
-  val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, "days since 1970-1-1" )
+  val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, cdsutils.baseTimeUnits )
   override def getLength: Int =  range.last() - range.first() + 1
   def toDate( cd: CalendarDate ): DateTime = new DateTime( cd.toDate )
   def getCalendarDate( index: Int ) = timeHelper.makeCalendarDateFromOffset( timeOffsets(index) )
@@ -262,7 +264,7 @@ class IndexValueAccumulator( start_value: Int = 0 ) {
 class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val axisSpec: GridCoordSpec = getAxisSpec
-  val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, "days since 1970-1-1" )
+  val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, cdsutils.baseTimeUnits )
   val timeOffsets: Array[Double] = getTimeAxisData()
 
   def toDoubleArray( array: ucar.ma2.Array ): Array[Double] = array.getElementType.toString match {

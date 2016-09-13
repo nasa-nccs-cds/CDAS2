@@ -19,6 +19,8 @@ trait Loggable {
 
 object cdsutils {
 
+  val baseTimeUnits = "days since 1970-1-1"
+
   def flatlist[T]( values: Option[T]* ): List[T] = values.flatten.toList
 
   def ceilDiv( numer: Int, denom: Int ) : Int = Math.ceil( numer/ denom.toFloat ).toInt

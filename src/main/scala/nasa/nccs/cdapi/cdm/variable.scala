@@ -6,7 +6,7 @@ import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.esgf.process._
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
-import nasa.nccs.utilities.Loggable
+import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.nc2.constants.AxisType
 
 import scala.collection.JavaConversions._
@@ -17,8 +17,13 @@ object BoundsRole extends Enumeration { val Start, End = Value }
 object CDSVariable extends Loggable {
   def toCoordAxis1D(coordAxis: CoordinateAxis): CoordinateAxis1D = coordAxis match {
     case coordAxis1D: CoordinateAxis1D =>
-      logger.info( "CoordinateAxis1D[%s): units = %s, values = %s".format( coordAxis1D.getFullName, coordAxis1D.getUnitsString, coordAxis1D.getCoordValues.mkString(",") ))
-      coordAxis1D
+      if( coordAxis1D.getShortName.equalsIgnoreCase("time") ) {
+        coordAxis1D.setUnitsString( cdsutils.baseTimeUnits )
+        logger.info( "CoordinateAxis1D[%s]: units = %s, values = %s".format( coordAxis1D.getFullName, coordAxis1D.getUnitsString, coordAxis1D.getCoordValues.mkString(",") ))
+        coordAxis1D
+      } else {
+        coordAxis1D
+      }
     case _ => throw new IllegalStateException("CDSVariable: 2D Coord axes not yet supported: " + coordAxis.getClass.getName)
   }
 }
@@ -42,7 +47,7 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
       { for( dim: nc2.Dimension <- dims; name=dim.getFullName; dlen=dim.getLength ) yield getCoordinateAxis( name ) match {
           case None=> <dimension name={name} length={dlen.toString}/>
           case Some(axis)=>
-              val units = axis.getAxisType match { case AxisType.Time => "days since 1970-1-1" case x => axis.getUnitsString }
+              val units = axis.getAxisType match { case AxisType.Time =>{cdsutils.baseTimeUnits} case x => axis.getUnitsString }
               <dimension name={name} length={dlen.toString} start={axis.getStart.toString} units={units} step={axis.getIncrement.toString} cfname={axis.getAxisType.getCFAxisName}/>
         }
       }

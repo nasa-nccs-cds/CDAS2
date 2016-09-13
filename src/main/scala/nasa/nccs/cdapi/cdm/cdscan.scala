@@ -71,7 +71,7 @@ object NCMLWriter extends Loggable {
 //  def getNCML: xml.Node = {
 //    <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
 //      <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
-//      <aggregation dimName="time" units="days since 1970-1-1" type="joinExisting">
+//      <aggregation dimName="time" units={cdsutils.baseTimeUnits} type="joinExisting">
 //        { for( fileHeader <- fileHeaders ) yield { <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString}> { fileHeader.axisValues.mkString(", ") } </netcdf> } }
 //      </aggregation>
 //    </netcdf>
@@ -156,7 +156,7 @@ class NCMLWriter(args: Iterator[String], val maxCores: Int = 8) extends Loggable
   }
 
   def getAggregation(timeRegular: Boolean ): xml.Node = {
-    <aggregation dimName="time" units="days since 1970-1-1" type="joinExisting">
+    <aggregation dimName="time" units={cdsutils.baseTimeUnits} type="joinExisting">
       { for( fileHeader <- fileHeaders ) yield { getAggDataset(fileHeader,timeRegular) } }
     </aggregation>
   }

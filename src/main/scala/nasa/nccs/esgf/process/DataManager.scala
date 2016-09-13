@@ -161,7 +161,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   }
 
   def getUnits: String =  coordAxis.getAxisType match {
-    case AxisType.Time => "days since 1970-1-1"
+    case AxisType.Time => cdsutils.baseTimeUnits
     case x => coordAxis.getUnitsString
   }
 
