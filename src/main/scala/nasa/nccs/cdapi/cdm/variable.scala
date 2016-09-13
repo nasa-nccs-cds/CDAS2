@@ -19,7 +19,7 @@ object CDSVariable extends Loggable {
     case coordAxis1D: CoordinateAxis1D =>
       if( coordAxis1D.getShortName.equalsIgnoreCase("time") ) {
         coordAxis1D.setUnitsString( cdsutils.baseTimeUnits )
-        logger.info( "CoordinateAxis1D[%s]: units = %s, values = %s".format( coordAxis1D.getFullName, coordAxis1D.getUnitsString, coordAxis1D.getCoordValues.mkString(",") ))
+//        logger.info( "CoordinateAxis1D[%s]: units = %s, values = %s".format( coordAxis1D.getFullName, coordAxis1D.getUnitsString, coordAxis1D.getCoordValues.mkString(",") ))
         coordAxis1D
       } else {
         coordAxis1D
