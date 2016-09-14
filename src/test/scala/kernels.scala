@@ -3,7 +3,7 @@ import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.esgf.process.RequestContext
 
-class ExecutionSpec extends TestSuite(0, 0, 0f, 0f ) {
+class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) {
   Collections.addCollection( "merra.test", merra_data, "MERRA data", List("ta") )
   Collections.addCollection( "const.test", const_data, "Constant data", List("ta") )
 

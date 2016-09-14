@@ -16,7 +16,7 @@ import org.scalatest.Tag
 // sample test_config.txt:
 // fragment=t|merra/daily|0,0,0,0|248,42,144,288
 
-class wpsSuite extends LocalExecutionTestSuite {
+class wpsSuite(ignore: String) extends LocalExecutionTestSuite {
   val fragment = appParameters("sample.local.input")
   val frag_varname = fragment.split('|').head
   val frag_collection =  fragment.split('|')(1)
