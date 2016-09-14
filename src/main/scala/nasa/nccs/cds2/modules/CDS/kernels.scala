@@ -134,8 +134,7 @@ class CDS extends KernelModule with KernelTools {
             if( !x.isEmpty ) { logger.warn( "Can't recognize weighting method: %s => Using constant weighting.".format(x) )}
             dataFrag.data := 1f
         }
-        val weighted_value_sum_masked: CDFloatArray = ( dataFrag.data * weights ).sum(axes.args)
-        val weights_sum_masked: CDFloatArray = weights.sum(axes.args)
+        val ( weighted_value_sum_masked, weights_sum_masked ) =  dataFrag.data.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, Some(weights), None )
         val t11 = System.nanoTime
         logger.info("Mean_val_masked, time = %.4f s, reduction dims = (%s), sample weighted_value_sum = %s".format((t11 - t10) / 1.0E9, axes.args.mkString(","), getDataSample(weighted_value_sum_masked).mkString(",") ))
         new DataFragment(resultFragSpec, weighted_value_sum_masked, Some(weights_sum_masked) )

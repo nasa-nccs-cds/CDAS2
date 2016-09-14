@@ -163,9 +163,9 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   }
   def aggCollection( dsource: DataSource ): xml.Elem = {
     val col = dsource.collection
-    logger.info( "Creating collection '" + col.id + "' path: " + col.path + "', url: " + col.url )
-    val url = if ( col.url.startsWith("http:") ) {
-      col.getUri( dsource.name )
+    logger.info( "Creating collection '" + col.id + "' path: " + col.dataPath )
+    val url = if ( col.dataPath.startsWith("http:") ) {
+      col.dataPath
     } else {
       col.createNCML()
       col.ncmlFile.toString
@@ -174,9 +174,8 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   }
 
   def aggCollection( colId: String, path: File ): xml.Elem = {
-    val uri = "file:" + NCMLWriter.getCachePath("NCML").resolve(Collections.uriToFile(colId))
-    val col = new Collection(colId, uri, path.getAbsolutePath )
-    logger.info("Creating collection '" + col.id + "' using path: " + col.path)
+    val col = Collection( colId, path.getAbsolutePath )
+    logger.info("Creating collection '" + col.id + "' using path: " + col.dataPath)
     col.createNCML()
     val dataset = NetcdfDataset.openDataset(col.ncmlFile.toString)
     _aggCollection( dataset, col )
@@ -185,7 +184,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   private def _aggCollection( dataset: NetcdfDataset, col: Collection ): xml.Elem = {
     val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => Collections.getVariableString(v) ).toList
     val title: String = Collections.findAttribute( dataset, List( "Title", "LongName" ) )
-    val newCollection = Collection(col.id, col.url, col.path, col.fileFilter, col.scope, title, vars)
+    val newCollection = new Collection( col.ctype, col.id, col.dataPath, col.fileFilter, col.scope, title, vars)
     Collections.updateCollection(newCollection)
     newCollection.toXml
   }
@@ -194,7 +193,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     case "magg" =>
       val collectionNodes =  request.variableMap.values.flatMap( ds => {
         val pcol = ds.getSource.collection
-        val base_dir = new File(pcol.path)
+        val base_dir = new File(pcol.dataPath)
         val base_id = pcol.id
         val col_dirs: Array[File] = base_dir.listFiles
         for( col_path <- col_dirs; if col_path.isDirectory; col_id = base_id + "/" + col_path.getName ) yield {

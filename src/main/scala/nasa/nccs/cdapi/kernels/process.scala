@@ -279,7 +279,8 @@ abstract class Kernel extends Loggable {
       case Some( weights_sum ) =>
 //        logger.info( "weightedValueSumPostOp, values = %s, weights = %s".format( result.data.toDataString, weights_sum.toDataString ) )
         new DataFragment( result.spec, result.data / weights_sum, result.optData, result.optCoordMap )
-      case None => result
+      case None =>
+        result
     } ) )
   }
 }

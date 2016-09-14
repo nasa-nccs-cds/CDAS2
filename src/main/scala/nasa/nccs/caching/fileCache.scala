@@ -406,7 +406,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
 
   def deleteFragment( fragId: String ): Option[Future[PartitionedFragment]] = deleteFragment( DataFragmentKey(fragId) )
   def getDatasetFuture(collection: Collection, varName: String): Future[CDSDataset] =
-    datasetCache(makeKey(collection.url, varName)) { produceDataset(collection, varName) _ }
+    datasetCache(makeKey(collection.id, varName)) { produceDataset(collection, varName) _ }
 
   def getDataset(collection: Collection, varName: String): CDSDataset = {
     val futureDataset: Future[CDSDataset] = getDatasetFuture(collection, varName)
@@ -448,7 +448,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
       case Failure(t) => p.failure(t)
     }
 
-  def getVariableFuture(collection: Collection, varName: String): Future[CDSVariable] = variableCache(makeKey(collection.url, varName)) {
+  def getVariableFuture(collection: Collection, varName: String): Future[CDSVariable] = variableCache(makeKey(collection.id, varName)) {
     promiseVariable(collection, varName) _
   }
 

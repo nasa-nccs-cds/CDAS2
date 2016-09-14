@@ -292,7 +292,7 @@ object SectionMerge {
   def incommensurate( s0: ma2.Section, s1: ma2.Section ) = { "Attempt to combine incommensurate sections: %s vs %s".format( s0.toString, s1.toString ) }
 }
 
-class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
+class DataFragmentSpec( val varname: String="", val collection: Collection = Collection("empty",""), val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
                         val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None ) extends Loggable {
 //  logger.info( "DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s".format( _section, _domSectOpt.getOrElse("null").toString ) )
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
@@ -415,7 +415,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
     var v: CDSVariable =  serverContext.getVariable( collection, varname )
     v.attributes ++ Map( "description" -> new nc2.Attribute("description",v.description), "units"->new nc2.Attribute("units",v.units),
       "fullname"->new nc2.Attribute("fullname",v.fullname), "axes" -> new nc2.Attribute("axes",dimensions),
-      "varname" -> new nc2.Attribute("varname",varname), "collection" -> new nc2.Attribute("collection",collection.url) )
+      "varname" -> new nc2.Attribute("varname",varname), "collection" -> new nc2.Attribute("collection",collection.id) )
   }
 
   def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = {
@@ -523,15 +523,14 @@ object DataContainer extends ContainerBase {
     val fragIdOpt = if(uri.startsWith("fragment")) Some(id) else None
     Collections.findCollection( colId ) match {
       case Some(collection) =>
-        if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.path)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id,collection.path,path) ) }
+        if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.dataPath)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id,collection.dataPath,path) ) }
         ( collection, fragIdOpt )
       case None =>
         if( path.isEmpty && !collection.isEmpty ) {
-          (Collections.addCollection(uri, colId, title, varsList), fragIdOpt)
+          (Collections.addCollection( colId, path, title, varsList), fragIdOpt)
         } else {
-          val fpath = if (new java.io.File(id).isFile) id else path
-          if (colId.isEmpty || fpath.isEmpty) logger.warn(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", "))
-          (Collections.addCollection(uri, fpath, fileFilter, title, varsList), fragIdOpt)
+          if (path.isEmpty) logger.warn(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", "))
+          (Collections.addCollection(colId, path, fileFilter, title, varsList), fragIdOpt)
         }
     }
   }

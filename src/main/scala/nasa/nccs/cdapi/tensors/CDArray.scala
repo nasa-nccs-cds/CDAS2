@@ -119,7 +119,6 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
     rv
   }
 
-
   def createRanges( origin: Array[Int], shape: Array[Int], strideOpt: Option[Array[Int]] = None ): List[ma2.Range] = {
     val strides: Array[Int] = strideOpt match {
       case Some(stride_array) => stride_array

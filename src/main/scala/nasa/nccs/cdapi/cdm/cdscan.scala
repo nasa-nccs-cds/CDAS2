@@ -25,7 +25,7 @@ import scala.xml.XML
 
 object NCMLWriter extends Loggable {
 
-  def apply( path: String ): NCMLWriter = { new NCMLWriter( Array(path).iterator ) }
+  def apply( path: File ): NCMLWriter = { new NCMLWriter( Array(path).iterator ) }
 
   def isNcFile( file: File ): Boolean = {
     val fname = file.getName.toLowerCase
@@ -40,26 +40,34 @@ object NCMLWriter extends Loggable {
 
   def getNcFiles(file: File): Iterable[File] = {
     try {
-      val children = new Iterable[File] {
-        def iterator = if (file.isDirectory) file.listFiles.iterator else Iterator.empty
+      if (isNcFile(file)) {
+        Seq(file)
+      } else {
+        val children = new Iterable[File] {
+          def iterator = if (file.isDirectory) file.listFiles.iterator else Iterator.empty
+        }
+        (Seq(file) ++: children.flatMap(getNcFiles(_))).filter(NCMLWriter.isNcFile(_))
       }
-      (Seq(file) ++: children.flatMap(getNcFiles(_))).filter(NCMLWriter.isNcFile(_))
     } catch {
       case err: NullPointerException =>
-        logger.warn( "Empty collection directory: " + file.toString )
+        logger.warn("Empty collection directory: " + file.toString)
         Iterable.empty[File]
     }
   }
 
-  def getNcFiles(args: Iterator[String]): Iterator[File] =
-    args.map( (arg: String) => NCMLWriter.getNcFiles(new File(arg))).foldLeft(Iterator[File]())(_ ++ _)
+  def getNcFiles(args: Iterator[File]): Iterator[File] =
+    args.map( (arg: File) => NCMLWriter.getNcFiles(arg)).foldLeft(Iterator[File]())(_ ++ _)
 
   def getFileHeaders( files: IndexedSeq[File], nReadProcessors: Int ): IndexedSeq[FileHeader] = {
-    val groupSize = cdsutils.ceilDiv( files.length, nReadProcessors )
-    logger.info( " Processing %d files with %d files/group with %d processors".format( files.length, groupSize, nReadProcessors) )
-    val fileGroups = files.grouped(groupSize).toIndexedSeq
-    val fileHeaderFuts  = Future.sequence( for( workerIndex <- fileGroups.indices; fileGroup = fileGroups(workerIndex) ) yield Future { FileHeader.factory( fileGroup, workerIndex ) } )
-    Await.result( fileHeaderFuts, Duration.Inf ).foldLeft( IndexedSeq[FileHeader]() ) {_ ++ _} sortWith { ( afr0, afr1 ) =>  (afr0.startValue < afr1.startValue) }
+    if( files.length > 0 ) {
+      val groupSize = cdsutils.ceilDiv(files.length, nReadProcessors)
+      logger.info(" Processing %d files with %d files/group with %d processors".format(files.length, groupSize, nReadProcessors))
+      val fileGroups = files.grouped(groupSize).toIndexedSeq
+      val fileHeaderFuts = Future.sequence(for (workerIndex <- fileGroups.indices; fileGroup = fileGroups(workerIndex)) yield Future {
+        FileHeader.factory(fileGroup, workerIndex)
+      })
+      Await.result(fileHeaderFuts, Duration.Inf).foldLeft(IndexedSeq[FileHeader]()) { _ ++ _ } sortWith { (afr0, afr1) => (afr0.startValue < afr1.startValue) }
+    } else IndexedSeq.empty[FileHeader]
   }
 }
 
@@ -78,7 +86,7 @@ object NCMLWriter extends Loggable {
 //  }
 //}
 
-class NCMLWriter(args: Iterator[String], val maxCores: Int = 8) extends Loggable {
+class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
   private val nReadProcessors = Math.min(Runtime.getRuntime.availableProcessors, maxCores)
   private val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
   private val nFiles = files.length

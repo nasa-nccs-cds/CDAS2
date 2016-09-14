@@ -110,10 +110,10 @@ object Collections extends XmlResource {
 
   def updateVars = {
     for( ( id: String, collection:Collection ) <- datasets; if collection.scope.equalsIgnoreCase("local") ) {
-      val dataset: NetcdfDataset = NetcdfDataset.openDataset( collection.url )
+      val dataset: NetcdfDataset = NetcdfDataset.openDataset( collection.dataPath )
       val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => getVariableString(v) ).toList
       val title = findAttribute( dataset, List( "Title", "LongName" ) )
-      val newCollection = Collection( id, collection.url, collection.path, collection.fileFilter, "local", title, vars)
+      val newCollection = new Collection( collection.ctype, id, collection.dataPath, collection.fileFilter, "local", title, vars)
       println( "\nUpdating collection %s, vars = %s".format( id, vars.mkString(";") ))
       datasets.put( collection.id, newCollection  )
     }
@@ -126,7 +126,7 @@ object Collections extends XmlResource {
   def getVariableListXml(vids: Array[String]): xml.Elem = {
     <collections>
       { for (vid: String <- vids; vidToks = vid.split('!'); varName=vidToks(0); cid=vidToks(1) ) yield Collections.findCollection(cid) match {
-      case Some(collection) => <variables cid={collection.url}> { collectionDataCache.getVariable(collection, varName).toXml } </variables>
+      case Some(collection) => <variables cid={collection.id}> { collectionDataCache.getVariable(collection, varName).toXml } </variables>
       case None => <error> {"Unknown collection id in identifier: " + cid } </error>
     }}
     </collections>
@@ -146,6 +146,7 @@ object Collections extends XmlResource {
   def uriToFile( uri: String ): String = {
     uri.toLowerCase.split(":").last.stripPrefix("/").stripPrefix("/").replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ".xml"
   }
+  def idToFile( id: String ): String = id.replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ".xml"
 
   def removeCollections( collectionIds: Array[String] ): Array[String] = {
     val removedCids = collectionIds.flatMap( collectionId =>
@@ -162,18 +163,16 @@ object Collections extends XmlResource {
     removedCids
   }
 
-  def addCollection( uri: String, path: String, fileFilter: String, title: String, vars: List[String] ): Collection = {
-    val url = "file:" + NCMLWriter.getCachePath("NCML").resolve( uriToFile(uri) )
-    val id = uri.split(":").last.stripPrefix("/").stripPrefix("/").toLowerCase
-    val cvars = if(vars.isEmpty) getVariableList( path ) else vars
-    val collection = Collection( id, url, path, fileFilter, "local", title, cvars )
+  def addCollection( id: String, dataPath: String, fileFilter: String, title: String, vars: List[String] ): Collection = {
+    val cvars = if(vars.isEmpty) getVariableList( dataPath ) else vars
+    val collection = Collection( id, dataPath, fileFilter, "local", title, cvars )
     datasets.put( id, collection  )
     persistLocalCollections()
     collection
   }
 
-  def addCollection( uri: String, id: String, title: String, vars: List[String] ): Collection = {
-    val collection = Collection( id, uri, "", "", "local", title, vars )
+  def addCollection(  id: String, dataPath: String, title: String, vars: List[String] ): Collection = {
+    val collection = Collection( id, dataPath, "", "local", title, vars )
     datasets.put( id, collection  )
     persistLocalCollections()
     collection
@@ -214,7 +213,7 @@ object Collections extends XmlResource {
 //  }
 
   def isChild( subDir: String,  parentDir: String ): Boolean = Paths.get( subDir ).toAbsolutePath.startsWith( Paths.get( parentDir ).toAbsolutePath )
-  def findCollectionByPath( subDir: String ): Option[Collection] = datasets.values.toList.find { case collection => if( collection.path.isEmpty) { false } else { isChild( subDir, collection.path ) } }
+  def findCollectionByPath( subDir: String ): Option[Collection] = datasets.values.toList.find { case collection => if( collection.dataPath.isEmpty) { false } else { isChild( subDir, collection.dataPath ) } }
 
   def loadCollectionXmlData( filePaths: Map[String,String] ): ConcurrentLinkedHashMap[String,Collection] = {
     val maxCapacity: Int=100000
@@ -243,7 +242,7 @@ object Collections extends XmlResource {
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
-  def getCollection( n: xml.Node, scope: String ): Collection = { Collection( attr(n,"id"), attr(n,"url"), attr(n,"path"), attr(n,"fileFilter"), scope, attr(n,"title"), n.text.split(";").toList )}
+  def getCollection( n: xml.Node, scope: String ): Collection = { Collection( attr(n,"id"), attr(n,"path"), attr(n,"fileFilter"), scope, attr(n,"title"), n.text.split(";").toList )}
 
   def findCollection( collectionId: String ): Option[Collection] = Option( datasets.get( collectionId ) )
 
