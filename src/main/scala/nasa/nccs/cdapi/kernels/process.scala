@@ -65,7 +65,7 @@ class UtilityExecutionResult( id: String, val response: xml.Elem )  extends Exec
 class BlockingExecutionResult( id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray, val resultId: Option[String] = None ) extends ExecutionResult(id) {
   override def toXml = {
     val idToks = id.split('-')
-    logger.info( "BlockingExecutionResult-> result_tensor: \n" + result_tensor.toString )
+    logger.info( "BlockingExecutionResult-> result_tensor(" + id + "): \n" + result_tensor.toString )
     val inputs = intputSpecs.map( _.toXml )
     val grid = gridSpec.toXml
     val results = result_tensor.mkDataString(",")
@@ -147,7 +147,8 @@ abstract class Kernel extends Loggable {
   def mapReduce(context: CDASExecutionContext, nprocs: Int): Future[Option[DataFragment]] = {
     val opInputs: List[OperationInput] = for ( uid <- context.operation.inputs ) yield {
       context.request.getInputSpec(uid) match {
-        case Some(inputSpec) =>  { context.server.getOperationInput(inputSpec) }
+        case Some(inputSpec) =>
+          context.server.getOperationInput(inputSpec)
         case None => collectionDataCache.getExistingResult( uid ) match {
           case Some( tFragFut ) => Await result ( tFragFut, Duration.Inf )
           case None => throw new Exception( "Unrecognized input id: " + uid )

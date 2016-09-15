@@ -204,6 +204,13 @@ object CDFloatArray {
     case x        => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Byte]].map( _.toFloat ) )
   }
 
+  def toFloatArray( array: ucar.ma2.Array ): Array[Float] = array.getElementType.toString match {
+    case "float"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]]
+    case "double" => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]].map( _.toFloat )
+    case "int"    => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toFloat )
+    case "short"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toFloat )
+  }
+
   def empty: CDFloatArray = { new CDFloatArray( CDIndexMap.empty, FloatBuffer.allocate(0), Float.MaxValue ) }
 
   def toFloatBuffer( buffer: Buffer ): FloatBuffer = buffer match {
@@ -524,6 +531,13 @@ object CDDoubleArray {
   def toDoubleBuffer( buffer: Buffer ): DoubleBuffer = buffer match {
     case x: DoubleBuffer  => buffer.asInstanceOf[ DoubleBuffer ]
     case x => throw new Exception( "Attempt to convert non-float buffer to DoubleBuffer")
+  }
+
+  def toDoubleArray( array: ucar.ma2.Array ): Array[Double] = array.getElementType.toString match {
+    case "float"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]].map( _.toDouble )
+    case "double" => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]]
+    case "int"    => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toDouble )
+    case "short"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toDouble )
   }
 
   def factory( array: ucar.ma2.Array, invalid: Double = Double.MaxValue ): CDDoubleArray = {

@@ -51,7 +51,14 @@ class YearOfCenturyIter( timeOffsets: Array[Double], range: ma2.Range ) extends 
 class MonthOfYearIter( timeOffsets: Array[Double], range: ma2.Range  ) extends TimeIndexMapIterator(timeOffsets,range) {
   def getValue( count_index: Int ): Int = {
     val rdate = toDate( getCalendarDate(count_index + index_offset) )
-    ( ( (rdate.getDayOfYear-1) / 365.0 ) * 12.0 ).round.toInt % 12
+    val dom = rdate.getDayOfMonth
+    if( dom < 22 ) {
+      rdate.getMonthOfYear - 1
+    } else {
+      rdate.getMonthOfYear
+//      val doy = rdate.getDayOfYear - 1
+//      ((doy / 365.0) * 12.0).round.toInt % 12
+    }
   }
 }
 
@@ -267,13 +274,6 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
   val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, cdsutils.baseTimeUnits )
   val timeOffsets: Array[Double] = getTimeAxisData()
 
-  def toDoubleArray( array: ucar.ma2.Array ): Array[Double] = array.getElementType.toString match {
-    case "float"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]].map( _.toDouble )
-    case "double" => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]]
-    case "int"    => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toDouble )
-  }
-
-
   def getAxisSpec: GridCoordSpec = gridSpec.grid.getAxisSpec("t") match {
     case Some(axisSpec) => axisSpec
     case None => throw new Exception("Can't timeBin a variable with no apparent time axis: %s ".format(gridSpec.ncVariable.getNameAndDimensions))
@@ -281,7 +281,7 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
   def getDates(): Array[String] = { timeOffsets.map( timeHelper.makeCalendarDateFromOffset(_).toString ) }
 
   def getTimeAxisData(): Array[Double] = axisSpec.coordAxis.getAxisType match {
-    case AxisType.Time => toDoubleArray( axisSpec.coordAxis.read() )
+    case AxisType.Time => CDDoubleArray.toDoubleArray( axisSpec.coordAxis.read() )
     case x => throw new Exception("Binning not yet implemented for this axis type: %s".format(x.getClass.getName))
   }
 

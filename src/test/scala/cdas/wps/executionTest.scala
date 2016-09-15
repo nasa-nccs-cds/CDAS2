@@ -2,10 +2,13 @@ package cdas.wps
 
 import java.nio.file.Paths
 
-import nasa.nccs.caching.FragmentPersistence
+import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
+import nasa.nccs.cdapi.cdm.{CDSVariable, Collection}
+import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import org.scalatest._
+import ucar.ma2
 
 import scala.io.Source
 import org.scalatest.Tag
@@ -30,6 +33,12 @@ class wpsSuite extends LocalExecutionTestSuite {
   val level = 0
   val lat = -20f
   val lon = 0f
+
+  def getTimeseriesData( lon_index: Int, lat_index: Int, lev_index: Int) {
+    val ncVar = collectionDataCache.getVariable( new Collection( "aggregation", frag_collection.replace('/','_'), "" ), frag_varname).ncVariable
+    val section: ma2.Section = new ma2.Section( Array(0,lev_index,lat_index,lon_index), Array(ncVar.getShape()(0),1,1,1) )
+    CDFloatArray.toFloatArray( ncVar.read( section ) )
+  }
 
   test("op") {
     val datainputs = "[domain=[{\"name\":\"d1\",\"lev\":{\"start\":%d,\"end\":%d,\"system\":\"indices\"}}],variable=[{\"uri\":\"fragment:/%s\",\"name\":\"%s:v1\",\"domain\":\"d1\"}],operation=[{\"name\":\"%s\",\"input\":\"v1\",\"axes\":\"t\"}]]".format(level, level, operation, fragment, frag_varname)
@@ -86,6 +95,12 @@ class wpsSuite extends LocalExecutionTestSuite {
   test("MERRA_Collection", Tag("aggM")) {
     val datainputs = """[variable=[{"frag_collection":"%s","name":"%s","path":"%s"}]]""".format( frag_collection, frag_varname, collection_path )
     executeTest(datainputs,false,"util.agg")
+  }
+  test("read_timeseries") {
+    val variable: CDSVariable = collectionDataCache.getVariable( new Collection( "aggregation", frag_collection.replace('/','_'), "" ), frag_varname)
+    val ncVar = variable.ncVariable
+    val section: ma2.Section = new ma2.Section( )
+    val tsdata = ncVar.read( section )
   }
 }
 

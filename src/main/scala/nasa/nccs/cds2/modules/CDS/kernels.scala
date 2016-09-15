@@ -170,17 +170,17 @@ class CDS extends KernelModule with KernelTools {
         val t10 = System.nanoTime
         val cdTimeCoordMap: CDTimeCoordMap = new CDTimeCoordMap( context.request.targetGrid, dataFrag.spec.roi )
         val coordMap: CDCoordMap = cdTimeCoordMap.getMontlyBinMap( dataFrag.spec.roi )
-//        val coordMap: CDCoordMap = cdTimeCoordMap.getTimeCycleMap(period, unit, mod, offset)
-//        val timeData = cdTimeCoordMap.getTimeIndexIterator( "month", dataFrag.spec.roi.getRange(0) ).toArray
-//        logger.info("Binned array, timeData = [ %s ]".format(timeData.mkString(",")))
- //       logger.info("Binned array, coordMap = %s".format(coordMap.toString))
-//        logger.info("Binned array, dates = %s".format(cdTimeCoordMap.getDates.mkString(", ")))
-//        logger.info("Binned array, input data = %s".format(dataFrag.data.toDataString))
+      //  val coordMap: CDCoordMap = cdTimeCoordMap.getTimeCycleMap(period, unit, mod, offset)
+        val timeData = cdTimeCoordMap.getTimeIndexIterator( "month", dataFrag.spec.roi.getRange(0) ).toArray
+        logger.info("Binned array, timeData = [ %s ]".format(timeData.mkString(",")))
+        logger.info("Binned array, coordMap = %s".format(coordMap.toString))
+        logger.info("Binned array, dates = %s".format(cdTimeCoordMap.getDates.mkString(", ")))
+        logger.info("Binned array, input data = %s".format(dataFrag.data.toDataString))
        dataFrag.data.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, None, Some(coordMap)) match {
           case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
             val t11 = System.nanoTime
- //           logger.info("Binned array, time = %.4f s, section = %s\n *** values = %s\n *** weights=%s".format((t11 - t10) / 1.0E9, dataFrag.spec.roi.toString, values_sum.toDataString, weights_sum.toDataString ))
-//            val resultFragSpec = dataFrag.getReducedSpec(Set(axes.args(0)), values_sum.getShape(axes.args(0)))
+            logger.info("Binned array, time = %.4f s, section = %s\n *** values = %s\n *** weights=%s".format((t11 - t10) / 1.0E9, dataFrag.spec.roi.toString, values_sum.toDataString, weights_sum.toDataString ))
+            val resultFragSpec = dataFrag.getReducedSpec(Set(axes.args(0)), values_sum.getShape(axes.args(0)))
             new DataFragment( dataFrag.spec, values_sum, Some(weights_sum), Some(coordMap) )
         }
       })

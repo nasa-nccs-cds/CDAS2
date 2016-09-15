@@ -1,7 +1,9 @@
 import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
+import nasa.nccs.cdapi.cdm.Collection
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.esgf.process.RequestContext
+import ucar.ma2
 
 class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) {
   Collections.addCollection( "merra.test", merra_data, "MERRA data", List("ta") )
@@ -38,7 +40,44 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) {
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
 
-//  test("Subset(d0)") {
+  def getTimeseriesData( collection: String, varName: String, lon_index: Int, lat_index: Int, lev_index: Int): CDFloatArray = {
+    val cdvar = collectionDataCache.getVariable( new Collection( "aggregation", collection.replace('/','_'), "" ), varName)
+    val ncVar = cdvar.ncVariable
+    val nTimesteps = ncVar.getShape()(0)
+    val section: ma2.Section = new ma2.Section( Array(0,lev_index,lat_index,lon_index), Array(nTimesteps,1,1,1) )
+    CDFloatArray( Array(nTimesteps), CDFloatArray.toFloatArray(ncVar.read( section )), cdvar.missing )
+  }
+
+  test("Subset_Indexed_TS") {
+    val lat_index = 50
+    val lon_index = 100
+    val lev_index = 0
+    val direct_result_array = getTimeseriesData( "merra.test", "ta", lon_index, lat_index, lev_index )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":$lat_index,"end":$lat_index,"system":"indices"},"lon":{"start":$lon_index,"end":$lon_index,"system":"indices"},"lev":{"start":$lev_index,"end":$lev_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDS.subset","input":"v1","axes":"t"}]]"""
+    val result_node = executeTest(datainputs) \\ "data"
+    val result_values = result_node.text.split(",").map( _.toFloat )
+    val result_array = CDFloatArray( Array( result_values.length ), result_values, Float.MaxValue )
+    val max_scaled_diff = maxScaledDiff(result_array, direct_result_array)
+    printf( "direct result: " + direct_result_array.mkDataString(",") + "\n *** max_scaled_diff = " + max_scaled_diff )
+    assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Subset")
+  }
+
+  test("Yearly Cycle") {
+    val lat_index = 50
+    val lon_index = 100
+    val lev_index = 0
+    val direct_result_array = getTimeseriesData( "merra.test", "ta", lon_index, lat_index, lev_index )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":$lat_index,"end":$lat_index,"system":"indices"},"lon":{"start":$lon_index,"end":$lon_index,"system":"indices"},"lev":{"start":$lev_index,"end":$lev_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDS.timeBin","input":"v1","unit":"month","period":"1","mod":"12","axes":"t"}]]"""
+    val result_node = executeTest(datainputs) \\ "data"
+    val result_values = result_node.text.split(",").map( _.toFloat )
+    val result_array = CDFloatArray( Array( result_values.length ), result_values, Float.MaxValue )
+    val computed_result = computeCycle( direct_result_array, 12 )
+    val max_scaled_diff = maxScaledDiff(result_array, computed_result)
+    printf( "computed result: " + computed_result.mkDataString(",") + "\n *** max_scaled_diff = " + max_scaled_diff )
+    assert(max_scaled_diff < eps, s" Incorrect series computed for Yearly Cycle")
+  }
+
+  //  test("Subset(d0)") {
 //    readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
 //      case Some(nco_verified_result) =>
 //        val datainputs = s"""[domain=[{"name":"d0","lat":{"start":$lat_value,"end":$lat_value,"system":"values"},"lon":{"start":$lon_value,"end":$lon_value,"system":"values"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDS.subset","input":"v1","axes":"t"}]]"""
@@ -159,19 +198,6 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) {
 //    val result_value: Float = computeValue("CDS.average", dataInputs)
 //    println(s"Test Result:  $result_value, NCO Result: $nco_verified_result")
 //    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Weighted Masked Spatial Average")
-//  }
-//
-//  test("Yearly Cycle") {
-//    readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
-//      case Some( nco_subsetted_timeseries ) =>
-//        val dataInputs = getTemporalDataInputs( merra_data, 0, ( "unit"->"month"), ( "period"->"1"), ( "mod"->"12")  )
-//        val result_values = computeArray("CDS.timeBin", dataInputs)
-//        val nco_verified_result = computeCycle( nco_subsetted_timeseries, 12 )
-//        val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
-//        println("Test Result: (%s)\n NCO Result: (%s)\n Max_scaled_diff: %f".format(result_values.toString(), nco_verified_result.toString(), max_scaled_diff))
-//        assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Yearly Cycle")
-//      case None => fail( "Error reading verification data")
-//    }
 //  }
 //
 //  test("Seasonal Cycle") {
