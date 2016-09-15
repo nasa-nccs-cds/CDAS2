@@ -46,8 +46,8 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
 
   def url(varName:String="") = ctype match {
     case "http" => dataPath
-    case "aggregation" =>  "file:/" + ncmlFile
     case "file" =>  "file:/" + dataPath
+    case  _     =>  "file:/" + ncmlFile
   }
 
   def getDatasetMetadata(): List[nc2.Attribute] = {

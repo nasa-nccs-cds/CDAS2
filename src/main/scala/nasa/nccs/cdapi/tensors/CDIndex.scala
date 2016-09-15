@@ -75,7 +75,7 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   def getShape: Array[Int] = shape.clone
   def getStride: Array[Int] = stride.clone
   def getShape(index: Int): Int = shape(index)
-  def getSize: Int = shape.filter( _ > 0 ).foldLeft(1)( _ * _ )
+  def getSize: Int = if( rank == 0 ) { 0 } else { shape.filter( _ > 0 ).foldLeft(1)( _ * _ ) }
   def getOffset: Int = offset
   def getReducedShape: Array[Int] = { ( for( idim <- ( 0 until rank) ) yield if( stride(idim) == 0 ) 1 else shape( idim ) ).toArray }
   override def toString: String = "{ Shape: " + shape.mkString("[ ",", "," ], Stride: " + stride.mkString("[ ",", "," ]") + " Offset: " + offset + " } ")
