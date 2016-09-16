@@ -169,7 +169,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 
 }
 
-object CDFloatArray {
+object CDFloatArray extends Loggable {
   type ReduceOpFlt = CDArray.ReduceOp[Float]
   implicit def cdArrayConverter( target: CDArray[Float] ): CDFloatArray = new CDFloatArray( target.getIndex, target.getStorage.asInstanceOf[ FloatBuffer ], target.getInvalid )
   implicit def toUcarArray( target: CDFloatArray ): ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, target.getShape, target.getSectionData().array() )
@@ -252,6 +252,7 @@ object CDFloatArray {
   }
 
   def combine( reductionOp: ReduceOpFlt, input: CDFloatArray, mappedInput: CDFloatArray, coordMap: CDCoordMap ): CDFloatArray = {
+    logger.info( "CDFloatArray.combine: input shape=%s, mappedInput shape=%s".format( input.getShape.mkString(","), mappedInput.getShape.mkString(",") ) )
     val iter = new CDArrayIndexIterator( input.getIndex  )
     val result = for (flatIndex <- iter; coords = iter.getCoordinateIndices; mappedCoords = coordMap.map(coords); v0 = input.getValue(coords); v1 = mappedInput.getValue(mappedCoords) ) yield {
       if (!input.valid(v0)) input.invalid else if (!mappedInput.valid(v1)) mappedInput.invalid else reductionOp(v0, v1)
