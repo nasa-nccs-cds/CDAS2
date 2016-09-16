@@ -135,7 +135,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
         }
       }
     } else {
-      logger.warn("Date %s IN time range %s".format(caldate.toString, date_range.toString ) )
+//      logger.warn("Date %s IN time range %s".format(caldate.toString, date_range.toString ) )
       Some(caldate)
     }
   }
@@ -178,7 +178,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   }
 
   def getTimeIndexBounds( startval: String, endval: String, strict: Boolean = false): Option[ma2.Range] = {
-    logger.info( " getTimeIndexBounds: %s %s".format( startval, endval ) )
+//    logger.info( " getTimeIndexBounds: %s %s".format( startval, endval ) )
     getTimeCoordIndex( startval, BoundsRole.Start, strict).flatMap( startIndex =>
       getTimeCoordIndex( endval, BoundsRole.End, strict ).map( endIndex =>
         new ma2.Range( getCFAxisName, startIndex, endIndex) ) )
