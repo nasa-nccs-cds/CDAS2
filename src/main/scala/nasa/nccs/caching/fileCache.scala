@@ -376,7 +376,11 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   val K = 1000f
   private val fragmentCache: Cache[DataFragmentKey,PartitionedFragment] = new FutureCache[DataFragmentKey,PartitionedFragment]("Store","fragment",false) {
     override def evictionNotice( key: DataFragmentKey, value: Future[PartitionedFragment] ) = {
-      value.onSuccess { case pfrag => logger.info("Clearing fragment %s".format(key.toString)); pfrag.delete }
+      value.onSuccess { case pfrag =>
+        logger.info("Clearing fragment %s".format(key.toString));
+        FragmentPersistence.delete( List(key) )
+        pfrag.delete
+      }
     }
     override def entrySize( key: DataFragmentKey, value: Future[PartitionedFragment] ): Int = { math.max( (( key.getSize * 4 ) / K ).round, 1 ) }
   }

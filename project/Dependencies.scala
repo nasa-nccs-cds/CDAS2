@@ -7,7 +7,7 @@ object Version {
   val scala     = "2.11.7"
   val scalaTest = "2.2.4"
   val slf4j     = "1.7.6"
-  val spark     = "1.4.1"
+  val spark     = "2.0.0"
 }
 
 object Library {
@@ -17,7 +17,7 @@ object Library {
   val scalaTest      = "org.scalatest"     %% "scalatest"       % Version.scalaTest
   val slf4jApi       = "org.slf4j"         %  "slf4j-api"       % Version.slf4j
   val sparkSQL       = "org.apache.spark"  %% "spark-sql"       % Version.spark
-  val sparkCore      = "org.apache.spark"  %% "spark-core"      % "1.6.0"
+  val sparkCore      = "org.apache.spark"  %% "spark-core"      % Version.spark
   val scalaxml       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
   val scalaparser    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
   val commonsIO      = "commons-io"         % "commons-io"      % "2.5"

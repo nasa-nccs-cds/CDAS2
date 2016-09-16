@@ -113,6 +113,7 @@ object ValueMagnet {
 //  override def onEviction(key: K, value: V ) {;}
 //}
 class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boolean ) extends Cache[K,V] with Loggable {
+  val capacity_logger = new PrintWriter( Paths.get(  System.getProperty("user.home"), ".cdas", "cache.log" ).toFile )
   val KpG = 1000000L
   val maxCapacity: Long = appParameters(Array(ctype.toLowerCase,cname.toLowerCase,"capacity").mkString("."),"30").toLong * KpG
   val initialCapacity: Int=64
@@ -124,9 +125,15 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
 
   def evictionNotice( key: K, value: Future[V] ) = { logger.info( "Evicting Key %s".format( key.toString ) ) }
   def entrySize( key: K, value: Future[V] ): Int = { 1 }
+  def weightedSize: Long = store.weightedSize()
+
+  def capacity_log( msg: String ) = { capacity_logger.write(msg + ": size = %d\n".format( weightedSize ) ); capacity_logger.flush(); }
 
   def getStore(): ConcurrentLinkedHashMap[K, Future[V]] = {
-    val evictionListener = new EvictionListener[K,Future[V]]{ def onEviction(key: K, value: Future[V] ): Unit = { evictionNotice(key,value) } }
+    val evictionListener = new EvictionListener[K,Future[V]]{ def onEviction(key: K, value: Future[V] ): Unit = {
+      capacity_log( "-- %s".format( key.toString ) )
+      evictionNotice(key,value)
+    } }
     val sizeWeighter = new EntryWeigher[K,Future[V]]{ def weightOf(key: K, value: Future[V] ): Int = { entrySize(key,value) } }
     val hmap = new ConcurrentLinkedHashMap.Builder[K, Future[V]].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).listener( evictionListener ).weigher( sizeWeighter ).build()
     if(persistent) restore match {
@@ -176,13 +183,19 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
     }
   }
 
-  def put( key: K, value: V ) =
-    store.put( key, Future(value) )
+  def put( key: K, value: V ) = {
+    capacity_log( "++ %s".format( key.toString ) )
+    store.put(key, Future(value))
+  }
 
-  def putF( key: K, fvalue: Future[V] ) = store.put( key, fvalue )
+  def putF( key: K, fvalue: Future[V] ) = {
+    capacity_log( "++ %s".format( key.toString ) )
+    store.put( key, fvalue )
+  }
 
   def apply(key: K, genValue: () ⇒ Future[V])(implicit ec: ExecutionContext): Future[V] = {
     val promise = Promise[V]()
+    capacity_log( "++ %s".format( key.toString ) )
     store.putIfAbsent(key, promise.future) match {
       case null ⇒
         genValue() andThen {
