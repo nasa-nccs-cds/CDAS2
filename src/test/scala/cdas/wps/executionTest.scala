@@ -89,7 +89,7 @@ class wpsSuite extends LocalExecutionTestSuite {
     val response = executeTest(datainputs)
   }
   test("createV", Tag("createV")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.timeBin","input":"v1","result":"cycle","domain":"d2","axes":"t","bins":"t|month|ave|year"},{"name":"CDS.diff2","input":["v1","cycle"],"domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.timeBin","input":"v1","result":"cycle","domain":"d2","axes":"t","bins":"t|month|ave|year"},{"name":"CDS.diff2","input":["v1","cycle"],"domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, collection_id, collection_varname)
     executeTest(datainputs)
   }
   test("MERRA_Collection", Tag("aggM")) {

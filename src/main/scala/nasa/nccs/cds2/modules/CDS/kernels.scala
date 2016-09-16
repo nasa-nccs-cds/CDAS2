@@ -166,6 +166,7 @@ class CDS extends KernelModule with KernelTools {
         val mod = getIntArg(optargs, "mod",  Some(12) )
         val unit = getStringArg(optargs, "unit",  Some("month") )
         val offset = getIntArg(optargs, "offset", Some(0) )
+        logger.info("timeBin, input shape = [ %s ], roi = [ %s ]".format(dataFrag.data.getShape.mkString(","),dataFrag.spec.roi.toString))
 
         val t10 = System.nanoTime
         val cdTimeCoordMap: CDTimeCoordMap = new CDTimeCoordMap( context.request.targetGrid, dataFrag.spec.roi )
@@ -180,7 +181,8 @@ class CDS extends KernelModule with KernelTools {
           case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
             val t11 = System.nanoTime
 //            logger.info("Binned array, time = %.4f s, section = %s\n *** values = %s\n *** weights=%s".format((t11 - t10) / 1.0E9, dataFrag.spec.roi.toString, values_sum.toDataString, weights_sum.toDataString ))
-            val resultFragSpec = dataFrag.getReducedSpec(Set(axes.args(0)), values_sum.getShape(axes.args(0)))
+//            val resultFragSpec = dataFrag.getReducedSpec(Set(axes.args(0)), values_sum.getShape(axes.args(0)))
+            logger.info("timeBin, result shape = [ %s ], result spec = %s".format(values_sum.getShape.mkString(","),dataFrag.spec.toString))
             new DataFragment( dataFrag.spec, values_sum, Some(weights_sum), Some(coordMap) )
         }
       })
