@@ -19,7 +19,7 @@ import org.scalatest.Tag
 // sample test_config.txt:
 // fragment=t|merra/daily|0,0,0,0|248,42,144,288
 
-@Ignore     // casues this suite to be ignored by "sbt test".
+// @Ignore     // casues this suite to be ignored by "sbt test".
 class wpsSuite extends LocalExecutionTestSuite {
   val fragment = appParameters("sample.local.input")
   val frag_varname = fragment.split('|').head

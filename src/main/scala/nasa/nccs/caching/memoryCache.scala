@@ -113,7 +113,7 @@ object ValueMagnet {
 //  override def onEviction(key: K, value: V ) {;}
 //}
 class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boolean ) extends Cache[K,V] with Loggable {
-  val capacity_logger = new PrintWriter( Paths.get(  System.getProperty("user.home"), ".cdas", "cache.log" ).toFile )
+  val cache_logger = org.slf4j.LoggerFactory.getLogger("cache")
   val KpG = 1000000L
   val maxCapacity: Long = appParameters(Array(ctype.toLowerCase,cname.toLowerCase,"capacity").mkString("."),"30").toLong * KpG
   val initialCapacity: Int=64
@@ -127,11 +127,13 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
   def entrySize( key: K, value: Future[V] ): Int = { 1 }
   def weightedSize: Long = store.weightedSize()
 
-  def capacity_log( msg: String ) = { capacity_logger.write( s"[$cname-$ctype]: " + msg + ": size = %d\n".format( weightedSize ) ); capacity_logger.flush(); }
+  def capacity_log( key: K, msg: String ) = synchronized {
+    cache_logger.info( s" %s [$cname-$ctype](%s): size = %d".format( msg, key.toString, weightedSize ) );
+  }
 
   def getStore(): ConcurrentLinkedHashMap[K, Future[V]] = {
     val evictionListener = new EvictionListener[K,Future[V]]{ def onEviction(key: K, value: Future[V] ): Unit = {
-      capacity_log( "-- %s".format( key.toString ) )
+      capacity_log( key, "--" )
       evictionNotice(key,value)
     } }
     val sizeWeighter = new EntryWeigher[K,Future[V]]{ def weightOf(key: K, value: Future[V] ): Int = { entrySize(key,value) } }
@@ -183,9 +185,9 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
     }
   }
 
-  def put( key: K, value: V ) = if( store.putIfAbsent(key, Future(value)) == null ) { capacity_log( "++ %s".format( key.toString ) ) }
+  def put( key: K, value: V ) = if( store.putIfAbsent(key, Future(value)) == null ) { capacity_log( key, "++" ) }
 
-  def putF( key: K, fvalue: Future[V] ) = if( store.putIfAbsent(key, fvalue ) == null ) { capacity_log( "++ %s".format( key.toString ) ) }
+  def putF( key: K, fvalue: Future[V] ) = if( store.putIfAbsent(key, fvalue ) == null ) { capacity_log( key, "++" ) }
 
   def apply(key: K, genValue: () ⇒ Future[V])(implicit ec: ExecutionContext): Future[V] = {
     val promise = Promise[V]()
@@ -193,7 +195,7 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
       case null ⇒
         genValue() andThen {
         case Success(value) =>
-          capacity_log( "++ %s".format( key.toString ) )
+          capacity_log( key, "++" )
           promise.complete( Success(value) )
         case Failure(e) =>
           logger.info(s"Failed to add element %s to cache $cname:$ctype due to error %s".format(key.toString, e.getMessage) )
