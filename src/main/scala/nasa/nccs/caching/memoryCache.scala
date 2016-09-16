@@ -127,7 +127,7 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
   def entrySize( key: K, value: Future[V] ): Int = { 1 }
   def weightedSize: Long = store.weightedSize()
 
-  def capacity_log( msg: String ) = { capacity_logger.write(msg + ": size = %d\n".format( weightedSize ) ); capacity_logger.flush(); }
+  def capacity_log( msg: String ) = { capacity_logger.write( s"[$cname-$ctype]: " + msg + ": size = %d\n".format( weightedSize ) ); capacity_logger.flush(); }
 
   def getStore(): ConcurrentLinkedHashMap[K, Future[V]] = {
     val evictionListener = new EvictionListener[K,Future[V]]{ def onEviction(key: K, value: Future[V] ): Unit = {
@@ -183,23 +183,17 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
     }
   }
 
-  def put( key: K, value: V ) = {
-    capacity_log( "++ %s".format( key.toString ) )
-    store.put(key, Future(value))
-  }
+  def put( key: K, value: V ) = if( store.putIfAbsent(key, Future(value)) == null ) { capacity_log( "++ %s".format( key.toString ) ) }
 
-  def putF( key: K, fvalue: Future[V] ) = {
-    capacity_log( "++ %s".format( key.toString ) )
-    store.put( key, fvalue )
-  }
+  def putF( key: K, fvalue: Future[V] ) = if( store.putIfAbsent(key, fvalue ) == null ) { capacity_log( "++ %s".format( key.toString ) ) }
 
   def apply(key: K, genValue: () ⇒ Future[V])(implicit ec: ExecutionContext): Future[V] = {
     val promise = Promise[V]()
-    capacity_log( "++ %s".format( key.toString ) )
     store.putIfAbsent(key, promise.future) match {
       case null ⇒
         genValue() andThen {
         case Success(value) =>
+          capacity_log( "++ %s".format( key.toString ) )
           promise.complete( Success(value) )
         case Failure(e) =>
           logger.info(s"Failed to add element %s to cache $cname:$ctype due to error %s".format(key.toString, e.getMessage) )
