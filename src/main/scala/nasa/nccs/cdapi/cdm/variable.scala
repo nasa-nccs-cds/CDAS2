@@ -139,7 +139,6 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
           Some(new DataFragment( cut_spec, CDFloatArray( partition_data.section( array_section ) ) ) )
         case None =>None
       }
-      logger.info( "domainDataFragment result shape: " + rv.map( _.data.getShape.mkString(",")).getOrElse("()") )
       rv
     } catch {
       case ex: Exception =>
