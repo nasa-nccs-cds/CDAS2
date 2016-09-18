@@ -32,7 +32,7 @@ object Library {
   val httpservices   = "edu.ucar"           %  "httpservices"   % "4.6.0"
   val udunits        = "edu.ucar"           %  "udunits"        % "4.6.0"
   val joda           = "joda-time"          % "joda-time"       % "2.8.1"
-  val natty          = "com.joestelmach"    % "natty"           % "0.11"
+  val natty          = "com.joestelmach"    % "natty"           % "0.12"
   val guava          = "com.google.guava"   % "guava"           % "18.0"
   val geotools       = "org.geotools"      %  "gt-shapefile"    % "13.2"
   val breeze         = "org.scalanlp"      %% "breeze"          % "0.12"
