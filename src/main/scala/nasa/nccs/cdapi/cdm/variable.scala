@@ -79,7 +79,7 @@ abstract class OperationInput( val fragmentSpec: DataFragmentSpec, val metadata:
   def delete
 }
 
-class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArray], fragSpec: DataFragmentSpec, mdata: Map[String,nc2.Attribute] = Map.empty ) extends OperationInput(fragSpec,mdata)  {
+class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByteArray], fragSpec: DataFragmentSpec, mdata: Map[String,nc2.Attribute] = Map.empty ) extends OperationInput(fragSpec,mdata)  {
   val LOG = org.slf4j.LoggerFactory.getLogger(this.getClass)
 
   def delete = partitions.delete
