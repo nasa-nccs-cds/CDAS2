@@ -155,6 +155,7 @@ abstract class Kernel extends Loggable {
         }
       }
     }
+    logger.info( "mapReduce: opInputs = " + opInputs.map( df => "%s(%s)".format( df.getKeyString, df.fragmentSpec.toString ) ).mkString( "," ))
     val future_results: IndexedSeq[Future[Option[DataFragment]]] = ( 0 until nprocs ) map (
       iproc => Future { map ( iproc, opInputs map ( _.domainDataFragment( iproc, context ) ), context ) }
     )
