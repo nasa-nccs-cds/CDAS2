@@ -25,8 +25,10 @@ trait Cache[K,V] { cache ⇒
     */
   def apply(key: K) = new Keyed(key)
 
-  def put( key: K, value: V, onlyIfAbsent: Boolean = false )
-  def putF( key: K, value: Future[V], onlyIfAbsent: Boolean = false )
+  def put( key: K, value: V )
+  def putF( key: K, value: Future[V] )
+  def putIfAbsent( key: K, value: V )
+  def putIfAbsentF( key: K, fvalue: Future[V] )
 
   def getEntries: Seq[(K,V)]
 
