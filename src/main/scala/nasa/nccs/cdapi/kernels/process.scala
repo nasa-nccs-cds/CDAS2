@@ -148,9 +148,13 @@ abstract class Kernel extends Loggable {
     val opInputs: List[OperationInput] = for ( uid <- context.operation.inputs ) yield {
       context.request.getInputSpec(uid) match {
         case Some(inputSpec) =>
+          logger.info( "getInputSpec: %s -> %s ".format( uid, inputSpec.longname ) )
           context.server.getOperationInput(inputSpec)
         case None => collectionDataCache.getExistingResult( uid ) match {
-          case Some( tFragFut ) => Await result ( tFragFut, Duration.Inf )
+          case Some( tFragFut ) =>
+            val rv = Await result ( tFragFut, Duration.Inf )
+            logger.info( "getExistingResult: %s -> %s ".format( uid, rv.dataFrag.spec.longname ) )
+            rv
           case None => throw new Exception( "Unrecognized input id: " + uid )
         }
       }
