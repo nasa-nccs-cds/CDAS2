@@ -25,8 +25,8 @@ trait Cache[K,V] { cache ⇒
     */
   def apply(key: K) = new Keyed(key)
 
-  def put( key: K, value: V )
-  def putF( key: K, value: Future[V] )
+  def put( key: K, value: V, onlyIfAbsent: Boolean = false )
+  def putF( key: K, value: Future[V], onlyIfAbsent: Boolean = false )
 
   def getEntries: Seq[(K,V)]
 
@@ -185,9 +185,10 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
     }
   }
 
-  def put( key: K, value: V ) = if( store.putIfAbsent(key, Future(value)) == null ) { capacity_log( key, "++" ) }
-
-  def putF( key: K, fvalue: Future[V] ) = if( store.putIfAbsent(key, fvalue ) == null ) { capacity_log( key, "++" ) }
+  def put( key: K, value: V ) = if( store.put(key, Future(value) ) == null ) { capacity_log( key, "++" ) }
+  def putF( key: K, fvalue: Future[V] ) = if( store.put(key, fvalue ) == null ) { capacity_log( key, "++" ) }
+  def putIfAbsent( key: K, value: V ) = if( store.putIfAbsent(key, Future(value) ) == null ) { capacity_log( key, "++" ) }
+  def putIfAbsentF( key: K, fvalue: Future[V] ) = if( store.putIfAbsent(key, fvalue ) == null ) { capacity_log( key, "++" ) }
 
   def apply(key: K, genValue: () ⇒ Future[V])(implicit ec: ExecutionContext): Future[V] = {
     val promise = Promise[V]()
