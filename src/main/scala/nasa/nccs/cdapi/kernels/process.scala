@@ -270,6 +270,7 @@ abstract class Kernel extends Loggable {
     if ( axes.includes(0) ) {
       val vTot = a0.data + a1.data
       val wTot = a0.optData.map( w => w + a1.optData.get )
+      logger.info( "weightedValueSumCombiner, values shape = %s, weights shape = %s, result spec = %s".format( vTot.getShape.mkString(","), wTot.map(_.getShape.mkString(",")).getOrElse(""), a0.spec.toString ) )
       new DataFragment( a0.spec, vTot, wTot, DataFragment.combineCoordMaps(a0,a1) )
     }
     else { a0 ++ a1 }
@@ -278,7 +279,7 @@ abstract class Kernel extends Loggable {
   def weightedValueSumPostOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = {
     future_result.map( _.map( (result: DataFragment) => result.optData match {
       case Some( weights_sum ) =>
-//        logger.info( "weightedValueSumPostOp, values = %s, weights = %s".format( result.data.toDataString, weights_sum.toDataString ) )
+        logger.info( "weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format( result.data.getShape.mkString(","), weights_sum.getShape.mkString(","), result.spec.toString ) )
         new DataFragment( result.spec, result.data / weights_sum, result.optData, result.optCoordMap )
       case None =>
         result
