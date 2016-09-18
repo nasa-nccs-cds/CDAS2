@@ -363,6 +363,7 @@ abstract class DualKernel extends Kernel {
     assert( inputs.length > 1, "Missing input(s) to dual input operation " + id )
     inputs(0).flatMap( dataFrag0 => {
       inputs(1).map( dataFrag1 => {
+        logger.info("DualKernel: %s[%s] + %s[%s]".format( dataFrag0.spec.longname, dataFrag0.data.getShape.mkString(","), dataFrag1.spec.longname, dataFrag1.data.getShape.mkString(",") ) )
         val async = context.request.config("async", "false").toBoolean
         val result_val_masked: DataFragment = mapCombineOpt match {
           case Some(combineOp) => DataFragment.combine( combineOp, dataFrag0, dataFrag1 )

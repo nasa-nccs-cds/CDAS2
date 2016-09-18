@@ -125,19 +125,22 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
       val partFragSpec = domainFragSpec(partIndex)
       val sub_section = optSection match {
         case Some(osect) =>
-          logger.info( "OP section intersect: " + osect.toString )
-          domain_section.intersect(osect)
+          val rv = domain_section.intersect(osect)
+          logger.info( "OP section intersect: " + osect.toString + ", result = " + rv.toString )
+          rv
         case None =>
           logger.info( "OP section empty" )
           domain_section
       }
 //     logger.info( s" +++++++++++++++++++++>>>> DomainDataFragment[$partIndex]-> section = " + sub_section.toString )
-      partFragSpec.cutIntersection( sub_section ) match {
+      val rv = partFragSpec.cutIntersection( sub_section ) match {
         case Some( cut_spec ) =>
           val array_section = cut_spec.roi.shiftOrigin( frag_section )
           Some(new DataFragment( cut_spec, CDFloatArray( partition_data.section( array_section ) ) ) )
         case None =>None
       }
+      logger.info( "domainDataFragment result shape: " + rv.map( _.data.getShape.mkString(",")).getOrElse("()") )
+      rv
     } catch {
       case ex: Exception =>
         logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )
