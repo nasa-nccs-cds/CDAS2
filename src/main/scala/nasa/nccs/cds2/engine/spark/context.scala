@@ -8,19 +8,15 @@ import org.slf4j.LoggerFactory
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 
+object CDSparkContext {
+  def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )
+  def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
+  def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext(  new SparkConf().setMaster(url).setAppName(name) ) )
+}
 
-class CDSparkContext( val conf: SparkConf ) {
+class CDSparkContext( @transient val sparkContext: SparkContext ) {
 
   val logger = LoggerFactory.getLogger(this.getClass)
-  @transient val sparkContext = new SparkContext(conf)
-
-  def this(url: String, name: String) {
-    this( new SparkConf().setMaster(url).setAppName(name) )
-  }
-
-  def this(url: String, name: String, parser: (String) => (String)) {
-    this( new SparkConf().setMaster(url).setAppName(name) )
-  }
 
   def setLocalProperty(key: String, value: String): Unit = {
     sparkContext.setLocalProperty(key, value)

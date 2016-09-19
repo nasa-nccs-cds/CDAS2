@@ -2,6 +2,7 @@ package nasa.nccs.cds2.engine
 import nasa.nccs.esgf.process.TaskRequest
 import java.io.{IOException, PrintWriter, StringWriter}
 import java.nio.FloatBuffer
+
 import nasa.nccs.cds2.loaders.{Collections, Masks}
 import nasa.nccs.esgf.process._
 import org.slf4j.{Logger, LoggerFactory}
@@ -26,10 +27,11 @@ import scala.collection.JavaConverters._
 import java.util.concurrent._
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
+import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
 
 object TaskExecutorSync extends Loggable {
   val printer = new scala.xml.PrettyPrinter(200, 3)
-  val executionManager = new CDS2ExecutionManager(Map.empty)
+  val executionManager = new CDFuturesExecutionManager(Map.empty)
   private val taskMap = new ConcurrentLinkedHashMap.Builder[String,TaskRequest].initialCapacity(100).maximumWeightedCapacity(10000).build()
   private val executionCache: Cache[String,ExecutionResults] = new FutureCache("Store","execution",false)
   private var taskIndex = 0

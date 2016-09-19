@@ -22,9 +22,12 @@ import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
 import nasa.nccs.caching._
 import ucar.{ma2, nc2}
 import nasa.nccs.cds2.utilities.{GeoTools, runtime}
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import java.util.concurrent._
+
+import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
 import ucar.nc2.dataset.NetcdfDataset
 
 class Counter(start: Int = 0) {
@@ -35,12 +38,29 @@ class Counter(start: Int = 0) {
   }
 }
 
-class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
+abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   val serverContext = new ServerContext( collectionDataCache, serverConfiguration )
   val logger = LoggerFactory.getLogger(this.getClass)
   val kernelManager = new KernelMgr()
   private val counter = new Counter
   val nprocs: Int = CDASPartitioner.nProcessors
+
+  def getOperationInputs( context: CDASExecutionContext ): List[OperationInput] = {
+    for (uid <- context.operation.inputs) yield {
+      context.request.getInputSpec(uid) match {
+        case Some(inputSpec) =>
+          logger.info("getInputSpec: %s -> %s ".format(uid, inputSpec.longname))
+          context.server.getOperationInput(inputSpec)
+        case None => collectionDataCache.getExistingResult(uid) match {
+          case Some(tFragFut) =>
+            val rv = Await result(tFragFut, Duration.Inf)
+            logger.info("getExistingResult: %s -> %s ".format(uid, rv.dataFrag.spec.longname))
+            rv
+          case None => throw new Exception("Unrecognized input id: " + uid)
+        }
+      }
+    }
+  }
 
   def getKernelModule( moduleName: String  ): KernelModule = {
     kernelManager.getModule( moduleName ) match {
@@ -372,13 +392,15 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     new XmlExecutionResult( context.operation.name.toLowerCase + "~u0", result )
   }
 
+  def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): ExecutionResult
+
   def operationExecution( operationCx: OperationContext, requestCx: RequestContext ): ExecutionResult = {
     val opName = operationCx.name.toLowerCase
     val module_name = opName.split('.').head
     logger.info( " ***** Operation Execution: opName=%s, module_name=%s >> Operation = %s ".format(opName, module_name, operationCx.toString ) )
     module_name match {
       case "util" => executeUtility( new CDASExecutionContext( operationCx, requestCx, serverContext ) )
-      case x => getKernel( opName ).executeProcess( new CDASExecutionContext( operationCx, requestCx, serverContext ), nprocs )
+      case x => executeProcess( new CDASExecutionContext( operationCx, requestCx, serverContext ), getKernel( opName ) )
     }
   }
 }
@@ -445,7 +467,7 @@ abstract class SyncExecutor {
 
   def getTaskRequest(args: Array[String]): TaskRequest
   def getRunArgs = Map("async" -> "false")
-  def getExecutionManager = new CDS2ExecutionManager(Map.empty)
+  def getExecutionManager = new CDFuturesExecutionManager(Map.empty)
   def getCollection( id: String ): Collection = Collections.findCollection(id) match { case Some(collection) => collection; case None=> throw new Exception(s"Unknown Collection: $id" ) }
 }
 
@@ -692,7 +714,7 @@ object SpatialAve1 extends SyncExecutor {
 
 object cdscan extends App with Loggable {
   val printer = new scala.xml.PrettyPrinter(200, 3)
-  val executionManager = new CDS2ExecutionManager(Map.empty)
+  val executionManager = new CDFuturesExecutionManager(Map.empty)
   val final_result = executionManager.blockingExecute( getTaskRequest(args), Map("async" -> "false") )
   println(">>>> Final Result: " + printer.format(final_result.toXml))
 

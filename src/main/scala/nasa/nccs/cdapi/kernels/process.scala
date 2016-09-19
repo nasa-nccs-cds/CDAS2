@@ -144,45 +144,7 @@ abstract class Kernel extends Loggable {
   val reduceCombineOpt: Option[ReduceOpFlt] = None
   val initValue: Float = 0f
 
-  def mapReduce(context: CDASExecutionContext, nprocs: Int): Future[Option[DataFragment]] = {
-    val opInputs: List[OperationInput] = for ( uid <- context.operation.inputs ) yield {
-      context.request.getInputSpec(uid) match {
-        case Some(inputSpec) =>
-          logger.info( "getInputSpec: %s -> %s ".format( uid, inputSpec.longname ) )
-          context.server.getOperationInput(inputSpec)
-        case None => collectionDataCache.getExistingResult( uid ) match {
-          case Some( tFragFut ) =>
-            val rv = Await result ( tFragFut, Duration.Inf )
-            logger.info( "getExistingResult: %s -> %s ".format( uid, rv.dataFrag.spec.longname ) )
-            rv
-          case None => throw new Exception( "Unrecognized input id: " + uid )
-        }
-      }
-    }
-    logger.info( "mapReduce: opInputs = " + opInputs.map( df => "%s(%s)".format( df.getKeyString, df.fragmentSpec.toString ) ).mkString( "," ))
-    val future_results: IndexedSeq[Future[Option[DataFragment]]] = ( 0 until nprocs ) map (
-      iproc => Future { map ( iproc, opInputs map ( _.domainDataFragment( iproc, context ) ), context ) }
-    )
-    reduce(future_results, context)
-  }
-
   def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = { inputs.head }
-
-  def executeProcess( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
-    val t0 = System.nanoTime()
-    var opResult: Future[Option[DataFragment]] = mapReduce( context, nprocs )
-    opResult.onComplete {
-      case Success(dataFragOpt) =>
-        logger.info(s"********** Completed Execution of Kernel[$name($id)]: %s , total time = %.3f sec  ********** \n".format(context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
-      case Failure(t) =>
-        logger.error(s"********** Failed Execution of Kernel[$name($id)]: %s ********** \n".format(context.operation.toString ))
-        logger.error( " ---> Cause: " + t.getCause.getMessage )
-        logger.error( "\n" + t.getCause.getStackTrace.mkString("\n") + "\n" )
-    }
-    createResponse( postOp( opResult, context  ), context )
-  }
-  def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = future_result
-  def reduce( future_results: IndexedSeq[Future[Option[DataFragment]]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = Future.reduce(future_results)(reduceOp(context) _)
 
   def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment = reduceCombineOpt match {
     case Some(combineOp) =>
@@ -192,6 +154,8 @@ abstract class Kernel extends Loggable {
       a0 ++ a1
     }
   }
+
+  def postOp( result: DataFragment, context: CDASExecutionContext ):  DataFragment = result
 
   def reduceOp(context: CDASExecutionContext)(a0op: Option[DataFragment], a1op: Option[DataFragment]): Option[DataFragment] = {
     val t0 = System.nanoTime
@@ -210,23 +174,6 @@ abstract class Kernel extends Loggable {
     }
 //    logger.info("Executed %s reduce op, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
     rv
-  }
-  def createResponse( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext ): ExecutionResult = {
-    val var_mdata = Map[String,Attribute]()
-    val async = context.request.config("async", "false").toBoolean
-    val resultId = cacheResult( resultFut, context, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )
-    if(async) {
-      new AsyncExecutionResult( resultId )
-    } else {
-      val resultOpt: Option[DataFragment] = Await.result( resultFut, Duration.Inf )
-      resultOpt match {
-        case Some(result) =>
-          new BlockingExecutionResult (context.operation.identifier, List(result.spec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data, resultId )
-        case None =>
-          logger.error( "Operation %s returned empty result".format( context.operation.identifier ) )
-          new BlockingExecutionResult (context.operation.identifier, List(), context.request.targetGrid, CDFloatArray.empty )
-      }
-    }
   }
 
   def toXmlHeader =  <kernel module={module} name={name}> { if (description.nonEmpty) <description> {description} </description> } </kernel>
@@ -261,16 +208,6 @@ abstract class Kernel extends Loggable {
     }
   }
 
-  def cacheResult( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
-    try {
-      val tOptFragFut = resultFut.map( dataFragOpt => dataFragOpt.map( dataFrag => new TransientFragment( dataFrag, context.request, varMetadata ) ) )
-      collectionDataCache.putResult( context.operation.rid, tOptFragFut )
-      Some(context.operation.rid)
-    } catch {
-      case ex: Exception => logger.error( "Can't cache result: " + ex.getMessage ); None
-    }
-  }
-
   def weightedValueSumCombiner(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  {
     if ( axes.includes(0) ) {
       val vTot: CDFloatArray = a0.data + a1.data
@@ -282,14 +219,12 @@ abstract class Kernel extends Loggable {
     else { a0 ++ a1 }
   }
 
-  def weightedValueSumPostOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = {
-    future_result.map( _.map( (result: DataFragment) => result.weights match {
-      case Some( weights_sum ) =>
-        logger.info( "weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format( result.data.getShape.mkString(","), weights_sum.getShape.mkString(","), result.spec.toString ) )
-        new DataFragment( result.spec, Map( "value" -> result.data / weights_sum, "weights"-> weights_sum ), result.optCoordMap )
-      case None =>
-        result
-    } ) )
+  def weightedValueSumPostOp( result: DataFragment, context: CDASExecutionContext ):  DataFragment = result.weights match {
+    case Some( weights_sum ) =>
+      logger.info( "weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format( result.data.getShape.mkString(","), weights_sum.getShape.mkString(","), result.spec.toString ) )
+      new DataFragment( result.spec, Map( "value" -> result.data / weights_sum, "weights"-> weights_sum ), result.optCoordMap )
+    case None =>
+      result
   }
 }
 

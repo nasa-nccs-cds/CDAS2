@@ -141,7 +141,7 @@ class CDS extends KernelModule with KernelTools {
       } )
     }
     override def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
-    override def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = weightedValueSumPostOp( future_result, context )
+    override def postOp( result: DataFragment, context: CDASExecutionContext ):  DataFragment = weightedValueSumPostOp( result, context )
 
   }
 
@@ -188,7 +188,7 @@ class CDS extends KernelModule with KernelTools {
       })
     }
     override def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
-    override def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = weightedValueSumPostOp( future_result, context )
+    override def postOp( result: DataFragment, context: CDASExecutionContext ):  DataFragment = weightedValueSumPostOp( result, context )
   }
 
 //  class createV extends Kernel {
