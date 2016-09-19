@@ -98,7 +98,7 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
 
   def partDataFragment( partIndex: Int ): DataFragment = {
     val partition = partitions.getPart(partIndex)
-    new DataFragment( partFragSpec(partIndex), partition.data( fragmentSpec.missing_value ) )
+    DataFragment( partFragSpec(partIndex), partition.data( fragmentSpec.missing_value ) )
   }
 
   def domainDataFragment( partIndex: Int, context: CDASExecutionContext ): Option[DataFragment] = {
@@ -136,7 +136,7 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
       val rv = partFragSpec.cutIntersection( sub_section ) match {
         case Some( cut_spec ) =>
           val array_section = cut_spec.roi.shiftOrigin( frag_section )
-          Some(new DataFragment( cut_spec, CDFloatArray( partition_data.section( array_section ) ) ) )
+          Some( DataFragment( cut_spec, CDFloatArray( partition_data.section( array_section ) ) ) )
         case None =>None
       }
       rv
@@ -178,7 +178,7 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
     val pFragSpec = partFragSpec( partIndex )
     pFragSpec.cutIntersection(cutSection) map { newFragSpec =>
         val newDataArray: CDFloatArray = data (partIndex).section (newFragSpec.roi.shiftOrigin (pFragSpec.roi).getRanges.toList)
-        new DataFragment ( newFragSpec, if (copy) newDataArray.dup () else newDataArray )
+        DataFragment ( newFragSpec, if (copy) newDataArray.dup () else newDataArray )
     }
   }
 }

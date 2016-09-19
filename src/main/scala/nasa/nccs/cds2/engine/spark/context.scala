@@ -39,6 +39,6 @@ class CDSparkContext( val conf: SparkConf ) {
     val indexRDD: RDD[Int] = sparkContext.makeRDD( 0 to nPart-1, nPart )
     indexRDD.map( iPart => partFrag.domainDataFragment( iPart, context ) )
   }
-  
+
 }
 

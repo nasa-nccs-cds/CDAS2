@@ -44,7 +44,7 @@ class CDS extends KernelModule with KernelTools {
         val result_val_masked: CDFloatArray = (dataFrag.data := sval.toFloat)
         val t11 = System.nanoTime
         logger.info ("Constant op, time = %.4f s, result sample = %s".format ((t11 - t10) / 1.0E9, getDataSample(result_val_masked).mkString(",").toString) )
-        new DataFragment (resultFragSpec, result_val_masked)
+        DataFragment (resultFragSpec, result_val_masked)
       } )
     }
   }
@@ -137,7 +137,7 @@ class CDS extends KernelModule with KernelTools {
         val ( weighted_value_sum_masked, weights_sum_masked ) =  dataFrag.data.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, Some(weights), None )
         val t11 = System.nanoTime
         logger.info("Mean_val_masked, time = %.4f s, reduction dims = (%s), sample weighted_value_sum = %s".format((t11 - t10) / 1.0E9, axes.args.mkString(","), getDataSample(weighted_value_sum_masked).mkString(",") ))
-        new DataFragment(resultFragSpec, weighted_value_sum_masked, Some(weights_sum_masked) )
+        DataFragment(resultFragSpec, weighted_value_sum_masked, weights_sum_masked )
       } )
     }
     override def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
@@ -183,7 +183,7 @@ class CDS extends KernelModule with KernelTools {
 //            logger.info("Binned array, time = %.4f s, section = %s\n *** values = %s\n *** weights=%s".format((t11 - t10) / 1.0E9, dataFrag.spec.roi.toString, values_sum.toDataString, weights_sum.toDataString ))
 //            val resultFragSpec = dataFrag.getReducedSpec(Set(axes.args(0)), values_sum.getShape(axes.args(0)))
             logger.info("timeBin, result shape = [ %s ], result spec = %s".format(values_sum.getShape.mkString(","),dataFrag.spec.toString))
-            new DataFragment( dataFrag.spec, values_sum, Some(weights_sum), Some(coordMap) )
+            DataFragment( dataFrag.spec, values_sum, weights_sum, coordMap )
         }
       })
     }
@@ -276,7 +276,7 @@ class CDS extends KernelModule with KernelTools {
         val anomaly_result: CDFloatArray = dataFrag.data.anomaly(axes.args, weightsOpt)
         logger.info( "Partition[%d], generated anomaly result: %s".format(partIndex, anomaly_result.toDataString ) )
         val t11 = System.nanoTime
-        new DataFragment(resultFragSpec, anomaly_result)
+        DataFragment(resultFragSpec, anomaly_result)
       } )
     }
   }

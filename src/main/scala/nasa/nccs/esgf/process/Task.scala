@@ -258,6 +258,10 @@ class MergeDataFragment( val wrappedDataFragOpt: Option[DataFragment] = None ) {
 }
 // DataFragmentSpec, SectionMerge.Status  DataFragmentSpec, SectionMerge.Status
 object DataFragment {
+  def apply( spec: DataFragmentSpec, data: CDFloatArray ): DataFragment = new DataFragment( spec, Map( "value" -> data) )
+  def apply( spec: DataFragmentSpec, data: CDFloatArray, weights: CDFloatArray ): DataFragment = new DataFragment( spec, Map( ("value" -> data), ("weights" -> weights) ) )
+  def apply( spec: DataFragmentSpec, data: CDFloatArray, coordMap: CDCoordMap ): DataFragment = new DataFragment( spec, Map( ("value" -> data) ), Some(coordMap) )
+  def apply( spec: DataFragmentSpec, data: CDFloatArray, weights: CDFloatArray, coordMap: CDCoordMap ): DataFragment = new DataFragment( spec, Map( ("value" -> data), ("weights" -> weights) ), Some(coordMap) )
   def combine( reductionOp: ReduceOpFlt, input0: DataFragment, input1: DataFragment ): DataFragment = {
     val ( data, ( fragSpec, mergeStatus) ) = input0.optCoordMap match {
       case Some( coordMap ) =>  ( CDFloatArray.combine( reductionOp, input1.data, input0.data, coordMap.subset(input1.spec.roi) ), input1.spec.combine(input0.spec,false) )
@@ -266,21 +270,24 @@ object DataFragment {
         case None => ( CDFloatArray.combine( reductionOp, input0.data, input1.data ), input0.spec.combine(input1.spec,true) )
       }
     }
-    new DataFragment( fragSpec, data )
+    DataFragment( fragSpec, data )
   }
   def combineCoordMaps(a0: DataFragment, a1: DataFragment): Option[CDCoordMap] = a0.optCoordMap.flatMap( coordMap0 => a1.optCoordMap.map( coordMap1 => coordMap0 ++ coordMap1 ))
+  def combineDataMaps(a0: DataFragment, a1: DataFragment): Map[String,CDFloatArray] = a0.dataMap flatMap { case (key, array0) => a1.dataMap.get( key ) map ( array1 =>  ( key -> array0.merge(array1)) ) }
 }
 
-class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray, val optData: Option[CDFloatArray] = None, val optCoordMap: Option[CDCoordMap] = None ) {
+class DataFragment( val spec: DataFragmentSpec, val dataMap: Map[String,CDFloatArray] = Map.empty[String,CDFloatArray], val optCoordMap: Option[CDCoordMap] = None ) {
   import DataFragment._
   def ++( dfrag: DataFragment ): DataFragment = {
-    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data), optData.map( data1 => data1.merge(dfrag.optData.get) ), combineCoordMaps( this,dfrag ) )
+    new DataFragment( spec.merge(dfrag.spec), combineDataMaps( this, dfrag ), combineCoordMaps( this,dfrag ) )
   }
+  def data: CDFloatArray = dataMap.get("value").get
+  def weights: Option[CDFloatArray] = dataMap.get("weights")
   def getReducedSpec( axes: AxisIndices ): DataFragmentSpec =  spec.reduce(Set(axes.getAxes:_*))
   def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)
   def subset( section: ma2.Section ): Option[DataFragment] = spec.cutIntersection( section ) map { dataFragSpec =>
     val new_section = dataFragSpec.getIntersection(section)
-    new DataFragment( dataFragSpec, data.section( new_section ), optData.map( data1 => data1.section( new_section ) ), optCoordMap )
+    new DataFragment( dataFragSpec,  dataMap.mapValues( array =>  array.section( new_section ) ), optCoordMap )
   }
 }
 
