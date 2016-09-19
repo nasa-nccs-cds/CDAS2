@@ -340,9 +340,8 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     }
   }
   def merge( other: CDFloatArray ): CDFloatArray = {
-    val (a0, a1)  = (dup(), other.dup())
-    val newIndex = a0.getIndex.append( a1.getIndex )
-    val new_storage = FloatBuffer.wrap( a0.getStorageArray ++ a1.getStorageArray )
+    val newIndex = getIndex.append( other.getIndex )
+    val new_storage = FloatBuffer.wrap( getStorageArray ++ other.getStorageArray )
     new CDFloatArray( newIndex, new_storage, invalid )
   }
   def weightedReduce( reductionOp: ReduceOpFlt, reduceDims: Array[Int], initVal: Float, weightsOpt: Option[CDFloatArray] = None, coordMapOpt: Option[CDCoordMap] = None ): ( CDFloatArray, CDFloatArray ) = {

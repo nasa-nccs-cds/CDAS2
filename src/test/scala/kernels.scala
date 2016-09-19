@@ -58,7 +58,9 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) {
     val result_values = result_node.text.split(",").map( _.toFloat )
     val result_array = CDFloatArray( Array( result_values.length ), result_values, Float.MaxValue )
     val max_scaled_diff = maxScaledDiff(result_array, direct_result_array)
-    printf( "direct result: " + direct_result_array.mkDataString(",") + "\n *** max_scaled_diff = " + max_scaled_diff )
+    printf( " \n\n        result, shape: " + result_array.getShape.mkString(",") + ", values: " + result_array.mkDataString(",") )
+    printf( " \n\n direct result, shape: " + direct_result_array.getShape.mkString(",") + ", values: " + direct_result_array.mkDataString(",") )
+    printf( "\n\n *** max_scaled_diff = " + max_scaled_diff )
     assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Subset")
   }
 
