@@ -21,13 +21,15 @@ import java.util.concurrent.atomic.AtomicReference
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
 import nasa.nccs.caching._
 import ucar.{ma2, nc2}
-import nasa.nccs.cds2.utilities.{GeoTools, runtime}
+import nasa.nccs.cds2.utilities.{GeoTools, appParameters, runtime}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import java.util.concurrent._
 
 import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
+import nasa.nccs.cds2.engine.spark.{CDSparkContext, CDSparkExecutionManager}
+import org.apache.spark.{SparkConf, SparkContext}
 import ucar.nc2.dataset.NetcdfDataset
 
 class Counter(start: Int = 0) {
@@ -36,6 +38,28 @@ class Counter(start: Int = 0) {
     val i0 = index.get
     if(index.compareAndSet( i0, i0 + 1 )) i0 else get
   }
+}
+
+object CDS2ExecutionManager extends Loggable {
+  val handler_type_key = "execution.handler.type"
+
+  def apply( serverConfiguration: Map[String,String] = Map.empty ): CDS2ExecutionManager =
+    getConfigParamValue( handler_type_key, serverConfiguration, "futures-default" ) match {
+      case exeMgr if exeMgr.toLowerCase.startsWith("future") =>
+        logger.info("\nExecuting Futures manager: serverConfig = " + exeMgr)
+        new CDFuturesExecutionManager(serverConfiguration)
+      case exeMgr if exeMgr.toLowerCase.startsWith("spark") =>
+        logger.info("\nExecuting Spark manager: serverConfig = " + exeMgr)
+        new CDSparkExecutionManager(CDSparkContext(), serverConfiguration)
+      case x => throw new Exception("Unrecognized execution.manager.type: " + x)
+    }
+
+
+  def getConfigParamValue( key: String, serverConfiguration: Map[String,String], default_val: String  ): String =
+    serverConfiguration.get( key ) match {
+      case Some( htype ) => htype
+      case None => appParameters( key, default_val )
+    }
 }
 
 abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
@@ -467,7 +491,7 @@ abstract class SyncExecutor {
 
   def getTaskRequest(args: Array[String]): TaskRequest
   def getRunArgs = Map("async" -> "false")
-  def getExecutionManager = new CDFuturesExecutionManager(Map.empty)
+  def getExecutionManager = CDS2ExecutionManager(Map.empty)
   def getCollection( id: String ): Collection = Collections.findCollection(id) match { case Some(collection) => collection; case None=> throw new Exception(s"Unknown Collection: $id" ) }
 }
 
@@ -714,7 +738,7 @@ object SpatialAve1 extends SyncExecutor {
 
 object cdscan extends App with Loggable {
   val printer = new scala.xml.PrettyPrinter(200, 3)
-  val executionManager = new CDFuturesExecutionManager(Map.empty)
+  val executionManager = CDS2ExecutionManager(Map.empty)
   val final_result = executionManager.blockingExecute( getTaskRequest(args), Map("async" -> "false") )
   println(">>>> Final Result: " + printer.format(final_result.toXml))
 

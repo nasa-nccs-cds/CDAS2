@@ -27,11 +27,10 @@ import scala.collection.JavaConverters._
 import java.util.concurrent._
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
-import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
 
 object TaskExecutorSync extends Loggable {
   val printer = new scala.xml.PrettyPrinter(200, 3)
-  val executionManager = new CDFuturesExecutionManager(Map.empty)
+  val executionManager = CDS2ExecutionManager(Map.empty)
   private val taskMap = new ConcurrentLinkedHashMap.Builder[String,TaskRequest].initialCapacity(100).maximumWeightedCapacity(10000).build()
   private val executionCache: Cache[String,ExecutionResults] = new FutureCache("Store","execution",false)
   private var taskIndex = 0

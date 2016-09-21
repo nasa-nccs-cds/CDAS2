@@ -7,7 +7,7 @@ object Version {
   val scala     = "2.11.7"
   val scalaTest = "2.2.4"
   val slf4j     = "1.7.6"
-  val spark     = "2.0.0"
+  val spark     = "1.6.0"
 }
 
 object Library {

@@ -59,7 +59,7 @@ class cds2ServiceProvider( serverConfiguration: Map[String,String] ) extends Ser
   import nasa.nccs.cds2.engine.CDS2ExecutionManager
   import nasa.nccs.esgf.process.TaskRequest
 
-  val cds2ExecutionManager = new CDFuturesExecutionManager( serverConfiguration )
+  val cds2ExecutionManager = CDS2ExecutionManager( serverConfiguration )
 
   def datainputs2Str( datainputs: Map[String, Seq[Map[String, Any]]] ): String = {
     datainputs.map { case ( key:String, value:Seq[Map[String, Any]] ) =>
@@ -105,7 +105,7 @@ object resourceTest extends App {
   import nasa.nccs.cds2.engine.CDS2ExecutionManager
   val serverConfiguration: Map[String,String] = Map()
 
-  val cds2ExecutionManager = new CDFuturesExecutionManager( serverConfiguration )
+  val cds2ExecutionManager = CDS2ExecutionManager( serverConfiguration )
 
   val resourcePath = cds2ExecutionManager.getResourcePath("/collections.xml")
   println( resourcePath )

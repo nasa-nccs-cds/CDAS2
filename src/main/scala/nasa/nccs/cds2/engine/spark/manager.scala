@@ -44,46 +44,34 @@ object collectionRDDDataCache extends CollectionDataCacheMgr()
 
 class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map[String,String] = Map.empty ) extends CDS2ExecutionManager(serverConfig) {
 
-  def mapReduce(context: CDASExecutionContext, kernel: Kernel ): Future[Option[DataFragment]] = {
-    val opInputs: List[OperationInput] = getOperationInputs( context )
+  def mapReduce(context: CDASExecutionContext, kernel: Kernel ): Option[DataFragment] = {
+    val opInputs: List[PartitionedFragment] = getOperationInputs( context ).flatMap(  _ match { case pf: PartitionedFragment => Some(pf); case x => None } )   // TODO: Ignores Transient Fragments
     logger.info( "mapReduce: opInputs = " + opInputs.map( df => "%s(%s)".format( df.getKeyString, df.fragmentSpec.toString ) ).mkString( "," ))
-    val future_results: IndexedSeq[Future[Option[DataFragment]]] = ( 0 until nprocs ) map (
-      iproc => Future { kernel.map ( iproc, opInputs map ( _.domainDataFragment( iproc, context ) ), context ) }
-      )
-    reduce(future_results, context, kernel )
+    val inputRDD = cdsContext.domainFragmentRDD( opInputs, context )
+    val mapresult: RDD[Option[DataFragment]] = inputRDD.map( cdpart => kernel.map( cdpart.iPartIndex,cdpart.dataFragments,context ) )
+    reduce( mapresult, context, kernel )
   }
 
   def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): ExecutionResult = {
     val t0 = System.nanoTime()
-    var opResult: Future[Option[DataFragment]] = mapReduce( context, kernel )
-    opResult.onComplete {
-      case Success(dataFragOpt) =>
-        logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec  ********** \n".format(kernel.name,kernel.id,context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
-      case Failure(t) =>
-        logger.error(s"********** Failed Execution of Kernel[%s(%s)]: %s ********** \n".format(kernel.name,kernel.id,context.operation.toString ))
-        logger.error( " ---> Cause: " + t.getCause.getMessage )
-        logger.error( "\n" + t.getCause.getStackTrace.mkString("\n") + "\n" )
-    }
-    createResponse( postOp( opResult, context  ), context )
+    var pre_result: Option[DataFragment] = mapReduce( context, kernel )
+    logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec  ********** \n".format(kernel.name,kernel.id,context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
+    createResponse( postOp( pre_result, context  ), context )
   }
-  def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = future_result
-  def reduce( future_results: IndexedSeq[Future[Option[DataFragment]]], context: CDASExecutionContext, kernel: Kernel ):  Future[Option[DataFragment]] = Future.reduce(future_results)(kernel.reduceOp(context) _)
 
-  def createResponse( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext ): ExecutionResult = {
+  def postOp( pre_result: Option[DataFragment], context: CDASExecutionContext ):  Option[DataFragment] = pre_result
+  def reduce( mapresult: RDD[Option[DataFragment]], context: CDASExecutionContext, kernel: Kernel ):  Option[DataFragment] = mapresult.reduce( kernel.reduceOp(context) _ )
+
+  def createResponse( result: Option[DataFragment], context: CDASExecutionContext ): ExecutionResult = {    // TODO: Implement async
     val var_mdata = Map[String,Attribute]()
-    val async = context.request.config("async", "false").toBoolean
-    val resultId = cacheResult( resultFut, context, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )
-    if(async) {
-      new AsyncExecutionResult( resultId )
-    } else {
-      val resultOpt: Option[DataFragment] = Await.result( resultFut, Duration.Inf )
-      resultOpt match {
-        case Some(result) =>
-          new BlockingExecutionResult (context.operation.identifier, List(result.spec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data, resultId )
-        case None =>
-          logger.error( "Operation %s returned empty result".format( context.operation.identifier ) )
-          new BlockingExecutionResult (context.operation.identifier, List(), context.request.targetGrid, CDFloatArray.empty )
-      }
+//    val async = context.request.config("async", "false").toBoolean
+    val resultId = cacheResult( Future(result), context, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )
+    result match {
+      case Some(result) =>
+        new BlockingExecutionResult(context.operation.identifier, List(result.spec), context.request.targetGrid.getSubGrid(result.spec.roi), result.data, resultId)
+      case None =>
+        logger.error("Operation %s returned empty result".format(context.operation.identifier))
+        new BlockingExecutionResult(context.operation.identifier, List(), context.request.targetGrid, CDFloatArray.empty)
     }
   }
 
