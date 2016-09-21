@@ -6,13 +6,14 @@ import nasa.nccs.cdapi.tensors.CDFloatArray._
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDTimeCoordMap}
 import nasa.nccs.cds2.kernels.KernelTools
 import nasa.nccs.esgf.process.{DataFragment, _}
+import nasa.nccs.utilities.cdsutils
 import ucar.ma2
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Success}
-
+// cdsutils.testSerializable
 class CDS extends KernelModule with KernelTools {
   override val version = "1.0-SNAPSHOT"
   override val organization = "nasa.nccs"
@@ -28,6 +29,36 @@ class CDS extends KernelModule with KernelTools {
     override val initValue: Float = -Float.MaxValue
   }
 
+  class serializeTest extends SingularKernel {
+    val inputs = List(Port("input fragment", "1"))
+    val outputs = List(Port("result", "1"))
+    override val description = "Tests serialization of map inputs"
+ //   class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[String, Option[DataFragmentSpec]], val targetGrid: TargetGrid, private val configuration: Map[String,String] ) extends ScopeContext {
+
+    override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = {
+      inputs.head.map( dataFrag => {
+        val input = inputs.head.get
+        val inHeapCDArray = input.data.toHeap
+        val buffer = inHeapCDArray.floatStorage
+        cdsutils.testSerializable( context )
+        cdsutils.testSerializable( context.request )
+        cdsutils.testSerializable( context.request.domains.head._2 )
+        cdsutils.testSerializable( context.request.inputs.head._2.get )
+        cdsutils.testSerializable( context.request.targetGrid )
+
+        cdsutils.testSerializable( context.operation )
+        cdsutils.testSerializable( context.server )
+        cdsutils.testSerializable(input)
+        cdsutils.testSerializable(input.spec)
+        cdsutils.testSerializable(input.dataMap)
+        cdsutils.testSerializable(input.data)
+        cdsutils.testSerializable( inHeapCDArray )
+        cdsutils.testSerializable( buffer.array()  )
+        cdsutils.testSerializable( inHeapCDArray.getIndex )
+        DataFragment ( dataFrag.spec, CDFloatArray.empty )
+      } )
+    }
+  }
     
   class const extends SingularKernel {
     val inputs = List(Port("input fragment", "1"))

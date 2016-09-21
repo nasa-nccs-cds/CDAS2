@@ -389,7 +389,7 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
   }
 }
 
-class ServerContext( val dataLoader: DataLoader, private val configuration: Map[String,String] )  extends ScopeContext {
+class ServerContext( val dataLoader: DataLoader, private val configuration: Map[String,String] )  extends ScopeContext with Serializable {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   def getConfiguration = configuration
   def getVariable( collection: Collection, varname: String ): CDSVariable = dataLoader.getVariable( collection, varname )
@@ -501,6 +501,13 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
       }
     }
   }
+}
+
+
+object serializeTest extends App {
+
+
+
 }
 
 

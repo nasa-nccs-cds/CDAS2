@@ -66,7 +66,7 @@ class DayOfYearIter( timeOffsets: Array[Double], range: ma2.Range ) extends Time
   def getValue( count_index: Int ): Int = toDate( getCalendarDate(count_index+index_offset) ).getDayOfYear
 }
 
-class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val offset: Int = 0 ) {
+class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val offset: Int = 0 ) extends Serializable {
   protected val rank: Int = shape.length
   protected val stride = if( _stride.isEmpty ) computeStrides(shape) else _stride
   def this( index: CDIndexMap ) = this( index.shape, index.stride, index.offset )

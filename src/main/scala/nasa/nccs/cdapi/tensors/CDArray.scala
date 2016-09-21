@@ -49,7 +49,7 @@ object CDArray {
 
 }
 
-abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, private val storage: Buffer ) extends Loggable {
+abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, private val storage: Buffer ) extends Loggable with Serializable  {
   protected val rank = cdIndexMap.getRank
   protected val dataType = CDArray.getDataType( storage )
 
@@ -169,7 +169,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 
 }
 
-object CDFloatArray extends Loggable {
+object CDFloatArray extends Loggable with Serializable {
   type ReduceOpFlt = CDArray.ReduceOp[Float]
   implicit def cdArrayConverter( target: CDArray[Float] ): CDFloatArray = new CDFloatArray( target.getIndex, target.getStorage.asInstanceOf[ FloatBuffer ], target.getInvalid )
   implicit def toUcarArray( target: CDFloatArray ): ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, target.getShape, target.getSectionData().array() )
@@ -297,6 +297,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def zeros: CDFloatArray = new CDFloatArray( getShape, FloatBuffer.wrap( Array.fill[Float]( getSize )(0) ), invalid )
   def invalids: CDFloatArray = new CDFloatArray( getShape, FloatBuffer.wrap( Array.fill[Float]( getSize )(invalid) ), invalid )
   def getInvalid = invalid
+  def toHeap = new CDFloatArray( cdIndexMap, if(isMapped) copySectionData() else getData, getInvalid )
 
   def -(array: CDFloatArray) = CDFloatArray.combine( subtractOp, this, array )
   def -=(array: CDFloatArray) = CDFloatArray.accumulate( subtractOp, this, array )

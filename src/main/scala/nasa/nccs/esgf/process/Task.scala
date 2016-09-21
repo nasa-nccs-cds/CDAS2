@@ -276,7 +276,7 @@ object DataFragment {
   def combineDataMaps(a0: DataFragment, a1: DataFragment): Map[String,CDFloatArray] = a0.dataMap flatMap { case (key, array0) => a1.dataMap.get( key ) map ( array1 =>  ( key -> array0.merge(array1)) ) }
 }
 
-class DataFragment( val spec: DataFragmentSpec, val dataMap: Map[String,CDFloatArray] = Map.empty[String,CDFloatArray], val optCoordMap: Option[CDCoordMap] = None ) {
+class DataFragment( val spec: DataFragmentSpec, val dataMap: Map[String,CDFloatArray] = Map.empty[String,CDFloatArray], val optCoordMap: Option[CDCoordMap] = None ) extends Serializable {
   import DataFragment._
   def ++( dfrag: DataFragment ): DataFragment = {
     new DataFragment( spec.merge(dfrag.spec), combineDataMaps( this, dfrag ), combineCoordMaps( this,dfrag ) )
@@ -287,7 +287,7 @@ class DataFragment( val spec: DataFragmentSpec, val dataMap: Map[String,CDFloatA
   def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)
   def subset( section: ma2.Section ): Option[DataFragment] = spec.cutIntersection( section ) map { dataFragSpec =>
     val new_section = dataFragSpec.getIntersection(section)
-    new DataFragment( dataFragSpec,  dataMap.mapValues( array =>  array.section( new_section ) ), optCoordMap )
+    new DataFragment( dataFragSpec,  dataMap.mapValues( array => CDFloatArray.cdArrayConverter( array.section( new_section ) ) ).map(identity), optCoordMap )     // map(identity) to work around scala serialization bug
   }
 }
 
@@ -299,8 +299,10 @@ object SectionMerge {
   def incommensurate( s0: ma2.Section, s1: ma2.Section ) = { "Attempt to combine incommensurate sections: %s vs %s".format( s0.toString, s1.toString ) }
 }
 
-class DataFragmentSpec( val varname: String="", val collection: Collection = Collection("empty",""), val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
-                        val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None ) extends Loggable {
+class DataFragmentSpec( val varname: String="", val collection: Collection = Collection("empty",""), val fragIdOpt: Option[String]=None,
+                        val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
+                        val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section],
+                        val missing_value: Float, val mask: Option[String] = None ) extends Loggable with Serializable {
 //  logger.info( "DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s".format( _section, _domSectOpt.getOrElse("null").toString ) )
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
@@ -589,7 +591,7 @@ object DataContainer extends ContainerBase {
   }
 }
 
-class DomainContainer( val name: String, val axes: List[DomainAxis] = List.empty[DomainAxis], val mask: Option[String]=None ) extends ContainerBase {
+class DomainContainer( val name: String, val axes: List[DomainAxis] = List.empty[DomainAxis], val mask: Option[String]=None ) extends ContainerBase  with Serializable {
   override def toString = {
     s"DomainContainer { name = $name, axes = $axes }"
   }
@@ -638,7 +640,7 @@ object DomainAxis extends ContainerBase {
   }
 }
 
-class DomainAxis( val axistype: DomainAxis.Type.Value, val start: GenericNumber, val end: GenericNumber, val system: String, val bounds: String = "" ) extends ContainerBase  {
+class DomainAxis( val axistype: DomainAxis.Type.Value, val start: GenericNumber, val end: GenericNumber, val system: String, val bounds: String = "" ) extends ContainerBase with Serializable {
   import DomainAxis.Type._
   val name =   axistype.toString
   def getCFAxisName: String = axistype match { case X => "X"; case Y => "Y"; case Z => "Z"; case T => "T" }
@@ -708,7 +710,7 @@ object WorkflowContainer extends ContainerBase {
   }
 }
 
-class OperationContext( val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext  {
+class OperationContext( val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext with Serializable  {
   def getConfiguration = configuration
   println( "OperationContext: " + rid )
 
@@ -731,7 +733,7 @@ object OperationContext extends ContainerBase  {
       case x => throw new Exception ( "Unrecognized input in operation spec: " + x.toString )
     }
     val op_name = metadata.getOrElse( "name", process_name ).toString.trim.toLowerCase
-    val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim.toLowerCase )
+    val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim.toLowerCase ).map(identity)  // map(identity) to work around scala serialization bug
     val input = metadata.getOrElse("input","").toString
     val opLongName = op_name + "-" + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )

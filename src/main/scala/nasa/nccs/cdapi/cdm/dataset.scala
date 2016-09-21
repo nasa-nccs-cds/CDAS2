@@ -259,7 +259,7 @@ class CDSDatasetRec( val dsetName: String, val collection: Collection, val varNa
   def getUri: String = collection.url(varName)
 }
 
-class CDSDataset( val name: String, val collection: Collection, val ncDataset: NetcdfDataset, val varName: String, coordSystems: List[CoordinateSystem] ) {
+class CDSDataset( val name: String, val collection: Collection, val ncDataset: NetcdfDataset, val varName: String, coordSystems: List[CoordinateSystem] ) extends Serializable {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val attributes: List[nc2.Attribute] = ncDataset.getGlobalAttributes.map( a => { new nc2.Attribute( name + "--" + a.getFullName, a ) } ).toList
   val coordAxes: List[CoordinateAxis] = initCoordAxes

@@ -37,7 +37,7 @@ class Port( val name: String, val cardinality: String, val description: String, 
   }
 }
 
-class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) extends Loggable {
+class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) extends Loggable with Serializable {
 
   def getOpSections: Option[ IndexedSeq[ma2.Section] ] = {
     val optargs: Map[String, String] = operation.getConfiguration

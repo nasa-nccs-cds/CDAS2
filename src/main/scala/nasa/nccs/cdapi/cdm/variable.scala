@@ -28,7 +28,7 @@ object CDSVariable extends Loggable {
   }
 }
 
-class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc2.Variable) extends Loggable {
+class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc2.Variable) extends Loggable with Serializable {
   val description = ncVariable.getDescription
   val dims = ncVariable.getDimensionsAll.toList
   val units = ncVariable.getUnitsString

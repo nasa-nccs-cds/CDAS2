@@ -32,6 +32,10 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) {
     val result_value = result_node.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
+  test("SerializeTest") {
+    val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDS.serializeTest","input":"v1","domain":"d0"}]]"""
+    executeTest(datainputs) \\ "data"
+  }
   test("Minimum") {
     val nco_verified_result = 239.4816
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDS.min","input":"v1","domain":"d0","axes":"xy"}]]"""

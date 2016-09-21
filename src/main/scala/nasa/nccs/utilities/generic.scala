@@ -39,6 +39,20 @@ object cdsutils {
     for ( cpitem <- cpitems; fileitem = new File(cpitem); if fileitem.isFile && fileitem.getName.toLowerCase.endsWith(".jar") ) yield new JarFile(fileitem)
   }
 
+  def testSerializable( test_object: AnyRef ) = {
+    import java.io._
+    val out = new ObjectOutputStream(new FileOutputStream("test.obj"))
+    val name = test_object.getClass.getSimpleName
+    try {
+      out.writeObject(test_object)
+      println( s" ** SER +++ '$name'" )
+    } catch {
+      case ex: java.io.NotSerializableException => println( s" ** SER --- '$name'" )
+    } finally {
+      out.close
+    }
+  }
+
   def printHeapUsage = {
     val MB = 1024 * 1024
     val heapSize: Long = Runtime.getRuntime.totalMemory

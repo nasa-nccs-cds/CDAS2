@@ -22,7 +22,7 @@ object CDSparkPartition {
   def apply( iPartIndex: Int, dataFragments: List[Option[DataFragment]] ) = new  CDSparkPartition( iPartIndex, dataFragments )
 }
 
-class CDSparkPartition( val iPartIndex: Int, val dataFragments: List[Option[DataFragment]] ) {}
+class CDSparkPartition( val iPartIndex: Int, val dataFragments: List[Option[DataFragment]] ) extends Serializable {}
 
 class CDSparkContext( @transient val sparkContext: SparkContext ) {
 
