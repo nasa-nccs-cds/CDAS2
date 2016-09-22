@@ -9,13 +9,21 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 
 object CDSparkContext {
-  def apply() : CDSparkContext = {
-    val conf =  new SparkConf(false).setMaster("local[*]").setAppName("CDAS").set("spark.logConf", "true")
-    new CDSparkContext( new SparkContext( conf ) )
-  }
+  val kyro_buffer_mb = 24
+  val kyro_buffer_max_mb = 64
+
+  def apply() : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf() ) )
   def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
-  def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext(  new SparkConf().setMaster(url).setAppName(name) ) )
+  def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf(url,name) ) )
+
+  def getSparkConf( master: String="local[*]", appName: String="CDAS", logConf: Boolean = true ) = new SparkConf(false)
+    .setMaster( master )
+    .setAppName( appName )
+    .set("spark.logConf", logConf.toString )
+    .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    .set("spark.kryoserializer.buffer.mb",kyro_buffer_mb.toString)
+    .set("spark.kryoserializer.buffer.max.mb",kyro_buffer_max_mb.toString)
 }
 
 object CDSparkPartition {

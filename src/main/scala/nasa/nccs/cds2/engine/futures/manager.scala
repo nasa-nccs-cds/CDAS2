@@ -5,7 +5,6 @@ import nasa.nccs.cdapi.cdm.OperationInput
 import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.engine.CDS2ExecutionManager
-import nasa.nccs.cds2.engine.spark.CDSparkContext
 import nasa.nccs.esgf.process.DataFragment
 import ucar.nc2
 import ucar.nc2.Attribute
