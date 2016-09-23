@@ -299,7 +299,7 @@ object SectionMerge {
   def incommensurate( s0: ma2.Section, s1: ma2.Section ) = { "Attempt to combine incommensurate sections: %s vs %s".format( s0.toString, s1.toString ) }
 }
 
-class DataFragmentSpec( val varname: String="", val collection: Collection = Collection("empty",""), val fragIdOpt: Option[String]=None,
+class DataFragmentSpec( val uid: String="", val varname: String="", val collection: Collection = Collection("empty",""), val fragIdOpt: Option[String]=None,
                         val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
                         val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section],
                         val missing_value: Float, val mask: Option[String] = None ) extends Loggable with Serializable {
@@ -308,15 +308,17 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = Col
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
     mask match {
-      case None => <input varname={varname} longname={longname} units={units} roi={roi.toString} >{collection.toXml}</input>
-      case Some(maskId) => <input varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
+      case None => <input uid={uid} varname={varname} longname={longname} units={units} roi={roi.toString} >{collection.toXml}</input>
+      case Some(maskId) => <input uid={uid} varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
+  def getMetadata: Map[String,String] = Map( "name" -> varname, "collection" -> collection.id, "fragment" -> fragIdOpt.getOrElse(""), "dimensions" -> dimensions, "units" -> units, "longname" -> longname, "uid" -> uid, "roi" -> roi.toString )
+
   def combine( other: DataFragmentSpec, sectionMerge: Boolean = true ): ( DataFragmentSpec, SectionMerge.Status ) = {
     val combined_varname = varname + ":" + other.varname
     val combined_longname = longname + ":" + other.longname
     val ( combined_section, mergeStatus ) = if(sectionMerge) combineRoi( other.roi ) else ( roi, SectionMerge.Overlap )
-    ( new DataFragmentSpec( combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, missing_value, mask ) -> mergeStatus )
+    ( new DataFragmentSpec( uid, combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, missing_value, mask ) -> mergeStatus )
   }
   def roi = targetGridOpt match {
     case None => new ma2.Section( _section )
@@ -326,7 +328,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = Col
 
   def toBoundsString = { targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
-  def reshape( newSection: ma2.Section ): DataFragmentSpec = new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newSection), domainSectOpt, missing_value, mask )
+  def reshape( newSection: ma2.Section ): DataFragmentSpec = new DataFragmentSpec( uid, varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newSection), domainSectOpt, missing_value, mask )
 
   def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
     case Some( array ) => array
@@ -368,7 +370,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = Col
 
   def domainSpec: DataFragmentSpec = domainSectOpt match {
     case None => this;
-    case Some(cutSection) => new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask )
+    case Some(cutSection) => new DataFragmentSpec( uid, varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask )
   }
 
   def intersectRoi( cutSection: ma2.Section ): ma2.Section = {
@@ -400,7 +402,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = Col
     if( roi.intersects( cutSection ) ) {
       val intersection = intersectRoi(cutSection)
 //      logger.info( "DOMAIN INTERSECTION:  %s <-> %s  => %s".format( roi.toString, cutSection.toString, intersection.toString ))
-      Some( new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, intersection, domainSectOpt, missing_value, mask ) )
+      Some( new DataFragmentSpec( uid, varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, intersection, domainSectOpt, missing_value, mask ) )
     }  else None
 
   def getReducedSection( axisIndices: Set[Int], newsize: Int = 1 ): ma2.Section = {
@@ -450,7 +452,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = Col
   def reSection( newSection: ma2.Section ): DataFragmentSpec = {
 //    println( " ++++ ReSection: newSection=(%s), roi=(%s)".format( newSection.toString, roi.toString ) )
     val newRanges = for( iR <- roi.getRanges.indices; r0 = roi.getRange(iR); rNew = newSection.getRange(iR) ) yield new ma2.Range(r0.getName,rNew)
-    new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), domainSectOpt, missing_value, mask )
+    new DataFragmentSpec( uid, varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), domainSectOpt, missing_value, mask )
   }
   def reSection( fkey: DataFragmentKey ): DataFragmentSpec = reSection( fkey.getRoi )
 

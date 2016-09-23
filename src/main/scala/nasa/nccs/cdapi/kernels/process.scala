@@ -52,6 +52,16 @@ class CDASExecutionContext( val operation: OperationContext, val request: Reques
       case None => return None
     }))
   }
+  def getOpSectionIntersection: Option[ ma2.Section ] = getOpSections match {
+    case None => return None
+    case Some( sections ) =>
+      if( sections.isEmpty ) None
+      else {
+        val result = sections.foldLeft(sections.head)( _.intersect(_) )
+        if (result.computeSize() > 0) { Some(result) }
+        else return None
+      }
+  }
 }
 
 class ExecutionResult( val id: String ) {

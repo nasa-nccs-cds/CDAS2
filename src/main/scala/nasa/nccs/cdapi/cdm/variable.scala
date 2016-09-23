@@ -1,6 +1,7 @@
 package nasa.nccs.cdapi.cdm
 
-import nasa.nccs.caching.Partitions
+import nasa.nccs.caching.{Partition, Partitions}
+import nasa.nccs.cdapi.data.{HeapArray, RDDPartition}
 import nasa.nccs.cdapi.kernels.CDASExecutionContext
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.esgf.process._
@@ -101,19 +102,25 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
     DataFragment( partFragSpec(partIndex), partition.data( fragmentSpec.missing_value ) )
   }
 
-  def domainDataFragment( partIndex: Int, context: CDASExecutionContext ): Option[DataFragment] = {
-    val optSection: Option[ma2.Section] = context.getOpSections match {
-      case None => return None
-      case Some( sections ) =>
-//        logger.info( "OP sections: " + sections.map( _.toString ).mkString( "( ", ", ", " )") )
-        if( sections.isEmpty ) None
-        else {
-          val result = sections.foldLeft(sections.head)( _.intersect(_) )
-//          logger.info( "OP sections: %s >>>>---------> intersection: %s".format( sections.map( _.toString ).mkString( "( ", ", ", " )"), result.toString ) )
-          if (result.computeSize() > 0) { Some(result) }
-          else return None
-        }
-    }
+  def partRDDPartition( partIndex: Int ): RDDPartition = {
+    val partition = partitions.getPart(partIndex)
+    val data: CDFloatArray = partition.data( fragmentSpec.missing_value )
+    val spec: DataFragmentSpec = partFragSpec(partIndex)
+    RDDPartition( Map( spec.uid -> HeapArray(data, spec.getMetadata) ) )
+  }
+
+  def domainRDDPartition(partIndex: Int, context: CDASExecutionContext): Option[RDDPartition] = domainDataSection( partIndex, context ) match {
+    case Some((spec, data)) => Some(  RDDPartition( Map( spec.uid -> HeapArray(data, spec.getMetadata ) ) ) )
+    case None => None
+  }
+
+  def domainDataFragment(partIndex: Int, context: CDASExecutionContext): Option[DataFragment] = domainDataSection( partIndex, context ) match {
+    case Some((spec, data)) => Some( DataFragment(spec, data) )
+    case None => None
+  }
+
+  def domainDataSection( partIndex: Int, context: CDASExecutionContext ): Option[ ( DataFragmentSpec, CDFloatArray )] = {
+    val optSection: Option[ma2.Section] = context.getOpSectionIntersection
     try {
       val partition = partitions.getPart(partIndex)
       val partition_data = partition.data(fragmentSpec.missing_value)
@@ -132,11 +139,10 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
           logger.info( "OP section empty" )
           domain_section
       }
-//     logger.info( s" +++++++++++++++++++++>>>> DomainDataFragment[$partIndex]-> section = " + sub_section.toString )
       val rv = partFragSpec.cutIntersection( sub_section ) match {
-        case Some( cut_spec ) =>
+        case Some( cut_spec: DataFragmentSpec ) =>
           val array_section = cut_spec.roi.shiftOrigin( frag_section )
-          Some( DataFragment( cut_spec, CDFloatArray( partition_data.section( array_section ) ) ) )
+          Some( ( cut_spec, CDFloatArray( partition_data.section( array_section ) ) ) )
         case None =>None
       }
       rv
