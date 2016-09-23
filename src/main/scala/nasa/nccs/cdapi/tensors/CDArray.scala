@@ -49,7 +49,7 @@ object CDArray {
 
 }
 
-abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, private val storage: Buffer ) extends Loggable {
+abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, private val storage: Buffer ) extends Loggable with Serializable  {
   protected val rank = cdIndexMap.getRank
   protected val dataType = CDArray.getDataType( storage )
 
@@ -65,6 +65,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   def getStride: Array[Int] = cdIndexMap.getStride
   def getOffset: Int = cdIndexMap.getOffset
   def getReducedShape: Array[Int] = cdIndexMap.getReducedShape
+  def getSubspaceSize(subAxes: Array[Int]): Int = subAxes.map(getShape(_)).foldLeft(1)(_*_)
   def getStorageValue( index: StorageIndex ): T
   def getValue( indices: Array[Int] ): T = getStorageValue( cdIndexMap.getStorageIndex(indices) )
   def getFlatValue( index: FlatIndex ): T = getStorageValue( getIterator.flatToStorage(index) )
@@ -118,7 +119,6 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
     rv
   }
 
-
   def createRanges( origin: Array[Int], shape: Array[Int], strideOpt: Option[Array[Int]] = None ): List[ma2.Range] = {
     val strides: Array[Int] = strideOpt match {
       case Some(stride_array) => stride_array
@@ -169,12 +169,28 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 
 }
 
-object CDFloatArray {
+object CDFloatArray extends Loggable with Serializable {
   type ReduceOpFlt = CDArray.ReduceOp[Float]
   implicit def cdArrayConverter( target: CDArray[Float] ): CDFloatArray = new CDFloatArray( target.getIndex, target.getStorage.asInstanceOf[ FloatBuffer ], target.getInvalid )
   implicit def toUcarArray( target: CDFloatArray ): ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, target.getShape, target.getSectionData().array() )
   val bTrue: Byte = 1
   val bFalse: Byte = 0
+  val addOp: ReduceOpFlt = (x:Float, y:Float) => ( x + y )
+  val subtractOp: ReduceOpFlt = (x:Float, y:Float) => ( x - y )
+  val multiplyOp: ReduceOpFlt = (x:Float, y:Float) => ( x * y )
+  val divideOp: ReduceOpFlt = (x:Float, y:Float) => ( x / y )
+  val maxOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x > y ) x else y )
+  val minOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x < y ) x else y )
+  val eqOp: ReduceOpFlt = (x:Float, y:Float) => ( y )
+  def getOp( opName: String ): ReduceOpFlt = opName match {
+    case x if x.startsWith("sum") => addOp
+    case x if x.startsWith("add") => addOp
+    case x if x.startsWith("sub") => subtractOp
+    case x if x.startsWith("mul") => multiplyOp
+    case x if x.startsWith("div") => divideOp
+    case x if x.startsWith("max") => maxOp
+    case x if x.startsWith("min") => minOp
+  }
 
   def apply( cdIndexMap: CDIndexMap, floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( cdIndexMap, FloatBuffer.wrap(floatData),  invalid )
   def apply( shape: Array[Int], floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( shape, FloatBuffer.wrap(floatData),  invalid )
@@ -186,6 +202,13 @@ object CDFloatArray {
     case "int"    => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toFloat ) )
     case "short"  => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toFloat ) )
     case x        => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Byte]].map( _.toFloat ) )
+  }
+
+  def toFloatArray( array: ucar.ma2.Array ): Array[Float] = array.getElementType.toString match {
+    case "float"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]]
+    case "double" => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]].map( _.toFloat )
+    case "int"    => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toFloat )
+    case "short"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toFloat )
   }
 
   def empty: CDFloatArray = { new CDFloatArray( CDIndexMap.empty, FloatBuffer.allocate(0), Float.MaxValue ) }
@@ -228,6 +251,15 @@ object CDFloatArray {
     new CDFloatArray( iter.getShape, FloatBuffer.wrap(result.toArray), input0.invalid )
   }
 
+  def combine( reductionOp: ReduceOpFlt, input: CDFloatArray, mappedInput: CDFloatArray, coordMap: CDCoordMap ): CDFloatArray = {
+    logger.info( "CDFloatArray.combine: input shape=%s, mappedInput shape=%s".format( input.getShape.mkString(","), mappedInput.getShape.mkString(",") ) )
+    val iter = new CDArrayIndexIterator( input.getIndex  )
+    val result = for (flatIndex <- iter; coords = iter.getCoordinateIndices; mappedCoords = coordMap.map(coords); v0 = input.getValue(coords); v1 = mappedInput.getValue(mappedCoords) ) yield {
+      if (!input.valid(v0)) input.invalid else if (!mappedInput.valid(v1)) mappedInput.invalid else reductionOp(v0, v1)
+    }
+    new CDFloatArray( iter.getShape, FloatBuffer.wrap(result.toArray), input.invalid )
+  }
+
   def accumulate( reductionOp: ReduceOpFlt, input0: CDFloatArray, input1: CDFloatArray ): Unit = {
     val sameStructure = input0.getStride.sameElements(input1.getStride)
     val iter = DualArrayIterator(input0,input1)
@@ -246,29 +278,13 @@ object CDFloatArray {
 }
 
 class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, protected val invalid: Float ) extends CDArray[Float](cdIndexMap,floatStorage) {
-  type ReduceOpFlt = CDFloatArray.ReduceOpFlt
-  val addOp: ReduceOpFlt = (x:Float, y:Float) => ( x + y )
-  val subtractOp: ReduceOpFlt = (x:Float, y:Float) => ( x - y )
-  val multiplyOp: ReduceOpFlt = (x:Float, y:Float) => ( x * y )
-  val divideOp: ReduceOpFlt = (x:Float, y:Float) => ( x / y )
-  val maxOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x > y ) x else y )
-  val minOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x < y ) x else y )
-  val eqOp: ReduceOpFlt = (x:Float, y:Float) => ( y )
-  def getOp( opName: String ): ReduceOpFlt = opName match {
-    case x if x.startsWith("sum") => addOp
-    case x if x.startsWith("add") => addOp
-    case x if x.startsWith("sub") => subtractOp
-    case x if x.startsWith("mul") => multiplyOp
-    case x if x.startsWith("div") => divideOp
-    case x if x.startsWith("max") => maxOp
-    case x if x.startsWith("min") => minOp
-  }
+  import CDFloatArray._
   def getStorageValue( index: StorageIndex ): Float = floatStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Float ): Unit = floatStorage.put( index, value )
   def this( shape: Array[Int], storage: FloatBuffer, invalid: Float ) = this( CDIndexMap.factory(shape), storage, invalid )
   def this( storage: FloatBuffer, invalid: Float ) = this( CDIndexMap.factory( Array(storage.capacity()) ), storage, invalid )
   protected def getData: FloatBuffer = floatStorage
-  override def getSectionData( maxSize: Int = Int.MaxValue ): FloatBuffer = super.getSectionData(maxSize).asInstanceOf[FloatBuffer]
+  override def getSectionData( maxSize: Int = Int.MaxValue ): FloatBuffer = if( getSize > 0 ) { super.getSectionData(maxSize).asInstanceOf[FloatBuffer] } else FloatBuffer.allocate(0)
   def getStorageData: FloatBuffer = floatStorage
   def isMapped: Boolean = !floatStorage.hasArray
   def getStorageArray: Array[Float] = CDFloatArray.toArray( floatStorage )
@@ -281,6 +297,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def zeros: CDFloatArray = new CDFloatArray( getShape, FloatBuffer.wrap( Array.fill[Float]( getSize )(0) ), invalid )
   def invalids: CDFloatArray = new CDFloatArray( getShape, FloatBuffer.wrap( Array.fill[Float]( getSize )(invalid) ), invalid )
   def getInvalid = invalid
+  def toHeap = new CDFloatArray( cdIndexMap, if(isMapped) copySectionData() else getData, getInvalid )
 
   def -(array: CDFloatArray) = CDFloatArray.combine( subtractOp, this, array )
   def -=(array: CDFloatArray) = CDFloatArray.accumulate( subtractOp, this, array )
@@ -313,15 +330,19 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     new CDFloatArray( cdIndexMap, FloatBuffer.wrap(mappedData.toArray), invalid )
   }
   def copySectionData( maxValue: Int = Int.MaxValue ): FloatBuffer =  {
-    printf( " >>>> copySectionData: cap=%d, maxval=%d index=%s".format( floatStorage.capacity(), maxValue, cdIndexMap.toString ) )
-    val floatData = ( for ( index <- getIterator; if(index<maxValue); value = floatStorage.get(index) ) yield { value } );
-    FloatBuffer.wrap(floatData.toArray)
+//    printf( " >>>> copySectionData: cap=%d, maxval=%d index=%s".format( floatStorage.capacity(), maxValue, cdIndexMap.toString ) )
+    val size = getSize
+    logger.info( s" **copySectionData** >>>>>------> Size = $size" )
+    if( size == 0 ) {
+      FloatBuffer.allocate(0)
+    }  else {
+      val floatData = ( for ( index <- getIterator; if(index<maxValue); value = floatStorage.get(index) ) yield { value } );
+      FloatBuffer.wrap(floatData.toArray)
+    }
   }
   def merge( other: CDFloatArray ): CDFloatArray = {
-    assert( !isMapped && !other.isMapped, "Attempt to merge a mapped array: Not supported.")
-    val (a0, a1)  = (dup(), other.dup())
-    val newIndex = a0.getIndex.append( a1.getIndex )
-    val new_storage = FloatBuffer.wrap( a0.getStorageArray ++ a1.getStorageArray )
+    val newIndex = getIndex.append( other.getIndex )
+    val new_storage = FloatBuffer.wrap( getStorageArray ++ other.getStorageArray )
     new CDFloatArray( newIndex, new_storage, invalid )
   }
   def weightedReduce( reductionOp: ReduceOpFlt, reduceDims: Array[Int], initVal: Float, weightsOpt: Option[CDFloatArray] = None, coordMapOpt: Option[CDCoordMap] = None ): ( CDFloatArray, CDFloatArray ) = {
@@ -511,6 +532,13 @@ object CDDoubleArray {
   def toDoubleBuffer( buffer: Buffer ): DoubleBuffer = buffer match {
     case x: DoubleBuffer  => buffer.asInstanceOf[ DoubleBuffer ]
     case x => throw new Exception( "Attempt to convert non-float buffer to DoubleBuffer")
+  }
+
+  def toDoubleArray( array: ucar.ma2.Array ): Array[Double] = array.getElementType.toString match {
+    case "float"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]].map( _.toDouble )
+    case "double" => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]]
+    case "int"    => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toDouble )
+    case "short"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toDouble )
   }
 
   def factory( array: ucar.ma2.Array, invalid: Double = Double.MaxValue ): CDDoubleArray = {

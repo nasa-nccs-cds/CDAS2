@@ -59,17 +59,3 @@ object wpsObjectParser extends ObjectNotationParser {
   }
 }
 
-object parseTest extends App {
-  val data_input0 = """[domain=[{"name":"r0","longitude":{"start":-119.225,"end":-119.225,"system":"values"}}]]"""
-  val data_input = """[variable=[{"uri":"","name":"cds.average(v1;axes=xy)-07.24-05.29.11:cds.average(v1;axes=xy)-07.24-05.29.11","domain":""}]]"""
-  try {
-    val result = wpsObjectParser.parseDataInputs(data_input)
-    println("Parse Result: " + result)
-  } catch {
-    case e: BadRequestException => {
-      println("BadRequestException: " + e.getMessage)
-    }
-  }
-}
-
-

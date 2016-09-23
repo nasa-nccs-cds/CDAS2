@@ -10,6 +10,7 @@ import java.nio._
 
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.XmlResource
+import nasa.nccs.cds2.utilities.{appParameters}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateSystem, NetcdfDataset, VariableDS}
@@ -23,58 +24,67 @@ import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import scala.xml.XML
 import org.apache.commons.io.IOUtils
+import nasa.nccs.cds2.loaders.Collections
 
 object Collection {
-  def apply( id: String, url: String, path: String = "", fileFilter: String = "", scope: String="", title: String= "", vars: List[String] = List() ) = {
-    new Collection(id,url,path,fileFilter,scope,title,vars)
+  def apply( id: String,  dataPath: String, fileFilter: String = "", scope: String="", title: String= "", vars: List[String] = List() ) = {
+    val ctype = dataPath match {
+      case url if(url.startsWith("http:")) => "opendap"
+      case fpath if(new File(fpath).isFile) => "file"
+      case dpath if(new File(dpath).isDirectory) => "aggregation"
+      case _ => ""
+    }
+    new Collection( ctype, id, dataPath, fileFilter, scope, title, vars )
   }
 }
-class Collection( val id: String="",  val url: String="", val path: String = "", val fileFilter: String = "", val scope: String="local", val title: String= "", val vars: List[String] = List() ) extends Serializable with Loggable {
-  val ctype: String = url.split(":").head
-  val ncmlFile = new File( url.split(":").last )
-  override def toString = "Collection( id=%s, url=%s, path=%s, title=%s, fileFilter=%s )".format( id, url, path, title, fileFilter )
-  def isEmpty = url.isEmpty
+class Collection( val ctype: String, val id: String,  val dataPath: String, val fileFilter: String = "", val scope: String="local", val title: String= "", val vars: List[String] = List() ) extends Serializable with Loggable {
+  val ncmlFile: File = NCMLWriter.getCachePath("NCML").resolve(Collections.idToFile(id)).toFile
+  override def toString = "Collection( id=%s, ctype=%s, path=%s, title=%s, fileFilter=%s )".format( id, ctype, dataPath, title, fileFilter )
+  def isEmpty = dataPath.isEmpty
   lazy val varNames = vars.map( varStr => varStr.split(':').head )
-  println( s"====> Collection($id), vars = %s".format( vars.mkString(",")))
+//  println( s"====> Collection($id), vars = %s".format( vars.mkString(",")))
 
-  def getUri( varName: String = "" ) = {
-    ctype match {
-      case "http" => s"$url/$varName.ncml"
-      case _ => url
-    }
+  def url(varName:String="") = ctype match {
+    case "http" => dataPath
+    case "file" =>  "file:/" + dataPath
+    case  _     =>  "file:/" + ncmlFile
   }
 
   def getDatasetMetadata(): List[nc2.Attribute] = {
     val dataset = collectionDataCache.getDataset( this, vars.head )
     val inner_attributes: List[nc2.Attribute] = List (
       new nc2.Attribute( "variables", varNames ),
-      new nc2.Attribute( "path", path ),
-      new nc2.Attribute( "url", url )
+      new nc2.Attribute( "path", dataPath ),
+      new nc2.Attribute( "ctype", ctype )
     )
     inner_attributes ++ dataset.attributes
   }
 
   def toXml: xml.Elem = {
     val varData = vars.mkString(";")
-    println( "Collection.toXml: vardata = " + varData )
-    if (path.isEmpty) {
-      <collection id={id} url={url} title={title}> {varData} </collection>
-    } else if (fileFilter.isEmpty) {
-      <collection id={id} url={url} path={path} title={title}> {varData} </collection>
+    if (fileFilter.isEmpty) {
+      <collection id={id} ctype={ctype} ncml={ncmlFile.toString} path={dataPath} title={title}> {varData} </collection>
     } else {
-      <collection id={id} url={url} path={path} fileFilter={fileFilter} title={title}> {varData} </collection>
+      <collection id={id} ctype={ctype} ncml={ncmlFile.toString} path={dataPath}  fileFilter={fileFilter} title={title}> {varData} </collection>
     }
   }
 
-  def createNCML( recreate: Boolean = false ): Boolean = {
+  def toFilePath( path: String ): String = {
+    if( path.startsWith( "file:/") ) path.substring(6)
+    else path
+  }
+
+  def createNCML(): Boolean = {
+    val recreate =  appParameters.bool("ncml.recreate",false)
     if( !ncmlFile.exists || recreate ) {
-      ncmlFile.getParentFile.mkdirs
-      val ncmlWriter = NCMLWriter(path)
+      assert( !dataPath.isEmpty, "Attempt to create NCML from empty data path" )
+      val pathFile = new File(toFilePath(dataPath))
+      if( pathFile.isDirectory ) { ncmlFile.getParentFile.mkdirs }
+      val ncmlWriter = NCMLWriter(pathFile)
       ncmlWriter.writeNCML(ncmlFile)
       true
     } else { false }
   }
-
 }
 
 object DiskCacheFileMgr extends XmlResource {
@@ -82,19 +92,12 @@ object DiskCacheFileMgr extends XmlResource {
 
   def getDiskCacheFilePath( cachetype: String, cache_file: String ): String =
     if (cache_file.startsWith("/")) {cache_file} else {
-      val cacheFilePath = Paths.get( getCacheDirectory, cachetype, cache_file )
+      val cacheFilePath = Paths.get( appParameters.cacheDir, cachetype, cache_file )
       Files.createDirectories( cacheFilePath.getParent )
       cacheFilePath.toString
     }
 
-  def getCacheDirectory: String = {
-    sys.env.get("CDAS_CACHE_DIR") match {
-      case Some(cache_path) => cache_path
-      case None =>
-        val home = System.getProperty("user.home")
-        Paths.get(home, ".cdas", "cache" ).toString
-    }
-  }
+
 
   protected def getDiskCache( id: String = "main" ) = diskCacheMap.get(id) match {
     case None => throw new Exception( "No disk cache defined: " + id )
@@ -194,7 +197,7 @@ object CDSDataset extends DiskCachable  {
 
   def load( collection: Collection, varName: String ): CDSDataset = {
     collection.createNCML()
-    load(collection.url, collection, varName)
+    load( collection.dataPath, collection, varName )
   }
 
   def restore( cache_rec_id: String ): CDSDataset = {
@@ -205,7 +208,7 @@ object CDSDataset extends DiskCachable  {
 
   def load( dsetName: String, collection: Collection, varName: String ): CDSDataset = {
     val t0 = System.nanoTime
-    val uri = collection.getUri(varName)
+    val uri = collection.url(varName)
     val ncDataset: NetcdfDataset = loadNetCDFDataSet( uri )
     val rv = new CDSDataset( dsetName, collection, ncDataset, varName, ncDataset.getCoordinateSystems.toList )
     val t1 = System.nanoTime
@@ -213,21 +216,23 @@ object CDSDataset extends DiskCachable  {
     rv
   }
 
-  def urlToPath(url: String): String = if ( url.toLowerCase().startsWith("file://") ) url.substring(6) else if ( url.toLowerCase().startsWith("file:") ) url.substring(5) else url
+  def toFilePath( path: String ): String = {
+    if( path.startsWith( "file:/") ) path.substring(6)
+    else path
+  }
 
-  private def loadNetCDFDataSet(url: String): NetcdfDataset = {
+  private def loadNetCDFDataSet(dataPath: String): NetcdfDataset = {
     NetcdfDataset.setUseNaNs(false)
 //    NcMLReader.setDebugFlags( new DebugFlagsImpl( "NcML/debugURL NcML/debugXML NcML/showParsedXML NcML/debugCmd NcML/debugOpen NcML/debugConstruct NcML/debugAggDetail" ) )
-    val dset_address = urlToPath(url)
     try {
-      logger.info("Opening NetCDF dataset %s".format(dset_address))
-      NetcdfDataset.openDataset( dset_address, true, null )
+      logger.info("Opening NetCDF dataset %s".format(dataPath))
+      NetcdfDataset.openDataset( toFilePath(dataPath), true, null )
     } catch {
       case e: java.io.IOException =>
-        logger.error("Couldn't open dataset %s".format(dset_address))
+        logger.error("Couldn't open dataset %s".format(dataPath))
         throw e
       case ex: Exception =>
-        logger.error("Something went wrong while reading %s".format(dset_address))
+        logger.error("Something went wrong while reading %s".format(dataPath))
         throw ex
     }
   }
@@ -251,10 +256,10 @@ object CDSDataset extends DiskCachable  {
 //  }
 
 class CDSDatasetRec( val dsetName: String, val collection: Collection, val varName: String ) extends Serializable {
-  def getUri: String = collection.getUri(varName)
+  def getUri: String = collection.url(varName)
 }
 
-class CDSDataset( val name: String, val collection: Collection, val ncDataset: NetcdfDataset, val varName: String, coordSystems: List[CoordinateSystem] ) {
+class CDSDataset( val name: String, val collection: Collection, val ncDataset: NetcdfDataset, val varName: String, coordSystems: List[CoordinateSystem] ) extends Serializable {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val attributes: List[nc2.Attribute] = ncDataset.getGlobalAttributes.map( a => { new nc2.Attribute( name + "--" + a.getFullName, a ) } ).toList
   val coordAxes: List[CoordinateAxis] = initCoordAxes
@@ -271,13 +276,12 @@ class CDSDataset( val name: String, val collection: Collection, val ncDataset: N
   }
 
   def getCoordinateAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
-  def getFilePath = CDSDataset.urlToPath(collection.url)
+  def getFilePath = collection.dataPath
   def getSerializable = new CDSDatasetRec( name, collection, varName )
 
   def getDatasetFileHeaders: Option[DatasetFileHeaders] = {
-    val uri = collection.getUri(varName)
-    if( uri.startsWith("http:" ) ) { None }
-    else if( uri.endsWith(".xml" ) || uri.endsWith(".ncml" ) ) {
+    if( collection.dataPath.startsWith("http:" ) ) { None }
+    else if( collection.dataPath.endsWith(".ncml" ) ) {
       val aggregation = XML.loadFile(getFilePath) \ "aggregation"
       val aggDim = (aggregation \ "@dimName").text
       val fileNodes = ( aggregation \ "netcdf" ).map( node => new FileHeader(  (node \ "@location").text,  (node \ "@coordValue").text.split(",").map( _.trim.toDouble ), false  ) )

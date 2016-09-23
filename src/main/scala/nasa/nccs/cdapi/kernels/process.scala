@@ -37,25 +37,43 @@ class Port( val name: String, val cardinality: String, val description: String, 
   }
 }
 
-class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) {}
+class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) extends Loggable with Serializable {
 
-trait ExecutionResult {
-  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
-  def toXml: xml.Elem
-}
-
-class UtilityExecutionResult( val id: String, val response: xml.Elem )  extends ExecutionResult {
-  def toXml = <result id={id}> {response} </result>
-}
-class BlockingExecutionResult( val id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray ) extends ExecutionResult {
-  def toXml = {
-    val idToks = id.split('-')
-    logger.info( "BlockingExecutionResult-> result_tensor: \n" + result_tensor.toString )
-    <result id={id} op={idToks.head}> { intputSpecs.map( _.toXml ) } { gridSpec.toXml } <data undefined={result_tensor.getInvalid.toString}> {result_tensor.mkDataString(",")}  </data>  </result>
+  def getOpSections: Option[ IndexedSeq[ma2.Section] ] = {
+    val optargs: Map[String, String] = operation.getConfiguration
+    val domains: IndexedSeq[DomainContainer] = optargs.get("domain") match {
+      case Some(domainIds) => domainIds.split(",").map(request.getDomain(_))
+      case None => return Some( IndexedSeq.empty[ma2.Section] )
+    }
+//    logger.info( "OPT DOMAIN Arg: " + optargs.getOrElse( "domain", "None" ) )
+//    logger.info( "OPT Domains: " + domains.map(_.toString).mkString( ", " ) )
+    Some( domains.map(dc => request.targetGrid.grid.getSubSection(dc.axes) match {
+      case Some(section) => section
+      case None => return None
+    }))
   }
 }
 
-class ErrorExecutionResult( val err: Throwable ) extends ExecutionResult {
+class ExecutionResult( val id: String ) {
+  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
+  def toXml: xml.Elem = <result id={id} > </result>
+}
+
+class UtilityExecutionResult( id: String, val response: xml.Elem )  extends ExecutionResult(id) {
+  override def toXml = <result id={id}> {response} </result>
+}
+class BlockingExecutionResult( id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray, val resultId: Option[String] = None ) extends ExecutionResult(id) {
+  override def toXml = {
+    val idToks = id.split('-')
+    logger.info( "BlockingExecutionResult-> result_tensor(" + id + "): \n" + result_tensor.toString )
+    val inputs = intputSpecs.map( _.toXml )
+    val grid = gridSpec.toXml
+    val results = result_tensor.mkDataString(",")
+    <result id={id} op={idToks.head} rid={resultId.getOrElse("")}> { inputs } { grid } <data undefined={result_tensor.getInvalid.toString}> {results}  </data>  </result>
+  }
+}
+
+class ErrorExecutionResult( val err: Throwable ) extends ExecutionResult( err.getClass.getName ) {
 
   def fatal(): String = {
     logger.error( "\nError Executing Kernel: %s\n".format(err.getMessage) )
@@ -65,20 +83,20 @@ class ErrorExecutionResult( val err: Throwable ) extends ExecutionResult {
     err.getMessage
   }
 
-  def toXml = <error> {fatal()} </error>
+  override def toXml = <error> {fatal()} </error>
 
 }
 
-class XmlExecutionResult( val id: String,  val responseXml: xml.Node ) extends ExecutionResult {
-  def toXml = {
+class XmlExecutionResult( id: String,  val responseXml: xml.Node ) extends ExecutionResult(id) {
+  override def toXml = {
     val idToks = id.split('~')
     <result id={idToks(1)} op={idToks(0)}> { responseXml }  </result>
   }
 }
 
-class AsyncExecutionResult( val results: List[String] )  extends ExecutionResult  {
-  def this( resultOpt: Option[String]  ) { this( resultOpt.toList ) }
-  def toXml = <result> {  results.mkString(",")  } </result>
+class AsyncExecutionResult( id: String )  extends ExecutionResult(id)  {
+  def this( resultOpt: Option[String] ) { this( resultOpt.getOrElse("empty") ) }
+  override def toXml = { <result id={id} > </result> }
 }
 
 class ExecutionResults( val results: List[ExecutionResult] ) {
@@ -122,27 +140,22 @@ abstract class Kernel extends Loggable {
   val identifier: String = ""
   val metadata: String = ""
 
-  val combineOp: ReduceOpFlt  = ( x, y ) => { math.max(x,y) }
+  val mapCombineOpt: Option[ReduceOpFlt] = None
+  val reduceCombineOpt: Option[ReduceOpFlt] = None
   val initValue: Float = 0f
 
-  def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]]
+  def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = { inputs.head }
 
-  def execute( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
-    val t0 = System.nanoTime()
-    val inputs: List[PartitionedFragment] = inputVars( context )
-    var opResult: Future[Option[DataFragment]] = mapReduce( inputs, context, nprocs )
-    opResult.onComplete {
-      case Success(dataFragOpt) =>
-        logger.info(s"********** Completed Execution of Kernel[$name($id)]: %s , total time = %.3f sec  ********** \n".format(context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
-      case Failure(t) =>
-        logger.error(s"********** Failed Execution of Kernel[$name($id)]: %s ********** \n".format(context.operation.toString ))
-        logger.error( " ---> Cause: " + t.getCause.getMessage )
-        logger.error( "\n" + t.getCause.getStackTrace.mkString("\n") + "\n" )
+  def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment = reduceCombineOpt match {
+    case Some(combineOp) =>
+      if (axes.includes(0)) DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))
+      else { a0 ++ a1 }
+    case None => {
+      a0 ++ a1
     }
-    createResponse( postOp( opResult, context  ), inputs, context )
   }
-  def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = future_result
-  def reduce( future_results: IndexedSeq[Future[Option[DataFragment]]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = Future.reduce(future_results)(reduceOp(context) _)
+
+  def postOp( result: DataFragment, context: CDASExecutionContext ):  DataFragment = result
 
   def reduceOp(context: CDASExecutionContext)(a0op: Option[DataFragment], a1op: Option[DataFragment]): Option[DataFragment] = {
     val t0 = System.nanoTime
@@ -150,9 +163,7 @@ abstract class Kernel extends Loggable {
     val rv = a0op match {
       case Some(a0) =>
         a1op match {
-          case Some(a1) =>
-            if (axes.includes(0)) { Some(new DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))) }
-            else { Some( a0 ++ a1 ) }
+          case Some(a1) => Some( combine(context)(a0,a1,axes) )
           case None => Some(a0)
         }
       case None =>
@@ -161,21 +172,8 @@ abstract class Kernel extends Loggable {
           case None => None
         }
     }
-    logger.info("Executed %s reduce op, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
+//    logger.info("Executed %s reduce op, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
     rv
-  }
-  def createResponse( resultFut: Future[Option[DataFragment]], inputs: List[PartitionedFragment], context: CDASExecutionContext ): ExecutionResult = {
-    val inputVar: PartitionedFragment = inputs.head
-    val async = context.request.config("async", "false").toBoolean
-    if(async) {
-      new AsyncExecutionResult( cacheResult( resultFut, context, inputVar.getVariableMetadata(context.server) ) )
-    } else {
-      val resultOpt: Option[DataFragment] = Await.result( resultFut, Duration.Inf )
-      resultOpt match {
-        case Some(result) => new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data)
-        case None => new BlockingExecutionResult (context.operation.identifier, List (inputVar.fragmentSpec), context.request.targetGrid, CDFloatArray.empty )
-      }
-    }
   }
 
   def toXmlHeader =  <kernel module={module} name={name}> { if (description.nonEmpty) <description> {description} </description> } </kernel>
@@ -210,16 +208,23 @@ abstract class Kernel extends Loggable {
     }
   }
 
-  def inputVars( context: CDASExecutionContext ): List[PartitionedFragment] = context.server.inputs( context.operation.inputs.map( context.request.getInputSpec ) )
-
-  def cacheResult( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
-    try {
-      val tFragFut = resultFut.map( dataFragOpt =>  new TransientFragment( dataFragOpt, context.request, varMetadata ) )
-      collectionDataCache.putResult( context.operation.rid, tFragFut )
-      Some(context.operation.rid)
-    } catch {
-      case ex: Exception => logger.error( "Can't cache result: " + ex.getMessage ); None
+  def weightedValueSumCombiner(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  {
+    if ( axes.includes(0) ) {
+      val vTot: CDFloatArray = a0.data + a1.data
+      val wTotOpt: Option[CDFloatArray] = a0.weights.map( w => w + a1.weights.get )
+      val dataMap = wTotOpt match { case Some(wTot) => Map("value" -> vTot, "weights" -> wTot) case None =>  Map("value" -> vTot ) }
+      logger.info( "weightedValueSumCombiner, values shape = %s, result spec = %s".format( vTot.getShape.mkString(","), a0.spec.toString ) )
+      new DataFragment(a0.spec, dataMap, DataFragment.combineCoordMaps(a0, a1) )
     }
+    else { a0 ++ a1 }
+  }
+
+  def weightedValueSumPostOp( result: DataFragment, context: CDASExecutionContext ):  DataFragment = result.weights match {
+    case Some( weights_sum ) =>
+      logger.info( "weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format( result.data.getShape.mkString(","), weights_sum.getShape.mkString(","), result.spec.toString ) )
+      new DataFragment( result.spec, Map( "value" -> result.data / weights_sum, "weights"-> weights_sum ), result.optCoordMap )
+    case None =>
+      result
   }
 }
 
@@ -234,11 +239,14 @@ abstract class Kernel extends Loggable {
 //  }
 //}
 
-abstract class SingularKernel extends Kernel {
+/*
+abstract class DualOperationKernel extends Kernel {
 
   def mapReduce( inputs: List[PartitionedFragment], context: CDASExecutionContext, nprocs: Int ): Future[Option[DataFragment]] = {
-    val future_results: IndexedSeq[Future[Option[DataFragment]]] = (0 until nprocs).map( iproc => Future { map(iproc,inputs,context) } )
-    reduce( future_results, context )
+    val future_results1: IndexedSeq[Future[Option[DataFragment]]] = (0 until nprocs).map( iproc => Future { map1(iproc,inputs,context) } )
+    reduce1( future_results1, context )
+    val future_results2: IndexedSeq[Future[Option[DataFragment]]] = (0 until nprocs).map2( iproc => Future { map(iproc,inputs,context) } )
+    reduce2( future_results2, context )
   }
   def map( partIndex: Int, inputs: List[PartitionedFragment], context: CDASExecutionContext ): Option[DataFragment] = {
     val t0 = System.nanoTime
@@ -247,17 +255,71 @@ abstract class SingularKernel extends Kernel {
     inputVar.domainDataFragment(partIndex).map { (dataFrag) =>
       val async = context.request.config("async", "false").toBoolean
       val resultFragSpec = dataFrag.getReducedSpec(axes)
-      val result_val_masked: CDFloatArray = dataFrag.data.reduce(combineOp, axes.args, initValue)
+      val result_val_masked: CDFloatArray = mapCombineOpt match {
+        case Some( combineOp ) => dataFrag.data.reduce( combineOp, axes.args, initValue )
+        case None => dataFrag.data
+      }
       logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
       new DataFragment(resultFragSpec, result_val_masked)
     }
+  }
+  def weightedValueSumCombiner(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  {
+    if ( axes.includes(0) ) {
+      val vTot = a0.data + a1.data
+      val wTot = a0.optData.map( w => w + a1.optData.get )
+      new DataFragment( a0.spec, vTot, wTot )
+    }
+    else { a0 ++ a1 }
+  }
+
+  def weightedValueSumPostOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = {
+    future_result.map( _.map( (result: DataFragment) => result.optData match {
+      case Some( weights_sum ) => new DataFragment( result.spec, result.data / weights_sum, result.optData )
+      case None => result
+    } ) )
+  }
+}
+*/
+abstract class SingularKernel extends Kernel {
+  override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = {
+    val t0 = System.nanoTime
+    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+    inputs.head.map( dataFrag => {
+      val async = context.request.config("async", "false").toBoolean
+      val resultFragSpec = dataFrag.getReducedSpec(axes)
+      val result_val_masked: CDFloatArray = mapCombineOpt match {
+        case Some(combineOp) => dataFrag.data.reduce(combineOp, axes.args, initValue)
+        case None => dataFrag.data
+      }
+      logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
+      DataFragment(resultFragSpec, result_val_masked)
+    } )
+  }
+}
+
+abstract class DualKernel extends Kernel {
+  override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = {
+    val t0 = System.nanoTime
+    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+    assert( inputs.length > 1, "Missing input(s) to dual input operation " + id )
+    inputs(0).flatMap( dataFrag0 => {
+      inputs(1).map( dataFrag1 => {
+        logger.info("DualKernel: %s[%s] + %s[%s]".format( dataFrag0.spec.longname, dataFrag0.data.getShape.mkString(","), dataFrag1.spec.longname, dataFrag1.data.getShape.mkString(",") ) )
+        val async = context.request.config("async", "false").toBoolean
+        val result_val_masked: DataFragment = mapCombineOpt match {
+          case Some(combineOp) => DataFragment.combine( combineOp, dataFrag0, dataFrag1 )
+          case None => dataFrag0
+        }
+        logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
+        result_val_masked
+      })
+    })
   }
 }
 
 class KernelModule {
   val logger = LoggerFactory.getLogger(this.getClass)
   val identifiers = this.getClass.getName.split('$').flatMap( _.split('.') )
-  logger.info( "---> new KernelModule: " + identifiers.mkString(", ") )
   def package_path = identifiers.dropRight(1).mkString(".")
   def name: String = identifiers.last
   val version = ""
@@ -284,19 +346,17 @@ class KernelModule {
   }
 }
 
-class TransientFragment( val dataFragOpt: Option[DataFragment], val request: RequestContext, val varMetadata: Map[String,nc2.Attribute] ) extends Loggable {
+class TransientFragment( val dataFrag: DataFragment, val request: RequestContext, val mdata: Map[String,nc2.Attribute] ) extends OperationInput( dataFrag.spec, mdata ) {
   def toXml(id: String): xml.Elem = {
-    val units = varMetadata.get("units") match { case Some(attr) => attr.getStringValue; case None => "" }
-    val long_name = varMetadata.getOrElse("long_name",varMetadata.getOrElse("fullname",varMetadata.getOrElse("varname", new Attribute("varname","UNDEF")))).getStringValue
-    val description = varMetadata.get("description") match { case Some(attr) => attr.getStringValue; case None => "" }
-    val axes = varMetadata.get("axes") match { case Some(attr) => attr.getStringValue; case None => "" }
-    dataFragOpt match {
-      case Some( dataFrag ) =>
-        <result id={id} missing_value={dataFrag.data.getInvalid.toString} shape={dataFrag.data.getShape.mkString("(",",",")")} units={units} long_name={long_name} description={description} axes={axes}> { dataFrag.data.mkBoundedDataString( ", ", 1100 ) } </result>
-      case None =>
-        <result id={id} data="empty" units={units} long_name={long_name} description={description} axes={axes}> </result>
-    }
+    val units = metadata.get("units") match { case Some(attr) => attr.getStringValue; case None => "" }
+    val long_name = metadata.getOrElse("long_name",metadata.getOrElse("fullname",metadata.getOrElse("varname", new Attribute("varname","UNDEF")))).getStringValue
+    val description = metadata.get("description") match { case Some(attr) => attr.getStringValue; case None => "" }
+    val axes = metadata.get("axes") match { case Some(attr) => attr.getStringValue; case None => "" }
+    <result id={id} missing_value={dataFrag.data.getInvalid.toString} shape={dataFrag.data.getShape.mkString("(",",",")")} units={units} long_name={long_name} description={description} axes={axes}> { dataFrag.data.mkBoundedDataString( ", ", 1100 ) } </result>
   }
+  def domainDataFragment( partIndex: Int, context: CDASExecutionContext ): Option[DataFragment] = Some(dataFrag)
+  def data(partIndex: Int ): CDFloatArray = dataFrag.data
+  def delete() = {;}
 }
 
 //object classTest extends App {

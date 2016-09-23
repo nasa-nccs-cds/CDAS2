@@ -1,24 +1,40 @@
 package nasa.nccs.cds2.engine.spark
 
-import nasa.nccs.cdapi.cdm.{PartitionedFragment, CDSVariable}
-import nasa.nccs.esgf.process.{OperationSpecs, DomainAxis}
+import nasa.nccs.caching.Partition
+import nasa.nccs.cdapi.cdm.{CDSVariable, PartitionedFragment}
+import nasa.nccs.cdapi.kernels.CDASExecutionContext
+import nasa.nccs.esgf.process.{DataFragment, DomainAxis, OperationSpecs}
 import org.slf4j.LoggerFactory
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 
+object CDSparkContext {
+  val kyro_buffer_mb = 24
+  val kyro_buffer_max_mb = 64
 
-class CDSparkContext(val conf: SparkConf) {
+  def apply() : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf() ) )
+  def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )
+  def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
+  def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf(url,name) ) )
+
+  def getSparkConf( master: String="local[*]", appName: String="CDAS", logConf: Boolean = true ) = new SparkConf(false)
+    .setMaster( master )
+    .setAppName( appName )
+    .set("spark.logConf", logConf.toString )
+    .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    .set("spark.kryoserializer.buffer.mb",kyro_buffer_mb.toString)
+    .set("spark.kryoserializer.buffer.max.mb",kyro_buffer_max_mb.toString)
+}
+
+object CDSparkPartition {
+  def apply( iPartIndex: Int, dataFragments: List[Option[DataFragment]] ) = new  CDSparkPartition( iPartIndex, dataFragments )
+}
+
+class CDSparkPartition( val iPartIndex: Int, val dataFragments: List[Option[DataFragment]] ) extends Serializable {}
+
+class CDSparkContext( @transient val sparkContext: SparkContext ) {
 
   val logger = LoggerFactory.getLogger(this.getClass)
-  val sparkContext = new SparkContext(conf)
-
-  def this(url: String, name: String) {
-    this(new SparkConf().setMaster(url).setAppName(name))
-  }
-
-  def this(url: String, name: String, parser: (String) => (String)) {
-    this(new SparkConf().setMaster(url).setAppName(name))
-  }
 
   def setLocalProperty(key: String, value: String): Unit = {
     sparkContext.setLocalProperty(key, value)
@@ -26,9 +42,17 @@ class CDSparkContext(val conf: SparkConf) {
 
   def getConf: SparkConf = sparkContext.getConf
 
-//  def makeFragmentRDD( variable: CDSVariable, roi: List[DomainAxis], partAxis: Char, nPart: Int, axisConf: List[OperationSpecs] ): RDD[PartitionedFragment] = {
-//    val indexRDD: RDD[Int] = sparkContext.makeRDD( 0 to nPart-1, nPart )
-//    indexRDD.map( variable.loadRoiPartition( roi, _, partAxis, nPart ) )
-//  }
+  def cacheFragmentRDD( partFrag: PartitionedFragment ): RDD[DataFragment] = {
+    val nPart = partFrag.partitions.parts.length
+    val indexRDD: RDD[Int] = sparkContext.makeRDD( 0 to nPart-1, nPart )
+    indexRDD.map( iPart => partFrag.partDataFragment( iPart ) )
+  }
+
+  def domainFragmentRDD( partFrags: List[PartitionedFragment], context: CDASExecutionContext ): RDD[ CDSparkPartition ] = {
+    val nPart = partFrags.head.partitions.parts.length                                                                                    // TODO: commensurate partitions?
+    val indexRDD: RDD[Int] = sparkContext.makeRDD( 0 to nPart-1, nPart )
+    indexRDD.map( iPart => CDSparkPartition( iPart, partFrags.map( _.domainDataFragment( iPart, context ) ) ) )
+  }
+
 }
 

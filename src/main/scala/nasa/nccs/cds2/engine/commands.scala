@@ -3,7 +3,6 @@ import nasa.nccs.esgf.process.TaskRequest
 import java.io.{IOException, PrintWriter, StringWriter}
 import java.nio.FloatBuffer
 
-import nasa.nccs.cdapi.cdm.{Collection, PartitionedFragment, _}
 import nasa.nccs.cds2.loaders.{Collections, Masks}
 import nasa.nccs.esgf.process._
 import org.slf4j.{Logger, LoggerFactory}
@@ -31,7 +30,7 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 
 object TaskExecutorSync extends Loggable {
   val printer = new scala.xml.PrettyPrinter(200, 3)
-  val executionManager = new CDS2ExecutionManager(Map.empty)
+  val executionManager = CDS2ExecutionManager(Map.empty)
   private val taskMap = new ConcurrentLinkedHashMap.Builder[String,TaskRequest].initialCapacity(100).maximumWeightedCapacity(10000).build()
   private val executionCache: Cache[String,ExecutionResults] = new FutureCache("Store","execution",false)
   private var taskIndex = 0

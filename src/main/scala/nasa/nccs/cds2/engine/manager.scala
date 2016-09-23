@@ -21,10 +21,15 @@ import java.util.concurrent.atomic.AtomicReference
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
 import nasa.nccs.caching._
 import ucar.{ma2, nc2}
-import nasa.nccs.cds2.utilities.{GeoTools, runtime}
+import nasa.nccs.cds2.utilities.{GeoTools, appParameters, runtime}
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import java.util.concurrent._
+
+import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
+import nasa.nccs.cds2.engine.spark.{CDSparkContext, CDSparkExecutionManager}
+import org.apache.spark.{SparkConf, SparkContext}
 import ucar.nc2.dataset.NetcdfDataset
 
 class Counter(start: Int = 0) {
@@ -35,12 +40,51 @@ class Counter(start: Int = 0) {
   }
 }
 
-class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
+object CDS2ExecutionManager extends Loggable {
+  val handler_type_key = "execution.handler.type"
+
+  def apply( serverConfiguration: Map[String,String] = Map.empty ): CDS2ExecutionManager =
+    getConfigParamValue( handler_type_key, serverConfiguration, "futures-default" ) match {
+      case exeMgr if exeMgr.toLowerCase.startsWith("future") =>
+        logger.info("\nExecuting Futures manager: serverConfig = " + exeMgr)
+        new CDFuturesExecutionManager(serverConfiguration)
+      case exeMgr if exeMgr.toLowerCase.startsWith("spark") =>
+        logger.info("\nExecuting Spark manager: serverConfig = " + exeMgr)
+        new CDSparkExecutionManager(CDSparkContext(), serverConfiguration)
+      case x => throw new Exception("Unrecognized execution.manager.type: " + x)
+    }
+
+
+  def getConfigParamValue( key: String, serverConfiguration: Map[String,String], default_val: String  ): String =
+    serverConfiguration.get( key ) match {
+      case Some( htype ) => htype
+      case None => appParameters( key, default_val )
+    }
+}
+
+abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   val serverContext = new ServerContext( collectionDataCache, serverConfiguration )
   val logger = LoggerFactory.getLogger(this.getClass)
   val kernelManager = new KernelMgr()
   private val counter = new Counter
-  val nprocs: Int = serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
+  val nprocs: Int = CDASPartitioner.nProcessors
+
+  def getOperationInputs( context: CDASExecutionContext ): List[OperationInput] = {
+    for (uid <- context.operation.inputs) yield {
+      context.request.getInputSpec(uid) match {
+        case Some(inputSpec) =>
+          logger.info("getInputSpec: %s -> %s ".format(uid, inputSpec.longname))
+          context.server.getOperationInput(inputSpec)
+        case None => collectionDataCache.getExistingResult(uid) match {
+          case Some(tFragFut) =>
+            val rv = Await result(tFragFut, Duration.Inf)
+            logger.info("getExistingResult: %s -> %s ".format(uid, rv.dataFrag.spec.longname))
+            rv
+          case None => throw new Exception("Unrecognized input id: " + uid)
+        }
+      }
+    }
+  }
 
   def getKernelModule( moduleName: String  ): KernelModule = {
     kernelManager.getModule( moduleName ) match {
@@ -87,14 +131,14 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     val sources = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
       yield serverContext.createInputSpec(data_container, domainOpt, targetGrid )
     val t2 = System.nanoTime
-    val sourceMap: Map[String,DataFragmentSpec] = Map(sources.toSeq:_*)
+    val sourceMap: Map[String,Option[DataFragmentSpec]] = Map(sources.toSeq:_*)
     val rv = new RequestContext (request.domainMap, sourceMap, targetGrid, run_args)
     val t3 = System.nanoTime
     logger.info( " LoadInputDataT: %.4f %.4f %.4f, MAXINT: %.2f G".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, Int.MaxValue/1.0E9 ) )
     rv
   }
 
-  def cacheInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ):  Iterable[Future[PartitionedFragment]] = {
+  def cacheInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ):  Iterable[ Option[( DataFragmentKey, Future[PartitionedFragment] )] ] = {
     val sourceContainers = request.variableMap.values.filter(_.isSource)
     for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
       yield serverContext.cacheInputData(data_container, domainOpt, targetGrid )
@@ -111,59 +155,80 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   }
 
   def saveResultToFile( resultId: String, maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
-    val inputSpec = request.getInputSpec()
+    val optInputSpec: Option[DataFragmentSpec] = request.getInputSpec()
     val targetGrid = request.targetGrid
-    val dataset: CDSDataset = request.getDataset(server)
-    val varname = searchForValue( varMetadata, List("varname","fullname","standard_name","original_name","long_name"), "Nd4jMaskedTensor" )
-    val resultFile = Kernel.getResultFile( server.getConfiguration, resultId, true )
-    val writer: nc2.NetcdfFileWriter = nc2.NetcdfFileWriter.createNew(nc2.NetcdfFileWriter.Version.netcdf4, resultFile.getAbsolutePath )
-    assert(targetGrid.grid.getRank == maskedTensor.getRank, "Axes not the same length as data shape in saveResult")
-    val coordAxes = dataset.getCoordinateAxes
-    val dims: IndexedSeq[nc2.Dimension] = targetGrid.grid.axes.indices.map( idim => writer.addDimension(null, targetGrid.grid.getAxisSpec(idim).getAxisName, maskedTensor.getShape(idim)))
-    val dimsMap: Map[String,nc2.Dimension] = Map( dims.map( dim => (dim.getFullName -> dim ) ): _* )
-    val newCoordVars: List[ (nc2.Variable,ma2.Array) ] = ( for( coordAxis <- coordAxes ) yield inputSpec.getRange( coordAxis.getFullName ) match {
-      case Some( range ) =>
-        val coordVar: nc2.Variable = writer.addVariable( null, coordAxis.getFullName, coordAxis.getDataType, coordAxis.getFullName )
-        for( attr <- coordAxis.getAttributes ) writer.addVariableAttribute( coordVar, attr )
-        val newRange = dimsMap.get( coordAxis.getFullName ) match { case None => range; case Some(dim) => if( dim.getLength < range.length ) new ma2.Range(dim.getLength) else range }
-        Some( coordVar, coordAxis.read( List(newRange) ) )
-      case None => None
-    } ).flatten
-    logger.info( "Writing result %s to file '%s', varname=%s, dims=(%s), shape=[%s], coords = [%s]".format(
-      resultId, resultFile.getAbsolutePath, varname, dims.map(_.toString).mkString(","), maskedTensor.getShape.mkString(","),
-      newCoordVars.map { case (cvar, data) => "%s: (%s)".format(cvar.getFullName,data.getShape.mkString(",") ) }.mkString(",") ) )
-    val variable: nc2.Variable = writer.addVariable(null, varname, ma2.DataType.FLOAT, dims.toList)
-    varMetadata.values.foreach( attr => variable.addAttribute(attr) )
-    variable.addAttribute( new nc2.Attribute( "missing_value", maskedTensor.getInvalid ) )
-    dsetMetadata.foreach( attr => writer.addGroupAttribute(null, attr ) )
-    try {
-      writer.create()
-      for( newCoordVar <- newCoordVars ) {
-        newCoordVar match {
-          case ( coordVar, coordData ) =>
-            logger.info( "Writing cvar %s: shape = [%s]".format( coordVar.getFullName, coordData.getShape.mkString(",") ) )
-            writer.write( coordVar, coordData )
+    request.getDataset(server) map { dataset =>
+      val varname = searchForValue(varMetadata, List("varname", "fullname", "standard_name", "original_name", "long_name"), "Nd4jMaskedTensor")
+      val resultFile = Kernel.getResultFile(server.getConfiguration, resultId, true)
+      val writer: nc2.NetcdfFileWriter = nc2.NetcdfFileWriter.createNew(nc2.NetcdfFileWriter.Version.netcdf4, resultFile.getAbsolutePath)
+      assert(targetGrid.grid.getRank == maskedTensor.getRank, "Axes not the same length as data shape in saveResult")
+      val coordAxes = dataset.getCoordinateAxes
+      val dims: IndexedSeq[nc2.Dimension] = targetGrid.grid.axes.indices.map(idim => writer.addDimension(null, targetGrid.grid.getAxisSpec(idim).getAxisName, maskedTensor.getShape(idim)))
+      val dimsMap: Map[String, nc2.Dimension] = Map(dims.map(dim => (dim.getFullName -> dim)): _*)
+      val newCoordVars: List[(nc2.Variable, ma2.Array)] = (for (coordAxis <- coordAxes) yield optInputSpec flatMap { inputSpec => inputSpec.getRange(coordAxis.getFullName) match {
+        case Some(range) =>
+          val coordVar: nc2.Variable = writer.addVariable(null, coordAxis.getFullName, coordAxis.getDataType, coordAxis.getFullName)
+          for (attr <- coordAxis.getAttributes) writer.addVariableAttribute(coordVar, attr)
+          val newRange = dimsMap.get(coordAxis.getFullName) match {
+            case None => range;
+            case Some(dim) => if (dim.getLength < range.length) new ma2.Range(dim.getLength) else range
+          }
+          Some(coordVar, coordAxis.read(List(newRange)))
+        case None => None
+      } }).flatten
+      logger.info("Writing result %s to file '%s', varname=%s, dims=(%s), shape=[%s], coords = [%s]".format(
+        resultId, resultFile.getAbsolutePath, varname, dims.map(_.toString).mkString(","), maskedTensor.getShape.mkString(","),
+        newCoordVars.map { case (cvar, data) => "%s: (%s)".format(cvar.getFullName, data.getShape.mkString(",")) }.mkString(",")))
+      val variable: nc2.Variable = writer.addVariable(null, varname, ma2.DataType.FLOAT, dims.toList)
+      varMetadata.values.foreach(attr => variable.addAttribute(attr))
+      variable.addAttribute(new nc2.Attribute("missing_value", maskedTensor.getInvalid))
+      dsetMetadata.foreach(attr => writer.addGroupAttribute(null, attr))
+      try {
+        writer.create()
+        for (newCoordVar <- newCoordVars) {
+          newCoordVar match {
+            case (coordVar, coordData) =>
+              logger.info("Writing cvar %s: shape = [%s]".format(coordVar.getFullName, coordData.getShape.mkString(",")))
+              writer.write(coordVar, coordData)
+          }
         }
+        writer.write(variable, maskedTensor)
+        //          for( dim <- dims ) {
+        //            val dimvar: nc2.Variable = writer.addVariable(null, dim.getFullName, ma2.DataType.FLOAT, List(dim) )
+        //            writer.write( dimvar, dimdata )
+        //          }
+        writer.close()
+        resultFile.getAbsolutePath
+      } catch {
+        case e: IOException => logger.error("ERROR creating file %s%n%s".format(resultFile.getAbsolutePath, e.getMessage()));
+          return None
       }
-      writer.write( variable, maskedTensor )
-      //          for( dim <- dims ) {
-      //            val dimvar: nc2.Variable = writer.addVariable(null, dim.getFullName, ma2.DataType.FLOAT, List(dim) )
-      //            writer.write( dimvar, dimdata )
-      //          }
-      writer.close()
-      Some(resultFile.getAbsolutePath)
-    } catch {
-      case e: IOException => logger.error("ERROR creating file %s%n%s".format(resultFile.getAbsolutePath, e.getMessage() ) ); None
     }
   }
+  def aggCollection( dsource: DataSource ): xml.Elem = {
+    val col = dsource.collection
+    logger.info( "Creating collection '" + col.id + "' path: " + col.dataPath )
+    val url = if ( col.dataPath.startsWith("http:") ) {
+      col.dataPath
+    } else {
+      col.createNCML()
+      col.ncmlFile.toString
+    }
+    _aggCollection( NetcdfDataset.openDataset(url), col )
+  }
 
-  def aggCollection( col: Collection ): xml.Elem = {
-    logger.info( "Creating collection '" + col.id + "' using path: "  + col.path )
+  def aggCollection( colId: String, path: File ): xml.Elem = {
+    val col = Collection( colId, path.getAbsolutePath )
+    logger.info("Creating collection '" + col.id + "' using path: " + col.dataPath)
     col.createNCML()
     val dataset = NetcdfDataset.openDataset(col.ncmlFile.toString)
+    _aggCollection( dataset, col )
+  }
+
+  private def _aggCollection( dataset: NetcdfDataset, col: Collection ): xml.Elem = {
     val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => Collections.getVariableString(v) ).toList
     val title: String = Collections.findAttribute( dataset, List( "Title", "LongName" ) )
-    val newCollection = Collection(col.id, col.url, col.path, col.fileFilter, col.scope, title, vars)
+    val newCollection = new Collection( col.ctype, col.id, col.dataPath, col.fileFilter, col.scope, title, vars)
     Collections.updateCollection(newCollection)
     newCollection.toXml
   }
@@ -172,22 +237,24 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     case "magg" =>
       val collectionNodes =  request.variableMap.values.flatMap( ds => {
         val pcol = ds.getSource.collection
-        val base_dir = new File(pcol.path)
+        val base_dir = new File(pcol.dataPath)
         val base_id = pcol.id
         val col_dirs: Array[File] = base_dir.listFiles
-        for( col_file <- col_dirs; if col_file.isDirectory; col_id = base_id + "/" + col_file.getName ) yield {
-          val uri = "file:" + NCMLWriter.getCachePath("NCML").resolve(Collections.uriToFile(col_id))
-          aggCollection( new Collection(col_id, uri, col_file.getAbsolutePath ) )
+        for( col_path <- col_dirs; if col_path.isDirectory; col_id = base_id + "/" + col_path.getName ) yield {
+          aggCollection( col_id, col_path )
         }
       })
       new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "agg" =>
-      val collectionNodes =  request.variableMap.values.map( ds => aggCollection( ds.getSource.collection ) )
+      val collectionNodes =  request.variableMap.values.map( ds => aggCollection( ds.getSource ) )
       new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
+    case "clearCache" =>
+      val fragIds = FragmentPersistence.clearCache
+      new ExecutionResults( List( new UtilityExecutionResult( "clearCache", <deleted fragments={fragIds.mkString(",")}/> ) ) )
     case "cache" =>
-      cacheInputData(request, createTargetGrid(request), run_args)
+      val cached_data: Iterable[(DataFragmentKey,Future[PartitionedFragment])] = cacheInputData(request, createTargetGrid(request), run_args).flatten
       FragmentPersistence.close()
-      new ExecutionResults(List(new UtilityExecutionResult("cache", <cache/> )))
+      new ExecutionResults( cached_data.map( cache_result => new UtilityExecutionResult( cache_result._1.toStrRep, <cache/> ) ).toList )
     case "dcol" =>
       val colIds = request.variableMap.values.map( _.getSource.collection.id )
       val deletedCollections = Collections.removeCollections( colIds.toArray )
@@ -205,7 +272,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     case x if x.startsWith("gres") =>
       val resId: String = request.variableMap.values.head.uid
       collectionDataCache.getExistingResult( resId ) match {
-        case None => new ExecutionResults( List( new ErrorExecutionResult( new Exception("Unrecognized resId: " + resId )) ) )
+        case None => new ExecutionResults( List( new ErrorExecutionResult( new Exception("Unrecognized resId: " + resId + ", existing resIds: " + collectionDataCache.getResultIdList.mkString(", ") )) ) )
         case Some( fut_result ) =>
           if (fut_result.isCompleted) {
             val result = Await.result( fut_result, Duration.Inf )
@@ -213,13 +280,9 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
               case "xml" =>
                 new ExecutionResults(List(new UtilityExecutionResult(resId,result.toXml(resId))))
               case "netcdf" =>
-                result.dataFragOpt match {
-                  case Some(dataFrag) =>
-                    saveResultToFile(resId, dataFrag.data, result.request, serverContext, result.varMetadata, List.empty[nc2.Attribute]) match {
-                      case Some(resultFilePath) => new ExecutionResults(List(new UtilityExecutionResult(resId, <file> {resultFilePath} </file>)))
-                      case None => new ExecutionResults(List(new UtilityExecutionResult(resId, <error> {"Error writing resultFile"} </error>)))
-                    }
-                  case None => new ExecutionResults(List(new UtilityExecutionResult(resId, <error> {"Empty result"} </error>)))
+                saveResultToFile(resId, result.dataFrag.data, result.request, serverContext, result.metadata, List.empty[nc2.Attribute]) match {
+                  case Some(resultFilePath) => new ExecutionResults(List(new UtilityExecutionResult(resId, <file> {resultFilePath} </file>)))
+                  case None => new ExecutionResults(List(new UtilityExecutionResult(resId, <error> {"Error writing resultFile"} </error>)))
                 }
             }
           } else { new ExecutionResults(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }
@@ -228,14 +291,9 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
 
   def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[ExecutionResults] = Future {
     logger.info("Executing task request " + request.name )
-    val req_ids = request.name.split('.')
-    req_ids(0) match {
-      case "util" => executeUtilityRequest(req_ids(1), request, run_args)
-      case _ =>
-        val targetGrid: TargetGrid = createTargetGrid(request)
-        val requestContext = loadInputData(request, targetGrid, run_args)
-        executeWorkflows(request, requestContext)
-    }
+    val targetGrid: TargetGrid = createTargetGrid(request)
+    val requestContext = loadInputData(request, targetGrid, run_args)
+    executeWorkflows(request, requestContext)
   }
 
   def getRequestContext( request: TaskRequest, run_args: Map[String,String] ): RequestContext = loadInputData( request, createTargetGrid( request ), run_args )
@@ -284,18 +342,26 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     if(resultFile.exists) Some(resultFile.getAbsolutePath) else None
   }
 
-  def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): ( String, Future[ExecutionResults] ) = {
+  def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): ( Map[String,String], Future[ExecutionResults] ) = {
     logger.info("Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
     runtime.printMemoryUsage(logger)
     val jobId = collectionDataCache.addJob( request.getJobRec(run_args) )
     val async = run_args.getOrElse("async", "false").toBoolean
-    val futureResult = this.futureExecute( request, Map( "jobId" -> jobId ) ++ run_args )
-    futureResult onSuccess { case results: ExecutionResults =>
-      println("Process Completed: " + results.toString )
-      processAsyncResult( jobId, results )
+    val req_ids = request.name.split('.')
+    req_ids(0) match {
+      case "util" =>
+        val util_result = executeUtilityRequest(req_ids(1), request, Map("jobId" -> jobId) ++ run_args )
+        val fragIds = util_result.results.map( _.id )
+        ( Map( "results" -> fragIds.mkString(";") ), Future(util_result) )
+      case _ =>
+        val futureResult = this.futureExecute(request, Map("jobId" -> jobId) ++ run_args)
+        futureResult onSuccess { case results: ExecutionResults =>
+          println("Process Completed: " + results.toString)
+          processAsyncResult(jobId, results)
+        }
+        futureResult onFailure { case e: Throwable => fatal(e); collectionDataCache.removeJob(jobId); throw e }
+        ( Map( "job" -> jobId ), futureResult)
     }
-    futureResult onFailure {  case e: Throwable =>  fatal( e ); collectionDataCache.removeJob( jobId ); throw e }
-    (jobId, futureResult)
   }
 
   def processAsyncResult( jobId: String, results: ExecutionResults ) = {
@@ -341,6 +407,7 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
   def executeWorkflows( request: TaskRequest, requestCx: RequestContext ): ExecutionResults = {
     val results = new ExecutionResults( request.workflows.flatMap(workflow => workflow.operations.map( operationExecution( _, requestCx ))) )
     FragmentPersistence.close()
+//    logger.info( "---------->>> Execute Workflows: Created XML response: " + results.toXml.toString )
     results
   }
 
@@ -349,12 +416,15 @@ class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
     new XmlExecutionResult( context.operation.name.toLowerCase + "~u0", result )
   }
 
+  def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): ExecutionResult
+
   def operationExecution( operationCx: OperationContext, requestCx: RequestContext ): ExecutionResult = {
     val opName = operationCx.name.toLowerCase
-    val module_name = opName.split('.')(0)
+    val module_name = opName.split('.').head
+    logger.info( " ***** Operation Execution: opName=%s, module_name=%s >> Operation = %s ".format(opName, module_name, operationCx.toString ) )
     module_name match {
       case "util" => executeUtility( new CDASExecutionContext( operationCx, requestCx, serverContext ) )
-      case x => getKernel( opName ).execute( new CDASExecutionContext( operationCx, requestCx, serverContext ), nprocs )
+      case x => executeProcess( new CDASExecutionContext( operationCx, requestCx, serverContext ), getKernel( opName ) )
     }
   }
 }
@@ -410,31 +480,6 @@ object SampleTaskRequests {
   }
 }
 
-object executionTest extends App {
-  val request = SampleTaskRequests.getAnomalyTest
-  val async = false
-  val run_args = Map( "async" -> async.toString )
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val t0 = System.nanoTime
-  if(async) {
-    cds2ExecutionManager.asyncExecute(request, run_args) match {
-      case ( resultId: String, futureResult: Future[ExecutionResults] ) =>
-        val t1 = System.nanoTime
-        println ("Initial Result, time = %.4f ".format ((t1 - t0) / 1.0E9) )
-        val result = Await.result (futureResult, Duration.Inf)
-        val t2 = System.nanoTime
-        println ("Final Result, time = %.4f, result = %s ".format ((t2 - t1) / 1.0E9, result.toString) )
-      case x => println( "Unrecognized result from executeAsync: " + x.toString )
-    }
-   }
-  else {
-    val t1 = System.nanoTime
-    val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-    val t2 = System.nanoTime
-    println("Final Result, time = %.4f (%.4f): %s ".format( (t2-t1)/1.0E9, (t2-t0)/1.0E9, final_result.toString) )
-  }
-}
-
 abstract class SyncExecutor {
   val printer = new scala.xml.PrettyPrinter(200, 3)
 
@@ -446,7 +491,7 @@ abstract class SyncExecutor {
 
   def getTaskRequest(args: Array[String]): TaskRequest
   def getRunArgs = Map("async" -> "false")
-  def getExecutionManager = new CDS2ExecutionManager(Map.empty)
+  def getExecutionManager = CDS2ExecutionManager(Map.empty)
   def getCollection( id: String ): Collection = Collections.findCollection(id) match { case Some(collection) => collection; case None=> throw new Exception(s"Unknown Collection: $id" ) }
 }
 
@@ -691,30 +736,9 @@ object SpatialAve1 extends SyncExecutor {
   def getTaskRequest(args: Array[String]): TaskRequest = SampleTaskRequests.getSpatialAve("/MERRA/mon/atmos", "ta", "cosine")
 }
 
-
-object execConstantTest extends App {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
-  val async = true
-  val run_args = Map( "async" -> async.toString )
-  val request = SampleTaskRequests.getConstant( "/MERRA/mon/atmos", "ta", 10 )
-  if(async) {
-    cds2ExecutionManager.asyncExecute(request, run_args) match {
-      case ( resultId: String, futureResult: Future[ExecutionResults] ) =>
-        val result = Await.result (futureResult, Duration.Inf)
-        println(">>>> Async Result: " + result )
-      case x => println( "Unrecognized result from executeAsync: " + x.toString )
-    }
-  }
-  else {
-    val final_result = cds2ExecutionManager.blockingExecute(request, run_args)
-    val printer = new scala.xml.PrettyPrinter(200, 3)
-    println(">>>> Final Result: " + printer.format(final_result.toXml))
-  }
-}
-
 object cdscan extends App with Loggable {
   val printer = new scala.xml.PrettyPrinter(200, 3)
-  val executionManager = new CDS2ExecutionManager(Map.empty)
+  val executionManager = CDS2ExecutionManager(Map.empty)
   val final_result = executionManager.blockingExecute( getTaskRequest(args), Map("async" -> "false") )
   println(">>>> Final Result: " + printer.format(final_result.toXml))
 

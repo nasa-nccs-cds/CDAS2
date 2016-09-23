@@ -21,7 +21,11 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
         >> cd CDAS2
         >> sbt publish-local
 
-     3) Access demos:
+     3) Run unit tests:
+
+        >> sbt test
+
+     4) Access demos:
 
         Designed to be deployed with the CDWPS framework (https://github.com/nasa-nccs-cds/CDWPS)
 

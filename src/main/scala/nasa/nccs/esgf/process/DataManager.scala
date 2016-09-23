@@ -1,7 +1,7 @@
 package nasa.nccs.esgf.process
 import java.util.Formatter
 
-import nasa.nccs.caching.{FileToCacheStream, FragmentPersistence, Partition, Partitions}
+import nasa.nccs.caching._
 import nasa.nccs.cdapi.cdm._
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, VariableDS}
 import java.util.Formatter
@@ -17,7 +17,7 @@ import ucar.nc2.constants.AxisType
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.concurrent.{Await, Future }
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
 
 sealed abstract class DataAccessMode
@@ -42,21 +42,19 @@ trait ScopeContext {
   def config( key: String ): Option[String] = getConfiguration.get(key)
 }
 
-class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[String, DataFragmentSpec], val targetGrid: TargetGrid, private val configuration: Map[String,String] ) extends ScopeContext {
+class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[String, Option[DataFragmentSpec]], val targetGrid: TargetGrid, private val configuration: Map[String,String] ) extends ScopeContext {
   def getConfiguration = configuration
   def missing_variable(uid: String) = throw new Exception("Can't find Variable '%s' in uids: [ %s ]".format(uid, inputs.keySet.mkString(", ")))
-  def getDataSources: Map[String, DataFragmentSpec] = inputs
-  def getInputSpec( uid: String = "" ): DataFragmentSpec = inputs.get( uid ) match {
-    case Some(inputSpec) => inputSpec
-    case None => inputs.head._2
+  def getDataSources: Map[String, Option[DataFragmentSpec]] = inputs
+  def getInputSpec( uid: String ): Option[DataFragmentSpec] = inputs.get( uid ).flatten
+  def getInputSpec(): Option[DataFragmentSpec] = inputs.head._2
+  def getDataset( serverContext: ServerContext, uid: String = "" ): Option[CDSDataset] = inputs.get( uid ) match {
+    case Some(optInputSpec) => optInputSpec map { inputSpec => inputSpec.getDataset(serverContext) }
+    case None =>inputs.head._2 map { inputSpec => inputSpec.getDataset(serverContext) }
   }
-  def getDataset( serverContext: ServerContext, uid: String = "" ): CDSDataset = inputs.get( uid ) match {
-    case Some(inputSpec) => inputSpec.getDataset(serverContext)
-    case None =>inputs.head._2.getDataset(serverContext)
-  }
-  def getSection( serverContext: ServerContext, uid: String = "" ): ma2.Section = inputs.get( uid ) match {
-    case Some(inputSpec) => inputSpec.roi
-    case None =>inputs.head._2.roi
+  def getSection( serverContext: ServerContext, uid: String = "" ): Option[ma2.Section] = inputs.get( uid ) match {
+    case Some(optInputSpec) => optInputSpec map { _.roi }
+    case None =>inputs.head._2 map { _.roi }
   }
   def getDomain(domain_id: String): DomainContainer = domains.get(domain_id) match {
     case Some(domain_container) => domain_container
@@ -67,7 +65,7 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
 
 class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: CoordinateAxis1D, val domainAxisOpt: Option[DomainAxis] ) {
   val logger = org.slf4j.LoggerFactory.getLogger("nasa.nccs.cds2.cdm.GridCoordSpec")
-  private val range: ma2.Range = getAxisRange( variable, coordAxis, domainAxisOpt )
+  private val _optRange: Option[ma2.Range] = getAxisRange( variable, coordAxis, domainAxisOpt )
   private val _data = getCoordinateValues
   val bounds: Array[Double] = getAxisBounds( coordAxis, domainAxisOpt)
   def getData: Array[Double] = _data
@@ -78,21 +76,27 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     case None => logger.warn( "Using %s for CFAxisName".format(coordAxis.getShortName) ); coordAxis.getShortName
   }
   def getAxisName: String = coordAxis.getFullName
-  def getIndexRange: ma2.Range = range
+  def getIndexRange: Option[ma2.Range] = _optRange
   def getLength: Int = _data.length
   def getStartValue: Double = bounds(0)
   def getEndValue: Double = bounds(1)
   def toXml: xml.Elem = <axis id={getAxisName} units={getUnits} cfName={getCFAxisName} type={getAxisType.toString} start={getStartValue.toString} end={getEndValue.toString} length={getLength.toString} > </axis>
+  override def toString: String = "GridCoordSpec{id=%s units=%s cfName=%s type=%s start=%f end=%f length=%d}".format(getAxisName,getUnits,getCFAxisName,getAxisType.toString,getStartValue,getEndValue,getLength)
 
-  private def getAxisRange( variable: CDSVariable, coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): ma2.Range = domainAxisOpt match {
-    case Some( domainAxis ) =>  domainAxis.system match {
-      case asys if asys.startsWith("ind") =>
-        new ma2.Range( getCFAxisName, domainAxis.start.toInt, domainAxis.end.toInt, 1 )
-      case asys if asys.startsWith("val") =>
-        getGridIndexBounds( domainAxis.start, domainAxis.end )
-      case _ => throw new IllegalStateException("CDSVariable: Illegal system value in axis bounds: " + domainAxis.system)
+  private def getAxisRange( variable: CDSVariable, coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): Option[ma2.Range] = {
+    val axis_len = coordAxis.getShape(0)
+    domainAxisOpt match {
+      case Some( domainAxis ) =>  domainAxis.system match {
+        case asys if asys.startsWith("ind") =>
+          val dom_start = domainAxis.start.toInt
+          if( dom_start < axis_len ) {
+            Some( new ma2.Range(getCFAxisName, dom_start, math.min( domainAxis.end.toInt, axis_len-1 ), 1) )
+          } else None
+        case asys if asys.startsWith("val") => getIndexBounds( domainAxis.start, domainAxis.end )
+        case _ => throw new IllegalStateException("CDSVariable: Illegal system value in axis bounds: " + domainAxis.system)
+      }
+      case None => Some( new ma2.Range( getCFAxisName, 0, axis_len-1, 1 ) )
     }
-    case None => new ma2.Range( getCFAxisName, 0, coordAxis.getShape(0)-1, 1 )
   }
   private def getAxisBounds( coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): Array[Double] = domainAxisOpt match {
     case Some( domainAxis ) =>  domainAxis.system match {
@@ -105,44 +109,59 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
 
   def getBounds( range: ma2.Range ): Array[Double] = Array( _data(range.first), _data(range.last ) )
 
-  def getBoundedCalDate(coordAxis1DTime: CoordinateAxis1DTime, caldate: CalendarDate, role: BoundsRole.Value, strict: Boolean = true): CalendarDate = {
+  def getBoundedCalDate(coordAxis1DTime: CoordinateAxis1DTime, caldate: CalendarDate, role: BoundsRole.Value, strict: Boolean = false): Option[CalendarDate] = {
     val date_range: CalendarDateRange = coordAxis1DTime.getCalendarDateRange
     if (!date_range.includes(caldate)) {
       if (strict) throw new IllegalStateException("CDS2-CDSVariable: Time value %s outside of time bounds %s".format(caldate.toString, date_range.toString))
       else {
         if (role == BoundsRole.Start) {
-          val startDate: CalendarDate = date_range.getStart
-          logger.warn("Time value %s outside of time bounds %s, resetting value to range start date %s".format(caldate.toString, date_range.toString, startDate.toString))
-          startDate
+          if( caldate.isAfter( date_range.getEnd ) ) {
+            logger.warn("Start time value %s > time range %s".format(caldate.toString, date_range.toString ) )
+            None
+          } else {
+            val startDate: CalendarDate = date_range.getStart
+            logger.warn("Time value %s outside of time bounds %s, resetting value to range start date %s".format(caldate.toString, date_range.toString, startDate.toString))
+            Some(startDate)
+          }
         } else {
-          val endDate: CalendarDate = date_range.getEnd
-          logger.warn("Time value %s outside of time bounds %s, resetting value to range end date %s".format(caldate.toString, date_range.toString, endDate.toString))
-          endDate
+          if( caldate.isBefore( date_range.getStart ) ) {
+            logger.warn("End time value %s < time range %s".format(caldate.toString, date_range.toString ) )
+            None
+          } else {
+            val endDate: CalendarDate = date_range.getEnd
+            logger.warn("Time value %s outside of time bounds %s, resetting value to range end date %s".format(caldate.toString, date_range.toString, endDate.toString))
+            Some(endDate)
+          }
         }
       }
-    } else caldate
-  }
-
-  def getCoordinateValues: Array[Double] = {
-    coordAxis.getAxisType match {
-      case AxisType.Time =>
-        variable.dataset.getDatasetFileHeaders match {
-          case Some(datasetFileHeaders: DatasetFileHeaders) => datasetFileHeaders.getAggAxisValues
-          case None =>
-            val sec_in_day = 60 * 60 * 24
-            val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory(variable.dataset.ncDataset, coordAxis, new Formatter())
-            val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
-            val timeZero = CalendarDate.of(timeCalValues.head.getCalendar, 1970, 1, 1, 1, 1, 1)
-            val time_values = for (index <- (range.first() to range.last() by range.stride()); calVal = timeCalValues(index)) yield (calVal.getDifferenceInMsecs(timeZero) / 1000).toDouble / sec_in_day
-            time_values.toArray[Double]
-        }
-      case x =>
-        CDDoubleArray.factory( coordAxis.read(List(range)) ).getArrayData()
+    } else {
+//      logger.warn("Date %s IN time range %s".format(caldate.toString, date_range.toString ) )
+      Some(caldate)
     }
   }
 
+  def getCoordinateValues: Array[Double] = _optRange match {
+    case Some(range) =>
+      coordAxis.getAxisType match {
+        case AxisType.Time =>
+          variable.dataset.getDatasetFileHeaders match {
+            case Some(datasetFileHeaders: DatasetFileHeaders) => datasetFileHeaders.getAggAxisValues
+            case None =>
+              val sec_in_day = 60 * 60 * 24
+              val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory(variable.dataset.ncDataset, coordAxis, new Formatter())
+              val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
+              val timeZero = CalendarDate.of(timeCalValues.head.getCalendar, 1970, 1, 1, 1, 1, 1)
+              val time_values = for (index <- (range.first() to range.last() by range.stride()); calVal = timeCalValues(index)) yield (calVal.getDifferenceInMsecs(timeZero) / 1000).toDouble / sec_in_day
+              time_values.toArray[Double]
+          }
+        case x =>
+          CDDoubleArray.factory( coordAxis.read(List(range)) ).getArrayData()
+      }
+    case None => Array.empty[Double]
+  }
+
   def getUnits: String =  coordAxis.getAxisType match {
-    case AxisType.Time => "days since 1970-1-1"
+    case AxisType.Time => cdsutils.baseTimeUnits
     case x => coordAxis.getUnitsString
   }
 
@@ -152,17 +171,17 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     case x => throw new IllegalStateException("CDS2-CDSVariable: Can't create time axis from type type: %s ".format(coordAxis.getClass.getName))
   }
 
-  def getTimeCoordIndex( tval: String, role: BoundsRole.Value, strict: Boolean = true): Int = {
+  def getTimeCoordIndex( tval: String, role: BoundsRole.Value, strict: Boolean = false): Option[Int] = {
     val coordAxis1DTime: CoordinateAxis1DTime = getTimeAxis
     val caldate: CalendarDate = cdsutils.dateTimeParser.parse(tval)
-    val caldate_bounded: CalendarDate = getBoundedCalDate(coordAxis1DTime, caldate, role, strict)
-    coordAxis1DTime.findTimeIndexFromCalendarDate(caldate_bounded)
+    getBoundedCalDate(coordAxis1DTime, caldate, role, strict).map( caldate_bounded => coordAxis1DTime.findTimeIndexFromCalendarDate(caldate_bounded) )
   }
 
-  def getTimeIndexBounds( startval: String, endval: String, strict: Boolean = true): ma2.Range = {
-    val startIndex = getTimeCoordIndex( startval, BoundsRole.Start, strict)
-    val endIndex = getTimeCoordIndex( endval, BoundsRole.End, strict )
-    new ma2.Range( getCFAxisName, startIndex, endIndex)
+  def getTimeIndexBounds( startval: String, endval: String, strict: Boolean = false): Option[ma2.Range] = {
+//    logger.info( " getTimeIndexBounds: %s %s".format( startval, endval ) )
+    getTimeCoordIndex( startval, BoundsRole.Start, strict).flatMap( startIndex =>
+      getTimeCoordIndex( endval, BoundsRole.End, strict ).map( endIndex =>
+        new ma2.Range( getCFAxisName, startIndex, endIndex) ) )
   }
 
   def getNormalizedCoordinate( cval: Double ): Double = coordAxis.getAxisType match {
@@ -173,21 +192,31 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     case x => cval
   }
 
-  def getGridCoordIndex(cval: Double, role: BoundsRole.Value, strict: Boolean = true): Int = {
+  def getGridCoordIndex(cval: Double, role: BoundsRole.Value, strict: Boolean = true): Option[Int] = {
     val coordAxis1D = CDSVariable.toCoordAxis1D( coordAxis )
-    coordAxis1D.findCoordElement( getNormalizedCoordinate( cval ) ) match {
+    val ncval: Double = getNormalizedCoordinate( cval )
+    coordAxis1D.findCoordElement( ncval ) match {
       case -1 =>
+        val end_index = coordAxis1D.getSize.toInt - 1
+        val grid_end = coordAxis1D.getCoordValue(end_index)
+        val grid_start = coordAxis1D.getCoordValue(0)
         if (role == BoundsRole.Start) {
-          val grid_start = coordAxis1D.getCoordValue(0)
-          logger.warn("Axis %s: ROI Start value %f outside of grid area, resetting to grid start: %f".format(coordAxis.getFullName, cval, grid_start))
-          0
+          if( ncval > grid_end ) {
+            None
+          } else {
+            val grid_start = coordAxis1D.getCoordValue(0)
+            logger.warn("Axis %s: ROI Start value %f outside of grid area, resetting to grid start: %f".format(coordAxis.getFullName, ncval, grid_start))
+            Some(0)
+          }
         } else {
-          val end_index = coordAxis1D.getSize.toInt - 1
-          val grid_end = coordAxis1D.getCoordValue(end_index)
-          logger.warn("Axis %s: ROI Start value %s outside of grid area, resetting to grid end: %f".format(coordAxis.getFullName, cval, grid_end))
-          end_index
+          if( ncval <  grid_start ) {
+            None
+          } else {
+            logger.warn("Axis %s: ROI Start value %s outside of grid area, resetting to grid end: %f".format(coordAxis.getFullName, ncval, grid_end))
+            Some(end_index)
+          }
         }
-      case ival => ival
+      case ival => Some(ival)
     }
   }
   def getNumericCoordValues( range: ma2.Range ): Array[Double] = {
@@ -195,16 +224,18 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     if (coord_values.length == range.length) coord_values else (0 until range.length).map(iE => coord_values(range.element(iE))).toArray
   }
 
-  def getGridIndexBounds( startval: Double, endval: Double, strict: Boolean = true): ma2.Range = {
-    val startIndex = getGridCoordIndex(startval, BoundsRole.Start, strict)
-    val endIndex = getGridCoordIndex(endval, BoundsRole.End, strict)
-    new ma2.Range( getCFAxisName, startIndex, endIndex )
+  def getGridIndexBounds( startval: Double, endval: Double, strict: Boolean = true): Option[ma2.Range] = {
+    getGridCoordIndex(startval, BoundsRole.Start, strict).flatMap( startIndex =>
+      getGridCoordIndex(endval, BoundsRole.End, strict).map( endIndex =>
+        new ma2.Range( getCFAxisName, startIndex, endIndex ) ) )
   }
 
-  def getIndexBounds( startval: GenericNumber, endval: GenericNumber, strict: Boolean = true): ma2.Range = {
-    val indexRange = if (coordAxis.getAxisType == nc2.constants.AxisType.Time) getTimeIndexBounds( startval.toString, endval.toString ) else getGridIndexBounds( startval, endval)
-    assert(indexRange.last >= indexRange.first, "CDS2-CDSVariable: Coordinate bounds appear to be inverted: start = %s, end = %s".format(startval.toString, endval.toString))
-    indexRange
+  def getIndexBounds( startval: GenericNumber, endval: GenericNumber, strict: Boolean = false): Option[ma2.Range] = {
+    if (coordAxis.getAxisType == nc2.constants.AxisType.Time) {
+      getTimeIndexBounds( startval.toString, endval.toString )
+    } else getGridIndexBounds( startval, endval )
+//    assert(indexRange.last >= indexRange.first, "CDS2-CDSVariable: Coordinate bounds appear to be inverted: start = %s, end = %s".format(startval.toString, endval.toString))
+//    indexRange
   }
 }
 
@@ -230,7 +261,10 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
   def getBounds: Option[Array[Double]] = getAxisSpec("x").flatMap( xaxis => getAxisSpec("y").map( yaxis => Array( xaxis.bounds(0), yaxis.bounds(0), xaxis.bounds(1), yaxis.bounds(1) )) )
   def toXml: xml.Elem = <grid> { axes.map(_.toXml) } </grid>
 
-  def getSection: ma2.Section = new ma2.Section( axes.map( _.getIndexRange ): _* )
+  def getSection: Option[ma2.Section] = {
+    val ranges = for( axis <- axes ) yield axis.getIndexRange match { case Some( range ) => range; case None => return None }
+    Some( new ma2.Section( ranges: _* ) )
+  }
   def addRangeNames( section: ma2.Section ): ma2.Section = new ma2.Section( getRanges( section )  )
   def getRanges( section: ma2.Section ): IndexedSeq[ma2.Range] = for( ir <- section.getRanges.indices; r0 = section.getRange(ir); axspec = getAxisSpec(ir) ) yield new ma2.Range( axspec.getCFAxisName, r0 )
 
@@ -240,24 +274,30 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
     GridSpec( variable, Some(subgrid_axes.toList) )
   }
 
-  def getSubSection( roi: List[DomainAxis] ): ma2.Section = {
+  def getSubSection( roi: List[DomainAxis] ): Option[ma2.Section] = {
     val ranges: IndexedSeq[ma2.Range] = for( gridCoordSpec <- axes ) yield {
       roi.find( _.matches( gridCoordSpec.getAxisType ) ) match {
         case Some( domainAxis ) => {
           val range = domainAxis.system match {
             case asys if asys.startsWith( "ind" ) => new ma2.Range(domainAxis.start.toInt, domainAxis.end.toInt)
             case asys if asys.startsWith( "val" ) =>
-              val ibnds = gridCoordSpec.getIndexBounds( domainAxis.start, domainAxis.end )
-              new ma2.Range(ibnds.first, ibnds.last )
+ //             logger.info( "  %s getIndexBounds from %s".format( gridCoordSpec.toString, domainAxis.toString ) )
+              gridCoordSpec.getIndexBounds( domainAxis.start, domainAxis.end ) match {
+                case Some(ibnds) => new ma2.Range (ibnds.first, ibnds.last)
+                case None => return None
+              }
             case _ => throw new IllegalStateException("CDSVariable: Illegal system value in axis bounds: " + domainAxis.system)
           }
-          val irange = gridCoordSpec.getIndexRange.intersect( range )
-          new ma2.Range( gridCoordSpec.getCFAxisName, irange.first, irange.last, 1)
+//          val irange = gridCoordSpec.getIndexRange.intersect( range )
+          new ma2.Range( gridCoordSpec.getCFAxisName, range.first, range.last, 1)
         }
-        case None => gridCoordSpec.getIndexRange
+        case None => gridCoordSpec.getIndexRange match {
+          case Some( range ) => range
+          case None => return None
+        }
       }
     }
-    new ma2.Section( ranges: _* )
+    Some( new ma2.Section( ranges: _* ) )
   }
 }
 
@@ -290,6 +330,13 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
   def getAxisIndices( axisConf: String ): AxisIndices = new AxisIndices( axisIds=axisConf.map( ch => getAxisIndex(ch.toString ) ).toSet )
   def getAxisIndex( cfAxisName: String, default_val: Int = -1 ): Int = grid.getAxisSpec( cfAxisName.toLowerCase ).map( gcs => gcs.index ).getOrElse( default_val )
   def getCFAxisName( dimension_index: Int ): String = grid.getAxisSpec( dimension_index ).getCFAxisName
+
+  def getAxisData( axis: Char, section: ma2.Section ): Option[( Int, ma2.Array )] = {
+    grid.getAxisSpec(axis.toString).map(axisSpec => {
+      val range = section.getRange(axisSpec.index)
+      axisSpec.index -> axisSpec.coordAxis.read( List( range) )
+    })
+  }
 
   def getBounds( section: ma2.Section ): Option[Array[Double]] = {
     val xrangeOpt: Option[Array[Double]] = Option(section.find("x")).flatMap( (r: ma2.Range) => grid.getAxisSpec("x").map( (gs: GridCoordSpec) => gs.getBounds(r) ) )
@@ -334,7 +381,7 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
     logger.info( "loadRoiViaCache" )
     val cacheStream = new FileToCacheStream( data_variable.ncVariable, fragmentSpec.roi, maskOpt )
     val partitions: Partitions = cacheStream.cacheFloatData( data_variable.missing  )
-    val newFragSpec = fragmentSpec.reshape( partitions.getShape )
+    val newFragSpec = fragmentSpec.reshape( partitions.roi )
     val pfrag = new PartitionedFragment( partitions, maskOpt, newFragSpec )
     logger.info( "Persisting fragment %s with id %s".format( newFragSpec.getKey, partitions.id ) )
     FragmentPersistence.put( newFragSpec.getKey, partitions.id )
@@ -342,20 +389,18 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
   }
 }
 
-class ServerContext( val dataLoader: DataLoader, private val configuration: Map[String,String] )  extends ScopeContext {
+class ServerContext( val dataLoader: DataLoader, private val configuration: Map[String,String] )  extends ScopeContext with Serializable {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   def getConfiguration = configuration
   def getVariable( collection: Collection, varname: String ): CDSVariable = dataLoader.getVariable( collection, varname )
 
-  def getVariableData( fragSpec: DataFragmentSpec ): PartitionedFragment = {
-    dataLoader.getExistingFragment( fragSpec ) match {
-      case Some( fragFut ) => Await.result( fragFut, Duration.Inf )
-      case None => throw new Exception( "Fragment defined by key (%s) can't be found".format(fragSpec.getKey) )
+  def getOperationInput( fragSpec: DataFragmentSpec ): OperationInput = {
+    val fragFut = dataLoader.getExistingFragment( fragSpec ) match {
+      case Some( fragFut ) => fragFut
+      case None => cacheInputData( fragSpec )
     }
+    Await.result( fragFut, Duration.Inf )
   }
-
-  def inputs( inputSpecs: List[DataFragmentSpec] ): List[PartitionedFragment] =
-    for( inputSpec <- inputSpecs ) yield getVariableData( inputSpec )
 
   def getAxisData( fragSpec: DataFragmentSpec, axis: Char ): Option[( Int, ma2.Array )] = {
     val variable: CDSVariable = dataLoader.getVariable(fragSpec.collection, fragSpec.varname)
@@ -411,33 +456,57 @@ class ServerContext( val dataLoader: DataLoader, private val configuration: Map[
 //    rv
 //  }
 
-  def createInputSpec( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid ): (String, DataFragmentSpec) = {
+  def createInputSpec( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid ): (String, Option[DataFragmentSpec]) = {
     val t0 = System.nanoTime
     val data_source: DataSource = dataContainer.getSource
     val variable: CDSVariable = dataLoader.getVariable(data_source.collection, data_source.name)
     val t1 = System.nanoTime
     val maskOpt: Option[String] = domain_container_opt.flatMap( domain_container => domain_container.mask )
-    val section: ma2.Section = data_source.fragIdOpt match { case Some(fragId) => DataFragmentKey(fragId).getRoi; case None => targetGrid.grid.getSection }
-    val domainSect: Option[ma2.Section] = domain_container_opt.map( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
-    val fragSpec: DataFragmentSpec = new DataFragmentSpec( variable.name, variable.dataset.collection, data_source.fragIdOpt, Some(targetGrid), variable.ncVariable.getDimensionsString,
-      variable.ncVariable.getUnitsString, variable.getAttributeValue( "long_name", variable.ncVariable.getFullName ), section, domainSect, variable.missing, maskOpt )
+    val fragRoiOpt = data_source.fragIdOpt.map( fragId => DataFragmentKey(fragId).getRoi )
+    val optSection: Option[ma2.Section] = fragRoiOpt match { case Some(roi) => Some(roi); case None => targetGrid.grid.getSection }
+    val optDomainSect: Option[ma2.Section] = domain_container_opt.flatMap( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
+    val fragSpec: Option[DataFragmentSpec] = optSection map { section =>
+      new DataFragmentSpec(variable.name, variable.dataset.collection, data_source.fragIdOpt, Some(targetGrid), variable.ncVariable.getDimensionsString,
+        variable.ncVariable.getUnitsString, variable.getAttributeValue("long_name", variable.ncVariable.getFullName), section, optDomainSect, variable.missing, maskOpt)
+    }
     val t2 = System.nanoTime
     val rv = dataContainer.uid -> fragSpec
     val t3 = System.nanoTime
-    logger.info( " LoadVariableDataT: %.4f %.4f %.4f, T = %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, (t3-t0)/1.0E9 ) )
+    logger.info( " LoadVariableDataT: section=%s, domainSect=%s, fragId=%s, fragRoi=%s, %.4f %.4f %.4f, T = %.4f ".format(
+      optSection.getOrElse("null").toString, optDomainSect.getOrElse("null").toString, data_source.fragIdOpt.getOrElse("null").toString, fragRoiOpt.getOrElse("null").toString, (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, (t3-t0)/1.0E9 ) )
     rv
   }
 
-  def cacheInputData( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid ): Future[PartitionedFragment] = {
+  def cacheInputData( fragSpec: DataFragmentSpec ): Future[PartitionedFragment] = {
+    logger.info( " ****>>>>>>>>>>>>> Cache Input Data: " + fragSpec.getKeyString )
+    dataLoader.getExistingFragment(fragSpec) match {
+      case Some(partFut) => partFut
+      case None => dataLoader.cacheFragmentFuture(fragSpec)
+    }
+  }
+
+  def cacheInputData( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid ): Option[( DataFragmentKey, Future[PartitionedFragment] )] = {
     val data_source: DataSource = dataContainer.getSource
     val variable: CDSVariable = dataLoader.getVariable(data_source.collection, data_source.name)
     val maskOpt: Option[String] = domain_container_opt.flatMap( domain_container => domain_container.mask )
-    val section: ma2.Section = data_source.fragIdOpt match { case Some(fragId) => DataFragmentKey(fragId).getRoi; case None => targetGrid.grid.getSection }
-    val domainSect: Option[ma2.Section] = domain_container_opt.map( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
-    val fragSpec: DataFragmentSpec = new DataFragmentSpec( variable.name, variable.dataset.collection, data_source.fragIdOpt, Some(targetGrid), variable.ncVariable.getDimensionsString,
-      variable.ncVariable.getUnitsString, variable.getAttributeValue( "long_name", variable.ncVariable.getFullName ), section, domainSect, variable.missing, maskOpt )
-    dataLoader.cacheFragmentFuture( fragSpec )
+    val optSection: Option[ma2.Section] = data_source.fragIdOpt match { case Some(fragId) => Some(DataFragmentKey(fragId).getRoi); case None => targetGrid.grid.getSection }
+    val optDomainSect: Option[ma2.Section] = domain_container_opt.flatMap( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
+    if( optSection == None ) logger.warn( "Attempt to cache empty segment-> No caching will occur: " + dataContainer.toString )
+    optSection map { section =>
+      val fragSpec = new DataFragmentSpec(variable.name, variable.dataset.collection, data_source.fragIdOpt, Some(targetGrid), variable.ncVariable.getDimensionsString,
+      variable.ncVariable.getUnitsString, variable.getAttributeValue("long_name", variable.ncVariable.getFullName), section, optDomainSect, variable.missing, maskOpt)
+      dataLoader.getExistingFragment(fragSpec) match {
+        case Some(partFut) =>  (fragSpec.getKey -> partFut)
+        case None => (fragSpec.getKey -> dataLoader.cacheFragmentFuture(fragSpec))
+      }
+    }
   }
+}
+
+
+object serializeTest extends App {
+
+
 
 }
 

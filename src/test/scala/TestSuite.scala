@@ -1,19 +1,22 @@
 import java.io.File
 
-import nasa.nccs.cdapi.cdm.{Collection, NCMLWriter}
+import nasa.nccs.cdapi.cdm.Collection
 import nasa.nccs.cdapi.kernels.{BlockingExecutionResult, ErrorExecutionResult, ExecutionResult, XmlExecutionResult}
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.engine.CDS2ExecutionManager
-import nasa.nccs.cds2.loaders.Collections
-import nasa.nccs.esgf.process.{RequestContext, TargetGrid, TaskRequest}
+import nasa.nccs.esgf.process.{RequestContext, TaskRequest}
+import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import org.scalatest._
 import ucar.nc2.dataset.NetcdfDataset
 
 class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Float, val lon_value : Float ) extends FunSuite with Matchers {
-  val cds2ExecutionManager = new CDS2ExecutionManager(Map.empty)
+  val serverConfiguration = Map[String,String]()
+  val configMap = Map[String,String]()
+  val webProcessManager = new ProcessManager( serverConfiguration )
+  val service = "cds2"
   val eps = 0.0002
-  val merra_data = getClass.getResource("/data/merra_test_data.ta.nc").toString
-  val const_data = getClass.getResource("/data/constant_test_data.ta.nc").toString
+  val merra_data = getClass.getResource("/data/merra_test_data.ta.nc").toString.split(":").last
+  val const_data = getClass.getResource("/data/constant_test_data.ta.nc").toString.split(":").last
   val run_args = Map("async" -> "false")
 
   def readVerificationData( fileResourcePath: String, varName: String ): Option[CDFloatArray] = {
@@ -28,19 +31,6 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
         None
     }
   }
-
-//  def createCollections: Unit = {
-//    val collectionNodes =  request.variableMap.values.flatMap( ds => {
-//      val pcol = ds.getSource.collection
-//      val base_dir = new File(pcol.path)
-//      val base_id = pcol.id
-//      val col_dirs: Array[File] = base_dir.listFiles
-//      for( col_file <- col_dirs; if col_file.isDirectory; col_id = base_id + "/" + col_file.getName ) yield {
-//        val uri = "file:" + NCMLWriter.getCachePath("NCML").resolve(Collections.uriToFile(col_id))
-//        aggCollection( new Collection(col_id, uri, col_file.getAbsolutePath ) )
-//      }
-//    })
-//  }
 
   def computeCycle( tsdata: CDFloatArray, cycle_period: Int ): CDFloatArray = {
     val values: CDFloatArray = CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )
@@ -94,6 +84,15 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     max_diff
   }
 
+  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDS.workflow" ): xml.Elem = {
+    val t0 = System.nanoTime()
+    val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString )
+    val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
+    val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
+    webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+    webProcessManager.logger.info(response.toString)
+    response
+  }
   def getSpatialDataInputs(test_dataset: String, op_args: (String,String)* )  = Map(
     "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
     "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
@@ -119,33 +118,5 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     "variable" -> List(Map("uri" -> test_dataset, "name" -> varName )),
     "operation" ->  List(Map( ("input"->varName), ("name"->"CDS.metadata" ) )) )
 
-  def getRequestContext( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): RequestContext = {
-    val request = TaskRequest( kernel_name, data_inputs )
-    cds2ExecutionManager.getRequestContext( request, run_args )
-  }
-
-  def computeResult( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): ExecutionResult = {
-    val request = TaskRequest( kernel_name, data_inputs )
-    cds2ExecutionManager.blockingExecute (request, run_args).results.head match {
-      case result: BlockingExecutionResult => result
-      case xmlresult: XmlExecutionResult => xmlresult
-      case err: ErrorExecutionResult => fail ( err.fatal() )
-      case x => fail ( "Unexpected response, got " + x.toString )
-    }
-  }
-
-  def computeArray( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): CDFloatArray =
-    computeResult( kernel_name, data_inputs ) match {
-      case result: BlockingExecutionResult => result.result_tensor
-      case x => fail ( "Expecting Float Array response, got " + x.toString )
-    }
-
-  def computeXmlNode( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): xml.Node =
-    computeResult( kernel_name, data_inputs ) match {
-      case result: XmlExecutionResult => result.responseXml
-      case x => fail ( "Expecting xml response, got " + x.toString )
-    }
-
-  def computeValue( kernel_name: String, data_inputs: Map[String, Seq[Map[String, Any]]] ): Float = computeArray( kernel_name, data_inputs ).getFlatValue(0)
 
 }

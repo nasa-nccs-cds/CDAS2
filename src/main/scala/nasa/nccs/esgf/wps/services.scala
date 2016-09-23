@@ -2,11 +2,12 @@ package nasa.nccs.esgf.wps
 
 import java.io.{PrintWriter, StringWriter}
 import java.util.concurrent.ExecutionException
+
 import nasa.nccs.cdapi.kernels.{BlockingExecutionResult, ErrorExecutionResult, ExecutionResults, XmlExecutionResult}
+import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
 import nasa.nccs.esgf.engine.demoExecutionManager
 import nasa.nccs.utilities.cdsutils
 import org.slf4j.LoggerFactory
-
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
@@ -58,19 +59,29 @@ class cds2ServiceProvider( serverConfiguration: Map[String,String] ) extends Ser
   import nasa.nccs.cds2.engine.CDS2ExecutionManager
   import nasa.nccs.esgf.process.TaskRequest
 
-  val cds2ExecutionManager = new CDS2ExecutionManager( serverConfiguration )
+  val cds2ExecutionManager = CDS2ExecutionManager( serverConfiguration )
 
+  def datainputs2Str( datainputs: Map[String, Seq[Map[String, Any]]] ): String = {
+    datainputs.map { case ( key:String, value:Seq[Map[String, Any]] ) =>
+      key  + ": " + value.map( _.map { case (k1:String, v1:Any) => k1 + "=" + v1.toString  }.mkString(", ") ).mkString("{ ",", "," }")  }.mkString("{ ",", "," }")
+  }
 
   override def executeProcess(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
     try {
-      cdsutils.time( logger, "-->> Process %s: Total Execution Time: ".format(process_name) ) {
+      cdsutils.time( logger, "\n\n-->> Process %s, datainputs: %s \n\n".format( process_name, datainputs2Str(datainputs) ) ) {
         if( runargs.getOrElse("async","false").toBoolean ) {
           cds2ExecutionManager.asyncExecute(TaskRequest(process_name, datainputs), runargs) match {
-            case ( resultId: String, futureResult: Future[ExecutionResults] ) => <result url={"http://server:port/wps/results?id=%s".format(resultId)}> {resultId} </result>
+            case ( mdata: Map[String,String], futureResult: Future[ExecutionResults] ) =>
+              mdata.get("results") match {
+                case Some(fragments) => <result fragments={fragments}/>
+                case None => <result url={"http://server:port/wps/results?id=%s".format(mdata.getOrElse("job",""))} />
+              }
             case x =>  <error id="Execution Error"> {"Malformed response from cds2ExecutionManager" } </error>
           }
         }
-        else  cds2ExecutionManager.blockingExecute(TaskRequest(process_name, datainputs), runargs).toXml
+        else  {
+          cds2ExecutionManager.blockingExecute(TaskRequest(process_name, datainputs), runargs).toXml
+        }
       }
     } catch { case e: Exception => fatal(e) }
   }
@@ -94,7 +105,7 @@ object resourceTest extends App {
   import nasa.nccs.cds2.engine.CDS2ExecutionManager
   val serverConfiguration: Map[String,String] = Map()
 
-  val cds2ExecutionManager = new CDS2ExecutionManager( serverConfiguration )
+  val cds2ExecutionManager = CDS2ExecutionManager( serverConfiguration )
 
   val resourcePath = cds2ExecutionManager.getResourcePath("/collections.xml")
   println( resourcePath )

@@ -3,10 +3,13 @@ package nasa.nccs.caching
 import java.io._
 import java.nio.file.{Files, Paths}
 
+import org.apache.commons.io.FileUtils
+
 import collection.mutable
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
+import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EntryWeigher, EvictionListener}
 import nasa.nccs.utilities.{Loggable, Timestamp}
 import nasa.nccs.cdapi.cdm.DiskCacheFileMgr
+import nasa.nccs.cds2.utilities.appParameters
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConversions._
@@ -16,7 +19,7 @@ import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 
 trait Cache[K,V] { cache ⇒
-
+  type KeyEventNotifier[K] = (String,K) => Unit
   /**
     * Selects the (potentially non-existing) cache entry with the given key.
     */
@@ -24,6 +27,8 @@ trait Cache[K,V] { cache ⇒
 
   def put( key: K, value: V )
   def putF( key: K, value: Future[V] )
+  def putIfAbsent( key: K, value: V )
+  def putIfAbsentF( key: K, fvalue: Future[V] )
 
   def getEntries: Seq[(K,V)]
 
@@ -63,7 +68,7 @@ trait Cache[K,V] { cache ⇒
   /**
     * Clears the cache by removing all entries.
     */
-  def clear()
+  def clear(): Set[K]
 
   def persist()
 
@@ -105,17 +110,36 @@ object ValueMagnet {
   * entries cause old ones to be evicted in a last-recently-used manner, i.e. the entries that haven't been accessed for
   * the longest time are evicted first.
   */
-final class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boolean ) extends Cache[K,V] with Loggable {
-  val maxCapacity: Int=10000
+
+//class DeletionListener[K,Future[V]]( val cache: Int ) extends EvictionListener[K,Future[V]] {
+//  override def onEviction(key: K, value: V ) {;}
+//}
+class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boolean ) extends Cache[K,V] with Loggable {
+  val cache_logger = org.slf4j.LoggerFactory.getLogger("cache")
+  val KpG = 1000000L
+  val maxCapacity: Long = appParameters(Array(ctype.toLowerCase,cname.toLowerCase,"capacity").mkString("."),"30").toLong * KpG
   val initialCapacity: Int=64
-  val cacheFile = DiskCacheFileMgr.getDiskCacheFilePath( cname, ctype )
+  val cacheFile = DiskCacheFileMgr.getDiskCacheFilePath( ctype, cname )
   require(maxCapacity >= 0, "maxCapacity must not be negative")
   require(initialCapacity <= maxCapacity, "initialCapacity must be <= maxCapacity")
 
   private[caching] val store = getStore()
 
+  def evictionNotice( key: K, value: Future[V] ) = { logger.info( "Evicting Key %s".format( key.toString ) ) }
+  def entrySize( key: K, value: Future[V] ): Int = { 1 }
+  def weightedSize: Long = store.weightedSize()
+
+  def capacity_log( key: K, msg: String ) = synchronized {
+    cache_logger.info( s" %s [$cname-$ctype](%s): size = %d".format( msg, key.toString, weightedSize ) );
+  }
+
   def getStore(): ConcurrentLinkedHashMap[K, Future[V]] = {
-    val hmap = new ConcurrentLinkedHashMap.Builder[K, Future[V]].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).build()
+    val evictionListener = new EvictionListener[K,Future[V]]{ def onEviction(key: K, value: Future[V] ): Unit = {
+      capacity_log( key, "--" )
+      evictionNotice(key,value)
+    } }
+    val sizeWeighter = new EntryWeigher[K,Future[V]]{ def weightOf(key: K, value: Future[V] ): Int = { entrySize(key,value) } }
+    val hmap = new ConcurrentLinkedHashMap.Builder[K, Future[V]].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).listener( evictionListener ).weigher( sizeWeighter ).build()
     if(persistent) restore match {
       case Some( entryArray ) => entryArray.foreach { case (key,value) => hmap.put(key,Future(value)) }
       case None => Unit
@@ -143,6 +167,14 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
     ostr.close()
   }
 
+  def clear(): Set[K] =
+    if( persistent ) {
+      val keys: Set[K] = Set[K](store.keys.toSeq:_*)
+      FileUtils.deleteDirectory( Paths.get(cacheFile).getParent.toFile )
+      store.clear()
+      keys
+    }  else Set.empty[K]
+
   protected def restore: Option[ Array[(K,V)] ] = {
     try {
       val istr = new ObjectInputStream(new FileInputStream(cacheFile))
@@ -155,8 +187,10 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
     }
   }
 
-  def put( key: K, value: V ) = store.put( key, Future(value) )
-  def putF( key: K, fvalue: Future[V] ) = store.put( key, fvalue )
+  def put( key: K, value: V ) = if( store.put(key, Future(value) ) == null ) { capacity_log( key, "++" ) }
+  def putF( key: K, fvalue: Future[V] ) = if( store.put(key, fvalue ) == null ) { capacity_log( key, "++" ) }
+  def putIfAbsent( key: K, value: V ) = if( store.putIfAbsent(key, Future(value) ) == null ) { capacity_log( key, "++" ) }
+  def putIfAbsentF( key: K, fvalue: Future[V] ) = if( store.putIfAbsent(key, fvalue ) == null ) { capacity_log( key, "++" ) }
 
   def apply(key: K, genValue: () ⇒ Future[V])(implicit ec: ExecutionContext): Future[V] = {
     val promise = Promise[V]()
@@ -164,6 +198,7 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
       case null ⇒
         genValue() andThen {
         case Success(value) =>
+          capacity_log( key, "++" )
           promise.complete( Success(value) )
         case Failure(e) =>
           logger.info(s"Failed to add element %s to cache $cname:$ctype due to error %s".format(key.toString, e.getMessage) )
@@ -174,8 +209,6 @@ final class FutureCache[K,V](val cname: String, val ctype: String, val persisten
   }
 
   def remove(key: K) = Option(store.remove(key))
-
-  def clear(): Unit = { store.clear() }
 
   def keys: Set[K] = store.keySet().asScala.toSet
   def values: Iterable[Future[V]] = store.values().asScala

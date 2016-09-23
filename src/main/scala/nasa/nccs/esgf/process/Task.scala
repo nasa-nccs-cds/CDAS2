@@ -1,12 +1,14 @@
 package nasa.nccs.esgf.process
 
-import nasa.nccs.caching.JobRecord
+import nasa.nccs.caching.{CDASPartitioner, JobRecord}
 import nasa.nccs.cdapi.cdm.{CDSDataset, CDSVariable, Collection, PartitionedFragment}
 import nasa.nccs.cdapi.kernels.AxisIndices
-import nasa.nccs.cdapi.tensors.CDFloatArray
+import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt
+import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray}
 import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
 import org.joda.time.{DateTime, DateTimeZone}
+import nasa.nccs.utilities.Loggable
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -213,7 +215,7 @@ class DataSource(val name: String, val collection: Collection, val domain: Strin
 
 class DataFragmentKey( val varname: String, val collId: String, val origin: Array[Int], val shape: Array[Int] ) extends Serializable {
   override def toString =  "DataFragmentKey{ name = %s, collection = %s, origin = [ %s ], shape = [ %s ] }".format( varname, collId, origin.mkString(", "), shape.mkString(", "))
-  def toStrRep =  "%s|%s|%s|%s".format( varname, collId, origin.mkString(","), shape.mkString(","))
+  def toStrRep =  "%s|%s|%s|%s|%d".format( varname, collId, origin.mkString(","), shape.mkString(","), CDASPartitioner.nProcessors )
   def sameVariable( otherCollId: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collId == otherCollId) }
   def getRoi: ma2.Section = new ma2.Section(origin,shape)
   def equalRoi( df: DataFragmentKey ): Boolean = ( shape.sameElements(df.shape) && origin.sameElements(df.origin ) )
@@ -254,20 +256,54 @@ class MergeDataFragment( val wrappedDataFragOpt: Option[DataFragment] = None ) {
     case Some( wrappedDataFrag ) => MergeDataFragment( wrappedDataFrag ++ dfrag )
   }
 }
-
-class DataFragment( val spec: DataFragmentSpec, val data: CDFloatArray ) {
-  def ++( dfrag: DataFragment ): DataFragment = {
-    new DataFragment( spec.merge(dfrag.spec), data.merge(dfrag.data) )
+// DataFragmentSpec, SectionMerge.Status  DataFragmentSpec, SectionMerge.Status
+object DataFragment {
+  def apply( spec: DataFragmentSpec, data: CDFloatArray ): DataFragment = new DataFragment( spec, Map( "value" -> data) )
+  def apply( spec: DataFragmentSpec, data: CDFloatArray, weights: CDFloatArray ): DataFragment = new DataFragment( spec, Map( ("value" -> data), ("weights" -> weights) ) )
+  def apply( spec: DataFragmentSpec, data: CDFloatArray, coordMap: CDCoordMap ): DataFragment = new DataFragment( spec, Map( ("value" -> data) ), Some(coordMap) )
+  def apply( spec: DataFragmentSpec, data: CDFloatArray, weights: CDFloatArray, coordMap: CDCoordMap ): DataFragment = new DataFragment( spec, Map( ("value" -> data), ("weights" -> weights) ), Some(coordMap) )
+  def combine( reductionOp: ReduceOpFlt, input0: DataFragment, input1: DataFragment ): DataFragment = {
+    val ( data, ( fragSpec, mergeStatus) ) = input0.optCoordMap match {
+      case Some( coordMap ) =>  ( CDFloatArray.combine( reductionOp, input1.data, input0.data, coordMap.subset(input1.spec.roi) ), input1.spec.combine(input0.spec,false) )
+      case None => input1.optCoordMap match {
+        case Some( coordMap ) => ( CDFloatArray.combine( reductionOp, input0.data, input1.data, coordMap.subset(input0.spec.roi) ), input0.spec.combine(input1.spec,false) )
+        case None => ( CDFloatArray.combine( reductionOp, input0.data, input1.data ), input0.spec.combine(input1.spec,true) )
+      }
+    }
+    DataFragment( fragSpec, data )
   }
-  def getReducedSpec( axes: AxisIndices ): DataFragmentSpec =  spec.reduce(Set(axes.getAxes:_*))
-  def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)
-  def subset( section: ma2.Section ): Option[DataFragment] = spec.cutIntersection( section ) map { dataFragSpec => new DataFragment( dataFragSpec, data.section(section) ) }
-
+  def combineCoordMaps(a0: DataFragment, a1: DataFragment): Option[CDCoordMap] = a0.optCoordMap.flatMap( coordMap0 => a1.optCoordMap.map( coordMap1 => coordMap0 ++ coordMap1 ))
+  def combineDataMaps(a0: DataFragment, a1: DataFragment): Map[String,CDFloatArray] = a0.dataMap flatMap { case (key, array0) => a1.dataMap.get( key ) map ( array1 =>  ( key -> array0.merge(array1)) ) }
 }
 
-class DataFragmentSpec( val varname: String="", val collection: Collection = new Collection, val fragIdOpt: Option[String]=None, val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
-                        val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section], val missing_value: Float, val mask: Option[String] = None )  {
-  printf( "DataFragmentSpec" )
+class DataFragment( val spec: DataFragmentSpec, val dataMap: Map[String,CDFloatArray] = Map.empty[String,CDFloatArray], val optCoordMap: Option[CDCoordMap] = None ) extends Serializable {
+  import DataFragment._
+  def ++( dfrag: DataFragment ): DataFragment = {
+    new DataFragment( spec.merge(dfrag.spec), combineDataMaps( this, dfrag ), combineCoordMaps( this,dfrag ) )
+  }
+  def data: CDFloatArray = dataMap.get("value").get
+  def weights: Option[CDFloatArray] = dataMap.get("weights")
+  def getReducedSpec( axes: AxisIndices ): DataFragmentSpec =  spec.reduce(Set(axes.getAxes:_*))
+  def getReducedSpec(  axisIndices: Set[Int], newsize: Int = 1  ): DataFragmentSpec =  spec.reduce(axisIndices,newsize)
+  def subset( section: ma2.Section ): Option[DataFragment] = spec.cutIntersection( section ) map { dataFragSpec =>
+    val new_section = dataFragSpec.getIntersection(section)
+    new DataFragment( dataFragSpec,  dataMap.mapValues( array => CDFloatArray.cdArrayConverter( array.section( new_section ) ) ).map(identity), optCoordMap )     // map(identity) to work around scala serialization bug
+  }
+}
+
+object SectionMerge {
+  type Status = Int
+  val Overlap: Status = 0
+  val Append: Status = 1
+  val Prepend: Status = 1
+  def incommensurate( s0: ma2.Section, s1: ma2.Section ) = { "Attempt to combine incommensurate sections: %s vs %s".format( s0.toString, s1.toString ) }
+}
+
+class DataFragmentSpec( val varname: String="", val collection: Collection = Collection("empty",""), val fragIdOpt: Option[String]=None,
+                        val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
+                        val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section],
+                        val missing_value: Float, val mask: Option[String] = None ) extends Loggable with Serializable {
+//  logger.info( "DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s".format( _section, _domSectOpt.getOrElse("null").toString ) )
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
@@ -275,6 +311,12 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
       case None => <input varname={varname} longname={longname} units={units} roi={roi.toString} >{collection.toXml}</input>
       case Some(maskId) => <input varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
+  }
+  def combine( other: DataFragmentSpec, sectionMerge: Boolean = true ): ( DataFragmentSpec, SectionMerge.Status ) = {
+    val combined_varname = varname + ":" + other.varname
+    val combined_longname = longname + ":" + other.longname
+    val ( combined_section, mergeStatus ) = if(sectionMerge) combineRoi( other.roi ) else ( roi, SectionMerge.Overlap )
+    ( new DataFragmentSpec( combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, missing_value, mask ) -> mergeStatus )
   }
   def roi = targetGridOpt match {
     case None => new ma2.Section( _section )
@@ -284,7 +326,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
 
   def toBoundsString = { targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
-  def reshape( newShape: Array[Int] ): DataFragmentSpec = new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newShape), domainSectOpt, missing_value, mask )
+  def reshape( newSection: ma2.Section ): DataFragmentSpec = new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newSection), domainSectOpt, missing_value, mask )
 
   def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
     case Some( array ) => array
@@ -334,10 +376,31 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
     val ranges = for( ir <- raw_intersection.getRanges.indices; r0 = raw_intersection.getRange(ir); r1 = base_sect.getRange(ir) ) yield new ma2.Range( r1.getName, r0 )
     new ma2.Section( ranges )
   }
+  def combineRoi( otherSection: ma2.Section ): ( ma2.Section, SectionMerge.Status ) = {
+    logger.info( "\n\nCombine SECTIONS: %s - %s \n\n".format( _section.toString, otherSection.toString ))
+    var sectionMerge: SectionMerge.Status = SectionMerge.Overlap
+    val new_ranges: IndexedSeq[ma2.Range] = for( iR <- _section.getRanges.indices; r0 = _section.getRange(iR); r1 = otherSection.getRange(iR) ) yield {
+      if( r0 == r1 ) { r0 }
+      else if( (r0.last + 1) == (r1.first) ) {
+        assert( sectionMerge == SectionMerge.Overlap, SectionMerge.incommensurate( _section, otherSection ) )
+        sectionMerge = SectionMerge.Append;
+        new ma2.Range( r0.first, r1.last, r0.stride )
+      }
+      else if( (r1.last + 1) == (r0.first) ) {
+        assert( sectionMerge == SectionMerge.Overlap, SectionMerge.incommensurate( _section, otherSection ) )
+        sectionMerge = SectionMerge.Prepend;
+        new ma2.Range( r1.first, r0.last, r0.stride )
+      }
+      else throw new Exception( SectionMerge.incommensurate( _section, otherSection ) )
+    }
+    ( new ma2.Section( new_ranges:_* ) -> sectionMerge )
+  }
 
   def cutIntersection( cutSection: ma2.Section ): Option[DataFragmentSpec] =
     if( roi.intersects( cutSection ) ) {
-      Some( new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, intersectRoi(cutSection), domainSectOpt, missing_value, mask ) )
+      val intersection = intersectRoi(cutSection)
+//      logger.info( "DOMAIN INTERSECTION:  %s <-> %s  => %s".format( roi.toString, cutSection.toString, intersection.toString ))
+      Some( new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, intersection, domainSectOpt, missing_value, mask ) )
     }  else None
 
   def getReducedSection( axisIndices: Set[Int], newsize: Int = 1 ): ma2.Section = {
@@ -345,6 +408,9 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
   }
 
   def reduce( axisIndices: Set[Int], newsize: Int = 1 ): DataFragmentSpec =  reSection( getReducedSection(axisIndices,newsize) )
+
+  def getIntersection( subsection: ma2.Section  ): ma2.Section = { subsection.intersect( _section ) }
+  def intersects( subsection: ma2.Section  ): Boolean = { subsection.intersects( _section ) }
 
   def getSubSection( subsection: ma2.Section  ): ma2.Section = {
     new ma2.Section( roi.getRanges.zipWithIndex.map( rngIndx => {
@@ -358,7 +424,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = new
     var v: CDSVariable =  serverContext.getVariable( collection, varname )
     v.attributes ++ Map( "description" -> new nc2.Attribute("description",v.description), "units"->new nc2.Attribute("units",v.units),
       "fullname"->new nc2.Attribute("fullname",v.fullname), "axes" -> new nc2.Attribute("axes",dimensions),
-      "varname" -> new nc2.Attribute("varname",varname), "collection" -> new nc2.Attribute("collection",collection.url) )
+      "varname" -> new nc2.Attribute("varname",varname), "collection" -> new nc2.Attribute("collection",collection.id) )
   }
 
   def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = {
@@ -453,11 +519,12 @@ object DataContainer extends ContainerBase {
     val uri = metadata.getOrElse("uri","").toString
     val varsList: List[String] = metadata.getOrElse("name","").toString.split(",").map( item => stripQuotes( item.split(':').head ) ).toList
     val path =  metadata.getOrElse("path","").toString
+    val collection =  metadata.getOrElse("collection","").toString
     val title =  metadata.getOrElse("title","").toString
     val fileFilter = metadata.getOrElse("fileFilter","").toString
     val id = parseUri(uri)
     logger.info( s" >>>>>>>>>>>----> getCollection, uri=$uri, id=$id")
-    val colId = uri match {
+    val colId = if(!collection.isEmpty) { collection } else uri match {
       case colUri if(colUri.startsWith("collection")) => id
       case fragUri if(fragUri.startsWith("fragment")) => id.split('|')(1)
       case x => ""
@@ -465,12 +532,15 @@ object DataContainer extends ContainerBase {
     val fragIdOpt = if(uri.startsWith("fragment")) Some(id) else None
     Collections.findCollection( colId ) match {
       case Some(collection) =>
-        if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.path)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id,collection.path,path) ) }
+        if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.dataPath)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id,collection.dataPath,path) ) }
         ( collection, fragIdOpt )
       case None =>
-        val fpath = if(new java.io.File(id).isFile) id else path
-        if ( colId.isEmpty || fpath.isEmpty ) logger.warn(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", ") )
-        ( Collections.addCollection( uri, fpath, fileFilter, title, varsList ), fragIdOpt )
+        if( path.isEmpty && !collection.isEmpty ) {
+          (Collections.addCollection( colId, path, title, varsList), fragIdOpt)
+        } else {
+          if (path.isEmpty) logger.warn(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", "))
+          (Collections.addCollection(colId, path, fileFilter, title, varsList), fragIdOpt)
+        }
     }
   }
 
@@ -506,18 +576,22 @@ object DataContainer extends ContainerBase {
 
   def parseUri( uri: String ): String = {
     if(uri.isEmpty) "" else {
-      val recognizedUrlTypes = List( "file", "collection", "fragment" )
+      val recognizedUrlTypes = List("file", "collection", "fragment")
       val uri_parts = uri.split(":")
       val url_type = normalize(uri_parts.head)
-      if ( recognizedUrlTypes.contains(url_type) && (uri_parts.length == 2) ) {
-        val value = uri_parts.last.toLowerCase
-        if( List( "collection", "fragment" ).contains( url_type ) ) value.stripPrefix("/").stripPrefix("/") else value
-      } else throw new Exception("Unrecognized uri format: " + uri + ", type = " + uri_parts.head + ", nparts = " + uri_parts.length.toString + ", value = " + uri_parts.last)
+      if (url_type == "http") {
+        uri
+      } else {
+        if (recognizedUrlTypes.contains(url_type)) {
+          val value = uri_parts.last.toLowerCase
+          if (List("collection", "fragment").contains(url_type)) value.stripPrefix("/").stripPrefix("/") else value
+        } else throw new Exception("Unrecognized uri format: " + uri + ", type = " + uri_parts.head + ", nparts = " + uri_parts.length.toString + ", value = " + uri_parts.last)
+      }
     }
   }
 }
 
-class DomainContainer( val name: String, val axes: List[DomainAxis] = List.empty[DomainAxis], val mask: Option[String]=None ) extends ContainerBase {
+class DomainContainer( val name: String, val axes: List[DomainAxis] = List.empty[DomainAxis], val mask: Option[String]=None ) extends ContainerBase  with Serializable {
   override def toString = {
     s"DomainContainer { name = $name, axes = $axes }"
   }
@@ -566,7 +640,7 @@ object DomainAxis extends ContainerBase {
   }
 }
 
-class DomainAxis( val axistype: DomainAxis.Type.Value, val start: GenericNumber, val end: GenericNumber, val system: String, val bounds: String = "" ) extends ContainerBase  {
+class DomainAxis( val axistype: DomainAxis.Type.Value, val start: GenericNumber, val end: GenericNumber, val system: String, val bounds: String = "" ) extends ContainerBase with Serializable {
   import DomainAxis.Type._
   val name =   axistype.toString
   def getCFAxisName: String = axistype match { case X => "X"; case Y => "Y"; case Z => "Z"; case T => "T" }
@@ -636,8 +710,9 @@ object WorkflowContainer extends ContainerBase {
   }
 }
 
-class OperationContext( val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext  {
+class OperationContext( val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext with Serializable  {
   def getConfiguration = configuration
+  println( "OperationContext: " + rid )
 
   override def toString = {
     s"OperationContext { id = $identifier,  name = $name, rid = $rid, inputs = $inputs, configurations = $configuration }"
@@ -658,14 +733,13 @@ object OperationContext extends ContainerBase  {
       case x => throw new Exception ( "Unrecognized input in operation spec: " + x.toString )
     }
     val op_name = metadata.getOrElse( "name", process_name ).toString.trim.toLowerCase
-    val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim.toLowerCase )
+    val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim.toLowerCase ).map(identity)  // map(identity) to work around scala serialization bug
     val input = metadata.getOrElse("input","").toString
-    val opLongName = op_name + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
+    val opLongName = op_name + "-" + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
-    val op_rid: String = Array( opLongName, dt.toString("MM.dd-hh.mm.ss") ).mkString("-")
-
-
-    new OperationContext( identifier = op_rid, name=op_name, rid = op_rid, inputs = op_inputs, optargs )
+    val identifier: String = Array( opLongName, dt.toString("MM.dd-hh.mm.ss") ).mkString("-")
+    val rid = metadata.getOrElse("result",identifier).toString
+    new OperationContext( identifier = identifier, name=op_name, rid = rid, inputs = op_inputs, optargs )
   }
   def generateResultId: String = { resultIndex += 1; "$v"+resultIndex.toString }
 }

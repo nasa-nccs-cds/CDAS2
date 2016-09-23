@@ -2,7 +2,6 @@
 *.log
 *~
 src/test/resources/nco_verification_scripts/out/
-project/cdas.properties
 
 # sbt specific
 .cache

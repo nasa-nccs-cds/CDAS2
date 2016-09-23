@@ -9,6 +9,19 @@
         </layout>
     </appender>
 
+    <appender name="cacheCap" class="org.apache.log4j.RollingFileAppender">
+        <param name="file" value="${user.home}/.cdas/cacheCap.log"/>
+        <param name="MaxFileSize" value="100KB"/>
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%p %t %c - %m%n"/>
+        </layout>
+    </appender>
+
+    <logger name="cache" additivity="false">
+        <level value="info"/>
+        <appender-ref ref="cacheCap" />
+    </logger>
+
     <root>
         <priority value ="info" />
         <appender-ref ref="console" />

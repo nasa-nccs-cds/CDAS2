@@ -3,15 +3,18 @@
 package nasa.nccs.cdapi.tensors
 import java.util.Formatter
 
+import ucar.nc2.time.Calendar
+import ucar.nc2.time.CalendarDate
 import nasa.nccs.cdapi.cdm.CDSVariable
 import nasa.nccs.esgf.process.{DomainAxis, GridCoordSpec, TargetGrid}
+import nasa.nccs.utilities.cdsutils
 
 import scala.collection.mutable.ListBuffer
 import ucar.ma2
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset.{CoordinateAxis1D, CoordinateAxis1DTime}
 import ucar.nc2.time.CalendarPeriod.Field._
-import ucar.nc2.time.{ CalendarDate, Calendar }
+import ucar.nc2.time.{Calendar, CalendarDate}
 import org.joda.time.DateTime
 
 import scala.collection.JavaConversions._
@@ -33,23 +36,37 @@ abstract class IndexMapIterator extends collection.Iterator[Int] {
   def getLength: Int
 }
 
-abstract class TimeIndexMapIterator( val timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis]  ) extends IndexMapIterator {
-  val index_offset: Int = domainAxisOpt match { case None => 0; case Some(domainAxis) =>  domainAxis.start.toInt }
-  override def getLength: Int =  domainAxisOpt match { case None => timeAxis.getSize.toInt; case Some(domainAxis) =>  domainAxis.end.toInt - domainAxis.start.toInt + 1 }
+abstract class TimeIndexMapIterator( val timeOffsets: Array[Double], range: ma2.Range  ) extends IndexMapIterator {
+  val index_offset: Int = range.first()
+  val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, cdsutils.baseTimeUnits )
+  override def getLength: Int =  range.last() - range.first() + 1
   def toDate( cd: CalendarDate ): DateTime = new DateTime( cd.toDate )
+  def getCalendarDate( index: Int ) = timeHelper.makeCalendarDateFromOffset( timeOffsets(index) )
 }
 
-class YearOfCenturyIter( timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis] ) extends TimeIndexMapIterator(timeAxis,domainAxisOpt) {
-  def getValue( count_index: Int ): Int = toDate(timeAxis.getCalendarDate(count_index+index_offset)).getYearOfCentury
-}
-class MonthOfYearIter( timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis] ) extends TimeIndexMapIterator(timeAxis,domainAxisOpt) {
-  def getValue( count_index: Int ): Int = toDate(timeAxis.getCalendarDate(count_index+index_offset)).getMonthOfYear
-}
-class DayOfYearIter( timeAxis: CoordinateAxis1DTime, domainAxisOpt: Option[DomainAxis] ) extends TimeIndexMapIterator(timeAxis,domainAxisOpt) {
-  def getValue( count_index: Int ): Int = toDate(timeAxis.getCalendarDate(count_index+index_offset)).getDayOfYear
+class YearOfCenturyIter( timeOffsets: Array[Double], range: ma2.Range ) extends TimeIndexMapIterator(timeOffsets,range) {
+  def getValue( count_index: Int ): Int = toDate( getCalendarDate(count_index+index_offset) ).getYearOfCentury
 }
 
-class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val offset: Int = 0 ) {
+class MonthOfYearIter( timeOffsets: Array[Double], range: ma2.Range  ) extends TimeIndexMapIterator(timeOffsets,range) {
+  def getValue( count_index: Int ): Int = {
+    val rdate = toDate( getCalendarDate(count_index + index_offset) )
+    val dom = rdate.getDayOfMonth
+    if( dom < 22 ) {
+      rdate.getMonthOfYear - 1
+    } else {
+      rdate.getMonthOfYear
+//      val doy = rdate.getDayOfYear - 1
+//      ((doy / 365.0) * 12.0).round.toInt % 12
+    }
+  }
+}
+
+class DayOfYearIter( timeOffsets: Array[Double], range: ma2.Range ) extends TimeIndexMapIterator(timeOffsets,range) {
+  def getValue( count_index: Int ): Int = toDate( getCalendarDate(count_index+index_offset) ).getDayOfYear
+}
+
+class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val offset: Int = 0 ) extends Serializable {
   protected val rank: Int = shape.length
   protected val stride = if( _stride.isEmpty ) computeStrides(shape) else _stride
   def this( index: CDIndexMap ) = this( index.shape, index.stride, index.offset )
@@ -65,7 +82,7 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   def getShape: Array[Int] = shape.clone
   def getStride: Array[Int] = stride.clone
   def getShape(index: Int): Int = shape(index)
-  def getSize: Int = shape.filter( _ > 0 ).foldLeft(1)( _ * _ )
+  def getSize: Int = if( rank == 0 ) { 0 } else { shape.filter( _ > 0 ).foldLeft(1)( _ * _ ) }
   def getOffset: Int = offset
   def getReducedShape: Array[Int] = { ( for( idim <- ( 0 until rank) ) yield if( stride(idim) == 0 ) 1 else shape( idim ) ).toArray }
   override def toString: String = "{ Shape: " + shape.mkString("[ ",", "," ], Stride: " + stride.mkString("[ ",", "," ]") + " Offset: " + offset + " } ")
@@ -119,8 +136,8 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   def section( ranges: List[ma2.Range] ): CDIndexMap = {
     assert(ranges.size == rank, "Bad ranges [] length")
     for( ii <-(0 until rank); r = ranges(ii); if ((r != null) && (r != ma2.Range.VLEN)) ) {
-      assert ((r.first >= 0) && (r.first < shape(ii)), "Bad range starting value at index " + ii + " == " + r.first)
-      assert ((r.last >= 0) && (r.last < shape(ii)), "Bad range ending value at index " + ii + " == " + r.last)
+      assert ((r.first >= 0) && (r.first < shape(ii)), "Bad range starting value at index " + ii + " => " + r.first + ", shape = " + shape(ii) )
+      assert ((r.last >= 0) && (r.last < shape(ii)), "Bad range ending value at index " + ii + " => " + r.last + ", shape = " + shape(ii) )
     }
     var _offset: Int = offset
     val _shape: Array[Int] = Array.fill[Int](rank)(0)
@@ -213,14 +230,33 @@ trait CDCoordMapBase {
   def mapShape( shape: Array[Int] ): Array[Int] = { val new_shape=shape.clone; new_shape(dimIndex)=nBins; new_shape }
 }
 
-class CDCoordMap( val dimIndex: Int, val mapArray: Array[Int] ) extends CDCoordMapBase {
+class CDCoordMap( val dimIndex: Int, val dimOffset: Int, val mapArray: Array[Int] ) extends CDCoordMapBase {
+  def this( dimIndex: Int, section: ma2.Section, mapArray: Array[Int] ) =  this( dimIndex, section.getRange(dimIndex).first(), mapArray )
   val nBins: Int = mapArray.max + 1
+
   def map( coordIndices: Array[Int] ): Array[Int] = {
     val result = coordIndices.clone()
     result( dimIndex ) = mapArray( coordIndices(dimIndex) )
     result
   }
-  override def toString = "[ %s ]".format( mapArray.mkString(", "))
+  override def toString = "CDCoordMap{ nbins=%d, dim=%d, offset=%d, mapArray=[ %s ]}".format( nBins, dimIndex, dimOffset, mapArray.mkString(", ") )
+
+  def subset( section: ma2.Section ): CDCoordMap = {
+    assert( dimOffset==0, "Attempt to subset a partitioned CoordMap: not supported.")
+    val start: Int = section.getRange(dimIndex).first()
+    new CDCoordMap( dimIndex, start, mapArray.slice( start, mapArray.length ) )
+  }
+
+  def ++( cmap: CDCoordMap ): CDCoordMap = {
+    assert(dimIndex == cmap.dimIndex, "Attempt to combine incommensurate index maps, dimIndex mismatch: %d vs %d".format( dimIndex, cmap.dimIndex ) )
+    if (dimIndex == 0) {
+      assert(cmap.dimOffset == dimOffset + mapArray.length, "Attempt to combine incommensurate index maps, dimOffset mismatch: %d vs %d".format( cmap.dimOffset, dimOffset + mapArray.length )  )
+      new CDCoordMap(dimIndex, dimOffset, mapArray ++ cmap.mapArray)
+    } else {
+      assert( mapArray == cmap.mapArray, "Attempt to combine incommensurate index maps" )
+      clone.asInstanceOf[CDCoordMap]
+    }
+  }
 }
 
 class IndexValueAccumulator( start_value: Int = 0 ) {
@@ -232,31 +268,39 @@ class IndexValueAccumulator( start_value: Int = 0 ) {
   }
 }
 
-class CDTimeCoordMap( val  gridSpec: TargetGrid ) {
+class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   val axisSpec: GridCoordSpec = getAxisSpec
-  val timeAxis: CoordinateAxis1DTime = getTimeAxis
+  val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, cdsutils.baseTimeUnits )
+  val timeOffsets: Array[Double] = getTimeAxisData()
 
   def getAxisSpec: GridCoordSpec = gridSpec.grid.getAxisSpec("t") match {
     case Some(axisSpec) => axisSpec
     case None => throw new Exception("Can't timeBin a variable with no apparent time axis: %s ".format(gridSpec.ncVariable.getNameAndDimensions))
   }
+  def getDates(): Array[String] = { timeOffsets.map( timeHelper.makeCalendarDateFromOffset(_).toString ) }
 
-  def getTimeAxis: CoordinateAxis1DTime = axisSpec.coordAxis.getAxisType match {
-    case AxisType.Time => CoordinateAxis1DTime.factory(gridSpec.dataset.ncDataset, axisSpec.coordAxis, new Formatter())
+  def getTimeAxisData(): Array[Double] = axisSpec.coordAxis.getAxisType match {
+    case AxisType.Time => CDDoubleArray.toDoubleArray( axisSpec.coordAxis.read() )
     case x => throw new Exception("Binning not yet implemented for this axis type: %s".format(x.getClass.getName))
   }
 
-  def getTimeIndexIterator( unit: String ) = unit match {
-    case x if x.toLowerCase.startsWith("yea") => new YearOfCenturyIter(timeAxis,axisSpec.domainAxisOpt);
-    case x if x.toLowerCase.startsWith("mon") => new MonthOfYearIter(timeAxis,axisSpec.domainAxisOpt);
-    case x if x.toLowerCase.startsWith("day") => new DayOfYearIter(timeAxis,axisSpec.domainAxisOpt);
+  def getTimeIndexIterator( unit: String, range: ma2.Range ) = unit match {
+    case x if x.toLowerCase.startsWith("yea") => new YearOfCenturyIter( timeOffsets, range );
+    case x if x.toLowerCase.startsWith("mon") => new MonthOfYearIter( timeOffsets, range );
+    case x if x.toLowerCase.startsWith("day") => new DayOfYearIter( timeOffsets, range );
   }
 
   def pos_mod(initval: Int, period: Int): Int = if (initval >= 0) initval else pos_mod(initval + period, period)
 
-  def getTimeCycleMap(period: Int, unit: String, mod: Int, offset: Int): CDCoordMap = {
-    val timeIter = getTimeIndexIterator( unit )
+  def getMontlyBinMap( section: ma2.Section ): CDCoordMap = {
+    val timeIter = new MonthOfYearIter( timeOffsets, section.getRange(0) );
+    val accum = new IndexValueAccumulator()
+    val timeIndices = for( time_index <- timeIter ) yield {time_index}
+    new CDCoordMap( axisSpec.index, section.getRange(axisSpec.index).first(), timeIndices.toArray )
+  }
+  def getTimeCycleMap(period: Int, unit: String, mod: Int, offset: Int, section: ma2.Section ): CDCoordMap = {
+    val timeIter = getTimeIndexIterator( unit, section.getRange(0) )
     val start_value = timeIter.getValue(0)-1
     val accum = new IndexValueAccumulator()
     assert(offset <= period, "TimeBin offset can't be >= the period.")
@@ -265,7 +309,7 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid ) {
     val timeIndices = for (time_index <- timeIter; bin_index = accum.getValue(time_index)) yield {
       (( bin_index + op_offset ) / period) % mod
     }
-    new CDCoordMap(axisSpec.index, timeIndices.toArray.map(_.toInt) )
+    new CDCoordMap(axisSpec.index, section.getRange(axisSpec.index).first(), timeIndices.toArray.map(_.toInt) )
   }
 }
 

@@ -19,6 +19,8 @@ trait Loggable {
 
 object cdsutils {
 
+  val baseTimeUnits = "days since 1970-1-1"
+
   def flatlist[T]( values: Option[T]* ): List[T] = values.flatten.toList
 
   def ceilDiv( numer: Int, denom: Int ) : Int = Math.ceil( numer/ denom.toFloat ).toInt
@@ -35,6 +37,20 @@ object cdsutils {
     import java.io.File
     val cpitems = System.getProperty("java.class.path").split(File.pathSeparator)
     for ( cpitem <- cpitems; fileitem = new File(cpitem); if fileitem.isFile && fileitem.getName.toLowerCase.endsWith(".jar") ) yield new JarFile(fileitem)
+  }
+
+  def testSerializable( test_object: AnyRef ) = {
+    import java.io._
+    val out = new ObjectOutputStream(new FileOutputStream("test.obj"))
+    val name = test_object.getClass.getSimpleName
+    try {
+      out.writeObject(test_object)
+      println( s" ** SER +++ '$name'" )
+    } catch {
+      case ex: java.io.NotSerializableException => println( s" ** SER --- '$name'" )
+    } finally {
+      out.close
+    }
   }
 
   def printHeapUsage = {

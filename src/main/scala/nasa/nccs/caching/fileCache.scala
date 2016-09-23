@@ -7,15 +7,14 @@ import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
 import java.util.Comparator
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
-import nasa.nccs.cds2.utilities.runtime
-import nasa.nccs.cdapi.cdm._
+import nasa.nccs.cds2.utilities.{GeoTools, appParameters, runtime}
+import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
 import nasa.nccs.cdapi.kernels.TransientFragment
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
 import nasa.nccs.cds2.loaders.Masks
-import nasa.nccs.cds2.utilities.GeoTools
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.Loggable
-import org.apache.commons.io.IOUtils
+import org.apache.commons.io.{FileUtils, IOUtils}
 import sun.nio.ch.FileChannelImpl
 import ucar.nc2.dataset.NetcdfDataset
 import ucar.{ma2, nc2}
@@ -49,6 +48,7 @@ class Partitions( val id: String, private val _section: ma2.Section, val parts: 
   def getPart( partId: Int ): Partition = parts(partId)
   def getPartData( partId: Int, missing_value: Float ): CDFloatArray = parts(partId).data( missing_value )
   def roi: ma2.Section = new ma2.Section( _section.getRanges )
+  def delete = parts.map( _.delete )
 }
 
 object Partition {
@@ -68,6 +68,7 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
     channel.close(); file.close()
     new CDFloatArray( shape, buffer.asFloatBuffer, missing_value )
   }
+  def delete() = { FileUtils.deleteQuietly( new File( path ) ) }
   def chunkSection( iChunk: Int, section: ma2.Section ): ma2.Section = {  new ma2.Section( section.getRanges ).replaceRange( dimIndex, chunkRange(iChunk) ) }
   def partSection( section: ma2.Section ): ma2.Section = {  new ma2.Section( section.getRanges ).replaceRange( dimIndex, partRange ) }
   def nChunks = math.ceil( partSize / chunkSize.toDouble ).toInt
@@ -78,25 +79,30 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
   def chunkIndexArray: IndexedSeq[Int] = (0 until nChunks)
   def chunkMemorySize = chunkSize * sliceMemorySize
   override def toString = s"Part[$index]{dim=$dimIndex, start=$startIndex, size=$partSize, shape=(%s)}".format( shape.mkString(",") )
+  def getRelativeSection( global_section: ma2.Section ): ma2.Section = {
+    val relative_ranges = for( ir <- global_section.getRanges.indices; r = global_section.getRange(ir) ) yield { if(ir == dimIndex) { r.shiftOrigin(startIndex) } else r }
+    new ma2.Section( relative_ranges )
+  }
 }
 
-object Defaults {
-  val M = 1000000
-  val maxChunkSize = 200*M
-  val maxBufferSize = Int.MaxValue
-  val maxProcessors = 64
-}
 //class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {
 //  private val netcdfDataset = NetcdfDataset.openDataset( datasetFile )
 // private val ncVariable = netcdfDataset.findVariable(varName)
 
+object CDASPartitioner {
+  val M = 1000000
+  val maxChunkSize = 200*M
+  val maxBufferSize = Int.MaxValue
+  val maxProcessors =  appParameters("max.procs","8").toInt //   serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
+  val nProcessors = math.min( Runtime.getRuntime.availableProcessors(), maxProcessors )
+  val nCoresPerPart = 1
+}
+
 class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment" ) extends Loggable  {
+  import CDASPartitioner._
   private lazy val elemSize = dataType.getSize
   private lazy val baseShape = _section.getShape
   private lazy val sectionMemorySize = getMemorySize()
-  private lazy val nProcessors: Int = math.min( Runtime.getRuntime.availableProcessors(), Defaults.maxProcessors )
-  private lazy val maxChunkSize: Int =  Defaults.maxChunkSize
-  private lazy val maxBufferSize: Int =  Defaults.maxBufferSize
   private lazy val sliceMemorySize: Long =  getMemorySize(1)
   private lazy val memoryDistFactor: Double = math.max( sectionMemorySize/maxBufferSize.toDouble, 1.0 )
   private lazy val nSlicesPerPart = math.min( math.floor( baseShape(0) / memoryDistFactor ).toInt, math.ceil( baseShape(0) / nProcessors.toFloat ).toInt )
@@ -105,7 +111,6 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
   private lazy val nChunksPerPart = math.ceil( partitionMemorySize / maxChunkSize.toFloat ).toInt
   private lazy val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min( math.ceil( nSlicesPerPart / nChunksPerPart.toFloat  ).toInt, baseShape(0))
   private lazy val chunkMemorySize: Long = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize( nSlicesPerChunk )
-  private lazy val nCoresPerPart = 1
 
   def roi: ma2.Section = new ma2.Section( _section.getRanges )
   logger.info(s" ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, maxBufferSize: $maxBufferSize, sliceMemorySize: $sliceMemorySize, memoryDistFract: $memoryDistFactor, nSlicesPerPart: $nSlicesPerPart, nPartitions: $nPartitions, partitionMemorySize: $partitionMemorySize, " )
@@ -147,7 +152,7 @@ class FileToCacheStream( val ncVariable: nc2.Variable, private val _section: ma2
   val dType = ncVariable.getDataType
   def roi: ma2.Section = new ma2.Section( _section.getRanges )
   val partitioner = new CDASPartitioner( cacheId, roi, dType )
-  def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last; case None => default_value }
+  def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last.trim; case None => default_value }
 
   def getReadBuffer(cache_id: String): (FileChannel, MappedByteBuffer) = {
     val channel = new FileInputStream(cache_id).getChannel
@@ -203,13 +208,13 @@ class FileToCacheStream( val ncVariable: nc2.Variable, private val _section: ma2
   }
 }
 
-
 object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   private val fragmentIdCache: Cache[String,String] = new FutureCache("CacheIdMap","fragment",true)
   val M = 1000000
 
   def getCacheType = "fragment"
   def keys: Set[String] = fragmentIdCache.keys
+  def keyObjects: Set[String] = fragmentIdCache.keys
   def values: Iterable[Future[String]] = fragmentIdCache.values
 
 //  def persist(fragSpec: DataFragmentSpec, frag: PartitionedFragment): Future[String] = {
@@ -237,17 +242,17 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
   def expandKey( fragKey: String ): String = {
     val bounds = getBounds(fragKey)
     val toks = fragKey.split('|')
-    "variable= %s; origin= (%s); shape= (%s); coll= %s; bounds= %s".format(toks(0),toks(2),toks(3),toks(1),bounds)
+    "variable= %s; origin= (%s); shape= (%s); coll= %s; maxParts=%s; bounds= %s".format(toks(0),toks(2),toks(3),toks(1),toks(4),bounds)
   }
 
   def expandKeyXml( fragKey: String ):  xml.Elem = {
     val toks = fragKey.split('|')
-     <fragment variable={toks(0)} origin={toks(2)} shape={toks(3)} coll={toks(1)}> { getBounds(fragKey) } </fragment>
+     <fragment variable={toks(0)} origin={toks(2)} shape={toks(3)} coll={toks(1)} maxParts={toks(4)}> { getBounds(fragKey) } </fragment>
   }
 
   def contractKey( fragDescription: String ): String = {
     val tok = fragDescription.split(';').map( _.split('=')(1).trim.stripPrefix("(").stripSuffix(")"))
-    Array( tok(0),tok(3),tok(1),tok(2) ).mkString("|")
+    Array( tok(0),tok(3),tok(1),tok(2),tok(4) ).mkString("|")
   }
 
   def fragKeyLT( fragKey1: String, fragKey2: String ): Boolean = {
@@ -272,18 +277,30 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 //  }\\
 
 
-
-  def restore( fragSpec: DataFragmentSpec ): Option[Future[PartitionedFragment]] = {
+  def restore(fragSpec: DataFragmentSpec): Option[Future[PartitionedFragment]] = {
     val fragKey = fragSpec.getKey
-    logger.info( "FragmentPersistence.restor: fragKey: " + fragKey )
-    fragmentIdCache.get(fragKey.toStrRep) match {
-      case Some( cache_id_fut ) => Some( cache_id_fut.map( (cache_id: String ) => {
-        logger.info( "----> Cached frag " + cache_id )
-        val partitioner = new CDASPartitioner( cache_id, fragSpec.roi )
-        new PartitionedFragment( new Partitions( cache_id, fragSpec.roi, partitioner.getPartitions ), None, fragSpec )
-      }
-      ))
-      case None => None
+//    logger.info("FragmentPersistence.restore: fragKey: " + fragKey)
+    findEnclosingFragmentData(fragSpec) match {
+      case Some(foundFragKey) =>
+        collectionDataCache.getFragment(foundFragKey) match {
+          case Some(partFut) => Some(partFut)
+          case None =>
+            fragmentIdCache.get(foundFragKey.toStrRep) match {
+              case Some(cache_id_fut) => Some(cache_id_fut.map((cache_id: String) => {
+                val roi = foundFragKey.getRoi
+                val partitioner = new CDASPartitioner(cache_id, roi)
+                fragSpec.cutIntersection(roi) match {
+                  case Some(section) => new PartitionedFragment(new Partitions(cache_id, roi, partitioner.getPartitions), None, section)
+                  case None => throw new Exception("No intersection in enclosing fragment")
+                }
+              }
+              ))
+              case None => None
+            }
+        }
+      case None =>
+        logger.info("Can't find enclosing fragKey")
+        None
     }
   }
 
@@ -297,6 +314,8 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
 
   def close(): Unit = Await.result( Future.sequence( fragmentIdCache.values ), Duration.Inf )
+
+  def clearCache(): Set[String] = fragmentIdCache.clear()
 
   def deleteEnclosing( fragSpec: DataFragmentSpec ) =
     delete( findEnclosingFragSpecs(  fragmentIdCache.keys.map( DataFragmentKey(_) ), fragSpec.getKey ) )
@@ -313,16 +332,9 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     fragmentIdCache.persist()
   }
 
-  def getEnclosingFragmentData( fragSpec: DataFragmentSpec ): Option[ ( DataFragmentKey, Future[PartitionedFragment] ) ] = {
-    val fragKeys = findEnclosingFragSpecs(  fragmentIdCache.keys.map( DataFragmentKey(_) ), fragSpec.getKey )
-    fragKeys.headOption match {
-      case Some( fkey ) => restore(fragSpec) match {
-        case Some(pfrag) => Some( (fkey-> pfrag ) )
-        case None => None
-      }
-      case None => None
-    }
-  }
+  def findEnclosingFragmentData( fragSpec: DataFragmentSpec ): Option[ DataFragmentKey ] =
+    findEnclosingFragSpecs( fragmentIdCache.keys.map( DataFragmentKey(_) ), fragSpec.getKey ).headOption
+
 }
 
 trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {
@@ -334,13 +346,14 @@ trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {
     }).map(_ match { case fkey: DataFragmentKey => fkey })
 
 
-  def findEnclosingFragSpecs(keys: Set[DataFragmentKey], fkey: DataFragmentKey, admitEquality: Boolean = true): Set[DataFragmentKey] = {
+  def findEnclosingFragSpecs(keys: Set[DataFragmentKey], fkey: DataFragmentKey, admitEquality: Boolean = true): List[DataFragmentKey] = {
     val variableFrags = getFragSpecsForVariable(keys, fkey.collId, fkey.varname)
-    variableFrags.filter(fkeyParent => fkeyParent.contains(fkey, admitEquality))
+    variableFrags.filter(fkeyParent => fkeyParent.contains(fkey, admitEquality)).toList.sortWith( _.getSize < _.getSize )
   }
 
   def findEnclosedFragSpecs(keys: Set[DataFragmentKey], fkeyParent: DataFragmentKey, admitEquality: Boolean = false): Set[DataFragmentKey] = {
     val variableFrags = getFragSpecsForVariable(keys, fkeyParent.collId, fkeyParent.varname)
+    logger.info("Searching variable frags: \n\t --> " + variableFrags.mkString("\n\t --> ")  )
     variableFrags.filter(fkey => fkeyParent.contains(fkey, admitEquality))
   }
 
@@ -360,14 +373,23 @@ class JobRecord( val id: String ) {
 }
 
 class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with FragSpecKeySet {
-  private val fragmentCache: Cache[DataFragmentKey,PartitionedFragment] = new FutureCache("Store","fragment",false)
+  val K = 1000f
+  private val fragmentCache: Cache[DataFragmentKey,PartitionedFragment] = new FutureCache[DataFragmentKey,PartitionedFragment]("Store","fragment",false) {
+    override def evictionNotice( key: DataFragmentKey, value: Future[PartitionedFragment] ) = {
+      value.onSuccess { case pfrag =>
+        logger.info("Clearing fragment %s".format(key.toString));
+        FragmentPersistence.delete( List(key) )
+        pfrag.delete
+      }
+    }
+    override def entrySize( key: DataFragmentKey, value: Future[PartitionedFragment] ): Int = { math.max( (( key.getSize * 4 ) / K ).round, 1 ) }
+  }
   private val transientFragmentCache: Cache[String,TransientFragment] = new FutureCache("Store","result",false)
-  private val execJobCache = new ConcurrentLinkedHashMap.Builder[ String, JobRecord ].initialCapacity(64).maximumWeightedCapacity(10000).build()
+  private val execJobCache = new ConcurrentLinkedHashMap.Builder[ String, JobRecord ].initialCapacity(64).maximumWeightedCapacity(128).build()
   private val datasetCache: Cache[String,CDSDataset] = new FutureCache("Store","dataset",false)
   private val variableCache: Cache[String,CDSVariable] = new FutureCache("Store","variable",false)
   private val maskCache: Cache[MaskKey,CDByteArray] = new FutureCache("Store","mask",false)
   def clearFragmentCache() = fragmentCache.clear
-
   def addJob( jrec: JobRecord ): String = { execJobCache.put( jrec.id, jrec ); jrec.id }
   def removeJob( jid: String ) = execJobCache.remove( jid )
 
@@ -388,7 +410,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
 
   def deleteFragment( fragId: String ): Option[Future[PartitionedFragment]] = deleteFragment( DataFragmentKey(fragId) )
   def getDatasetFuture(collection: Collection, varName: String): Future[CDSDataset] =
-    datasetCache(makeKey(collection.url, varName)) { produceDataset(collection, varName) _ }
+    datasetCache(makeKey(collection.id, varName)) { produceDataset(collection, varName) _ }
 
   def getDataset(collection: Collection, varName: String): CDSDataset = {
     val futureDataset: Future[CDSDataset] = getDatasetFuture(collection, varName)
@@ -409,7 +431,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     result
   }
   def deleteResult( resultId: String  ): Option[Future[TransientFragment]] = transientFragmentCache.remove(resultId)
-  def putResult( resultId: String, result: Future[TransientFragment]  ) = transientFragmentCache.putF(resultId,result)
+  def putResult( resultId: String, resultFut: Future[Option[TransientFragment]]  ) = resultFut.onSuccess { case resultOpt => resultOpt.map( result => transientFragmentCache.put(resultId, result) ) }
   def getResultListXml(): xml.Elem = <results> { for( rkey <- transientFragmentCache.keys ) yield <result id={rkey} /> } </results>
   def getResultIdList = transientFragmentCache.keys
   def getJobListXml(): xml.Elem = <jobs> { for( jrec: JobRecord <- execJobCache.values ) yield jrec.toXml } </jobs>
@@ -430,7 +452,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
       case Failure(t) => p.failure(t)
     }
 
-  def getVariableFuture(collection: Collection, varName: String): Future[CDSVariable] = variableCache(makeKey(collection.url, varName)) {
+  def getVariableFuture(collection: Collection, varName: String): Future[CDSVariable] = variableCache(makeKey(collection.id, varName)) {
     promiseVariable(collection, varName) _
   }
 
@@ -441,22 +463,19 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
 
   def getVariable(fragSpec: DataFragmentSpec): CDSVariable = getVariable(fragSpec.collection, fragSpec.varname)
 
-  private def cutExistingFragment( partIndex: Int, fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f ): Option[DataFragment] = {
-    findEnclosingFragSpec(fragmentCache.keys, fragSpec.getKey, FragmentSelectionCriteria.Smallest) match {
-      case Some(fkey: DataFragmentKey) => getExistingFragment(fragSpec) match {
-        case Some(fragmentFuture) =>
-          if (!fragmentFuture.isCompleted && (fkey.getSize * abortSizeFraction > fragSpec.getSize)) {
-            logger.info("Cache Chunk[%s] found but not yet ready, abandoning cache access attempt".format(fkey.shape.mkString(",")))
-            None
-          } else {
-            val fragment = Await.result(fragmentFuture, Duration.Inf)
-            fragment.cutIntersection(partIndex, fragSpec.roi)
-          }
-        case None => cutExistingFragment(partIndex, fragSpec, abortSizeFraction)
-      }
-      case None => None
-    }
-  }
+//  private def cutExistingFragment( partIndex: Int, fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f ): Option[DataFragment] = {
+//    getExistingFragment(fragSpec) match {
+//      case Some(fragmentFuture) =>
+//        if (!fragmentFuture.isCompleted && (fragSpec.getSize * abortSizeFraction > fragSpec.getSize)) {
+//          logger.info("Cache Chunk[%s] found but not yet ready, abandoning cache access attempt".format(fragSpec.getShape.mkString(",")))
+//          None
+//        } else {
+//          val fragment = Await.result(fragmentFuture, Duration.Inf)
+//          fragment.cutIntersection(partIndex, fragSpec.roi)
+//        }
+//      case None => cutExistingFragment(partIndex, fragSpec, abortSizeFraction)
+//    }
+//  }
 //    fragOpt match {
 //      case None =>
 //        FragmentPersistence.getEnclosingFragmentData(fragSpec) match {
@@ -532,8 +551,10 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     logger.info( " cacheFragment: Start => Future" )
     val fragFuture = fragmentCache( fragSpec.getKey ) { cacheFragmentFromFiles( fragSpec ) _ }
     fragFuture onComplete {
-      case Success(fragment) => logger.info( " cache fragment: Success " )
-      case Failure(err) => logger.warn( " Failed to cache fragment due to error: " + err.getMessage )
+      case Success(fragment) =>
+        logger.info( " cache fragment: Success " )
+      case Failure(err) =>
+        logger.warn( " Failed to cache fragment due to error: " + err.getMessage )
     }
     logger.info( ">>>>>>>>>>>>>>>> Put frag in cache: " + fragSpec.toString + ", keys = " + fragmentCache.keys.mkString("[",",","]") )
     fragFuture
@@ -587,28 +608,27 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     rv
   }
 
-  def restoreFromCache( fragSpec: DataFragmentSpec ): DataFragmentKey = {
+  def getFragment( fragKey: DataFragmentKey ): Option[Future[PartitionedFragment]] = fragmentCache.get( fragKey )
+
+  def getExistingFragment( fragSpec: DataFragmentSpec ): Option[Future[PartitionedFragment]] = {
     val fkey = fragSpec.getKey
     if ( !fragmentCache.keys.contains(fkey) ) {
-      logger.info("Restoring frag from cache: " + fkey.toString )
+//      logger.info("Restoring frag from cache: " + fkey.toString )
       FragmentPersistence.restore(fragSpec) match {
         case Some( partFragFut ) =>
           val partFrag = Await.result( partFragFut, Duration.Inf )
+          logger.info( " fragmentCache.put, fkey = " + fkey )
           fragmentCache.put(fkey, partFrag )
-        case None => logger.warn( "Unable to restore frag from cache: " + fkey.toString )
+          Some( partFragFut )
+        case None =>
+          logger.warn( "Unable to restore frag from cache: " + fkey.toString )
+          None
       }
+    } else {
+      val rv = fragmentCache.get( fkey )
+      logger.info( ">>>>>>>>>>>>>>>> Get frag from cache: search key = " + fkey.toString + ", existing keys = " + fragmentCache.keys.mkString("[",",","]") + ", Success = " + rv.isDefined.toString )
+      rv
     }
-    fkey
-  }
-
-  def getExistingFragment( fragSpec: DataFragmentSpec  ): Option[Future[PartitionedFragment]] = {
-    val fkey = restoreFromCache( fragSpec )
-    val rv: Option[Future[PartitionedFragment]] = fragmentCache.get( fkey ) match {
-      case Some( result ) => Some( result )
-      case None =>  None
-    }
-    logger.info( ">>>>>>>>>>>>>>>> Get frag from cache: search key = " + fkey.toString + ", existing keys = " + fragmentCache.keys.mkString("[",",","]") + ", Success = " + rv.isDefined.toString )
-    rv
   }
 
   def deleteFragment( fkey: DataFragmentKey  ): Option[Future[PartitionedFragment]] = fragmentCache.remove(fkey)
@@ -760,3 +780,10 @@ object PartitionTest extends App {
 //    }
 //  }
 //}
+
+object appTest extends App {
+  val list = List( 2, 4, 6, 8, 9, 4 ,2, 1 )
+  val l1 = list.sortWith( _ < _ )
+  println( l1.mkString(", "))
+  println( l1.headOption.get )
+}
