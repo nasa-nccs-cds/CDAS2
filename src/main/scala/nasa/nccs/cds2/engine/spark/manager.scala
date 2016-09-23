@@ -3,6 +3,7 @@ package nasa.nccs.cds2.engine.spark
 import nasa.nccs.caching.{CollectionDataCacheMgr, collectionDataCache}
 import nasa.nccs.cdapi.cdm
 import nasa.nccs.cdapi.cdm.{OperationInput, PartitionedFragment}
+import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.engine.{CDS2ExecutionManager, SampleTaskRequests}
@@ -47,8 +48,8 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map
   def mapReduce(context: CDASExecutionContext, kernel: Kernel ): Option[DataFragment] = {
     val opInputs: List[PartitionedFragment] = getOperationInputs( context ).flatMap(  _ match { case pf: PartitionedFragment => Some(pf); case x => None } )   // TODO: Ignores Transient Fragments
     logger.info( "mapReduce: opInputs = " + opInputs.map( df => "%s(%s)".format( df.getKeyString, df.fragmentSpec.toString ) ).mkString( "," ))
-    val inputRDD = cdsContext.domainFragmentRDD( opInputs, context )
-    val mapresult: RDD[Option[DataFragment]] = inputRDD.map( cdpart => kernel.map( cdpart.iPartIndex,cdpart.dataFragments,context ) )
+    val inputRDD: RDD[ RDDPartition ] = cdsContext.domainRDDPartition( opInputs, context )
+    val mapresult: RDD[Option[RDDPartition]] = inputRDD.map( rdd_part => kernel.map( rdd_part, context ) )
     reduce( mapresult, context, kernel )
   }
 

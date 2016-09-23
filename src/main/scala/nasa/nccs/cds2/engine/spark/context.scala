@@ -37,13 +37,13 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) {
 
   def getConf: SparkConf = sparkContext.getConf
 
-  def cacheFragmentRDD( partFrag: PartitionedFragment ): RDD[RDDPartition] = {
+  def cacheRDDPartition( partFrag: PartitionedFragment ): RDD[RDDPartition] = {
     val nPart = partFrag.partitions.parts.length
     val indexRDD: RDD[Int] = sparkContext.makeRDD( 0 to nPart-1, nPart )
     indexRDD.map( iPart => partFrag.partRDDPartition( iPart ) )
   }
 
-  def domainFragmentRDD( partFrags: List[PartitionedFragment], context: CDASExecutionContext ): RDD[ RDDPartition ] = {
+  def domainRDDPartition( partFrags: List[PartitionedFragment], context: CDASExecutionContext ): RDD[ RDDPartition ] = {
     val nPart = partFrags.head.partitions.parts.length                                                                                    // TODO: commensurate partitions?
     val indexRDD: RDD[Int] = sparkContext.makeRDD( 0 to nPart-1, nPart )
     indexRDD.map( iPart => RDDPartition.merge( partFrags.flatMap( _.domainRDDPartition( iPart, context ) ) ) )

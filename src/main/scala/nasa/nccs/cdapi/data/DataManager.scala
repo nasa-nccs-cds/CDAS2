@@ -34,11 +34,11 @@ object HeapArray {
   def apply( cdarray: CDFloatArray, metadata: Map[String,String] ): HeapArray = new HeapArray( cdarray.getShape, cdarray.getArrayData(), cdarray.getInvalid, metadata )
 }
 
-class RDDPartition( val elements: Map[String,ArrayBase] , val metadata: Map[String,String] ) {
-  def ++( other: RDDPartition ): RDDPartition = new RDDPartition( elements ++ other.elements, metadata ++ other.metadata)
+class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase] , val metadata: Map[String,String] ) {
+  def ++( other: RDDPartition ): RDDPartition = new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
 }
 
 object RDDPartition {
-  def apply ( elements: Map[String,ArrayBase] = Map.empty,  metadata: Map[String,String] = Map.empty ) = new RDDPartition( elements, metadata )
+  def apply ( iPart: Int = -1, elements: Map[String,ArrayBase] = Map.empty,  metadata: Map[String,String] = Map.empty ) = new RDDPartition( iPart, elements, metadata )
   def merge( rdd_parts: Seq[RDDPartition] ) = rdd_parts.foldLeft( RDDPartition() )( _ ++ _ )
 }
