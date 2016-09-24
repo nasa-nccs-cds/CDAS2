@@ -45,25 +45,25 @@ object collectionRDDDataCache extends CollectionDataCacheMgr()
 
 class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map[String,String] = Map.empty ) extends CDS2ExecutionManager(serverConfig) {
 
-  def mapReduce(context: CDASExecutionContext, kernel: Kernel ): Option[DataFragment] = {
+  def mapReduce(context: CDASExecutionContext, kernel: Kernel ): RDD[RDDPartition] = {
     val opInputs: List[PartitionedFragment] = getOperationInputs( context ).flatMap(  _ match { case pf: PartitionedFragment => Some(pf); case x => None } )   // TODO: Ignores Transient Fragments
     logger.info( "mapReduce: opInputs = " + opInputs.map( df => "%s(%s)".format( df.getKeyString, df.fragmentSpec.toString ) ).mkString( "," ))
     val inputRDD: RDD[ RDDPartition ] = cdsContext.domainRDDPartition( opInputs, context )
-    val mapresult: RDD[Option[RDDPartition]] = inputRDD.map( rdd_part => kernel.map( rdd_part, context ) )
+    val mapresult: RDD[RDDPartition] = inputRDD.map( rdd_part => kernel.map( rdd_part, context ) )
     reduce( mapresult, context, kernel )
   }
 
   def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): ExecutionResult = {
     val t0 = System.nanoTime()
-    var pre_result: Option[DataFragment] = mapReduce( context, kernel )
+    var pre_result: RDD[RDDPartition] = mapReduce( context, kernel )
     logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec  ********** \n".format(kernel.name,kernel.id,context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
     createResponse( postOp( pre_result, context  ), context )
   }
 
-  def postOp( pre_result: Option[DataFragment], context: CDASExecutionContext ):  Option[DataFragment] = pre_result
-  def reduce( mapresult: RDD[Option[DataFragment]], context: CDASExecutionContext, kernel: Kernel ):  Option[DataFragment] = mapresult.reduce( kernel.reduceOp(context) _ )
+  def postOp( pre_result: RDD[RDDPartition], context: CDASExecutionContext ):  RDD[RDDPartition] = pre_result
+  def reduce( mapresult: RDD[RDDPartition], context: CDASExecutionContext, kernel: Kernel ):  RDD[RDDPartition] = mapresult.reduce( kernel.reduceOp(context) _ )
 
-  def createResponse( result: Option[DataFragment], context: CDASExecutionContext ): ExecutionResult = {    // TODO: Implement async
+  def createResponse( result: RDD[RDDPartition], context: CDASExecutionContext ): ExecutionResult = {    // TODO: Implement async
     val var_mdata = Map[String,Attribute]()
 //    val async = context.request.config("async", "false").toBoolean
     val resultId = cacheResult( Future(result), context, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )

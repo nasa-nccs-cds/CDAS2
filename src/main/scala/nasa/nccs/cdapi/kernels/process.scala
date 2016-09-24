@@ -1,8 +1,10 @@
 package nasa.nccs.cdapi.kernels
 
+import nasa.nccs.cdapi.data.{HeapArray, ArrayBase, RDDPartition}
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.esgf.process._
+import org.apache.spark.rdd.RDD
 import org.slf4j.LoggerFactory
 import java.io.{File, IOException, PrintWriter, StringWriter}
 
@@ -154,7 +156,11 @@ abstract class Kernel extends Loggable {
   val reduceCombineOpt: Option[ReduceOpFlt] = None
   val initValue: Float = 0f
 
+  def getOpName( context: OperationContext ):String = "%s(%s)".format( name, context.inputs.mkString(","))
+
   def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = { inputs.head }
+
+  def map( inputs: RDDPartition, context: CDASExecutionContext ): RDDPartition = { inputs }
 
   def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment = reduceCombineOpt match {
     case Some(combineOp) =>
@@ -162,6 +168,17 @@ abstract class Kernel extends Loggable {
       else { a0 ++ a1 }
     case None => {
       a0 ++ a1
+    }
+  }
+  def combineRDD(context: CDASExecutionContext)( rdd0: RDDPartition, rdd1:RDDPartition, axes: AxisIndices ): RDDPartition = {
+    val a0 = rdd0
+    reduceCombineOpt match {
+      case Some(combineOp) =>
+        if (axes.includes(0)) DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))
+        else { a0 ++ a1 }
+      case None => {
+        a0 ++ a1
+      }
     }
   }
 
@@ -185,6 +202,13 @@ abstract class Kernel extends Loggable {
 //    logger.info("Executed %s reduce op, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
     rv
   }
+
+  def reduceRDDOp(context: CDASExecutionContext)(a0: RDDPartition, a1:RDDPartition ): RDDPartition = {
+    val axes: AxisIndices = context.request.getAxisIndices(context.operation.config("axes", ""))
+    combineRDD(context)(a0,a1,axes)
+  }
+
+
 
   def toXmlHeader =  <kernel module={module} name={name}> { if (description.nonEmpty) <description> {description} </description> } </kernel>
 
@@ -324,6 +348,40 @@ abstract class DualKernel extends Kernel {
         result_val_masked
       })
     })
+  }
+}
+
+abstract class SingularRDDKernel extends Kernel {
+  override def map( inputs: RDDPartition, context: CDASExecutionContext  ): RDDPartition = {
+    val t0 = System.nanoTime
+    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+    val async = context.request.config("async", "false").toBoolean
+    val result_array_map : Map[String,HeapArray] = inputs.elements.mapValues { data  =>
+      val input_array = data.toCDFloatArray
+      mapCombineOpt match {
+        case Some(combineOp) => HeapArray( CDFloatArray(input_array.reduce(combineOp, axes.args, initValue)), data.metadata )
+        case None => HeapArray( input_array, data.metadata )
+      }
+    }
+    logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
+    RDDPartition( inputs.iPart, result_array_map )
+  }
+}
+
+abstract class DualRDDKernel extends Kernel {
+  override def map(  inputs: RDDPartition, context: CDASExecutionContext  ): RDDPartition = {
+    val t0 = System.nanoTime
+    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+    val async = context.request.config("async", "false").toBoolean
+    val input_arrays = context.operation.inputs.flatMap( inputs.getElement(_) )
+    assert( input_arrays.size > 1, "Missing input(s) to dual input operation " + id )
+    val result_array: CDFloatArray = mapCombineOpt match {
+      case Some(combineOp) => CDFloatArray.combine( combineOp, input_arrays(0).toCDFloatArray, input_arrays(1).toCDFloatArray )
+      case None => input_arrays(0).toCDFloatArray
+    }
+    val result_metadata = input_arrays(0).mergeMetadata( name,input_arrays(1) )
+    logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
+    RDDPartition( inputs.iPart, Map( getOpName(context.operation) -> HeapArray(result_array,result_metadata) ), inputs.metadata )
   }
 }
 

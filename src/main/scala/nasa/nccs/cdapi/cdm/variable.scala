@@ -106,11 +106,11 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
     val partition = partitions.getPart(partIndex)
     val data: CDFloatArray = partition.data( fragmentSpec.missing_value )
     val spec: DataFragmentSpec = partFragSpec(partIndex)
-    RDDPartition( Map( spec.uid -> HeapArray(data, spec.getMetadata) ) )
+    RDDPartition( partIndex, Map( spec.uid -> HeapArray(data, spec.getMetadata) ) )
   }
 
   def domainRDDPartition(partIndex: Int, context: CDASExecutionContext): Option[RDDPartition] = domainDataSection( partIndex, context ) match {
-    case Some((spec, data)) => Some(  RDDPartition( Map( spec.uid -> HeapArray(data, spec.getMetadata ) ) ) )
+    case Some((spec, data)) => Some(  RDDPartition( partIndex, Map( spec.uid -> HeapArray(data, spec.getMetadata ) ) ) )
     case None => None
   }
 
