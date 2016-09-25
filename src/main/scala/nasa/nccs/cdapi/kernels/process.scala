@@ -170,16 +170,21 @@ abstract class Kernel extends Loggable {
       a0 ++ a1
     }
   }
-  def combineRDD(context: CDASExecutionContext)( rdd0: RDDPartition, rdd1:RDDPartition, axes: AxisIndices ): RDDPartition = {
-    val a0 = rdd0
-    reduceCombineOpt match {
-      case Some(combineOp) =>
-        if (axes.includes(0)) DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))
-        else { a0 ++ a1 }
-      case None => {
-        a0 ++ a1
+
+  def combineRDD(context: CDASExecutionContext)(rdd0: RDDPartition, rdd1: RDDPartition, axes: AxisIndices): RDDPartition = {
+    val new_elements = rdd0.elements.flatMap { case (key, element0) =>
+      rdd1.elements.get(key) match {
+        case Some(element1) =>
+          reduceCombineOpt match {
+            case Some(combineOp) =>
+              if (axes.includes(0)) Some( key -> element0.combine( combineOp, element1 ) )
+              else                  Some( key ->  element0.merge( element1 ) )
+            case None =>            Some( key ->  element0.merge( element1 ) )
+          }
+        case None => None
       }
     }
+    RDDPartition( rdd0.iPart, new_elements, rdd0.mergeMetadata( context.operation.name, rdd1 ) )
   }
 
   def postOp( result: DataFragment, context: CDASExecutionContext ):  DataFragment = result

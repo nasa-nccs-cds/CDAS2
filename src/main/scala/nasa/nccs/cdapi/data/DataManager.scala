@@ -1,11 +1,28 @@
 package nasa.nccs.cdapi.data
 
-import nasa.nccs.cdapi.tensors.CDFloatArray
+import nasa.nccs.cdapi.tensors.{CDArray, CDFloatArray}
 import org.apache.spark.rdd.RDD
 import ucar.nc2.constants.AxisType
 
 // Developer API for integrating various data management and IO frameworks such as SIA-IO and CDAS-Cache.
 // It is intended to be deployed on the master node of the analytics server (this is not a client API).
+
+object MetadataOps {
+  def mergeMetadata(opName: String, metadata0: Map[String, String], metadata1: Map[String, String]): Map[String, String] = {
+    metadata0.map { case (key, value) =>
+      metadata1.get(key) match {
+        case None => (key, value)
+        case Some(value1) =>
+          if (value == value1) (key, value)
+          else (key, opName + "(" + value + "," + value1 + ")")
+      }
+    }
+  }
+}
+
+class MetadataCarrier( val metadata: Map[String,String] ) {
+  def mergeMetadata( opName: String, other: MetadataCarrier ): Map[String,String] = MetadataOps.mergeMetadata( opName, metadata, other.metadata )
+}
 
 trait RDDataManager {
 
@@ -20,33 +37,31 @@ trait RDDataManager {
 
   def getDataRDD( id: String, domain: Map[AxisType,(Int,Int)] ): RDD[RDDPartition]
 
+
 }
 
-abstract class ArrayBase( val shape: Array[Int], val missing: Float, val metadata: Map[String,String] ) {
+abstract class ArrayBase( val shape: Array[Int], val missing: Float, metadata: Map[String,String] ) extends MetadataCarrier(metadata) {
   def data:  Array[Float]
   def toCDFloatArray: CDFloatArray
-  def mergeMetadata( opName: String, other: ArrayBase ): Map[String,String]
+  def toUcarArray: ucar.ma2.Array = toCDFloatArray
+
+  def merge( other: ArrayBase ): ArrayBase
+  def combine( combineOp: CDArray.ReduceOp[Float], other: ArrayBase ): ArrayBase
 }
 
 class HeapArray( shape: Array[Int], private val _data:  Array[Float], missing: Float, metadata: Map[String,String] ) extends ArrayBase(shape,missing,metadata) {
   def data: Array[Float] = _data
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, missing )
 
-  def mergeMetadata( opName: String, other: ArrayBase ): Map[String, String] = metadata map { case (key, value) =>
-    other.metadata.get(key) match {
-      case None => (key, value)
-      case Some(value1) =>
-        if (value == value1) (key, value)
-        else (key, opName + "(" + value + "," + value1 + ")" )
-    }
-  }
+  def merge( other: ArrayBase ): ArrayBase = HeapArray( toCDFloatArray.merge( other.toCDFloatArray ), mergeMetadata("merge",other) )
+  def combine( combineOp: CDArray.ReduceOp[Float], other: ArrayBase ): ArrayBase = HeapArray( CDFloatArray.combine( combineOp, toCDFloatArray, other.toCDFloatArray ), mergeMetadata("merge",other) )
 }
 
 object HeapArray {
   def apply( cdarray: CDFloatArray, metadata: Map[String,String] ): HeapArray = new HeapArray( cdarray.getShape, cdarray.getArrayData(), cdarray.getInvalid, metadata )
 }
 
-class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase] , val metadata: Map[String,String] ) {
+class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase] , metadata: Map[String,String] ) extends MetadataCarrier(metadata) {
   def ++( other: RDDPartition ): RDDPartition = {
     assert( (iPart==other.iPart) || (iPart == -1) || (other.iPart == -1), "Attempt to merge RDDPartitions with incommensurate partition indices: %d vs %d".format(iPart,other.iPart ) )
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
