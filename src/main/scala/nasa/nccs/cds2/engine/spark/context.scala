@@ -8,6 +8,7 @@ import nasa.nccs.esgf.process.{DataFragment, DomainAxis, OperationSpecs}
 import org.slf4j.LoggerFactory
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
+import ucar.ma2
 
 object CDSparkContext {
   val kyro_buffer_mb = 24
@@ -44,9 +45,10 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) {
   }
 
   def domainRDDPartition( partFrags: List[PartitionedFragment], context: CDASExecutionContext ): RDD[ RDDPartition ] = {
-    val nPart = partFrags.head.partitions.parts.length                                                                                    // TODO: commensurate partitions?
+    val nPart = partFrags.head.partitions.parts.length
+    val optSection: Option[ma2.Section] = context.getOpSectionIntersection
     val indexRDD: RDD[Int] = sparkContext.makeRDD( 0 to nPart-1, nPart )
-    indexRDD.map( iPart => RDDPartition.merge( partFrags.flatMap( _.domainRDDPartition( iPart, context ) ) ) )
+    indexRDD.map( iPart => RDDPartition.merge( partFrags.flatMap( _.domainRDDPartition( iPart, optSection ) ) ) )
   }
 
 }

@@ -37,9 +37,10 @@ trait DataLoader {
 }
 
 trait ScopeContext {
+  private lazy val __configuration__ = getConfiguration
   def getConfiguration: Map[String,String]
-  def config( key: String, default: String ): String = getConfiguration.getOrElse(key,default)
-  def config( key: String ): Option[String] = getConfiguration.get(key)
+  def config( key: String, default: String ): String = __configuration__.getOrElse(key,default)
+  def config( key: String ): Option[String] = __configuration__.get(key)
 }
 
 class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[String, Option[DataFragmentSpec]], val targetGrid: TargetGrid, private val configuration: Map[String,String] ) extends ScopeContext {
@@ -301,10 +302,29 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
   }
 }
 
+object GridContext {
+  def apply( targetGrid: TargetGrid ) : GridContext = {
+    val axisMap: Map[Char,Option[( Int, ma2.Array )]] = Map( List( 't', 'z', 'y', 'x' ).map( axis => axis -> targetGrid.getAxisData(axis) ):_* )
+    val cfAxisNames: Array[String] = ( 0 until targetGrid.getRank ).map( dim_index => targetGrid.getCFAxisName( dim_index ) ).toArray
+    val axisIndexMap: Map[String,Int] = Map( cfAxisNames.map( cfAxisName => cfAxisName -> targetGrid.getAxisIndex(cfAxisName) ):_* )
+    new GridContext(axisMap,cfAxisNames,axisIndexMap)
+  }
+}
 
-class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) extends CDSVariable(variable.name, variable.dataset, variable.ncVariable ) {
+class GridContext(val axisMap: Map[Char,Option[( Int, ma2.Array )]], val cfAxisNames: Array[String], val axisIndexMap: Map[String,Int] ) extends Serializable {
+  def getAxisIndices( axisConf: String ): AxisIndices = new AxisIndices( axisIds=axisConf.map( ch => getAxisIndex(ch.toString ) ).toSet )
+  def getAxisIndex( cfAxisName: String, default_val: Int = -1 ): Int = axisIndexMap.getOrElse( cfAxisName, default_val )
+  def getCFAxisName( dimension_index: Int ): String = cfAxisNames(dimension_index)
+  def getAxisData( axis: Char ): Option[( Int, ma2.Array )] = axisMap.getOrElse( axis, None )
+  def getAxisData( axis: Char, section: ma2.Section ): Option[( Int, ma2.Array )] = axisMap.getOrElse( axis, None ).map {
+    case ( axis_index, array ) => ( axis_index, array.section( List( section.getRange(axis_index) ) ) )
+  }
+}
+
+class TargetGrid( val variable: CDSVariable = CDSVariable.empty, roiOpt: Option[List[DomainAxis]]=None ) extends CDSVariable(variable.name, variable.dataset, variable.ncVariable ) {
   val grid = GridSpec( variable, roiOpt )
   def toBoundsString = roiOpt.map( _.map( _.toBoundsString ).mkString( "{ ", ", ", " }") ).getOrElse("")
+  def getRank = grid.getRank
 
   def addSectionMetadata( section: ma2.Section ): ma2.Section = grid.addRangeNames( section )
 
@@ -335,6 +355,12 @@ class TargetGrid( val variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ) 
     grid.getAxisSpec(axis.toString).map(axisSpec => {
       val range = section.getRange(axisSpec.index)
       axisSpec.index -> axisSpec.coordAxis.read( List( range) )
+    })
+  }
+
+  def getAxisData( axis: Char ): Option[( Int, ma2.Array )] = {
+    grid.getAxisSpec(axis.toString).map(axisSpec => {
+      axisSpec.index -> axisSpec.coordAxis.read()
     })
   }
 

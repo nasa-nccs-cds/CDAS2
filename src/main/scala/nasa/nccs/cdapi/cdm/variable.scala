@@ -27,6 +27,7 @@ object CDSVariable extends Loggable {
       }
     case _ => throw new IllegalStateException("CDSVariable: 2D Coord axes not yet supported: " + coordAxis.getClass.getName)
   }
+  def empty = new CDSVariable( null, null, null )
 }
 
 class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc2.Variable) extends Loggable with Serializable {
@@ -75,7 +76,7 @@ abstract class OperationInput( val fragmentSpec: DataFragmentSpec, val metadata:
   def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] = { fragmentSpec.getVariableMetadata(serverContext) ++ metadata }
   def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = { fragmentSpec.getDatasetMetadata(serverContext) }
 
-  def domainDataFragment( partIndex: Int, context: CDASExecutionContext ): Option[DataFragment]
+  def domainDataFragment( partIndex: Int,  optSection: Option[ma2.Section] ): Option[DataFragment]
   def data(partIndex: Int ): CDFloatArray
   def delete
 }
@@ -109,18 +110,17 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
     RDDPartition( partIndex, Map( spec.uid -> HeapArray(data, spec.getMetadata) ) )
   }
 
-  def domainRDDPartition(partIndex: Int, context: CDASExecutionContext): Option[RDDPartition] = domainDataSection( partIndex, context ) match {
+  def domainRDDPartition(partIndex: Int, optSection: Option[ma2.Section] ): Option[RDDPartition] = domainDataSection( partIndex, optSection ) match {
     case Some((spec, data)) => Some(  RDDPartition( partIndex, Map( spec.uid -> HeapArray(data, spec.getMetadata ) ) ) )
     case None => None
   }
 
-  def domainDataFragment(partIndex: Int, context: CDASExecutionContext): Option[DataFragment] = domainDataSection( partIndex, context ) match {
+  def domainDataFragment(partIndex: Int, optSection: Option[ma2.Section] ): Option[DataFragment] = domainDataSection( partIndex, optSection ) match {
     case Some((spec, data)) => Some( DataFragment(spec, data) )
     case None => None
   }
 
-  def domainDataSection( partIndex: Int, context: CDASExecutionContext ): Option[ ( DataFragmentSpec, CDFloatArray )] = {
-    val optSection: Option[ma2.Section] = context.getOpSectionIntersection
+  def domainDataSection( partIndex: Int,  optSection: Option[ma2.Section] ): Option[ ( DataFragmentSpec, CDFloatArray )] = {
     try {
       val partition = partitions.getPart(partIndex)
       val partition_data = partition.data(fragmentSpec.missing_value)

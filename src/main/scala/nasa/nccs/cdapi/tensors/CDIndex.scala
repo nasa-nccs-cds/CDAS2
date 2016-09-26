@@ -6,8 +6,8 @@ import java.util.Formatter
 import ucar.nc2.time.Calendar
 import ucar.nc2.time.CalendarDate
 import nasa.nccs.cdapi.cdm.CDSVariable
-import nasa.nccs.esgf.process.{DomainAxis, GridCoordSpec, TargetGrid}
-import nasa.nccs.utilities.cdsutils
+import nasa.nccs.esgf.process.{DomainAxis, GridContext, GridCoordSpec, TargetGrid}
+import nasa.nccs.utilities.{Loggable, cdsutils}
 
 import scala.collection.mutable.ListBuffer
 import ucar.ma2
@@ -268,21 +268,16 @@ class IndexValueAccumulator( start_value: Int = 0 ) {
   }
 }
 
-class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
-  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
-  val axisSpec: GridCoordSpec = getAxisSpec
+class CDTimeCoordMap( val gridContext: GridContext, section: ma2.Section ) extends Loggable {
   val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, cdsutils.baseTimeUnits )
   val timeOffsets: Array[Double] = getTimeAxisData()
+  val time_axis_index = gridContext.getAxisIndex("t")
 
-  def getAxisSpec: GridCoordSpec = gridSpec.grid.getAxisSpec("t") match {
-    case Some(axisSpec) => axisSpec
-    case None => throw new Exception("Can't timeBin a variable with no apparent time axis: %s ".format(gridSpec.ncVariable.getNameAndDimensions))
-  }
   def getDates(): Array[String] = { timeOffsets.map( timeHelper.makeCalendarDateFromOffset(_).toString ) }
 
-  def getTimeAxisData(): Array[Double] = axisSpec.coordAxis.getAxisType match {
-    case AxisType.Time => CDDoubleArray.toDoubleArray( axisSpec.coordAxis.read() )
-    case x => throw new Exception("Binning not yet implemented for this axis type: %s".format(x.getClass.getName))
+  def getTimeAxisData(): Array[Double] = gridContext.getAxisData('t') match {
+    case Some(( index, array )) => CDDoubleArray.toDoubleArray(array)
+    case None => logger.error( "Cant get Time Axis Data" ); Array.emptyDoubleArray
   }
 
   def getTimeIndexIterator( unit: String, range: ma2.Range ) = unit match {
@@ -297,7 +292,7 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
     val timeIter = new MonthOfYearIter( timeOffsets, section.getRange(0) );
     val accum = new IndexValueAccumulator()
     val timeIndices = for( time_index <- timeIter ) yield {time_index}
-    new CDCoordMap( axisSpec.index, section.getRange(axisSpec.index).first(), timeIndices.toArray )
+    new CDCoordMap( time_axis_index, section.getRange(time_axis_index).first(), timeIndices.toArray )
   }
   def getTimeCycleMap(period: Int, unit: String, mod: Int, offset: Int, section: ma2.Section ): CDCoordMap = {
     val timeIter = getTimeIndexIterator( unit, section.getRange(0) )
@@ -309,7 +304,7 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
     val timeIndices = for (time_index <- timeIter; bin_index = accum.getValue(time_index)) yield {
       (( bin_index + op_offset ) / period) % mod
     }
-    new CDCoordMap(axisSpec.index, section.getRange(axisSpec.index).first(), timeIndices.toArray.map(_.toInt) )
+    new CDCoordMap(time_axis_index, section.getRange(time_axis_index).first(), timeIndices.toArray )
   }
 }
 

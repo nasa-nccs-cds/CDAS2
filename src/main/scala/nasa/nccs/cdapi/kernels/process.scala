@@ -39,7 +39,12 @@ class Port( val name: String, val cardinality: String, val description: String, 
   }
 }
 
-class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) extends Loggable with Serializable {
+class KernelContext( val operation: OperationContext, val grid: GridContext, private val configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
+  def getConfiguration = configuration ++ operation.getConfiguration
+
+}
+
+class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) extends Loggable  {
 
   def getOpSections: Option[ IndexedSeq[ma2.Section] ] = {
     val optargs: Map[String, String] = operation.getConfiguration
@@ -54,6 +59,9 @@ class CDASExecutionContext( val operation: OperationContext, val request: Reques
       case None => return None
     }))
   }
+
+  def toKernelContext: KernelContext = new KernelContext( operation, GridContext(request.targetGrid), request.getConfiguration )
+
   def getOpSectionIntersection: Option[ ma2.Section ] = getOpSections match {
     case None => return None
     case Some( sections ) =>
@@ -165,13 +173,13 @@ abstract class Kernel extends Loggable {
   val reduceCombineOpt: Option[ReduceOpFlt] = None
   val initValue: Float = 0f
 
-  def getOpName( context: OperationContext ):String = "%s(%s)".format( name, context.inputs.mkString(","))
+  def getOpName( context: KernelContext ):String = "%s(%s)".format( name, context.operation.inputs.mkString(","))
 
-  def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = { inputs.head }
+  def map( partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext ): Option[DataFragment] = { inputs.head }
 
-  def map( inputs: RDDPartition, context: CDASExecutionContext ): RDDPartition = { inputs }
+  def map( inputs: RDDPartition, context: KernelContext ): RDDPartition = { inputs }
 
-  def combine(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment = reduceCombineOpt match {
+  def combine(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment = reduceCombineOpt match {
     case Some(combineOp) =>
       if (axes.includes(0)) DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))
       else { a0 ++ a1 }
@@ -180,7 +188,7 @@ abstract class Kernel extends Loggable {
     }
   }
 
-  def combineRDD(context: CDASExecutionContext)(rdd0: RDDPartition, rdd1: RDDPartition, axes: AxisIndices): RDDPartition = {
+  def combineRDD(context: KernelContext)(rdd0: RDDPartition, rdd1: RDDPartition, axes: AxisIndices): RDDPartition = {
     val new_elements = rdd0.elements.flatMap { case (key, element0) =>
       rdd1.elements.get(key) match {
         case Some(element1) =>
@@ -196,11 +204,11 @@ abstract class Kernel extends Loggable {
     RDDPartition( rdd0.iPart, new_elements, rdd0.mergeMetadata( context.operation.name, rdd1 ) )
   }
 
-  def postOp( result: DataFragment, context: CDASExecutionContext ):  DataFragment = result
+  def postOp( result: DataFragment, context: KernelContext ):  DataFragment = result
 
-  def reduceOp(context: CDASExecutionContext)(a0op: Option[DataFragment], a1op: Option[DataFragment]): Option[DataFragment] = {
+  def reduceOp(context: KernelContext)(a0op: Option[DataFragment], a1op: Option[DataFragment]): Option[DataFragment] = {
     val t0 = System.nanoTime
-    val axes: AxisIndices = context.request.getAxisIndices(context.operation.config("axes", ""))
+    val axes: AxisIndices = context.grid.getAxisIndices(context.config("axes", ""))
     val rv = a0op match {
       case Some(a0) =>
         a1op match {
@@ -217,8 +225,8 @@ abstract class Kernel extends Loggable {
     rv
   }
 
-  def reduceRDDOp(context: CDASExecutionContext)(a0: RDDPartition, a1:RDDPartition ): RDDPartition = {
-    val axes: AxisIndices = context.request.getAxisIndices(context.operation.config("axes", ""))
+  def reduceRDDOp(context: KernelContext)(a0: RDDPartition, a1:RDDPartition ): RDDPartition = {
+    val axes: AxisIndices = context.grid.getAxisIndices(context.config("axes", ""))
     combineRDD(context)(a0,a1,axes)
   }
 
@@ -256,7 +264,7 @@ abstract class Kernel extends Loggable {
     }
   }
 
-  def weightedValueSumCombiner(context: CDASExecutionContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  {
+  def weightedValueSumCombiner(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  {
     if ( axes.includes(0) ) {
       val vTot: CDFloatArray = a0.data + a1.data
       val wTotOpt: Option[CDFloatArray] = a0.weights.map( w => w + a1.weights.get )
@@ -267,7 +275,7 @@ abstract class Kernel extends Loggable {
     else { a0 ++ a1 }
   }
 
-  def weightedValueSumPostOp( result: DataFragment, context: CDASExecutionContext ):  DataFragment = result.weights match {
+  def weightedValueSumPostOp( result: DataFragment, context: KernelContext ):  DataFragment = result.weights match {
     case Some( weights_sum ) =>
       logger.info( "weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format( result.data.getShape.mkString(","), weights_sum.getShape.mkString(","), result.spec.toString ) )
       new DataFragment( result.spec, Map( "value" -> result.data / weights_sum, "weights"-> weights_sum ), result.optCoordMap )
@@ -301,7 +309,7 @@ abstract class DualOperationKernel extends Kernel {
     val inputVar = inputs.head
     val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
     inputVar.domainDataFragment(partIndex).map { (dataFrag) =>
-      val async = context.request.config("async", "false").toBoolean
+      val async = context.config("async", "false").toBoolean
       val resultFragSpec = dataFrag.getReducedSpec(axes)
       val result_val_masked: CDFloatArray = mapCombineOpt match {
         case Some( combineOp ) => dataFrag.data.reduce( combineOp, axes.args, initValue )
@@ -329,11 +337,11 @@ abstract class DualOperationKernel extends Kernel {
 }
 */
 abstract class SingularKernel extends Kernel {
-  override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = {
+  override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext ): Option[DataFragment] = {
     val t0 = System.nanoTime
-    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     inputs.head.map( dataFrag => {
-      val async = context.request.config("async", "false").toBoolean
+      val async = context.config("async", "false").toBoolean
       val resultFragSpec = dataFrag.getReducedSpec(axes)
       val result_val_masked: CDFloatArray = mapCombineOpt match {
         case Some(combineOp) => dataFrag.data.reduce(combineOp, axes.args, initValue)
@@ -346,14 +354,14 @@ abstract class SingularKernel extends Kernel {
 }
 
 abstract class DualKernel extends Kernel {
-  override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: CDASExecutionContext ): Option[DataFragment] = {
+  override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext ): Option[DataFragment] = {
     val t0 = System.nanoTime
-    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
+    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     assert( inputs.length > 1, "Missing input(s) to dual input operation " + id )
     inputs(0).flatMap( dataFrag0 => {
       inputs(1).map( dataFrag1 => {
         logger.info("DualKernel: %s[%s] + %s[%s]".format( dataFrag0.spec.longname, dataFrag0.data.getShape.mkString(","), dataFrag1.spec.longname, dataFrag1.data.getShape.mkString(",") ) )
-        val async = context.request.config("async", "false").toBoolean
+        val async = context.config("async", "false").toBoolean
         val result_val_masked: DataFragment = mapCombineOpt match {
           case Some(combineOp) => DataFragment.combine( combineOp, dataFrag0, dataFrag1 )
           case None => dataFrag0
@@ -369,10 +377,10 @@ abstract class DualKernel extends Kernel {
 }
 
 abstract class SingularRDDKernel extends Kernel {
-  override def map( inputs: RDDPartition, context: CDASExecutionContext  ): RDDPartition = {
+  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
     val t0 = System.nanoTime
-    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
-    val async = context.request.config("async", "false").toBoolean
+    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
+    val async = context.config("async", "false").toBoolean
     val result_array_map : Map[String,HeapArray] = inputs.elements.mapValues { data  =>
       val input_array = data.toCDFloatArray
       mapCombineOpt match {
@@ -386,10 +394,10 @@ abstract class SingularRDDKernel extends Kernel {
 }
 
 abstract class DualRDDKernel extends Kernel {
-  override def map(  inputs: RDDPartition, context: CDASExecutionContext  ): RDDPartition = {
+  override def map(  inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
     val t0 = System.nanoTime
-    val axes: AxisIndices = context.request.getAxisIndices( context.operation.config("axes","") )
-    val async = context.request.config("async", "false").toBoolean
+    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
+    val async = context.config("async", "false").toBoolean
     val input_arrays = context.operation.inputs.flatMap( inputs.getElement(_) )
     assert( input_arrays.size > 1, "Missing input(s) to dual input operation " + id )
     val result_array: CDFloatArray = mapCombineOpt match {
@@ -398,7 +406,7 @@ abstract class DualRDDKernel extends Kernel {
     }
     val result_metadata = input_arrays(0).mergeMetadata( name,input_arrays(1) )
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( inputs.iPart, Map( getOpName(context.operation) -> HeapArray(result_array,result_metadata) ), inputs.metadata )
+    RDDPartition( inputs.iPart, Map( getOpName(context) -> HeapArray(result_array,result_metadata) ), inputs.metadata )
   }
 }
 
@@ -439,7 +447,7 @@ class TransientFragment( val dataFrag: DataFragment, val request: RequestContext
     val axes = metadata.get("axes") match { case Some(attr) => attr.getStringValue; case None => "" }
     <result id={id} missing_value={dataFrag.data.getInvalid.toString} shape={dataFrag.data.getShape.mkString("(",",",")")} units={units} long_name={long_name} description={description} axes={axes}> { dataFrag.data.mkBoundedDataString( ", ", 1100 ) } </result>
   }
-  def domainDataFragment( partIndex: Int, context: CDASExecutionContext ): Option[DataFragment] = Some(dataFrag)
+  def domainDataFragment( partIndex: Int,  optSection: Option[ma2.Section]  ): Option[DataFragment] = Some(dataFrag)
   def data(partIndex: Int ): CDFloatArray = dataFrag.data
   def delete() = {;}
 }
