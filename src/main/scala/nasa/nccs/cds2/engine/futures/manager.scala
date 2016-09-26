@@ -43,16 +43,14 @@ class CDFuturesExecutionManager( serverConfig: Map[String,String] = Map.empty ) 
   def createResponse( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext, kernel: Kernel ): ExecutionResult = {
     val var_mdata = Map[String,Attribute]()
     val async = context.request.config("async", "false").toBoolean
-    val resultId = cacheResult( resultFut, context, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )
+    val finalResultFut = resultFut.map( _.map( pre_result=> kernel.postOp( pre_result, context ) ) )
+    val resultId = cacheResult( finalResultFut, context, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )
     if(async) {
       new AsyncExecutionResult( resultId )
     } else {
-      val resultOpt: Option[DataFragment] = Await.result( resultFut, Duration.Inf )
+      val resultOpt: Option[DataFragment] = Await.result( finalResultFut, Duration.Inf )
       resultOpt match {
-        case Some(pre_result) =>
-          val result = kernel.postOp( pre_result, context )
-          logger.info("createResponse(%s) pre_result: %s".format(context.operation.identifier, pre_result.data.mkDataString(",")))
-          logger.info("createResponse(%s) result: %s".format(context.operation.identifier, result.data.mkDataString(",")))
+        case Some( result) =>
           new BlockingExecutionResult (context.operation.identifier, List(result.spec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data, resultId )
         case None =>
           logger.error( "Operation %s returned empty result".format( context.operation.identifier ) )
