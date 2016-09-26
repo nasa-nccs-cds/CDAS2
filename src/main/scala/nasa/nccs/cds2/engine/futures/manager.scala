@@ -51,6 +51,8 @@ class CDFuturesExecutionManager( serverConfig: Map[String,String] = Map.empty ) 
       resultOpt match {
         case Some(pre_result) =>
           val result = kernel.postOp( pre_result, context )
+          logger.info("createResponse(%s) pre_result: %s".format(context.operation.identifier, pre_result.data.mkDataString(",")))
+          logger.info("createResponse(%s) result: %s".format(context.operation.identifier, result.data.mkDataString(",")))
           new BlockingExecutionResult (context.operation.identifier, List(result.spec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data, resultId )
         case None =>
           logger.error( "Operation %s returned empty result".format( context.operation.identifier ) )

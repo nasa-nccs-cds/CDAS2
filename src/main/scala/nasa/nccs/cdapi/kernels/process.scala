@@ -359,9 +359,9 @@ abstract class DualKernel extends Kernel {
           case None => dataFrag0
         }
         logger.info("\nExecuted Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
-        logger.info("->> input0(%s): %s".format(dataFrag0.spec.varname, dataFrag0.data.mkDataString(",")))
-        logger.info("->> input1(%s): %s".format(dataFrag1.spec.varname, dataFrag1.data.mkDataString(",")))
-        logger.info("->> result: %s".format(result_val_masked.data.mkDataString(",")))
+//        logger.info("->> input0(%s): %s".format(dataFrag0.spec.varname, dataFrag0.data.mkDataString(",")))
+//        logger.info("->> input1(%s): %s".format(dataFrag1.spec.varname, dataFrag1.data.mkDataString(",")))
+//        logger.info("->> result: %s".format(result_val_masked.data.mkDataString(",")))
         result_val_masked
       })
     })
