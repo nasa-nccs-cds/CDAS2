@@ -85,6 +85,15 @@ class BlockingExecutionResult( id: String, val intputSpecs: List[DataFragmentSpe
   }
 }
 
+class RDDExecutionResult( id: String, val result: RDDPartition,  val resultId: Option[String] = None ) extends ExecutionResult(id) {
+  override def toXml = {
+    val idToks = id.split('-')
+    logger.info( "RDDExecutionResult-> result_tensor(" + id + "): \n" + result.toString )
+    <result id={id} op={idToks.head} rid={resultId.getOrElse("")}> { result.toXml } </result>
+  }
+}
+
+
 class ErrorExecutionResult( val err: Throwable ) extends ExecutionResult( err.getClass.getName ) {
 
   def fatal(): String = {

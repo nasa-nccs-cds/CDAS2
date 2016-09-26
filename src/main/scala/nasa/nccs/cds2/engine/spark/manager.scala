@@ -66,20 +66,13 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map
   def createResponse( result: RDDPartition, context: CDASExecutionContext ): ExecutionResult = {    // TODO: Implement async
     val var_mdata = Map[String,Attribute]()
 //    val async = context.request.config("async", "false").toBoolean
-    val resultId = cacheResult( Future(result), context, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )
-    result match {
-      case Some(result) =>
-        new BlockingExecutionResult(context.operation.identifier, List(result.spec), context.request.targetGrid.getSubGrid(result.spec.roi), result.data, resultId)
-      case None =>
-        logger.error("Operation %s returned empty result".format(context.operation.identifier))
-        new BlockingExecutionResult(context.operation.identifier, List(), context.request.targetGrid, CDFloatArray.empty)
-    }
+    val resultId = cacheResult( result, context, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )
+    new RDDExecutionResult( context.operation.identifier, result, resultId )
   }
 
-  def cacheResult( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
+  def cacheResult( result: RDDPartition, context: CDASExecutionContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
     try {
-      val tOptFragFut = resultFut.map( dataFragOpt => dataFragOpt.map( dataFrag => new TransientFragment( dataFrag, context.request, varMetadata ) ) )
-      collectionDataCache.putResult( context.operation.rid, tOptFragFut )
+      collectionDataCache.putRDDResult( context.operation.rid, result )
       Some(context.operation.rid)
     } catch {
       case ex: Exception => logger.error( "Can't cache result: " + ex.getMessage ); None

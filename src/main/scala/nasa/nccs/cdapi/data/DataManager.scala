@@ -20,8 +20,10 @@ object MetadataOps {
   }
 }
 
-class MetadataCarrier( val metadata: Map[String,String] ) {
+abstract class MetadataCarrier( val metadata: Map[String,String] ) {
   def mergeMetadata( opName: String, other: MetadataCarrier ): Map[String,String] = MetadataOps.mergeMetadata( opName, metadata, other.metadata )
+  def toXml: xml.Elem
+  def attr(id:String): String = metadata.getOrElse(id,"")
 }
 
 trait RDDataManager {
@@ -44,7 +46,6 @@ abstract class ArrayBase( val shape: Array[Int], val missing: Float, metadata: M
   def data:  Array[Float]
   def toCDFloatArray: CDFloatArray
   def toUcarArray: ucar.ma2.Array = toCDFloatArray
-
   def merge( other: ArrayBase ): ArrayBase
   def combine( combineOp: CDArray.ReduceOp[Float], other: ArrayBase ): ArrayBase
 }
@@ -55,8 +56,8 @@ class HeapArray( shape: Array[Int], private val _data:  Array[Float], missing: F
 
   def merge( other: ArrayBase ): ArrayBase = HeapArray( toCDFloatArray.merge( other.toCDFloatArray ), mergeMetadata("merge",other) )
   def combine( combineOp: CDArray.ReduceOp[Float], other: ArrayBase ): ArrayBase = HeapArray( CDFloatArray.combine( combineOp, toCDFloatArray, other.toCDFloatArray ), mergeMetadata("merge",other) )
+  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={missing.toString} name={attr("name")} units={attr("units")} dimensions={attr("dimensions")}> {_data.mkString(",")} </array>
 }
-
 object HeapArray {
   def apply( cdarray: CDFloatArray, metadata: Map[String,String] ): HeapArray = new HeapArray( cdarray.getShape, cdarray.getArrayData(), cdarray.getInvalid, metadata )
 }
@@ -67,6 +68,7 @@ class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase] , metada
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
   }
   def getElement( id: String ): Option[ArrayBase] = elements.get( id )
+  def toXml: xml.Elem = <partition> { elements.mapValues( _.toXml ) } </partition>
 }
 
 object RDDPartition {

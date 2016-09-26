@@ -7,7 +7,7 @@ import org.apache.spark.rdd.RDD
 import ucar.nc2
 import ucar.nc2.constants.AxisType
 
-class CDASparkDataManager( val executionMgr: CDSparkExecutionManager ) extends RDDataManager {
+abstract class CDASparkDataManager( val executionMgr: CDSparkExecutionManager ) extends RDDataManager {
 
   def getDatasets(): Set[String] = Collections.idSet
 

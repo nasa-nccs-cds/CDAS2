@@ -6,9 +6,10 @@ import java.nio.file.Paths
 import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
 import java.util.Comparator
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
+import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EntryWeigher, EvictionListener}
 import nasa.nccs.cds2.utilities.{GeoTools, appParameters, runtime}
 import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
+import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.kernels.TransientFragment
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
 import nasa.nccs.cds2.loaders.Masks
@@ -384,7 +385,12 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     }
     override def entrySize( key: DataFragmentKey, value: Future[PartitionedFragment] ): Int = { math.max( (( key.getSize * 4 ) / K ).round, 1 ) }
   }
+
+  def getPartitionCache(): ConcurrentLinkedHashMap[ String, RDDPartition ] = {
+    new ConcurrentLinkedHashMap.Builder[String, RDDPartition].initialCapacity(64).maximumWeightedCapacity(128).build()
+  }
   private val transientFragmentCache: Cache[String,TransientFragment] = new FutureCache("Store","result",false)
+  private val rddPartitionCache: ConcurrentLinkedHashMap[ String, RDDPartition ] = getPartitionCache()
   private val execJobCache = new ConcurrentLinkedHashMap.Builder[ String, JobRecord ].initialCapacity(64).maximumWeightedCapacity(128).build()
   private val datasetCache: Cache[String,CDSDataset] = new FutureCache("Store","dataset",false)
   private val variableCache: Cache[String,CDSVariable] = new FutureCache("Store","variable",false)
@@ -432,6 +438,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   }
   def deleteResult( resultId: String  ): Option[Future[TransientFragment]] = transientFragmentCache.remove(resultId)
   def putResult( resultId: String, resultFut: Future[Option[TransientFragment]]  ) = resultFut.onSuccess { case resultOpt => resultOpt.map( result => transientFragmentCache.put(resultId, result) ) }
+  def putRDDResult( resultId: String, result: RDDPartition  ) = rddPartitionCache.put(resultId, result)
   def getResultListXml(): xml.Elem = <results> { for( rkey <- transientFragmentCache.keys ) yield <result id={rkey} /> } </results>
   def getResultIdList = transientFragmentCache.keys
   def getJobListXml(): xml.Elem = <jobs> { for( jrec: JobRecord <- execJobCache.values ) yield jrec.toXml } </jobs>
