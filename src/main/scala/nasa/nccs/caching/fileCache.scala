@@ -60,7 +60,7 @@ object Partition {
   def getPartitionShape( partSize: Int, fragShape: Array[Int] ): Array[Int] = { var shape = fragShape.clone(); shape(0) = partSize; shape }
 }
 
-class Partition( val index: Int, val path: String, val dimIndex: Int, val startIndex: Int, val partSize: Int, val chunkSize: Int, val sliceMemorySize: Long, val shape: Array[Int] ) extends Loggable {
+class Partition( val index: Int, val path: String, val dimIndex: Int, val startIndex: Int, val partSize: Int, val chunkSize: Int, val sliceMemorySize: Long, val shape: Array[Int] ) extends Loggable with Serializable {
 //  logger.info(s" *** Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s)".format( shape.mkString(",") ))
   def data( missing_value: Float ): CDFloatArray = {
     val file = new RandomAccessFile( path,"r" )
@@ -84,6 +84,7 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
     val relative_ranges = for( ir <- global_section.getRanges.indices; r = global_section.getRange(ir) ) yield { if(ir == dimIndex) { r.shiftOrigin(startIndex) } else r }
     new ma2.Section( relative_ranges )
   }
+  def dataSection( section: CDSection, missing_value: Float ): CDFloatArray = data(missing_value).section( section.toSection )
 }
 
 //class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {

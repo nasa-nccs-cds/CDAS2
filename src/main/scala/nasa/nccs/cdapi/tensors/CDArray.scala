@@ -517,8 +517,11 @@ class CDShortArray( cdIndexMap: CDIndexMap, val shortStorage: ShortBuffer ) exte
 }
 
 object CDDoubleArray {
+  type ReduceOpDbl = CDArray.ReduceOp[Double]
   implicit def cdArrayConverter(target: CDArray[Double]): CDDoubleArray = new CDDoubleArray(target.getIndex, target.getStorage.asInstanceOf[DoubleBuffer], target.getInvalid )
   implicit def toUcarArray(target: CDDoubleArray): ma2.Array = ma2.Array.factory(ma2.DataType.DOUBLE, target.getShape, target.getSectionData())
+
+  def apply( shape: Array[Int], dblData: Array[Double], invalid: Double ): CDDoubleArray  = new CDDoubleArray( shape, DoubleBuffer.wrap(dblData),  invalid )
 
   def toDoubleBuffer( array: ucar.ma2.Array ): DoubleBuffer = array.getElementType.toString match {
     case "float"  => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]].map( _.toDouble )  )
@@ -545,6 +548,15 @@ object CDDoubleArray {
     val storage = CDDoubleArray.toDoubleBuffer( array )
     new CDDoubleArray(new CDIndexMap(array.getShape), storage, invalid )
   }
+
+  def combine( reductionOp: ReduceOpDbl, input0: CDDoubleArray, input1: CDDoubleArray ): CDDoubleArray = {
+    val sameStructure = input0.getStride.sameElements(input1.getStride)
+    val iter = DualArrayIterator(input0,input1)
+    val result = for (flatIndex <- iter; v0 = iter.value0; v1 = iter.value1 ) yield
+      if (!input0.valid(v0)) input0.invalid else if (!input1.valid(v1)) input0.invalid else reductionOp(v0, v1)
+    new CDDoubleArray( iter.getShape, DoubleBuffer.wrap(result.toArray), input0.invalid )
+  }
+
 }
 
 class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, protected val invalid: Double ) extends CDArray[Double](cdIndexMap,doubleStorage) {
@@ -555,6 +567,7 @@ class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, pr
   def setStorageValue( index: StorageIndex, value: Double ): Unit = doubleStorage.put( index, value )
 
   def this( shape: Array[Int], storage: DoubleBuffer, invalid: Double ) = this( CDIndexMap.factory(shape), storage, invalid )
+  def toUcarArray: ma2.Array = ma2.Array.factory(ma2.DataType.DOUBLE, getShape, getSectionData())
 
   def valid( value: Double ) = ( value != invalid )
 
@@ -574,6 +587,12 @@ class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, pr
   def getStorageArray: Array[Double] = CDDoubleArray.toArray( doubleStorage )
   def getSectionArray(maxSize: Int = Int.MaxValue): Array[Double] = CDDoubleArray.toArray( getSectionData(maxSize) )
   def getArrayData(maxSize: Int = Int.MaxValue): Array[Double]  = if( isStorageCongruent ) getStorageArray else getSectionArray(maxSize)
+
+  def merge( other: CDDoubleArray ): CDDoubleArray = {
+    val newIndex = getIndex.append( other.getIndex )
+    val new_storage = DoubleBuffer.wrap( getStorageArray ++ other.getStorageArray )
+    new CDDoubleArray( newIndex, new_storage, invalid )
+  }
 }
 
 //

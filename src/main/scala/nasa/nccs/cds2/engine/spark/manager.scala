@@ -49,6 +49,9 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map
     val opInputs: List[PartitionedFragment] = getOperationInputs( context ).flatMap(  _ match { case pf: PartitionedFragment => Some(pf); case x => None } )   // TODO: Ignores Transient Fragments
     logger.info( "mapReduce: opInputs = " + opInputs.map( df => "%s(%s)".format( df.getKeyString, df.fragmentSpec.toString ) ).mkString( "," ))
     val kernelContext = context.toKernelContext
+    cdsutils.testSerializable( kernelContext )
+    cdsutils.testSerializable( opInputs.head.partitions.parts.head )
+    cdsutils.testSerializable( kernel )
     val inputRDD: RDD[ RDDPartition ] = cdsContext.domainRDDPartition( opInputs, context )
     val mapresult: RDD[RDDPartition] = inputRDD.map( rdd_part => kernel.map( rdd_part, kernelContext ) )
     reduce( mapresult, kernelContext, kernel )

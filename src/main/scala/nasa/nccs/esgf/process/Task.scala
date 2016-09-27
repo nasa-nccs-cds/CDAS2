@@ -324,6 +324,8 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
     case None => new ma2.Section( _section )
     case Some( targetGrid ) => targetGrid.addSectionMetadata( _section )
   }
+  def cdsection: CDSection = CDSection(roi)
+
   def domainSectOpt = _domSectOpt.map( sect => new ma2.Section( sect ) )
 
   def toBoundsString = { targetGridOpt.map( _.toBoundsString ).getOrElse("") }
@@ -350,6 +352,7 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
   def getRangeCF( CFName: String ): Option[ma2.Range] = Option( roi.find(CFName) )
 
   def getShape = roi.getShape
+  def getRank = roi.getShape.length
 
   def getGridShape: Array[Int] = {
     val grid_axes = List( "x", "y" )

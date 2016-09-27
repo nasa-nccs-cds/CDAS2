@@ -139,7 +139,7 @@ class CDS extends KernelModule with KernelTools {
         val weighting_type = context.config("weights", if (context.config("axes", "").contains('y')) "cosine" else "")
         val weights: CDFloatArray = weighting_type match {
           case "cosine" =>
-            context.grid.getAxisData( 'y', dataFrag.spec.roi ) match {
+            context.grid.getAxisData( 'y', dataFrag.spec.cdsection ) match {
               case Some(axis_data) => dataFrag.data.computeWeights(weighting_type, Map( 'y' -> axis_data) )
               case None => logger.warn( "Can't access AxisData for variable %s => Using constant weighting.".format(dataFrag.spec.varname) ); dataFrag.data := 1f
             }
@@ -284,7 +284,7 @@ class CDS extends KernelModule with KernelTools {
         val weighting_type = context.config("weights", if (context.config("axis", "").contains('y')) "cosine" else "")
         val weightsOpt: Option[CDFloatArray] = weighting_type match {
           case "" => None
-          case wtype => context.grid.getAxisData( 'y', dataFrag.spec.roi ).map(axis_data => dataFrag.data.computeWeights(wtype, Map('y' -> axis_data)))
+          case wtype => context.grid.getAxisData( 'y', dataFrag.spec.cdsection ).map(axis_data => dataFrag.data.computeWeights(wtype, Map('y' -> axis_data)))
         }
         val anomaly_result: CDFloatArray = dataFrag.data.anomaly(axes.args, weightsOpt)
         logger.info( "Partition[%d], generated anomaly result: %s".format(partIndex, anomaly_result.toDataString ) )

@@ -1,7 +1,7 @@
 package nasa.nccs.cdapi.cdm
 
 import nasa.nccs.caching.{Partition, Partitions}
-import nasa.nccs.cdapi.data.{HeapArray, RDDPartition}
+import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition, RDDVariableSpec}
 import nasa.nccs.cdapi.kernels.CDASExecutionContext
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.esgf.process._
@@ -107,11 +107,11 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
     val partition = partitions.getPart(partIndex)
     val data: CDFloatArray = partition.data( fragmentSpec.missing_value )
     val spec: DataFragmentSpec = partFragSpec(partIndex)
-    RDDPartition( partIndex, Map( spec.uid -> HeapArray(data, spec.getMetadata) ) )
+    RDDPartition( partIndex, Map( spec.uid -> HeapFltArray(data, spec.getMetadata) ) )
   }
 
-  def domainRDDPartition(partIndex: Int, optSection: Option[ma2.Section] ): Option[RDDPartition] = domainDataSection( partIndex, optSection ) match {
-    case Some((spec, data)) => Some(  RDDPartition( partIndex, Map( spec.uid -> HeapArray(data, spec.getMetadata ) ) ) )
+  def domainRDDPartition(partIndex: Int, optSection: Option[ma2.Section] ): Option[RDDPartition] = domainCDDataSection( partIndex, optSection ) match {
+    case Some((uid, metadata, data)) => Some(  RDDPartition( partIndex, Map( uid -> HeapFltArray(data, metadata ) ) ) )
     case None => None
   }
 
@@ -124,36 +124,64 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
     try {
       val partition = partitions.getPart(partIndex)
       val partition_data = partition.data(fragmentSpec.missing_value)
+      domainSection( partition, optSection ) map {
+        case ( fragSpec, section )  => ( fragSpec, CDFloatArray( partition_data.section( section ) ) )
+      }
+    } catch {
+      case ex: Exception => logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )
+        None
+    }
+  }
+
+  def domainCDDataSection( partIndex: Int,  optSection: Option[ma2.Section] ): Option[ ( String, Map[String,String], CDFloatArray )] = {
+    try {
+      val partition = partitions.getPart(partIndex)
+      val partition_data = partition.data(fragmentSpec.missing_value)
+      domainSection( partition, optSection ) map {
+        case ( fragSpec, section )  => ( fragSpec.uid, fragSpec.getMetadata, CDFloatArray( partition_data.section( section ) ) )
+      }
+    } catch {
+      case ex: Exception => logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )
+        None
+    }
+  }
+  def getRDDVariableSpec( partition: Partition,  optSection: Option[ma2.Section] ): RDDVariableSpec =
+    domainSection(partition,optSection) match {
+      case Some( ( fragSpec, section ) ) => new RDDVariableSpec( fragSpec.uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection(section) )
+      case _ =>  new RDDVariableSpec( fragSpec.uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
+    }
+
+
+  def domainSection( partition: Partition,  optSection: Option[ma2.Section] ): Option[ ( DataFragmentSpec, ma2.Section )] = {
+    try {
       val frag_section = partition.partSection(fragmentSpec.roi)
       val domain_section = fragmentSpec.domainSectOpt match {
         case Some(dsect) => frag_section.intersect(dsect)
         case None => frag_section
       }
-      val partFragSpec = domainFragSpec(partIndex)
+      val partFragSpec = domainFragSpec(partition.index)
       val sub_section = optSection match {
         case Some(osect) =>
-          val rv = domain_section.intersect(osect)
+          val rv = domain_section.intersect( osect )
           logger.info( "OP section intersect: " + osect.toString + ", result = " + rv.toString )
           rv
         case None =>
           logger.info( "OP section empty" )
           domain_section
       }
-      val rv = partFragSpec.cutIntersection( sub_section ) match {
+      partFragSpec.cutIntersection( sub_section ) match {
         case Some( cut_spec: DataFragmentSpec ) =>
           val array_section = cut_spec.roi.shiftOrigin( frag_section )
-          Some( ( cut_spec, CDFloatArray( partition_data.section( array_section ) ) ) )
+          Some( ( cut_spec, array_section ) )
         case None =>None
       }
-      rv
     } catch {
       case ex: Exception =>
-        logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )
+        logger.warn( s"Failed getting data fragment " + partition.index + ": " + ex.toString )
         //        logger.error( ex.getStackTrace.mkString("\n\t") )
         None
     }
   }
-
 
 
       //      val domainDataOpt: Option[CDFloatArray] = fragmentSpec.domainSectOpt match {

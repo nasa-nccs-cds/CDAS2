@@ -1,6 +1,6 @@
 package nasa.nccs.cdapi.kernels
 
-import nasa.nccs.cdapi.data.{HeapArray, ArrayBase, RDDPartition}
+import nasa.nccs.cdapi.data.{HeapFltArray, ArrayBase, RDDPartition}
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.esgf.process._
@@ -28,7 +28,7 @@ object Port {
   }
 }
 
-class Port( val name: String, val cardinality: String, val description: String, val datatype: String, val identifier: String )  {
+class Port( val name: String, val cardinality: String, val description: String, val datatype: String, val identifier: String ) extends Serializable {
 
   def toXml = {
     <port name={name} cardinality={cardinality}>
@@ -72,6 +72,7 @@ class CDASExecutionContext( val operation: OperationContext, val request: Reques
         else return None
       }
   }
+  def getOpCDSectionIntersection: Option[ CDSection ] = getOpSectionIntersection.map( CDSection( _ ) )
 }
 
 class ExecutionResult( val id: String ) {
@@ -155,7 +156,7 @@ object pathTest extends App {
   println( System.getProperty("user.home") )
 }
 
-abstract class Kernel extends Loggable {
+abstract class Kernel extends Loggable with Serializable {
   val identifiers = this.getClass.getName.split('$').flatMap( _.split('.') )
   def operation: String = identifiers.last.toLowerCase
   def module = identifiers.dropRight(1).mkString(".")
@@ -381,11 +382,11 @@ abstract class SingularRDDKernel extends Kernel {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
-    val result_array_map : Map[String,HeapArray] = inputs.elements.mapValues { data  =>
+    val result_array_map : Map[String,HeapFltArray] = inputs.elements.mapValues { data  =>
       val input_array = data.toCDFloatArray
       mapCombineOpt match {
-        case Some(combineOp) => HeapArray( CDFloatArray(input_array.reduce(combineOp, axes.args, initValue)), data.metadata )
-        case None => HeapArray( input_array, data.metadata )
+        case Some(combineOp) => HeapFltArray( CDFloatArray(input_array.reduce(combineOp, axes.args, initValue)), data.metadata )
+        case None => HeapFltArray( input_array, data.metadata )
       }
     }
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
@@ -406,7 +407,7 @@ abstract class DualRDDKernel extends Kernel {
     }
     val result_metadata = input_arrays(0).mergeMetadata( name,input_arrays(1) )
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( inputs.iPart, Map( getOpName(context) -> HeapArray(result_array,result_metadata) ), inputs.metadata )
+    RDDPartition( inputs.iPart, Map( getOpName(context) -> HeapFltArray(result_array,result_metadata) ), inputs.metadata )
   }
 }
 

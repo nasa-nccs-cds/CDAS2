@@ -6,6 +6,7 @@ import nasa.nccs.cdapi.cdm._
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, VariableDS}
 import java.util.Formatter
 
+import nasa.nccs.cdapi.data.{ArrayBase, HeapDblArray, HeapFltArray}
 import nasa.nccs.cdapi.kernels.AxisIndices
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDDoubleArray, CDFloatArray}
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
@@ -83,6 +84,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   def getEndValue: Double = bounds(1)
   def toXml: xml.Elem = <axis id={getAxisName} units={getUnits} cfName={getCFAxisName} type={getAxisType.toString} start={getStartValue.toString} end={getEndValue.toString} length={getLength.toString} > </axis>
   override def toString: String = "GridCoordSpec{id=%s units=%s cfName=%s type=%s start=%f end=%f length=%d}".format(getAxisName,getUnits,getCFAxisName,getAxisType.toString,getStartValue,getEndValue,getLength)
+  def getMetadata: Map[String,String] = Map( "id"->getAxisName, "units"->getUnits, "name"->getCFAxisName, "type"->getAxisType.toString, "start"->getStartValue.toString, "end"->getEndValue.toString, "length"->getLength.toString )
 
   private def getAxisRange( variable: CDSVariable, coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): Option[ma2.Range] = {
     val axis_len = coordAxis.getShape(0)
@@ -302,22 +304,31 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
   }
 }
 
+object CDSection {
+  def apply( section: ma2.Section ): CDSection = new CDSection( section.getOrigin, section.getShape )
+  def empty( rank: Int ): CDSection = new CDSection( Array.fill(rank)(0), Array.fill(rank)(0) )
+}
+class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
+  def toSection: ma2.Section = new ma2.Section( origin, shape )
+  def getRange( axis_index: Int ) = toSection.getRange(axis_index)
+}
+
 object GridContext {
   def apply( targetGrid: TargetGrid ) : GridContext = {
-    val axisMap: Map[Char,Option[( Int, ma2.Array )]] = Map( List( 't', 'z', 'y', 'x' ).map( axis => axis -> targetGrid.getAxisData(axis) ):_* )
+    val axisMap: Map[Char,Option[( Int, ArrayBase[Double] )]] = Map( List( 't', 'z', 'y', 'x' ).map( axis => axis -> targetGrid.getAxisCDData(axis) ):_* )
     val cfAxisNames: Array[String] = ( 0 until targetGrid.getRank ).map( dim_index => targetGrid.getCFAxisName( dim_index ) ).toArray
     val axisIndexMap: Map[String,Int] = Map( cfAxisNames.map( cfAxisName => cfAxisName -> targetGrid.getAxisIndex(cfAxisName) ):_* )
     new GridContext(axisMap,cfAxisNames,axisIndexMap)
   }
 }
 
-class GridContext(val axisMap: Map[Char,Option[( Int, ma2.Array )]], val cfAxisNames: Array[String], val axisIndexMap: Map[String,Int] ) extends Serializable {
+class GridContext(val axisMap: Map[Char,Option[( Int, ArrayBase[Double] )]], val cfAxisNames: Array[String], val axisIndexMap: Map[String,Int] ) extends Serializable {
   def getAxisIndices( axisConf: String ): AxisIndices = new AxisIndices( axisIds=axisConf.map( ch => getAxisIndex(ch.toString ) ).toSet )
   def getAxisIndex( cfAxisName: String, default_val: Int = -1 ): Int = axisIndexMap.getOrElse( cfAxisName, default_val )
   def getCFAxisName( dimension_index: Int ): String = cfAxisNames(dimension_index)
-  def getAxisData( axis: Char ): Option[( Int, ma2.Array )] = axisMap.getOrElse( axis, None )
-  def getAxisData( axis: Char, section: ma2.Section ): Option[( Int, ma2.Array )] = axisMap.getOrElse( axis, None ).map {
-    case ( axis_index, array ) => ( axis_index, array.section( List( section.getRange(axis_index) ) ) )
+  def getAxisData( axis: Char ): Option[( Int, ArrayBase[Double] )] = axisMap.getOrElse( axis, None )
+  def getAxisData( axis: Char, section: CDSection ): Option[( Int, ma2.Array )] = axisMap.getOrElse( axis, None ).map {
+    case ( axis_index, array ) => ( axis_index, array.toUcarDoubleArray.section( List( section.getRange(axis_index) ) ) )
   }
 }
 
@@ -361,6 +372,11 @@ class TargetGrid( val variable: CDSVariable = CDSVariable.empty, roiOpt: Option[
   def getAxisData( axis: Char ): Option[( Int, ma2.Array )] = {
     grid.getAxisSpec(axis.toString).map(axisSpec => {
       axisSpec.index -> axisSpec.coordAxis.read()
+    })
+  }
+  def getAxisCDData( axis: Char ): Option[( Int, ArrayBase[Double] )] = {
+    grid.getAxisSpec(axis.toString).map(axisSpec => {
+      axisSpec.index -> HeapDblArray( axisSpec.coordAxis.read(), axisSpec.getMetadata, variable.missing )
     })
   }
 

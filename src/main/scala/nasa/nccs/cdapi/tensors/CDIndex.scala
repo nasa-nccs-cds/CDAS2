@@ -276,7 +276,7 @@ class CDTimeCoordMap( val gridContext: GridContext, section: ma2.Section ) exten
   def getDates(): Array[String] = { timeOffsets.map( timeHelper.makeCalendarDateFromOffset(_).toString ) }
 
   def getTimeAxisData(): Array[Double] = gridContext.getAxisData('t') match {
-    case Some(( index, array )) => CDDoubleArray.toDoubleArray(array)
+    case Some(( index, array )) => array.data.map(_.toDouble)
     case None => logger.error( "Cant get Time Axis Data" ); Array.emptyDoubleArray
   }
 

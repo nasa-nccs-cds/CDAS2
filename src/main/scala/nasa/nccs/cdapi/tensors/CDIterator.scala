@@ -693,7 +693,7 @@ class CDIndexIterator5D( index: CDIndexMap ) extends  CDArrayIndexIterator( inde
 }
 
 object DualArrayIterator {
-  def apply( input0: CDFloatArray, input1: CDFloatArray ): DualArrayIterator = {
+  def apply[T <: AnyVal]( input0: CDArray[T], input1: CDArray[T] ): DualArrayIterator[T] = {
     assert( input0.getRank == input1.getRank, "Can't combine arrays with different ranks")
     val sameShape = input0.getShape.sameElements(input1.getShape)
     val shape: Array[Int] = if(sameShape) input0.getShape else ( for( iS <- (0 until input0.getRank); s0 = input0.getShape(iS); s1 = input1.getShape(iS) )  yield
@@ -707,11 +707,11 @@ object DualArrayIterator {
     val sameShape1 = input1.getShape.sameElements(shape)
     val array0 = if(sameShape0) input0 else input0.broadcast(shape)
     val array1 = if(sameShape1) input1 else input1.broadcast(shape)
-    new DualArrayIterator( array0, array1, cdIndexMap )
+    new DualArrayIterator[T]( array0, array1, cdIndexMap )
   }
 }
 
-class DualArrayIterator( val array0: CDFloatArray, val array1: CDFloatArray, cdIndexMap: CDIndexMap ) extends CDArrayIndexIterator( cdIndexMap  ) {
+class DualArrayIterator[T <: AnyVal]( val array0: CDArray[T], val array1: CDArray[T], cdIndexMap: CDIndexMap ) extends CDArrayIndexIterator( cdIndexMap  ) {
   val sameStorage0 = checkArrayStructure( 0 )
   val sameStorage1 = checkArrayStructure( 1 )
   var storageIndex: StorageIndex = 0

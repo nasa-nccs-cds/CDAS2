@@ -2,9 +2,10 @@ package nasa.nccs.cds2.engine.spark
 
 import nasa.nccs.caching.Partition
 import nasa.nccs.cdapi.cdm.{CDSVariable, PartitionedFragment}
-import nasa.nccs.cdapi.data.RDDPartition
+import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartSpec, RDDPartition}
 import nasa.nccs.cdapi.kernels.CDASExecutionContext
-import nasa.nccs.esgf.process.{DataFragment, DomainAxis, OperationSpecs}
+import nasa.nccs.cdapi.tensors.CDFloatArray
+import nasa.nccs.esgf.process._
 import org.slf4j.LoggerFactory
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
@@ -44,12 +45,12 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) {
     indexRDD.map( iPart => partFrag.partRDDPartition( iPart ) )
   }
 
-  def domainRDDPartition( partFrags: List[PartitionedFragment], context: CDASExecutionContext ): RDD[ RDDPartition ] = {
-    val nPart = partFrags.head.partitions.parts.length
-    val optSection: Option[ma2.Section] = context.getOpSectionIntersection
-    val indexRDD: RDD[Int] = sparkContext.makeRDD( 0 to nPart-1, nPart )
-    indexRDD.map( iPart => RDDPartition.merge( partFrags.flatMap( _.domainRDDPartition( iPart, optSection ) ) ) )
+  def domainRDDPartition(partFrags: List[PartitionedFragment], context: CDASExecutionContext): RDD[RDDPartition] = {
+    val parts = partFrags.head.partitions.parts
+    val opSection: Option[ma2.Section] = context.getOpSectionIntersection
+    val partSpecs: Array[ RDDPartSpec ] = parts.map( partition => RDDPartSpec( partition, partFrags.map(pFrag => pFrag.getRDDVariableSpec(partition, opSection) ) ) )
+    sparkContext.parallelize(partSpecs).map( _.getRDDPartition )
   }
-
 }
+
 
