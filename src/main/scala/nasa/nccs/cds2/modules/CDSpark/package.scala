@@ -1,8 +1,7 @@
 package nasa.nccs.cds2.modules
 
-
-package object CDS {
-  val name = "CDS"
+package object CDSpark {
+  val name = "CDSpark"
   val version = "1.0-SNAPSHOT"
   val organization = "nasa.nccs"
   val author = "Thomas Maxwell"

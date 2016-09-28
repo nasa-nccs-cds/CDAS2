@@ -231,7 +231,11 @@ abstract class Kernel extends Loggable with Serializable {
     combineRDD(context)(a0,a1,axes)
   }
 
-
+  def getDataSample (result: CDFloatArray, sample_size: Int = 20): Array[Float] = {
+    val result_array = result.floatStorage.array
+    val start_value = result_array.size / 3
+    result_array.slice (start_value, Math.min (start_value + sample_size, result_array.size) )
+  }
 
   def toXmlHeader =  <kernel module={module} name={name}> { if (description.nonEmpty) <description> {description} </description> } </kernel>
 
@@ -411,33 +415,30 @@ abstract class DualRDDKernel extends Kernel {
   }
 }
 
-class KernelModule {
-  val logger = LoggerFactory.getLogger(this.getClass)
-  val identifiers = this.getClass.getName.split('$').flatMap( _.split('.') )
-  def package_path = identifiers.dropRight(1).mkString(".")
-  def name: String = identifiers.last
-  val version = ""
-  val organization = ""
-  val author = ""
-  val contact = ""
-  val kernelMap: Map[String,Kernel] = Map(getKernelObjects.map( kernel => kernel.operation.toLowerCase -> kernel ): _*)
-
-  def getKernelClasses = getInnerClasses // .filter( Kernel.getClass.isAssignableFrom( _ )  )
-  def getInnerClasses = this.getClass.getClasses.toList
-  def getKernelObjects: List[Kernel] = getKernelClasses.map( _.getDeclaredConstructors()(0).newInstance(this).asInstanceOf[Kernel] )
-
+class KernelModule( val spec: KernelModuleSpec, val kernelMap: Map[String,Kernel] ) {
   def getKernel( kernelName: String ): Option[Kernel] = kernelMap.get( kernelName.toLowerCase )
   def getKernelNames: List[String] = kernelMap.keys.toList
 
   def toXml = {
-    <kernelModule name={name}>
-      { if ( version.nonEmpty ) <version> {version} </version> }
-      { if ( organization.nonEmpty ) <organization> {organization} </organization> }
-      { if ( author.nonEmpty ) <author> {author} </author> }
-      { if ( contact.nonEmpty ) <contact> {contact} </contact> }
+    <kernelModule name={spec.name}>
+      { if ( spec.version.nonEmpty ) <version> {spec.version} </version> }
+      { if ( spec.organization.nonEmpty ) <organization> {spec.organization} </organization> }
+      { if ( spec.author.nonEmpty ) <author> {spec.author} </author> }
+      { if ( spec.contact.nonEmpty ) <contact> {spec.contact} </contact> }
       <kernels> { kernelMap.values.map( _.toXmlHeader ) } </kernels>
     </kernelModule>
   }
+}
+
+trait KernelModuleSpec {
+  val logger = LoggerFactory.getLogger(this.getClass)
+  val identifiers = this.getClass.getName.split('$').flatMap( _.split('.') )
+  def package_path = identifiers.dropRight(1).mkString(".")
+  def name: String = identifiers.last
+  val version: String
+  val organization: String
+  val author: String
+  val contact: String
 }
 
 class TransientFragment( val dataFrag: DataFragment, val request: RequestContext, val mdata: Map[String,nc2.Attribute] ) extends OperationInput( dataFrag.spec, mdata ) {

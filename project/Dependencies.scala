@@ -33,7 +33,7 @@ object Library {
   val udunits        = "edu.ucar"           %  "udunits"        % "4.6.0"
   val joda           = "joda-time"          % "joda-time"       % "2.8.1"
   val natty          = "com.joestelmach"    % "natty"           % "0.12"
-  val guava          = "com.google.guava"   % "guava"           % "18.0"
+  val guava          = "com.google.guava"   % "guava"           % "19.0"
   val geotools       = "org.geotools"      %  "gt-shapefile"    % "13.2"
   val breeze         = "org.scalanlp"      %% "breeze"          % "0.12"
   val sprayCache     = "io.spray"       % "spray-caching_2.11" % "1.3.3"
@@ -41,6 +41,7 @@ object Library {
   val scalactic      = "org.scalactic" %% "scalactic" % "3.0.0"
   val scalatest      = "org.scalatest" %% "scalatest" % "3.0.0" % "test"
   val concurrentlinkedhashmap = "com.googlecode.concurrentlinkedhashmap" % "concurrentlinkedhashmap-lru" % "1.4.2"
+  val reflections    = "org.reflections" % "reflections"       % "0.9.10"
 }
 
 object Dependencies {
@@ -53,7 +54,7 @@ object Dependencies {
     scalaTest      % "test",
     mockitoAll     % "test"
   )
-  val scala = Seq( logbackClassic, slf4jApi, scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest )
+  val scala = Seq( logbackClassic, slf4jApi, scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, guava, reflections )
 
   val spark = Seq( sparkCore )
 

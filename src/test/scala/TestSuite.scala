@@ -13,8 +13,8 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
   val serverConfiguration = Map[String,String]()
   val configMap = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
-  val service = "cds2"
   val eps = 0.0002
+  val service = "cds2"
   val merra_data = getClass.getResource("/data/merra_test_data.ta.nc").toString.split(":").last
   val const_data = getClass.getResource("/data/constant_test_data.ta.nc").toString.split(":").last
   val run_args = Map("async" -> "false")
