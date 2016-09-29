@@ -176,6 +176,7 @@ abstract class Kernel extends Loggable with Serializable {
 
   def getOpName( context: KernelContext ):String = "%s(%s)".format( name, context.operation.inputs.mkString(","))
 
+
   def map( partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext ): Option[DataFragment] = { inputs.head }
 
   def map( inputs: RDDPartition, context: KernelContext ): RDDPartition = { inputs }
