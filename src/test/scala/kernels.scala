@@ -3,6 +3,7 @@ import nasa.nccs.cdapi.cdm.Collection
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.esgf.process.RequestContext
+import nasa.nccs.utilities.cdsutils
 import ucar.ma2
 
 class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) {
@@ -31,7 +32,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) {
     val result_node = executeTest(datainputs)
     val result_part = result_node \\ "partition"
   //  printf( "\nRESULT = "      + result_node.toString.substring(0,1000) + "\n\n")
-    printf( "\n RESULT DATA = " + result_part.text.substring(0,500) + "\n" )
+    printf( "\n RESULT DATA = " + cdsutils.toString(result_part.text) + "\n" )
 
 //    val result_value = result_node.text.toFloat
 //    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")

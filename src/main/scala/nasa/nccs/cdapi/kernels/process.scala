@@ -345,12 +345,18 @@ abstract class SingularKernel extends Kernel {
   override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext ): Option[DataFragment] = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
+    logger.info("\n\n ****** SingularKernel-reduceOp START, axes = " + axes.getAxes.mkString(",") + "\n")
     inputs.head.map( dataFrag => {
       val async = context.config("async", "false").toBoolean
       val resultFragSpec = dataFrag.getReducedSpec(axes)
       val result_val_masked: CDFloatArray = mapCombineOpt match {
-        case Some(combineOp) => dataFrag.data.reduce(combineOp, axes.args, initValue)
-        case None => dataFrag.data
+        case Some(combineOp) =>
+          val result = dataFrag.data.reduce(combineOp, axes.args, initValue)
+          logger.info(" ****** SingularKernel-reduceOp, shape = " + result.getShape.mkString(","))
+          result
+        case None =>
+          logger.info(" ****** SingularKernel-No-Op")
+          dataFrag.data
       }
       logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
       DataFragment(resultFragSpec, result_val_masked)

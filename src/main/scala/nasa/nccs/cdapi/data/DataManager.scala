@@ -3,6 +3,7 @@ package nasa.nccs.cdapi.data
 import nasa.nccs.caching.Partition
 import nasa.nccs.cdapi.tensors.{CDArray, CDDoubleArray, CDFloatArray}
 import nasa.nccs.esgf.process.CDSection
+import nasa.nccs.utilities.cdsutils
 import org.apache.spark.rdd.RDD
 import ucar.nc2.constants.AxisType
 
@@ -60,6 +61,7 @@ abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray
   def toUcarDoubleArray: ucar.ma2.Array = toCDDoubleArray
   def merge( other: ArrayBase[T] ): ArrayBase[T]
   def combine( combineOp: CDArray.ReduceOp[T], other: ArrayBase[T] ): ArrayBase[T]
+  override def toString = "<array shape=(%s), %s> %s </array>".format( shape.mkString(","), metadata.mkString(","), cdsutils.toString(data.mkString(",")) )
 }
 
 class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, private val _data:  Array[Float]=Array.emptyFloatArray, missing: Float=Float.MaxValue, metadata: Map[String,String]=Map.empty ) extends ArrayBase[Float](shape,missing,metadata) {

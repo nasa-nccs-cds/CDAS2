@@ -33,6 +33,8 @@ object cdsutils {
 
   def isValid(obj: Any): Boolean = Option(obj) match { case Some(x) => true; case None => false }
 
+  def toString( value: Any, max_len: Int = 250 ): String = { val vstr = value.toString; if( vstr.length > max_len ) vstr.substring(0,max_len) else vstr }
+
   def getProjectJars: Array[JarFile] = {
     import java.io.File
     val cpitems = System.getProperty("java.class.path").split(File.pathSeparator)

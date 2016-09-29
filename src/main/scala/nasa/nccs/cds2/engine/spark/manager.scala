@@ -61,8 +61,10 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map
     val t0 = System.nanoTime()
     var pre_result: RDDPartition = mapReduce( context, kernel )
     val kernelContext = context.toKernelContext
+    val result = postOp( pre_result, kernelContext  )
     logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec  ********** \n".format(kernel.name,kernel.id,context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
-    createResponse( postOp( pre_result, kernelContext  ), context )
+    logger.info( "\n\nResult partition elements= %s \n\n".format( result.elements.values.map( cdsutils.toString(_) ) ) )
+    createResponse( result, context )
   }
 
   def postOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = pre_result

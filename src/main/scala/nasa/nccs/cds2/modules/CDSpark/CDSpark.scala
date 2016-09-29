@@ -13,7 +13,7 @@ class max extends SingularRDDKernel {
   val inputs = List(Port("input fragment", "1"))
   val outputs = List(Port("result", "1"))
   override val description = "Maximum over Axes on Input Fragment"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some((x, y) => { math.max(x, y) })
+  override val mapCombineOpt: Option[ReduceOpFlt] = Some(maxOp)
   override val reduceCombineOpt = mapCombineOpt
   override val initValue: Float = -Float.MaxValue
 }
