@@ -262,7 +262,7 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
     case "dfrag" =>
       val fragIds: Iterable[String] = request.variableMap.values.map( ds => Array( ds.getSource.name, ds.getSource.collection.id, ds.getSource.domain ).mkString("|") )
       logger.info( "Deleting frags: " + fragIds.mkString(", ") + "; Current Frags = " + FragmentPersistence.getFragmentIdList.mkString(", ") )
-      FragmentPersistence.delete( fragIds.map( fragId => DataFragmentKey(fragId) ) )
+      FragmentPersistence.delete( fragIds )
       new ExecutionResults(List(new UtilityExecutionResult("dfrag", <deleted fragments={fragIds.mkString(",")}/> )))
     case "dres" =>
       val resIds: Iterable[String] = request.variableMap.values.map( ds => ds.uid )
