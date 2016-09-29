@@ -366,7 +366,7 @@ abstract class DualKernel extends Kernel {
         val async = context.request.config("async", "false").toBoolean
         val result_val_masked: DataFragment = mapCombineOpt match {
           case Some(combineOp) =>
-            logger.info("DualKernel combine shapes: (%s) - (%s)".format(dataFrag0.spec.getShape.mkString(","),dataFrag1.spec.getShape.mkString(",")))
+            logger.info("DualKernel[%d] combine shapes: (%s) - (%s)".format(partIndex, dataFrag0.spec.getShape.mkString(","), dataFrag1.spec.getShape.mkString(",") ))
             DataFragment.combine( combineOp, dataFrag0, dataFrag1 )
           case None => dataFrag0
         }
