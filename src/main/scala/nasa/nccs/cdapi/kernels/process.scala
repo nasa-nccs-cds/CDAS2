@@ -171,8 +171,9 @@ abstract class Kernel extends Loggable {
         logger.info(s"********** Completed Execution of Kernel[$name($id)]: %s , total time = %.3f sec  ********** \n".format(context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
       case Failure(t) =>
         logger.error(s"********** Failed Execution of Kernel[$name($id)]: %s ********** \n".format(context.operation.toString ))
-        logger.error( " ---> Cause: " + t.getCause.getMessage )
-        logger.error( "\n" + t.getCause.getStackTrace.mkString("\n") + "\n" )
+        val cause = if( t.getCause == null ) t else t.getCause
+        logger.error(" ---> Cause: " + cause.getMessage )
+        logger.error("\n" + cause.getStackTrace.mkString("\n") + "\n")
     }
     createResponse( postOp( opResult, context  ), context )
   }
