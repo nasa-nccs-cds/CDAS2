@@ -90,7 +90,6 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
     val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
     webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
-    webProcessManager.logger.info(response.toString)
     response
   }
   def getSpatialDataInputs(test_dataset: String, op_args: (String,String)* )  = Map(

@@ -39,6 +39,10 @@ object cdsutils {
     for ( cpitem <- cpitems; fileitem = new File(cpitem); if fileitem.isFile && fileitem.getName.toLowerCase.endsWith(".jar") ) yield new JarFile(fileitem)
   }
 
+  def envList(name: String): Array[String] =
+    try { sys.env(name).split(':') }
+    catch { case ex: java.util.NoSuchElementException => Array.empty[String] }
+
   def testSerializable( test_object: AnyRef ) = {
     import java.io._
     val out = new ObjectOutputStream(new FileOutputStream("test.obj"))

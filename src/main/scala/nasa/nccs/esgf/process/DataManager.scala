@@ -313,20 +313,20 @@ class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
   def getRange( axis_index: Int ) = toSection.getRange(axis_index)
 }
 
-object GridContext {
+object GridContext extends Loggable {
   def apply( targetGrid: TargetGrid ) : GridContext = {
-    val axisMap: Map[Char,Option[( Int, ArrayBase[Double] )]] = Map( List( 't', 'z', 'y', 'x' ).map( axis => axis -> targetGrid.getAxisCDData(axis) ):_* )
+    val axisMap: Map[Char,Option[( Int, HeapDblArray )]] = Map( List( 't', 'z', 'y', 'x' ).map( axis => axis -> targetGrid.getAxisCDData(axis) ):_* )
     val cfAxisNames: Array[String] = ( 0 until targetGrid.getRank ).map( dim_index => targetGrid.getCFAxisName( dim_index ) ).toArray
     val axisIndexMap: Map[String,Int] = Map( cfAxisNames.map( cfAxisName => cfAxisName -> targetGrid.getAxisIndex(cfAxisName) ):_* )
     new GridContext(axisMap,cfAxisNames,axisIndexMap)
   }
 }
 
-class GridContext(val axisMap: Map[Char,Option[( Int, ArrayBase[Double] )]], val cfAxisNames: Array[String], val axisIndexMap: Map[String,Int] ) extends Serializable {
+class GridContext(val axisMap: Map[Char,Option[( Int, HeapDblArray )]], val cfAxisNames: Array[String], val axisIndexMap: Map[String,Int] ) extends Serializable {
   def getAxisIndices( axisConf: String ): AxisIndices = new AxisIndices( axisIds=axisConf.map( ch => getAxisIndex(ch.toString ) ).toSet )
   def getAxisIndex( cfAxisName: String, default_val: Int = -1 ): Int = axisIndexMap.getOrElse( cfAxisName, default_val )
   def getCFAxisName( dimension_index: Int ): String = cfAxisNames(dimension_index)
-  def getAxisData( axis: Char ): Option[( Int, ArrayBase[Double] )] = axisMap.getOrElse( axis, None )
+  def getAxisData( axis: Char ): Option[( Int, HeapDblArray )] = axisMap.getOrElse( axis, None )
   def getAxisData( axis: Char, section: CDSection ): Option[( Int, ma2.Array )] = axisMap.getOrElse( axis, None ).map {
     case ( axis_index, array ) => ( axis_index, array.toUcarDoubleArray.section( List( section.getRange(axis_index) ) ) )
   }
@@ -374,7 +374,7 @@ class TargetGrid( val variable: CDSVariable = CDSVariable.empty, roiOpt: Option[
       axisSpec.index -> axisSpec.coordAxis.read()
     })
   }
-  def getAxisCDData( axis: Char ): Option[( Int, ArrayBase[Double] )] = {
+  def getAxisCDData( axis: Char ): Option[( Int, HeapDblArray )] = {
     grid.getAxisSpec(axis.toString).map(axisSpec => {
       axisSpec.index -> HeapDblArray( axisSpec.coordAxis.read(), axisSpec.getMetadata, variable.missing )
     })

@@ -47,14 +47,14 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map
 
   def mapReduce(context: CDASExecutionContext, kernel: Kernel ): RDDPartition = {
     val opInputs: List[PartitionedFragment] = getOperationInputs( context ).flatMap(  _ match { case pf: PartitionedFragment => Some(pf); case x => None } )   // TODO: Ignores Transient Fragments
-    logger.info( "mapReduce: opInputs = " + opInputs.map( df => "%s(%s)".format( df.getKeyString, df.fragmentSpec.toString ) ).mkString( "," ))
     val kernelContext = context.toKernelContext
-    cdsutils.testSerializable( kernelContext )
-    cdsutils.testSerializable( opInputs.head.partitions.parts.head )
-    cdsutils.testSerializable( kernel )
+    logger.info( "\n\n ----------------------- BEGIN map Operation -------> opInputs = " + opInputs.map( df => "%s(%s)".format( df.getKeyString, df.fragmentSpec.toString ) ).mkString( "," ) + "\n")
     val inputRDD: RDD[ RDDPartition ] = cdsContext.domainRDDPartition( opInputs, context )
     val mapresult: RDD[RDDPartition] = inputRDD.map( rdd_part => kernel.map( rdd_part, kernelContext ) )
-    reduce( mapresult, kernelContext, kernel )
+    logger.info( "\n\n ----------------------- BEGIN reduce Operation ----------------------- \n" )
+    val result = reduce( mapresult, kernelContext, kernel )
+    logger.info( "\n\n ----------------------- FINISHED reduce Operation: result = " + result.toString )
+    result
   }
 
   def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): ExecutionResult = {

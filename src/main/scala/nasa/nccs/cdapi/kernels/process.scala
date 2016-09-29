@@ -415,32 +415,6 @@ abstract class DualRDDKernel extends Kernel {
   }
 }
 
-class KernelModule( val spec: KernelModuleSpec, val kernelMap: Map[String,Kernel] ) {
-  def getKernel( kernelName: String ): Option[Kernel] = kernelMap.get( kernelName.toLowerCase )
-  def getKernelNames: List[String] = kernelMap.keys.toList
-
-  def toXml = {
-    <kernelModule name={spec.name}>
-      { if ( spec.version.nonEmpty ) <version> {spec.version} </version> }
-      { if ( spec.organization.nonEmpty ) <organization> {spec.organization} </organization> }
-      { if ( spec.author.nonEmpty ) <author> {spec.author} </author> }
-      { if ( spec.contact.nonEmpty ) <contact> {spec.contact} </contact> }
-      <kernels> { kernelMap.values.map( _.toXmlHeader ) } </kernels>
-    </kernelModule>
-  }
-}
-
-trait KernelModuleSpec {
-  val logger = LoggerFactory.getLogger(this.getClass)
-  val identifiers = this.getClass.getName.split('$').flatMap( _.split('.') )
-  def package_path = identifiers.dropRight(1).mkString(".")
-  def name: String = identifiers.last
-  val version: String
-  val organization: String
-  val author: String
-  val contact: String
-}
-
 class TransientFragment( val dataFrag: DataFragment, val request: RequestContext, val mdata: Map[String,nc2.Attribute] ) extends OperationInput( dataFrag.spec, mdata ) {
   def toXml(id: String): xml.Elem = {
     val units = metadata.get("units") match { case Some(attr) => attr.getStringValue; case None => "" }

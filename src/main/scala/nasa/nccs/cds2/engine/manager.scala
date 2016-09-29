@@ -10,7 +10,7 @@ import org.slf4j.{Logger, LoggerFactory}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.utilities.{Loggable, cdsutils}
-import nasa.nccs.cds2.kernels.KernelMgr
+import nasa.nccs.cds2.kernels.{KernelMgr, KernelModule}
 import nasa.nccs.cdapi.kernels._
 
 import scala.concurrent.duration.Duration

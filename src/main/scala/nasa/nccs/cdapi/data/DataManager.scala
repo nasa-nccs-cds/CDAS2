@@ -22,10 +22,18 @@ object MetadataOps {
   }
 }
 
-abstract class MetadataCarrier( val metadata: Map[String,String] ) {
+abstract class MetadataCarrier( val metadata: Map[String,String] = Map.empty ) extends Serializable {
   def mergeMetadata( opName: String, other: MetadataCarrier ): Map[String,String] = MetadataOps.mergeMetadata( opName, metadata, other.metadata )
   def toXml: xml.Elem
   def attr(id:String): String = metadata.getOrElse(id,"")
+
+  implicit def pimp(elem:xml.Elem) = new {
+    def %(attrs:Map[String,String]) = {
+      val seq = for( (n:String,v:String) <- attrs ) yield new xml.UnprefixedAttribute(n,v,xml.Null)
+      (elem /: seq) ( _ % _ )
+    }
+  }
+
 }
 
 trait RDDataManager {
@@ -44,7 +52,7 @@ trait RDDataManager {
 
 }
 
-abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int], val missing: T, metadata: Map[String,String] ) extends MetadataCarrier(metadata) with Serializable {
+abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray, val missing: T=null, metadata: Map[String,String]=Map.empty ) extends MetadataCarrier(metadata) with Serializable {
   def data:  Array[T]
   def toCDFloatArray: CDFloatArray
   def toCDDoubleArray: CDDoubleArray
@@ -54,28 +62,28 @@ abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int], val missing: T, me
   def combine( combineOp: CDArray.ReduceOp[T], other: ArrayBase[T] ): ArrayBase[T]
 }
 
-class HeapFltArray( shape: Array[Int], private val _data:  Array[Float], missing: Float, metadata: Map[String,String] ) extends ArrayBase[Float](shape,missing,metadata) {
+class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, private val _data:  Array[Float]=Array.emptyFloatArray, missing: Float=Float.MaxValue, metadata: Map[String,String]=Map.empty ) extends ArrayBase[Float](shape,missing,metadata) {
   def data: Array[Float] = _data
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, missing )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), missing )
 
   def merge( other: ArrayBase[Float] ): ArrayBase[Float] = HeapFltArray( toCDFloatArray.merge( other.toCDFloatArray ), mergeMetadata("merge",other) )
   def combine( combineOp: CDArray.ReduceOp[Float], other: ArrayBase[Float] ): ArrayBase[Float] = HeapFltArray( CDFloatArray.combine( combineOp, toCDFloatArray, other.toCDFloatArray ), mergeMetadata("merge",other) )
-  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={missing.toString} name={attr("name")} units={attr("units")} dimensions={attr("dimensions")}> {_data.mkString(",")} </array>
+  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={missing.toString}> {_data.mkString(",")} </array> % metadata
 }
 object HeapFltArray {
   def apply( cdarray: CDFloatArray, metadata: Map[String,String] ): HeapFltArray = new HeapFltArray( cdarray.getShape, cdarray.getArrayData(), cdarray.getInvalid, metadata )
   def apply( ucarray: ucar.ma2.Array, metadata: Map[String,String], missing: Float ): HeapFltArray = HeapFltArray( CDArray.factory(ucarray,missing), metadata )
 }
 
-class HeapDblArray( shape: Array[Int], private val _data:  Array[Double], missing: Double, metadata: Map[String,String] ) extends ArrayBase[Double](shape,missing,metadata) {
-  def data: Array[Double] = _data
+class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, val _data_ : Array[Double]=Array.emptyDoubleArray, missing: Double=Double.MaxValue, metadata: Map[String,String]=Map.empty ) extends ArrayBase[Double](shape,missing,metadata) {
+  def data: Array[Double] = _data_
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), missing.toFloat )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data, missing )
 
   def merge( other: ArrayBase[Double] ): ArrayBase[Double] = HeapDblArray( toCDDoubleArray.merge( other.toCDDoubleArray ), mergeMetadata("merge",other) )
   def combine( combineOp: CDArray.ReduceOp[Double], other: ArrayBase[Double] ): ArrayBase[Double] = HeapDblArray( CDDoubleArray.combine( combineOp, toCDDoubleArray, other.toCDDoubleArray ), mergeMetadata("merge",other) )
-  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={missing.toString} name={attr("name")} units={attr("units")} dimensions={attr("dimensions")}> {_data.mkString(",")} </array>
+  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={missing.toString} > {_data_.mkString(",")} </array> % metadata
 }
 object HeapDblArray {
   def apply( cdarray: CDDoubleArray, metadata: Map[String,String] ): HeapDblArray = new HeapDblArray( cdarray.getShape, cdarray.getArrayData(), cdarray.getInvalid, metadata )
@@ -88,7 +96,7 @@ class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase[Float]] ,
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
   }
   def getElement( id: String ): Option[ArrayBase[Float]] = elements.get( id )
-  def toXml: xml.Elem = <partition> { elements.mapValues( _.toXml ) } </partition>
+  def toXml: xml.Elem =  <partition> { elements.mapValues( _.toXml ) } </partition> % metadata
 }
 
 object RDDPartition {

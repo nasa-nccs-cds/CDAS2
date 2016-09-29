@@ -54,7 +54,7 @@ object Dependencies {
     scalaTest      % "test",
     mockitoAll     % "test"
   )
-  val scala = Seq( logbackClassic, slf4jApi, scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, guava, reflections )
+  val scala = Seq( logbackClassic, slf4jApi, scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest )
 
   val spark = Seq( sparkCore )
 

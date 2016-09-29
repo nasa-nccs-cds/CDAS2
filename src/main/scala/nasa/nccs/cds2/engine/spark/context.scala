@@ -1,6 +1,6 @@
 package nasa.nccs.cds2.engine.spark
 
-import nasa.nccs.caching.Partition
+import nasa.nccs.caching.{CDASPartitioner, Partition}
 import nasa.nccs.cdapi.cdm.{CDSVariable, PartitionedFragment}
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartSpec, RDDPartition}
 import nasa.nccs.cdapi.kernels.CDASExecutionContext
@@ -14,17 +14,19 @@ import ucar.ma2
 object CDSparkContext {
   val kyro_buffer_mb = 24
   val kyro_buffer_max_mb = 64
+  val default_master = "local[%d]".format(CDASPartitioner.nProcessors)
 
-  def apply() : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf() ) )
+  def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = true ) : CDSparkContext =
+    new CDSparkContext( new SparkContext( getSparkConf( master, appName, logConf) ) )
   def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf(url,name) ) )
 
-  def getSparkConf( master: String="local[*]", appName: String="CDAS", logConf: Boolean = true ) = new SparkConf(false)
+  def getSparkConf( master: String, appName: String, logConf: Boolean = true  ) = new SparkConf(false)
     .setMaster( master )
     .setAppName( appName )
     .set("spark.logConf", logConf.toString )
-    .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer") //
     .set("spark.kryoserializer.buffer.mb",kyro_buffer_mb.toString)
     .set("spark.kryoserializer.buffer.max.mb",kyro_buffer_max_mb.toString)
 }
