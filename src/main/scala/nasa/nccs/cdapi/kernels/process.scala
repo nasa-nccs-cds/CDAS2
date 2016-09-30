@@ -169,7 +169,7 @@ abstract class Kernel extends Loggable {
     opResult.onComplete {
       case Success(dataFragOpt) =>
         logger.info(s"********** Completed Execution of Kernel[$name($id)]: %s , total time = %.3f sec  ********** \n".format(context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
-        dataFragOpt.flatMap( _.optCoordMap.map( "--->> Kernel ExecutionResult: CoordMap = " + _.toString ) ).getOrElse("")
+        logger.info(dataFragOpt.flatMap( _.optCoordMap.map( "--->> Kernel ExecutionResult: CoordMap = " + _.toString ) ).getOrElse(""))
       case Failure(t) =>
         logger.error(s"********** Failed Execution of Kernel[$name($id)]: %s ********** \n".format(context.operation.toString ))
         val cause = if( t.getCause == null ) t else t.getCause
