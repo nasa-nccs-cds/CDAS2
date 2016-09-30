@@ -748,7 +748,7 @@ object OperationContext extends ContainerBase  {
     val opLongName = op_name + "-" + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
     val rid = metadata.get("result") match {
-      case Some( result_id ) => uid + rid
+      case Some( result_id ) => uid + result_id.toString
       case None => UID() + op_name
     }
     new OperationContext( identifier = UID() + op_name, name=op_name, rid = rid, inputs = op_inputs, optargs )
