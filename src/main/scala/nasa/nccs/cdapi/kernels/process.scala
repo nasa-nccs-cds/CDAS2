@@ -45,8 +45,8 @@ class CDASExecutionContext( val operation: OperationContext, val request: Reques
       case Some(domainIds) => domainIds.split(",").map(request.getDomain(_))
       case None => return Some( IndexedSeq.empty[ma2.Section] )
     }
-    logger.info( "OPT DOMAIN Arg: " + optargs.getOrElse( "domain", "None" ) )
-    logger.info( "OPT Domains: " + domains.map(_.toString).mkString( ", " ) )
+//    logger.info( "OPT DOMAIN Arg: " + optargs.getOrElse( "domain", "None" ) )
+//    logger.info( "OPT Domains: " + domains.map(_.toString).mkString( ", " ) )
     Some( domains.map(dc => request.targetGrid.grid.getSubSection(dc.axes) match {
       case Some(section) => section
       case None => return None
@@ -169,6 +169,7 @@ abstract class Kernel extends Loggable {
     opResult.onComplete {
       case Success(dataFragOpt) =>
         logger.info(s"********** Completed Execution of Kernel[$name($id)]: %s , total time = %.3f sec  ********** \n".format(context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
+        logger.info(dataFragOpt.flatMap( _.optCoordMap.map( "--->> Kernel ExecutionResult: CoordMap = " + _.toString ) ).getOrElse(""))
       case Failure(t) =>
         logger.error(s"********** Failed Execution of Kernel[$name($id)]: %s ********** \n".format(context.operation.toString ))
         val cause = if( t.getCause == null ) t else t.getCause
@@ -365,7 +366,10 @@ abstract class DualKernel extends Kernel {
       inputs(1).map( dataFrag1 => {
         val async = context.request.config("async", "false").toBoolean
         val result_val_masked: DataFragment = mapCombineOpt match {
-          case Some(combineOp) => DataFragment.combine( combineOp, dataFrag0, dataFrag1 )
+          case Some(combineOp) =>
+            logger.info( "DIFF2: dataFrag0 coordMap = %s".format( dataFrag0.optCoordMap.map( _.toString ).getOrElse("") ) )
+            logger.info( "DIFF2: dataFrag1 coordMap = %s".format( dataFrag1.optCoordMap.map( _.toString ).getOrElse("") ) )
+            DataFragment.combine( combineOp, dataFrag0, dataFrag1 )
           case None => dataFrag0
         }
         logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))

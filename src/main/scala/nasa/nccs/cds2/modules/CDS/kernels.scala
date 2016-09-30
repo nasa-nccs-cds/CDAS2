@@ -173,10 +173,10 @@ class CDS extends KernelModule with KernelTools {
       //  val coordMap: CDCoordMap = cdTimeCoordMap.getTimeCycleMap(period, unit, mod, offset)
         val timeData = cdTimeCoordMap.getTimeIndexIterator( "month", dataFrag.spec.roi.getRange(0) ).toArray
 //        logger.info("Binned array, timeData = [ %s ]".format(timeData.mkString(",")))
-//        logger.info("Binned array, coordMap = %s".format(coordMap.toString))
+        logger.info( "Binned array[%d], coordMap[%d] = %s".format( partIndex, coordMap.mapArray.size, coordMap.toString ) )
 //        logger.info("Binned array, dates = %s".format(cdTimeCoordMap.getDates.mkString(", ")))
-//        logger.info("Binned array, input data = %s".format(dataFrag.data.toDataString))
-       dataFrag.data.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, None, Some(coordMap)) match {
+        logger.info("Binned array[%d], input data shape = %s".format(partIndex,dataFrag.data.getShape.mkString(",")))
+        dataFrag.data.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, None, Some(coordMap)) match {
           case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
             val t11 = System.nanoTime
 //            logger.info("Binned array, time = %.4f s, section = %s\n *** values = %s\n *** weights=%s".format((t11 - t10) / 1.0E9, dataFrag.spec.roi.toString, values_sum.toDataString, weights_sum.toDataString ))

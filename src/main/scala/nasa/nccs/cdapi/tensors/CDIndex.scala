@@ -7,7 +7,7 @@ import ucar.nc2.time.Calendar
 import ucar.nc2.time.CalendarDate
 import nasa.nccs.cdapi.cdm.CDSVariable
 import nasa.nccs.esgf.process.{DomainAxis, GridCoordSpec, TargetGrid}
-import nasa.nccs.utilities.cdsutils
+import nasa.nccs.utilities.{Loggable, cdsutils}
 
 import scala.collection.mutable.ListBuffer
 import ucar.ma2
@@ -230,20 +230,27 @@ trait CDCoordMapBase {
   def mapShape( shape: Array[Int] ): Array[Int] = { val new_shape=shape.clone; new_shape(dimIndex)=nBins; new_shape }
 }
 
-class CDCoordMap( val dimIndex: Int, val dimOffset: Int, val mapArray: Array[Int] ) extends CDCoordMapBase {
+class CDCoordMap( val dimIndex: Int, val dimOffset: Int, val mapArray: Array[Int] ) extends CDCoordMapBase with Loggable {
   def this( dimIndex: Int, section: ma2.Section, mapArray: Array[Int] ) =  this( dimIndex, section.getRange(dimIndex).first(), mapArray )
   val nBins: Int = mapArray.max + 1
 
   def map( coordIndices: Array[Int] ): Array[Int] = {
     val result = coordIndices.clone()
-    result( dimIndex ) = mapArray( coordIndices(dimIndex) )
-    result
+    try {
+      result(dimIndex) = mapArray(coordIndices(dimIndex))
+      result
+    } catch {
+      case ex: java.lang.ArrayIndexOutOfBoundsException =>
+        logger.error( " ArrayIndexOutOfBoundsException: mapArray[%d] = (%s), dimIndex=%d, coordIndices = (%s)".format( mapArray.size, mapArray.mkString(","), dimIndex, coordIndices.mkString(",") ) )
+        throw ex
+    }
   }
-  override def toString = "CDCoordMap{ nbins=%d, dim=%d, offset=%d, mapArray=[ %s ]}".format( nBins, dimIndex, dimOffset, mapArray.mkString(", ") )
+  override def toString = "CDCoordMap{ nbins=%d, dim=%d, offset=%d, mapArray[%d]=[ %s ]}".format( nBins, dimIndex, dimOffset, mapArray.size, mapArray.mkString(", ") )
 
   def subset( section: ma2.Section ): CDCoordMap = {
     assert( dimOffset==0, "Attempt to subset a partitioned CoordMap: not supported.")
     val start: Int = section.getRange(dimIndex).first()
+    logger.info( "CDCoordMap[%d].subset(%s): start=%d, until=%d, size=%d".format( dimIndex, section.toString, start, mapArray.length, mapArray.length-start) )
     new CDCoordMap( dimIndex, start, mapArray.slice( start, mapArray.length ) )
   }
 
