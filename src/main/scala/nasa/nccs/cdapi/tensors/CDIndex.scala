@@ -241,7 +241,7 @@ class CDCoordMap( val dimIndex: Int, val dimOffset: Int, val mapArray: Array[Int
       result
     } catch {
       case ex: java.lang.ArrayIndexOutOfBoundsException =>
-        logger.error( " ArrayIndexOutOfBoundsException: mapArray = (%s), dimIndex=%d, coordIndices = (%s)".format( mapArray.mkString(","), dimIndex, coordIndices.mkString(",") ) )
+        logger.error( " ArrayIndexOutOfBoundsException: mapArray[%d] = (%s), dimIndex=%d, coordIndices = (%s)".format( mapArray.size, mapArray.mkString(","), dimIndex, coordIndices.mkString(",") ) )
         throw ex
     }
   }
