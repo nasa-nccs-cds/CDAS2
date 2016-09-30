@@ -152,6 +152,7 @@ object TaskRequest {
     var data_var_items = for( data_container <- data ) yield data_container.uid -> data_container
     var op_var_items = for( workflow_container<- workflow; operation<-workflow_container.operations; if !operation.rid.isEmpty ) yield operation.rid -> DataContainer(operation)
     val var_map = Map( op_var_items ++ data_var_items: _* )
+    logger.info( "Created Variable Map: op_var_items = (%s), data_var_items = (%s)".format( op_var_items.map(_._1).mkString(","), data_var_items.map(_._1).mkString(",") ) )
 //    logger.info( "Created Variable Map: " + var_map.toString + " from data containers: " + data.map( data_container => ( "id:" + data_container.uid ) ).mkString("[ ",", "," ]") )
     for( workflow_container<- workflow; operation<-workflow_container.operations; vid<-operation.inputs; if !vid.isEmpty  ) var_map.get( vid ) match {
       case Some(data_container) => data_container.addOpSpec( operation )
