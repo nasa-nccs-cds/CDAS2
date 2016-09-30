@@ -747,9 +747,8 @@ object OperationContext extends ContainerBase  {
     val input = metadata.getOrElse("input","").toString
     val opLongName = op_name + "-" + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
-    val identifier: String = UID() + op_name
-    val rid = metadata.getOrElse("result",identifier).toString
-    new OperationContext( identifier = identifier, name=op_name, rid = rid, inputs = op_inputs, optargs )
+    val rid = UID() + metadata.getOrElse("result",op_name).toString
+    new OperationContext( identifier = UID() + op_name, name=op_name, rid = rid, inputs = op_inputs, optargs )
   }
   def generateResultId: String = { resultIndex += 1; "$v"+resultIndex.toString }
 }
