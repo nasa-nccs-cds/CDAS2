@@ -434,261 +434,261 @@ object SampleTaskRequests {
   }
 }
 
-abstract class SyncExecutor {
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-
-  def main(args: Array[String]) {
-    val executionManager = getExecutionManager
-    val final_result = getExecutionManager.blockingExecute( getTaskRequest(args), getRunArgs )
-    println(">>>> Final Result: " + printer.format(final_result.toXml))
-  }
-
-  def getTaskRequest(args: Array[String]): TaskRequest
-  def getRunArgs = Map("async" -> "false")
-  def getExecutionManager = new CDS2ExecutionManager(Map.empty)
-  def getCollection( id: String ): Collection = Collections.findCollection(id) match { case Some(collection) => collection; case None=> throw new Exception(s"Unknown Collection: $id" ) }
-}
-
-object TimeAveSliceTask extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lon" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lev" -> Map("start" -> 8, "end" -> 8, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "hur:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
-    TaskRequest("CDS.average", dataInputs)
-  }
-}
-
-object YearlyCycleSliceTask extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12)))
-    TaskRequest("CDS.bin", dataInputs)
-  }
-}
-
-object AveTimeseries extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    import nasa.nccs.esgf.process.DomainAxis.Type._
-    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "t")))))
-    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0"))))
-    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 1, 1), DomainAxis(Y, 100, 100), DomainAxis(X, 100, 100)), None))
-    new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
-  }
-}
-
-object CreateVTask extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
-        Map("name" -> "d1", "time" -> Map("start" -> "2010-01-16T12:00:00", "end" -> "2010-01-16T12:00:00", "system" -> "values"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDS.anomaly"), Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12, "name" -> "CDS.timeBin"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDS.subset")))
-    TaskRequest("CDS.workflow", dataInputs)
-  }
-}
-
-object YearlyCycleTask extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12)))
-    TaskRequest("CDS.timeBin", dataInputs)
-  }
-}
-
-object SeasonalCycleRequest extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "time" -> Map("start" -> 0, "end" -> 36, "system" -> "indices"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "period" -> 3, "unit" -> "month", "mod" -> 4, "offset" -> 2)))
-    TaskRequest("CDS.timeBin", dataInputs)
-  }
-}
-
-object YearlyMeansRequest extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "period" -> 12, "unit" -> "month")))
-    TaskRequest("CDS.timeBin", dataInputs)
-  }
-}
-
-object SubsetRequest extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
-        Map("name" -> "d1", "time" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "domain" -> "d1")))
-    TaskRequest("CDS.subset", dataInputs)
-  }
-}
-
-object TimeSliceAnomaly extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lon" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lev" -> Map("start" -> 8, "end" -> 8, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
-    TaskRequest("CDS.anomaly", dataInputs)
-  }
-}
-
-object MetadataRequest extends SyncExecutor {
-  val level = 0
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs: Map[String, Seq[Map[String, Any]]] = level match {
-      case 0 => Map()
-      case 1 => Map("variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0")))
-    }
-    TaskRequest("CDS.metadata", dataInputs)
-  }
-}
-
-object CacheRequest extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra300/hourly/asm_Cp", "name" -> "t:v0", "domain" -> "d0")))
-    TaskRequest("util.cache", dataInputs)
-  }
-}
-
-object AggregateAndCacheRequest extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggTest3", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/", "name" -> "t", "domain" -> "d0")))
-    TaskRequest("util.cache", dataInputs)
-  }
-}
-
-object AggregateRequest extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map( "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggTest37", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/" ) ) )
-    TaskRequest("util.agg", dataInputs)
-  }
-}
-
-
-object MultiAggregateRequest extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val baseCollectionId = args(0)
-    val baseDirectory = new java.io.File(args(1))
-    assert( baseDirectory.isDirectory, "Base directory is not a directory: " + args(1) )
-    val dataInputs = Map( "variable" -> baseDirectory.listFiles.map( dir => Map("uri" -> Array("collection:",baseCollectionId,dir.getName).mkString("/"), "path" -> dir.toString ) ).toSeq )
-    TaskRequest("util.agg", dataInputs)
-  }
-}
-
-object AggregateAndCacheRequest2 extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra/daily/aggTest", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY", "name" -> "t", "domain" -> "d0")))
-    TaskRequest("util.cache", dataInputs)
-  }
-}
-
-object AggregateAndCacheRequest1 extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra2/hourly/M2T1NXLND-2004-04", "path" -> "/att/pubrepo/MERRA/remote/MERRA2/M2T1NXLND.5.12.4/2004/04", "name" -> "SFMC", "domain" -> "d0")))
-    TaskRequest("util.cache", dataInputs)
-  }
-}
-
-object Max extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 20, "end" -> 20, "system" -> "indices"), "time" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "axes" -> "xy")))
-    TaskRequest("CDS.max", dataInputs)
-  }
-}
-
-object Min extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 20, "end" -> 20, "system" -> "indices"), "time" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "axes" -> "xy")))
-    TaskRequest("CDS.min", dataInputs)
-  }
-}
-
-object AnomalyTest extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> -7.0854263, "end" -> -7.0854263, "system" -> "values"), "lon" -> Map("start" -> 12.075, "end" -> 12.075, "system" -> "values"), "lev" -> Map("start" -> 1000, "end" -> 1000, "system" -> "values"))),
-      "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggtest", "name" -> "t:v0", "domain" -> "d0")), // collection://merra300/hourly/asm_Cp
-      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
-    TaskRequest("CDS.anomaly", dataInputs)
-  }
-}
-
-object AnomalyTest1 extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 20.0, "end" -> 20.0, "system" -> "values"), "lon" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"))),
-      "variable" -> List(Map("uri" -> "collection://merra2/hourly/m2t1nxlnd-2004-04", "name" -> "SFMC:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
-    TaskRequest("CDS.anomaly", dataInputs)
-  }
-}
-object AnomalyTest2 extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"), "lon" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"), "level" -> Map("start" -> 10, "end" -> 10, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra/daily/aggTest", "name" -> "t:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
-    TaskRequest("CDS.anomaly", dataInputs)
-  }
-}
-
-object AnomalyArrayTest extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDS.anomaly"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDS.subset")))
-    TaskRequest("CDS.workflow", dataInputs)
-  }
-}
-
-object AnomalyArrayNcMLTest extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "file://Users/tpmaxwel/data/AConaty/comp-ECMWF/ecmwf.xml", "name" -> "Temperature:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDS.anomaly"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDS.subset")))
-    TaskRequest("CDS.workflow", dataInputs)
-  }
-}
-
-object AveArray extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    import nasa.nccs.esgf.process.DomainAxis.Type._
-
-    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "xy")))))
-    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "t", collection = getCollection("merra/daily"), domain = "d0"))))
-    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 0, 0)), None))
-    new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
-  }
-}
-
-object SpatialAve1 extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = SampleTaskRequests.getSpatialAve("/MERRA/mon/atmos", "ta", "cosine")
-}
+//abstract class SyncExecutor {
+//  val printer = new scala.xml.PrettyPrinter(200, 3)
+//
+//  def main(args: Array[String]) {
+//    val executionManager = getExecutionManager
+//    val final_result = getExecutionManager.blockingExecute( getTaskRequest(args), getRunArgs )
+//    println(">>>> Final Result: " + printer.format(final_result.toXml))
+//  }
+//
+//  def getTaskRequest(args: Array[String]): TaskRequest
+//  def getRunArgs = Map("async" -> "false")
+//  def getExecutionManager = new CDS2ExecutionManager(Map.empty)
+//  def getCollection( id: String ): Collection = Collections.findCollection(id) match { case Some(collection) => collection; case None=> throw new Exception(s"Unknown Collection: $id" ) }
+//}
+//
+//object TimeAveSliceTask extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lon" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lev" -> Map("start" -> 8, "end" -> 8, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "hur:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
+//    TaskRequest("CDS.average", dataInputs)
+//  }
+//}
+//
+//object YearlyCycleSliceTask extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12)))
+//    TaskRequest("CDS.bin", dataInputs)
+//  }
+//}
+//
+//object AveTimeseries extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    import nasa.nccs.esgf.process.DomainAxis.Type._
+//    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "t")))))
+//    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0"))))
+//    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 1, 1), DomainAxis(Y, 100, 100), DomainAxis(X, 100, 100)), None))
+//    new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
+//  }
+//}
+//
+//object CreateVTask extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
+//        Map("name" -> "d1", "time" -> Map("start" -> "2010-01-16T12:00:00", "end" -> "2010-01-16T12:00:00", "system" -> "values"))),
+//      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDS.anomaly"), Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12, "name" -> "CDS.timeBin"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDS.subset")))
+//    TaskRequest("CDS.workflow", dataInputs)
+//  }
+//}
+//
+//object YearlyCycleTask extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12)))
+//    TaskRequest("CDS.timeBin", dataInputs)
+//  }
+//}
+//
+//object SeasonalCycleRequest extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "time" -> Map("start" -> 0, "end" -> 36, "system" -> "indices"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "period" -> 3, "unit" -> "month", "mod" -> 4, "offset" -> 2)))
+//    TaskRequest("CDS.timeBin", dataInputs)
+//  }
+//}
+//
+//object YearlyMeansRequest extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "period" -> 12, "unit" -> "month")))
+//    TaskRequest("CDS.timeBin", dataInputs)
+//  }
+//}
+//
+//object SubsetRequest extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
+//        Map("name" -> "d1", "time" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "domain" -> "d1")))
+//    TaskRequest("CDS.subset", dataInputs)
+//  }
+//}
+//
+//object TimeSliceAnomaly extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lon" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lev" -> Map("start" -> 8, "end" -> 8, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
+//    TaskRequest("CDS.anomaly", dataInputs)
+//  }
+//}
+//
+//object MetadataRequest extends SyncExecutor {
+//  val level = 0
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs: Map[String, Seq[Map[String, Any]]] = level match {
+//      case 0 => Map()
+//      case 1 => Map("variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0")))
+//    }
+//    TaskRequest("CDS.metadata", dataInputs)
+//  }
+//}
+//
+//object CacheRequest extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://merra300/hourly/asm_Cp", "name" -> "t:v0", "domain" -> "d0")))
+//    TaskRequest("util.cache", dataInputs)
+//  }
+//}
+//
+//object AggregateAndCacheRequest extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggTest3", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/", "name" -> "t", "domain" -> "d0")))
+//    TaskRequest("util.cache", dataInputs)
+//  }
+//}
+//
+//object AggregateRequest extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map( "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggTest37", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/" ) ) )
+//    TaskRequest("util.agg", dataInputs)
+//  }
+//}
+//
+//
+//object MultiAggregateRequest extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val baseCollectionId = args(0)
+//    val baseDirectory = new java.io.File(args(1))
+//    assert( baseDirectory.isDirectory, "Base directory is not a directory: " + args(1) )
+//    val dataInputs = Map( "variable" -> baseDirectory.listFiles.map( dir => Map("uri" -> Array("collection:",baseCollectionId,dir.getName).mkString("/"), "path" -> dir.toString ) ).toSeq )
+//    TaskRequest("util.agg", dataInputs)
+//  }
+//}
+//
+//object AggregateAndCacheRequest2 extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://merra/daily/aggTest", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY", "name" -> "t", "domain" -> "d0")))
+//    TaskRequest("util.cache", dataInputs)
+//  }
+//}
+//
+//object AggregateAndCacheRequest1 extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://merra2/hourly/M2T1NXLND-2004-04", "path" -> "/att/pubrepo/MERRA/remote/MERRA2/M2T1NXLND.5.12.4/2004/04", "name" -> "SFMC", "domain" -> "d0")))
+//    TaskRequest("util.cache", dataInputs)
+//  }
+//}
+//
+//object Max extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 20, "end" -> 20, "system" -> "indices"), "time" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://merra/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "axes" -> "xy")))
+//    TaskRequest("CDS.max", dataInputs)
+//  }
+//}
+//
+//object Min extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 20, "end" -> 20, "system" -> "indices"), "time" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://merra/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "axes" -> "xy")))
+//    TaskRequest("CDS.min", dataInputs)
+//  }
+//}
+//
+//object AnomalyTest extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> -7.0854263, "end" -> -7.0854263, "system" -> "values"), "lon" -> Map("start" -> 12.075, "end" -> 12.075, "system" -> "values"), "lev" -> Map("start" -> 1000, "end" -> 1000, "system" -> "values"))),
+//      "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggtest", "name" -> "t:v0", "domain" -> "d0")), // collection://merra300/hourly/asm_Cp
+//      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
+//    TaskRequest("CDS.anomaly", dataInputs)
+//  }
+//}
+//
+//object AnomalyTest1 extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 20.0, "end" -> 20.0, "system" -> "values"), "lon" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"))),
+//      "variable" -> List(Map("uri" -> "collection://merra2/hourly/m2t1nxlnd-2004-04", "name" -> "SFMC:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
+//    TaskRequest("CDS.anomaly", dataInputs)
+//  }
+//}
+//object AnomalyTest2 extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"), "lon" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"), "level" -> Map("start" -> 10, "end" -> 10, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://merra/daily/aggTest", "name" -> "t:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
+//    TaskRequest("CDS.anomaly", dataInputs)
+//  }
+//}
+//
+//object AnomalyArrayTest extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDS.anomaly"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDS.subset")))
+//    TaskRequest("CDS.workflow", dataInputs)
+//  }
+//}
+//
+//object AnomalyArrayNcMLTest extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    val dataInputs = Map(
+//      "domain" -> List(Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
+//      "variable" -> List(Map("uri" -> "file://Users/tpmaxwel/data/AConaty/comp-ECMWF/ecmwf.xml", "name" -> "Temperature:v0", "domain" -> "d0")),
+//      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDS.anomaly"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDS.subset")))
+//    TaskRequest("CDS.workflow", dataInputs)
+//  }
+//}
+//
+//object AveArray extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    import nasa.nccs.esgf.process.DomainAxis.Type._
+//
+//    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "xy")))))
+//    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "t", collection = getCollection("merra/daily"), domain = "d0"))))
+//    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 0, 0)), None))
+//    new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
+//  }
+//}
+//
+//object SpatialAve1 extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = SampleTaskRequests.getSpatialAve("/MERRA/mon/atmos", "ta", "cosine")
+//}
 
 object cdscan extends App with Loggable {
   val printer = new scala.xml.PrettyPrinter(200, 3)

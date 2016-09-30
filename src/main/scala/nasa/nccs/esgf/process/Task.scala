@@ -9,7 +9,7 @@ import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
 import org.joda.time.{DateTime, DateTimeZone}
 import nasa.nccs.utilities.Loggable
-
+import java.util.UUID
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.util.matching.Regex
@@ -21,6 +21,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.esgf.utilities.wpsNameMatchers
+import org.apache.commons.lang.RandomStringUtils
 
 import scala.util.Random
 
@@ -34,7 +35,7 @@ case class ErrorReport(severity: String, message: String) {
   }
 }
 
-class TaskRequest(val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflows: List[WorkflowContainer] = List(), val targetGridSpec: Map[String,String]=Map("id"->"#META") ) {
+class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflows: List[WorkflowContainer] = List(), val targetGridSpec: Map[String,String]=Map("id"->"#META") ) {
   val errorReports = new ListBuffer[ErrorReport]()
   val logger = LoggerFactory.getLogger( this.getClass )
   validate()
@@ -115,26 +116,44 @@ class TaskRequest(val name: String, val variableMap : Map[String,DataContainer],
   }
 }
 
+//object UID1 {
+//  def apply() = new UID()
+//}
+//class UID1 {
+//  val uid = UUID.randomUUID()
+//  def +( id: String ): String = id + "-" + uid.toString
+//}
+
+object UID {
+  def apply() = new UID()
+}
+class UID {
+  val uid = RandomStringUtils.random( 10, true, true )
+  def +( id: String ): String = id + "-" + uid.toString
+}
+
+
 object TaskRequest {
   val logger = LoggerFactory.getLogger( this.getClass )
   def apply(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]]) = {
 //    logger.info( "TaskRequest--> process_name: %s, datainputs: %s".format( process_name, datainputs.toString ) )
-    val data_list: List[DataContainer] = datainputs.getOrElse("variable", List() ).flatMap(DataContainer.factory(_)).toList
+    val uid = UID()
+    val data_list: List[DataContainer] = datainputs.getOrElse("variable", List() ).flatMap( DataContainer.factory(uid,_) ).toList
     val domain_list: List[DomainContainer] = datainputs.getOrElse("domain", List()).map(DomainContainer(_)).toList
-    val operation_list: List[WorkflowContainer] = datainputs.getOrElse("operation", List() ).map(WorkflowContainer( process_name, data_list.map(_.uid), _ ) ).toList
+    val operation_list: List[WorkflowContainer] = datainputs.getOrElse("operation", List() ).map(WorkflowContainer( uid, process_name, data_list.map(_.uid), _ ) ).toList
     val variableMap = buildVarMap( data_list, operation_list )
     val domainMap = buildDomainMap( domain_list )
     val gridId = datainputs.getOrElse("grid", data_list.headOption.map( dc => dc.uid ).getOrElse("#META") ).toString
     val gridSpec = Map( "id" -> gridId.toString )
-    new TaskRequest( process_name, variableMap, domainMap, operation_list, gridSpec )
+    new TaskRequest( uid, process_name, variableMap, domainMap, operation_list, gridSpec )
   }
 
   def buildVarMap( data: List[DataContainer], workflow: List[WorkflowContainer] ): Map[String,DataContainer] = {
-    var data_var_items = for( data_container <- data ) yield ( data_container.uid -> data_container )
-    var op_var_items = for( workflow_container<- workflow; operation<-workflow_container.operations; if !operation.rid.isEmpty ) yield ( operation.rid -> DataContainer(operation) )
+    var data_var_items = for( data_container <- data ) yield data_container.uid -> data_container
+    var op_var_items = for( workflow_container<- workflow; operation<-workflow_container.operations; if !operation.rid.isEmpty ) yield operation.rid -> DataContainer(operation)
     val var_map = Map( op_var_items ++ data_var_items: _* )
 //    logger.info( "Created Variable Map: " + var_map.toString + " from data containers: " + data.map( data_container => ( "id:" + data_container.uid ) ).mkString("[ ",", "," ]") )
-    for( workflow_container<- workflow; operation<-workflow_container.operations; vid<-operation.inputs; if(!vid.isEmpty)  ) var_map.get( vid ) match {
+    for( workflow_container<- workflow; operation<-workflow_container.operations; vid<-operation.inputs; if !vid.isEmpty  ) var_map.get( vid ) match {
       case Some(data_container) => data_container.addOpSpec( operation )
       case None => throw new Exception( "Unrecognized variable %s in varlist [%s]".format( vid, var_map.keys.mkString(",") ) )
     }
@@ -535,7 +554,7 @@ object DataContainer extends ContainerBase {
     }
   }
 
-  def factory(metadata: Map[String, Any]): Array[DataContainer] = {
+  def factory(uid: UID, metadata: Map[String, Any]): Array[DataContainer] = {
     try {
       val fullname = metadata.getOrElse("name", "").toString
       val domain = metadata.getOrElse("domain", "").toString
@@ -548,13 +567,13 @@ object DataContainer extends ContainerBase {
           val name_items = var_names.head.split(':')
           val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain), fragIdOpt )
           val vid = normalize(name_items.last)
-          Array( new DataContainer(if (vid.isEmpty) s"c-$base_index" else vid, source = Some(dsource)) )
+          Array( new DataContainer(if (vid.isEmpty) uid+s"c-$base_index" else uid+vid, source = Some(dsource)) )
         case None =>
           for ((name, index) <- var_names.zipWithIndex) yield {
             val name_items = name.split(':')
             val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain))
             val vid = normalize(name_items.last)
-            new DataContainer(if (vid.isEmpty) s"c-$base_index$index" else vid, source = Some(dsource))
+            new DataContainer(if (vid.isEmpty) uid+s"c-$base_index$index" else uid+vid, source = Some(dsource))
           }
       }
     } catch {
@@ -689,9 +708,9 @@ class WorkflowContainer(val operations: Iterable[OperationContext] = List() ) ex
 }
 
 object WorkflowContainer extends ContainerBase {
-  def apply(process_name: String, uid_list: List[String], metadata: Map[String, Any]): WorkflowContainer = {
+  def apply( uid: UID, process_name: String, uid_list: List[String], metadata: Map[String, Any]): WorkflowContainer = {
     try {
-      new WorkflowContainer( OperationContext( process_name, uid_list, metadata ) )
+      new WorkflowContainer( OperationContext( uid: UID, process_name, uid_list, metadata ) )
     } catch {
       case e: Exception =>
         val msg = "Error creating WorkflowContainer: " + e.getMessage
@@ -714,13 +733,12 @@ class OperationContext( val identifier: String, val name: String, val rid: Strin
 }
 
 object OperationContext extends ContainerBase  {
-  private val random = new Random( System.currentTimeMillis )
   var resultIndex = 0
-  def apply( process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
+  def apply( uid: UID, process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
     val op_inputs: List[String] = metadata.get( "input" ) match {
-      case Some( input_values: List[_] ) => input_values.map( _.toString.trim.toLowerCase )
-      case Some( input_value: String ) => List( input_value.trim.toLowerCase )
-      case None => uid_list.map( _.trim.toLowerCase )
+      case Some( input_values: List[_] ) => input_values.map( uid + _.toString.trim.toLowerCase )
+      case Some( input_value: String ) => List( uid + input_value.trim.toLowerCase )
+      case None => uid_list.map( uid + _.trim.toLowerCase )
       case x => throw new Exception ( "Unrecognized input in operation spec: " + x.toString )
     }
     val op_name = metadata.getOrElse( "name", process_name ).toString.trim.toLowerCase
@@ -728,7 +746,7 @@ object OperationContext extends ContainerBase  {
     val input = metadata.getOrElse("input","").toString
     val opLongName = op_name + "-" + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
-    val identifier: String = Array( opLongName, dt.toString("MM.dd-hh.mm.ss") ).mkString("-")
+    val identifier: String = UID() + op_name
     val rid = metadata.getOrElse("result",identifier).toString
     new OperationContext( identifier = identifier, name=op_name, rid = rid, inputs = op_inputs, optargs )
   }
