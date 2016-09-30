@@ -250,6 +250,7 @@ class CDCoordMap( val dimIndex: Int, val dimOffset: Int, val mapArray: Array[Int
   def subset( section: ma2.Section ): CDCoordMap = {
     assert( dimOffset==0, "Attempt to subset a partitioned CoordMap: not supported.")
     val start: Int = section.getRange(dimIndex).first()
+    logger.info( "CDCoordMap[%d].subset(%s): start=%d, until=%d, size=%d".format( dimIndex, section.toString, start, mapArray.length, mapArray.length-start) )
     new CDCoordMap( dimIndex, start, mapArray.slice( start, mapArray.length ) )
   }
 
