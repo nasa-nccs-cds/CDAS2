@@ -125,13 +125,13 @@ class PartitionedFragment( partitions: Partitions, val maskOpt: Option[CDByteArr
       val partFragSpec = domainFragSpec(partIndex)
       val sub_section = optSection match {
         case Some(osect) =>
-          logger.info( "OP section intersect: " + osect.toString )
+//          logger.info( "OP section intersect: " + osect.toString )
           domain_section.intersect(osect)
         case None =>
-          logger.info( "OP section empty" )
+//          logger.info( "OP section empty" )
           domain_section
       }
-      logger.info( s" +++++++++++++++++++++>>>> DomainDataFragment[$partIndex]-> section = " + sub_section.toString )
+//      logger.info( s" +++++++++++++++++++++>>>> DomainDataFragment[$partIndex]-> section = " + sub_section.toString )
       partFragSpec.cutIntersection( sub_section ) match {
         case Some( cut_spec ) =>
           val array_section = cut_spec.roi.shiftOrigin( frag_section )

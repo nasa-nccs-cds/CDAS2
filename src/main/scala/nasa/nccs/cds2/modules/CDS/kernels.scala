@@ -181,7 +181,6 @@ class CDS extends KernelModule with KernelTools {
             val t11 = System.nanoTime
 //            logger.info("Binned array, time = %.4f s, section = %s\n *** values = %s\n *** weights=%s".format((t11 - t10) / 1.0E9, dataFrag.spec.roi.toString, values_sum.toDataString, weights_sum.toDataString ))
             val resultFragSpec = dataFrag.getReducedSpec(Set(axes.args(0)), values_sum.getShape(axes.args(0)))
-            logger.info( "Binned array result[%d], coordMap[%d] = %s".format( partIndex, coordMap.mapArray.size, coordMap.toString ) )
             new DataFragment( dataFrag.spec, values_sum, Some(weights_sum), Some(coordMap) )
         }
       })

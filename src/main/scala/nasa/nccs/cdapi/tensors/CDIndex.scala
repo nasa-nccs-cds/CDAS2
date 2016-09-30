@@ -245,7 +245,7 @@ class CDCoordMap( val dimIndex: Int, val dimOffset: Int, val mapArray: Array[Int
         throw ex
     }
   }
-  override def toString = "CDCoordMap{ nbins=%d, dim=%d, offset=%d, mapArray=[ %s ]}".format( nBins, dimIndex, dimOffset, mapArray.mkString(", ") )
+  override def toString = "CDCoordMap{ nbins=%d, dim=%d, offset=%d, mapArray[%d]=[ %s ]}".format( nBins, dimIndex, dimOffset, mapArray.size, mapArray.mkString(", ") )
 
   def subset( section: ma2.Section ): CDCoordMap = {
     assert( dimOffset==0, "Attempt to subset a partitioned CoordMap: not supported.")
