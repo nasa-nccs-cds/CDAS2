@@ -124,14 +124,29 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
     try {
       val partition = partitions.getPart(partIndex)
       val partition_data = partition.data(fragmentSpec.missing_value)
-      domainSection( partition, optSection ) map {
-        case ( fragSpec, section )  => ( fragSpec, CDFloatArray( partition_data.section( section ) ) )
+      domainSection(partition, optSection) map {
+        case (fragSpec, section) => (fragSpec, CDFloatArray(partition_data.section(section)))
       }
     } catch {
-      case ex: Exception => logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )
+      case ex: Exception => logger.warn(s"Failed getting data fragment $partIndex: " + ex.toString)
         None
     }
   }
+
+//  def domainDataFragment( partIndex: Int, context: CDASExecutionContext ): Option[DataFragment] = {
+//    val optSection: Option[ma2.Section] = context.getOpSections match {
+//      case None => return None
+//      case Some( sections ) =>
+////        logger.info( "OP sections: " + sections.map( _.toString ).mkString( "( ", ", ", " )") )
+//        if( sections.isEmpty ) None
+//        else {
+//          val result = sections.foldLeft(sections.head)( _.intersect(_) )
+////          logger.info( "OP sections: %s >>>>---------> intersection: %s".format( sections.map( _.toString ).mkString( "( ", ", ", " )"), result.toString ) )
+//          if (result.computeSize() > 0) { Some(result) }
+//          else return None
+//        }
+//    }
+//  }
 
   def domainCDDataSection( partIndex: Int,  optSection: Option[ma2.Section] ): Option[ ( String, Map[String,String], CDFloatArray )] = {
     try {
@@ -163,10 +178,10 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
       val sub_section = optSection match {
         case Some(osect) =>
           val rv = domain_section.intersect( osect )
-          logger.info( "OP section intersect: " + osect.toString + ", result = " + rv.toString )
+//          logger.info( "OP section intersect: " + osect.toString + ", result = " + rv.toString )
           rv
         case None =>
-          logger.info( "OP section empty" )
+//          logger.info( "OP section empty" )
           domain_section
       }
       partFragSpec.cutIntersection( sub_section ) match {

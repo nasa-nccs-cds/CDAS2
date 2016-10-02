@@ -176,7 +176,6 @@ abstract class Kernel extends Loggable with Serializable {
 
   def getOpName( context: KernelContext ):String = "%s(%s)".format( name, context.operation.inputs.mkString(","))
 
-
   def map( partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext ): Option[DataFragment] = { inputs.head }
 
   def map( inputs: RDDPartition, context: KernelContext ): RDDPartition = { inputs }
@@ -375,7 +374,10 @@ abstract class DualKernel extends Kernel {
         logger.info("DualKernel: %s[%s] + %s[%s]".format( dataFrag0.spec.longname, dataFrag0.data.getShape.mkString(","), dataFrag1.spec.longname, dataFrag1.data.getShape.mkString(",") ) )
         val async = context.config("async", "false").toBoolean
         val result_val_masked: DataFragment = mapCombineOpt match {
-          case Some(combineOp) => DataFragment.combine( combineOp, dataFrag0, dataFrag1 )
+          case Some(combineOp) =>
+            logger.info( "DIFF2: dataFrag0 coordMap = %s".format( dataFrag0.optCoordMap.map( _.toString ).getOrElse("") ) )
+            logger.info( "DIFF2: dataFrag1 coordMap = %s".format( dataFrag1.optCoordMap.map( _.toString ).getOrElse("") ) )
+            DataFragment.combine( combineOp, dataFrag0, dataFrag1 )
           case None => dataFrag0
         }
         logger.info("\nExecuted Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))

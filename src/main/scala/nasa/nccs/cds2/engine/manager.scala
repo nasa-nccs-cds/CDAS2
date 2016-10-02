@@ -517,15 +517,15 @@ object YearlyCycleSliceTask extends SyncExecutor {
   }
 }
 
-object AveTimeseries extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    import nasa.nccs.esgf.process.DomainAxis.Type._
-    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "t")))))
-    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0"))))
-    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 1, 1), DomainAxis(Y, 100, 100), DomainAxis(X, 100, 100)), None))
-    new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
-  }
-}
+//object AveTimeseries extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    import nasa.nccs.esgf.process.DomainAxis.Type._
+//    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "t")))))
+//    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0"))))
+//    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 1, 1), DomainAxis(Y, 100, 100), DomainAxis(X, 100, 100)), None))
+//    new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
+//  }
+//}
 
 object CreateVTask extends SyncExecutor {
   def getTaskRequest(args: Array[String]): TaskRequest = {
@@ -723,16 +723,16 @@ object AnomalyArrayNcMLTest extends SyncExecutor {
   }
 }
 
-object AveArray extends SyncExecutor {
-  def getTaskRequest(args: Array[String]): TaskRequest = {
-    import nasa.nccs.esgf.process.DomainAxis.Type._
-
-    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "xy")))))
-    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "t", collection = getCollection("merra/daily"), domain = "d0"))))
-    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 0, 0)), None))
-    new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
-  }
-}
+//object AveArray extends SyncExecutor {
+//  def getTaskRequest(args: Array[String]): TaskRequest = {
+//    import nasa.nccs.esgf.process.DomainAxis.Type._
+//
+//    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "xy")))))
+//    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "t", collection = getCollection("merra/daily"), domain = "d0"))))
+//    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 0, 0)), None))
+//    new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
+//  }
+//}
 
 object SpatialAve1 extends SyncExecutor {
   def getTaskRequest(args: Array[String]): TaskRequest = SampleTaskRequests.getSpatialAve("/MERRA/mon/atmos", "ta", "cosine")
