@@ -35,7 +35,7 @@ case class ErrorReport(severity: String, message: String) {
   }
 }
 
-class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflows: List[WorkflowContainer] = List(), val targetGridSpec: Map[String,String]=Map("id"->"#META") ) {
+class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflow: List[OperationContext] = List(), val targetGridSpec: Map[String,String]=Map("id"->"#META") ) {
   val errorReports = new ListBuffer[ErrorReport]()
   val logger = LoggerFactory.getLogger( this.getClass )
   validate()
@@ -48,7 +48,7 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
   }
 
   def getJobRec( run_args: Map[String,String] ): JobRecord = {
-    val jobIds = for( workflow <- workflows; operation <- workflow.operations ) yield operation.rid
+    val jobIds = for(  operation <- workflow ) yield operation.rid
     new JobRecord( jobIds.mkString("-"))
   }
 
@@ -77,7 +77,7 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
         throw new Exception( s"Error, Missing domain $domid in variable $vid" )
       }
     }
-    for (workflow <- workflows; operation <- workflow.operations; opid = operation.name; var_arg <- operation.inputs; if !var_arg.isEmpty ) {
+    for (operation <- workflow; opid = operation.name; var_arg <- operation.inputs; if !var_arg.isEmpty ) {
       if (!variableMap.contains(var_arg)) {
         var keylist = variableMap.keys.mkString("[", ",", "]")
         logger.error(s"Error, No $var_arg in $keylist in operation $opid")
@@ -87,7 +87,7 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
   }
 
   override def toString = {
-    var taskStr = s"TaskRequest { name='$name', variables = '$variableMap', domains='$domainMap', workflows='$workflows' }"
+    var taskStr = s"TaskRequest { name='$name', variables = '$variableMap', domains='$domainMap', workflows='$workflow' }"
     if ( errorReports.nonEmpty ) {
       taskStr += errorReports.mkString("\nError Reports: {\n\t", "\n\t", "\n}")
     }
@@ -103,7 +103,7 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
         {domainMap.values.map(_.toXml ) }
       </domains>
       <operation>
-        { workflows.map(_.toXml ) }
+        { workflow.map(_.toXml ) }
       </operation>
       <error_reports>
         {errorReports.map(_.toXml ) }
@@ -125,11 +125,14 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
 //}
 
 object UID {
+  def ndigits = 8
   def apply() = new UID()
 }
 class UID {
-  val uid = RandomStringUtils.random( 10, true, true )
+  import UID._
+  val uid = RandomStringUtils.random( ndigits, true, true )
   def +( id: String ): String = id + "-" + uid.toString
+  override def toString = uid
 }
 
 
@@ -140,7 +143,7 @@ object TaskRequest {
     val uid = UID()
     val data_list: List[DataContainer] = datainputs.getOrElse("variable", List() ).flatMap( DataContainer.factory(uid,_) ).toList
     val domain_list: List[DomainContainer] = datainputs.getOrElse("domain", List()).map(DomainContainer(_)).toList
-    val operation_list: List[WorkflowContainer] = datainputs.getOrElse("operation", List() ).map(WorkflowContainer( uid, process_name, data_list.map(_.uid), _ ) ).toList
+    val operation_list: List[OperationContext] = datainputs.getOrElse("operation", List() ).zipWithIndex.map { case (op, index) => OperationContext( index, uid, process_name, data_list.map(_.uid), op ) }.toList
     val variableMap = buildVarMap( data_list, operation_list )
     val domainMap = buildDomainMap( domain_list )
     val gridId = datainputs.getOrElse("grid", data_list.headOption.map( dc => dc.uid ).getOrElse("#META") ).toString
@@ -148,13 +151,13 @@ object TaskRequest {
     new TaskRequest( uid, process_name, variableMap, domainMap, operation_list, gridSpec )
   }
 
-  def buildVarMap( data: List[DataContainer], workflow: List[WorkflowContainer] ): Map[String,DataContainer] = {
+  def buildVarMap( data: List[DataContainer], workflow: List[OperationContext] ): Map[String,DataContainer] = {
     var data_var_items = for( data_container <- data ) yield data_container.uid -> data_container
-    var op_var_items = for( workflow_container<- workflow; operation<-workflow_container.operations; if !operation.rid.isEmpty ) yield operation.rid -> DataContainer(operation)
+    var op_var_items = for( operation<- workflow; if !operation.rid.isEmpty ) yield operation.rid -> DataContainer(operation)
     val var_map = Map( op_var_items ++ data_var_items: _* )
     logger.info( "Created Variable Map: op_var_items = (%s), data_var_items = (%s)".format( op_var_items.map(_._1).mkString(","), data_var_items.map(_._1).mkString(",") ) )
 //    logger.info( "Created Variable Map: " + var_map.toString + " from data containers: " + data.map( data_container => ( "id:" + data_container.uid ) ).mkString("[ ",", "," ]") )
-    for( workflow_container<- workflow; operation<-workflow_container.operations; vid<-operation.inputs; if !vid.isEmpty  ) var_map.get( vid ) match {
+    for( operation<-workflow; vid<-operation.inputs; if !vid.isEmpty  ) var_map.get( vid ) match {
       case Some(data_container) => data_container.addOpSpec( operation )
       case None => throw new Exception( "Unrecognized variable %s in varlist [%s]".format( vid, var_map.keys.mkString(",") ) )
     }
@@ -712,30 +715,7 @@ object DomainContainer extends ContainerBase {
   def empty( name: String ):  DomainContainer = new DomainContainer( name )
 }
 
-class WorkflowContainer(val operations: Iterable[OperationContext] = List() ) extends ContainerBase {
-  def this( oc: OperationContext ) = this( List(oc) )
-  override def toString = {
-    s"WorkflowContainer { operations = $operations }"
-  }
-  override def toXml = {
-    <workflow>  { operations.map( _.toXml ) }  </workflow>
-  }
-}
-
-object WorkflowContainer extends ContainerBase {
-  def apply( uid: UID, process_name: String, uid_list: List[String], metadata: Map[String, Any]): WorkflowContainer = {
-    try {
-      new WorkflowContainer( OperationContext( uid: UID, process_name, uid_list, metadata ) )
-    } catch {
-      case e: Exception =>
-        val msg = "Error creating WorkflowContainer: " + e.getMessage
-        logger.error(msg)
-        throw e
-    }
-  }
-}
-
-class OperationContext( val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext with Serializable  {
+class OperationContext( val index: Int, val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext with Serializable  {
   def getConfiguration = configuration
   println( "OperationContext: " + rid )
 
@@ -749,7 +729,7 @@ class OperationContext( val identifier: String, val name: String, val rid: Strin
 
 object OperationContext extends ContainerBase  {
   var resultIndex = 0
-  def apply( uid: UID, process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
+  def apply( index: Int, uid: UID, process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
     val op_inputs: List[String] = metadata.get( "input" ) match {
       case Some( input_values: List[_] ) => input_values.map( uid + _.toString.trim.toLowerCase )
       case Some( input_value: String ) => List( uid + input_value.trim.toLowerCase )
@@ -763,9 +743,9 @@ object OperationContext extends ContainerBase  {
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
     val rid = metadata.get("result") match {
       case Some( result_id ) => uid + result_id.toString
-      case None => UID() + op_name
+      case None => uid + op_name + "-" + index.toString
     }
-    new OperationContext( identifier = UID() + op_name, name=op_name, rid = rid, inputs = op_inputs, optargs )
+    new OperationContext( index, identifier = UID() + op_name, name=op_name, rid = rid, inputs = op_inputs, optargs )
   }
   def generateResultId: String = { resultIndex += 1; "$v"+resultIndex.toString }
 }

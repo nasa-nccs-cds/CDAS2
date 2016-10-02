@@ -148,7 +148,7 @@ class CDASPartitioner( val cache_id: String, private val _section: ma2.Section, 
 
 class FileToCacheStream( val ncVariable: nc2.Variable, private val _section: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
   val attributes = nc2.Attribute.makeMap(ncVariable.getAttributes).toMap
-  val missing_value: Float = getAttributeValue( "missing_value", "" ) match { case "" => Float.MaxValue; case s => s.toFloat }
+  val missing_value: Float = getAttributeValue( "missing_value", "" ) match { case "" => Float.MaxValue; case x => x.toFloat }
   private val baseShape = _section.getShape
   val cacheId = "a" + System.nanoTime.toHexString
   val dType = ncVariable.getDataType

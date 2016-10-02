@@ -405,7 +405,7 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
   }
 
   def executeWorkflows( request: TaskRequest, requestCx: RequestContext ): ExecutionResults = {
-    val results = new ExecutionResults( request.workflows.flatMap(workflow => workflow.operations.map( operationExecution( _, requestCx ))) )
+    val results = new ExecutionResults( request.workflow.map( operationExecution( _, requestCx )))
     FragmentPersistence.close()
 //    logger.info( "---------->>> Execute Workflows: Created XML response: " + results.toXml.toString )
     results
