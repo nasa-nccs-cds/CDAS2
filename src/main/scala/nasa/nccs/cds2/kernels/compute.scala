@@ -1,14 +1,10 @@
 package nasa.nccs.cds2.kernels
 import com.google.common.reflect.ClassPath
 import nasa.nccs.cdapi.kernels.Kernel
-import nasa.nccs.utilities.cdsutils
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
-trait KernelTools {
-
-}
 
 // TOUSE: Include dependency  'reflections'
 //class ReflectionTools {
@@ -51,33 +47,3 @@ class KernelModule( val name: String, val kernels: Map[String,ClassPath.ClassInf
 
 
 
-object KernelPackageTools {
-  import com.google.common.reflect.ClassPath
-  val internalKernelsPackage = "nasa.nccs.cds2.modules"
-  val externalKernelPackages = cdsutils.envList("CDAS_KERNEL_PACKAGES")
-  val classpath = ClassPath.from( getClass.getClassLoader )
-  val kernelPackagePaths: List[String] = List( internalKernelsPackage ) ++ externalKernelPackages
-
-  def getKernelClasses: List[ClassPath.ClassInfo] = {
-    kernelPackagePaths.map( package_path => classpath.getTopLevelClassesRecursive( package_path ).toList ).foldLeft(List[ClassPath.ClassInfo]())( _ ++ _ )
-  }
-
-  def getKernelMap: Map[String,KernelModule] = {
-    getKernelClasses.map(ClassInfoRec( _ )).groupBy( _.module.toLowerCase ).mapValues( KernelModule(_) )
-  }
-}
-
-object ClasspathToolsTest extends App {
-  val kmap = KernelPackageTools.getKernelMap
-  kmap.get("CDSpark") match {
-    case Some( kmod ) =>
-      println( "Got module ")
-      kmod.getKernel("min") match {
-        case Some( kernel ) =>
-          println( "Got kernel " + kernel.getClass.getName )
-          cdsutils.testSerializable(kernel)
-        case None => println( "No kernel ")
-      }
-    case None => println( "No Module ")
-  }
-}

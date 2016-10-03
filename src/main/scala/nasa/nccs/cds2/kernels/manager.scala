@@ -1,18 +1,7 @@
 package nasa.nccs.cds2.kernels
-import java.util.jar.JarFile
-
-import nasa.nccs.cdapi.kernels.Kernel
-import nasa.nccs.cds2.modules
-import nasa.nccs.utilities.cdsutils
-import nasa.nccs.cds2.modules.{CDS, CDSpark}
-
-import collection.mutable
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import scala.reflect.runtime.{universe => u}
-import scala.reflect.runtime.universe._
-
-
+import nasa.nccs.utilities.cdsutils
 
 class KernelMgr(  ) {
 
@@ -22,35 +11,45 @@ class KernelMgr(  ) {
 
   def getModuleNames: List[String] = kernelModules.keys.toList
 
-//  def isKernelModuleJar(jarFile: JarFile): Boolean = cdsutils.getJarAttribute( jarFile, "Specification-Title" ) == "CDS2KernelModule"
-//
-//  def importKernelModuleSpecs(jarFile: JarFile): Iterator[Class[_]] =
-//    for( cls <- cdsutils.getClassesFromJar(jarFile); if cls.getSuperclass.getName == "nasa.nccs.cdapi.kernels.KernelModuleSpec") yield cls // cls.getDeclaredConstructors()(0).newInstance().asInstanceOf[KernelModuleSpec]
-
   def toXml = <modules>{ kernelModules.values.map( _.toXml ) } </modules>
 
   def getModulesXml = {
     val elemList: List[xml.Elem] = kernelModules.values.map( _.toXml ).toList
     <kernels>{ elemList }</kernels>
   }
-
-//  def collectKernelModules(): Map[String, KernelModule] = {
-//    Map.empty
-//    val kspecs = ( for (jarFile <- cdsutils.getProjectJars; if isKernelModuleJar(jarFile); kspec <- importKernelModuleSpecs(jarFile) ) yield  u.typeOf[kspec.type] ).toSeq
-//    val kmodTypes = Seq( modules.CDS, CDSpark ) ++ kspecs
-//    val instances = modules.CDSpark.getKernelInstances
-//    Map.empty
-//    val kernelItems = kmodTypes.map( kmodType => {
-//      val kspec = kmodType.getClass().getDeclaredConstructors()(0).newInstance().asInstanceOf[KernelModuleSpec]
-//      val kernelTags = kmodType.members // .filter( m => m.isClass )
-//      val kernelInstances = kernelTags.flatMap ( _.getClass.getDeclaredConstructors()(0).newInstance() match { case kernel: Kernel => Some(kernel); case _ => None } )
-//      val kernelMap =  Map( kernelInstances.map( kernel=> kernel.operation.toLowerCase -> kernel ).toSeq:_* )
-//      kspec.name.toLowerCase -> new KernelModule( kspec, kernelMap )
-//    })
-//    Map( kernelItems: _* )
-//  }
-
 }
+
+object KernelPackageTools {
+  import com.google.common.reflect.ClassPath
+  val internalKernelsPackage = "nasa.nccs.cds2.modules"
+  val externalKernelPackages = cdsutils.envList("CDAS_KERNEL_PACKAGES")
+  val classpath = ClassPath.from( getClass.getClassLoader )
+  val kernelPackagePaths: List[String] = List( internalKernelsPackage ) ++ externalKernelPackages
+
+  def getKernelClasses: List[ClassPath.ClassInfo] = {
+    kernelPackagePaths.map( package_path => classpath.getTopLevelClassesRecursive( package_path ).toList ).foldLeft(List[ClassPath.ClassInfo]())( _ ++ _ )
+  }
+
+  def getKernelMap: Map[String,KernelModule] = {
+    getKernelClasses.map(ClassInfoRec( _ )).groupBy( _.module.toLowerCase ).mapValues( KernelModule(_) )
+  }
+}
+
+object ClasspathToolsTest extends App {
+  val kmap = KernelPackageTools.getKernelMap
+  kmap.get("CDSpark") match {
+    case Some( kmod ) =>
+      println( "Got module ")
+      kmod.getKernel("min") match {
+        case Some( kernel ) =>
+          println( "Got kernel " + kernel.getClass.getName )
+          cdsutils.testSerializable(kernel)
+        case None => println( "No kernel ")
+      }
+    case None => println( "No Module ")
+  }
+}
+
 
 
 

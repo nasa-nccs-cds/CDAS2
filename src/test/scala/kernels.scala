@@ -3,17 +3,17 @@ import nasa.nccs.cdapi.cdm.Collection
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.esgf.process.RequestContext
-import nasa.nccs.utilities.cdsutils
+import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.ma2
 
-class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) {
+class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   Collections.addCollection( "merra.test", merra_data, "MERRA data", List("ta") )
   Collections.addCollection( "const.test", const_data, "Constant data", List("ta") )
 
   test("Sum") {
     val nco_verified_result = 4.886666e+07
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs) \\ "data"
+    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
     val result_value = result_node.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
@@ -21,7 +21,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) {
   test("Sum Constant") {
     val nco_verified_result = 180749.0
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/const.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs) \\ "data"
+    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
     val result_value = result_node.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
@@ -29,13 +29,9 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) {
   test("Maximum") {
     val nco_verified_result = 291.1066
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs)
-    val result_part = result_node \\ "partition"
-  //  printf( "\nRESULT = "      + result_node.toString.substring(0,1000) + "\n\n")
-    printf( "\n RESULT DATA = " + cdsutils.toString(result_part.text) + "\n" )
-
-//    val result_value = result_node.text.toFloat
-//    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
+    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
+    val result_value = result_node.text.toFloat
+    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
   test("SerializeTest") {
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.serializeTest","input":"v1","domain":"d0"}]]"""
@@ -44,7 +40,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) {
   test("Minimum") {
     val nco_verified_result = 239.4816
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.min","input":"v1","domain":"d0","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs) \\ "data"
+    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
     val result_value = result_node.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }

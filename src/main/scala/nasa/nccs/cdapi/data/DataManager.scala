@@ -98,7 +98,10 @@ class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase[Float]] ,
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
   }
   def getElement( id: String ): Option[ArrayBase[Float]] = elements.get( id )
-  def toXml: xml.Elem =  <partition> { elements.mapValues( _.toXml ) } </partition> % metadata
+  def toXml: xml.Elem = {
+    val values: Iterable[xml.Node] = elements.values.map(_.toXml)
+    <partition> {values} </partition>  % metadata
+  }
 }
 
 object RDDPartition {

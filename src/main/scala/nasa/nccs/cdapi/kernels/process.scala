@@ -140,6 +140,7 @@ class AxisIndices( private val axisIds: Set[Int] = Set.empty ) {
   def getAxes: Seq[Int] = axisIds.toSeq
   def args = axisIds.toArray
   def includes( axisIndex: Int ): Boolean = axisIds.contains( axisIndex )
+  override def toString = axisIds.mkString(",")
 }
 
 object Kernel {
@@ -398,8 +399,13 @@ abstract class SingularRDDKernel extends Kernel {
     val result_array_map : Map[String,HeapFltArray] = inputs.elements.mapValues { data  =>
       val input_array = data.toCDFloatArray
       mapCombineOpt match {
-        case Some(combineOp) => HeapFltArray( CDFloatArray(input_array.reduce(combineOp, axes.args, initValue)), data.metadata )
-        case None => HeapFltArray( input_array, data.metadata )
+        case Some(combineOp) =>
+          val result = CDFloatArray(input_array.reduce(combineOp, axes.args, initValue))
+          logger.info(" ##### KERNEL [%s]: Map Op: combine, axes = %s, result shape = %s".format( name, axes, result.getShape.mkString(",") ) )
+          HeapFltArray( result, data.metadata )
+        case None =>
+          logger.info(" ##### KERNEL [%s]: Map Op: NONE".format( name ) )
+          HeapFltArray( input_array, data.metadata )
       }
     }
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))

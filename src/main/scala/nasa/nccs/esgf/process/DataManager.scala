@@ -317,13 +317,13 @@ object GridContext extends Loggable {
   def apply( targetGrid: TargetGrid ) : GridContext = {
     val axisMap: Map[Char,Option[( Int, HeapDblArray )]] = Map( List( 't', 'z', 'y', 'x' ).map( axis => axis -> targetGrid.getAxisCDData(axis) ):_* )
     val cfAxisNames: Array[String] = ( 0 until targetGrid.getRank ).map( dim_index => targetGrid.getCFAxisName( dim_index ) ).toArray
-    val axisIndexMap: Map[String,Int] = Map( cfAxisNames.map( cfAxisName => cfAxisName -> targetGrid.getAxisIndex(cfAxisName) ):_* )
+    val axisIndexMap: Map[String,Int] = Map( cfAxisNames.map( cfAxisName => cfAxisName.toLowerCase -> targetGrid.getAxisIndex(cfAxisName) ):_* )
     new GridContext(axisMap,cfAxisNames,axisIndexMap)
   }
 }
 
 class GridContext(val axisMap: Map[Char,Option[( Int, HeapDblArray )]], val cfAxisNames: Array[String], val axisIndexMap: Map[String,Int] ) extends Serializable {
-  def getAxisIndices( axisConf: String ): AxisIndices = new AxisIndices( axisIds=axisConf.map( ch => getAxisIndex(ch.toString ) ).toSet )
+  def getAxisIndices( axisConf: String ): AxisIndices = new AxisIndices( axisIds=axisConf.map( ch => getAxisIndex( ch.toString.toLowerCase ) ).toSet )
   def getAxisIndex( cfAxisName: String, default_val: Int = -1 ): Int = axisIndexMap.getOrElse( cfAxisName, default_val )
   def getCFAxisName( dimension_index: Int ): String = cfAxisNames(dimension_index)
   def getAxisData( axis: Char ): Option[( Int, HeapDblArray )] = axisMap.getOrElse( axis, None )

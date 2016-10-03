@@ -52,6 +52,7 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map
     val inputRDD: RDD[ RDDPartition ] = cdsContext.domainRDDPartition( opInputs, context )
     val mapresult: RDD[RDDPartition] = inputRDD.map( rdd_part => kernel.map( rdd_part, kernelContext ) )
     logger.info( "\n\n ----------------------- BEGIN reduce Operation ----------------------- \n" )
+//    logger.info( " ----> Map Result = " + mapresult.collect().map(_.toXml.toString).mkString(","))
     val result = reduce( mapresult, kernelContext, kernel )
     logger.info( "\n\n ----------------------- FINISHED reduce Operation: result = " + result.toString )
     result
@@ -63,7 +64,7 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map
     val kernelContext = context.toKernelContext
     val result = postOp( pre_result, kernelContext  )
     logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec  ********** \n".format(kernel.name,kernel.id,context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
-    logger.info( "\n\nResult partition elements= %s \n\n".format( result.elements.values.map( cdsutils.toString(_) ) ) )
+//    logger.info( "\n\nResult partition elements= %s \n\n".format( result.elements.values.map( cdsutils.toString(_) ) ) )
     createResponse( result, context )
   }
 

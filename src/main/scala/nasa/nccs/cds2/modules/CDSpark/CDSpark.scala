@@ -3,9 +3,6 @@ package nasa.nccs.cds2.modules.CDSpark
 import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray._
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDTimeCoordMap}
-import nasa.nccs.cds2.kernels.KernelTools
-import nasa.nccs.esgf.process.DataFragment
-import nasa.nccs.utilities.cdsutils
 
 import scala.reflect.runtime.{universe => u}
 
