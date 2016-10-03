@@ -1,7 +1,7 @@
 package nasa.nccs.cdapi.kernels
 
-import nasa.nccs.cdapi.data.{HeapFltArray, ArrayBase, RDDPartition}
-import nasa.nccs.cdapi.tensors.CDFloatArray
+import nasa.nccs.cdapi.data.{ArrayBase, HeapFltArray, RDDPartition}
+import nasa.nccs.cdapi.tensors.{CDArray, CDFloatArray}
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.esgf.process._
 import org.apache.spark.rdd.RDD
@@ -15,7 +15,7 @@ import nasa.nccs.utilities.Loggable
 import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
-import scala.util.{ Random, Success, Failure }
+import scala.util.{Failure, Random, Success}
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -39,9 +39,8 @@ class Port( val name: String, val cardinality: String, val description: String, 
   }
 }
 
-class KernelContext( val operation: OperationContext, val grid: GridContext, private val configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
+class KernelContext( val operation: OperationContext, val grid: GridContext, val sectionMap: Map[String,Option[CDSection]], private val configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
   def getConfiguration = configuration ++ operation.getConfiguration
-
 }
 
 class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) extends Loggable  {
@@ -60,7 +59,10 @@ class CDASExecutionContext( val operation: OperationContext, val request: Reques
     }))
   }
 
-  def toKernelContext: KernelContext = new KernelContext( operation, GridContext(request.targetGrid), request.getConfiguration )
+  def toKernelContext: KernelContext = {
+    val sectionMap: Map[String,Option[CDSection]] = request.inputs.mapValues( _.map( _.cdsection ) )
+    new KernelContext( operation, GridContext(request.targetGrid), sectionMap, request.getConfiguration )
+  }
 
   def getOpSectionIntersection: Option[ ma2.Section ] = getOpSections match {
     case None => return None
@@ -157,6 +159,44 @@ object pathTest extends App {
   println( System.getProperty("user.home") )
 }
 
+object KernelUtilities extends Loggable {
+  def getWeights( inputId: String, context: KernelContext ): CDFloatArray =  {
+    val weighting_type = context.config("weights", if (context.config("axes", "").contains('y')) "cosine" else "")
+    context.sectionMap.get( inputId ).flatten match {
+      case Some(section) =>
+        weighting_type match {
+          case "cosine" =>
+            context.grid.getAxisData('y', section) match {
+              case Some(axis_data) => computeWeights( weighting_type, Map('y' -> axis_data), section.getShape, Float.MaxValue )
+              case None => logger.warn("Can't access AxisData for variable %s => Using constant weighting.".format(inputId)); CDFloatArray.const(section.getShape, 1f)
+            }
+          case x =>
+            if (!x.isEmpty) { logger.warn("Can't recognize weighting method: %s => Using constant weighting.".format(x)) }
+            CDFloatArray.const(section.getShape, 1f)
+        }
+      case None => CDFloatArray.empty
+    }
+  }
+
+  def computeWeights( weighting_type: String, axisDataMap: Map[ Char, ( Int, ma2.Array ) ], shape: Array[Int], invalid: Float ) : CDFloatArray  = {
+    weighting_type match {
+      case "cosine" =>
+        axisDataMap.get('y') match {
+          case Some( ( axisIndex, yAxisData ) ) =>
+            val axis_length = yAxisData.getSize
+            val axis_data = CDFloatArray.factory( yAxisData, Float.MaxValue )
+            assert( axis_length == shape(axisIndex), "Y Axis data mismatch, %d vs %d".format(axis_length,shape(axisIndex) ) )
+            val cosineWeights: CDFloatArray = axis_data.map( x => Math.cos( Math.toRadians(x) ).toFloat )
+            val base_shape: Array[Int] = Array( (0 until shape.length).map(i => if(i==axisIndex) shape(axisIndex) else 1 ): _* )
+            val weightsArray: CDArray[Float] =  CDArray.factory( base_shape, cosineWeights.getStorage, invalid )
+            weightsArray.broadcast( shape )
+          case None => throw new NoSuchElementException( "Missing axis data in weights computation, type: %s".format( weighting_type ))
+        }
+      case x => throw new NoSuchElementException( "Can't recognize weighting method: %s".format( x ))
+    }
+  }
+}
+
 abstract class Kernel extends Loggable with Serializable {
   val identifiers = this.getClass.getName.split('$').flatMap( _.split('.') )
   def operation: String = identifiers.last.toLowerCase
@@ -180,6 +220,7 @@ abstract class Kernel extends Loggable with Serializable {
   def map( partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext ): Option[DataFragment] = { inputs.head }
 
   def map( inputs: RDDPartition, context: KernelContext ): RDDPartition = { inputs }
+
 
   def combine(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment = reduceCombineOpt match {
     case Some(combineOp) =>

@@ -24,6 +24,7 @@ object CDIndexMap {
 
   def factory(index: CDIndexMap): CDIndexMap = new CDIndexMap(index.getShape, index.getStride, index.getOffset )
   def factory(shape: Array[Int]=Array.emptyIntArray, stride: Array[Int]=Array.emptyIntArray, offset: Int = 0): CDIndexMap = new CDIndexMap(shape, stride, offset )
+  def const(shape: Array[Int]): CDIndexMap = new CDIndexMap(shape, Array.fill[Int](shape.length)(0), 0 )
   def empty = factory()
 }
 

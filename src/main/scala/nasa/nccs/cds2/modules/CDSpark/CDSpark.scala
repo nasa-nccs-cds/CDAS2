@@ -1,5 +1,6 @@
 package nasa.nccs.cds2.modules.CDSpark
 
+import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition}
 import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray._
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDTimeCoordMap}
@@ -101,38 +102,58 @@ class sum extends SingularRDDKernel {
   override val initValue: Float = 0f
 }
 
-//  class average extends SingularRDDKernel {
-//    val inputs = List(Port("input fragment", "1"))
-//    val outputs = List(Port("result", "1"))
-//    override val description = "Weighted Average over Axes on Input Fragment"
-//
-//    override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: OperationContext ): Option[DataFragment] = {
-//      inputs.head.map( dataFrag => {
-//        val async = context.config("async", "false").toBoolean
-//        val axes: AxisIndices = context.getAxisIndices(context.config("axes", ""))
-//        val resultFragSpec = dataFrag.getReducedSpec(axes)
-//        val t10 = System.nanoTime
-//        val weighting_type = context.config("weights", if (context.config("axes", "").contains('y')) "cosine" else "")
-//        val weights: CDFloatArray = weighting_type match {
-//          case "cosine" =>
-//            context.targetGrid.getAxisData( 'y', dataFrag.spec.roi ) match {
-//              case Some(axis_data) => dataFrag.data.computeWeights(weighting_type, Map( 'y' -> axis_data) )
-//              case None => logger.warn( "Can't access AxisData for variable %s => Using constant weighting.".format(dataFrag.spec.varname) ); dataFrag.data := 1f
-//            }
-//          case x =>
-//            if( !x.isEmpty ) { logger.warn( "Can't recognize weighting method: %s => Using constant weighting.".format(x) )}
-//            dataFrag.data := 1f
-//        }
-//        val ( weighted_value_sum_masked, weights_sum_masked ) =  dataFrag.data.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, Some(weights), None )
-//        val t11 = System.nanoTime
-//        logger.info("Mean_val_masked, time = %.4f s, reduction dims = (%s), sample weighted_value_sum = %s".format((t11 - t10) / 1.0E9, axes.args.mkString(","), getDataSample(weighted_value_sum_masked).mkString(",") ))
-//        DataFragment(resultFragSpec, weighted_value_sum_masked, weights_sum_masked )
-//      } )
-//    }
-//    override def combine(context: OperationContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
-//    override def postOp( result: DataFragment, context: OperationContext ):  DataFragment = weightedValueSumPostOp( result, context )
-//
-//  }
+class average extends SingularRDDKernel {
+  val inputs = List(Port("input fragment", "1"))
+  val outputs = List(Port("result", "1"))
+  override val description = "Weighted Average over Axes on Input Fragment"
+
+  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+    val t0 = System.nanoTime
+    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
+    val async = context.config("async", "false").toBoolean
+
+
+    val result_array_map : Map[String,HeapFltArray] = inputs.elements.map { case ( id, data )  =>
+      val input_array = data.toCDFloatArray
+      val weights: CDFloatArray = KernelUtilities.getWeights( id, context )
+      mapCombineOpt match {
+        case Some(combineOp) =>
+          val result = CDFloatArray(input_array.reduce(combineOp, axes.args, initValue))
+          ( id, HeapFltArray( result, data.metadata ) )
+        case None => ( id, HeapFltArray( input_array, data.metadata ) )
+      }
+    }
+    logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
+    RDDPartition( inputs.iPart, result_array_map )
+  }
+
+  override def map_old( partIndex: Int, inputs: List[Option[DataFragment]], context: OperationContext ): Option[DataFragment] = {
+    inputs.head.map( dataFrag => {
+      val async = context.config("async", "false").toBoolean
+      val axes: AxisIndices = context.getAxisIndices(context.config("axes", ""))
+      val resultFragSpec = dataFrag.getReducedSpec(axes)
+      val t10 = System.nanoTime
+      val weighting_type = context.config("weights", if (context.config("axes", "").contains('y')) "cosine" else "")
+      val weights: CDFloatArray = weighting_type match {
+        case "cosine" =>
+          context.targetGrid.getAxisData( 'y', dataFrag.spec.roi ) match {
+            case Some(axis_data) => dataFrag.data.computeWeights(weighting_type, Map( 'y' -> axis_data) )
+            case None => logger.warn( "Can't access AxisData for variable %s => Using constant weighting.".format(dataFrag.spec.varname) ); dataFrag.data := 1f
+          }
+        case x =>
+          if( !x.isEmpty ) { logger.warn( "Can't recognize weighting method: %s => Using constant weighting.".format(x) )}
+          dataFrag.data := 1f
+      }
+      val ( weighted_value_sum_masked, weights_sum_masked ) =  dataFrag.data.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, Some(weights), None )
+      val t11 = System.nanoTime
+      logger.info("Mean_val_masked, time = %.4f s, reduction dims = (%s), sample weighted_value_sum = %s".format((t11 - t10) / 1.0E9, axes.args.mkString(","), getDataSample(weighted_value_sum_masked).mkString(",") ))
+      DataFragment(resultFragSpec, weighted_value_sum_masked, weights_sum_masked )
+    } )
+  }
+  override def combine(context: OperationContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
+  override def postOp( result: DataFragment, context: OperationContext ):  DataFragment = weightedValueSumPostOp( result, context )
+
+}
 
 class subset extends Kernel {
   val inputs = List(Port("input fragment", "1"))

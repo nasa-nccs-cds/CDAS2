@@ -311,6 +311,8 @@ object CDSection {
 class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
   def toSection: ma2.Section = new ma2.Section( origin, shape )
   def getRange( axis_index: Int ) = toSection.getRange(axis_index)
+  def getShape = toSection.getShape
+  def getOrigin = toSection.getOrigin
 }
 
 object GridContext extends Loggable {
@@ -329,6 +331,10 @@ class GridContext(val axisMap: Map[Char,Option[( Int, HeapDblArray )]], val cfAx
   def getAxisData( axis: Char ): Option[( Int, HeapDblArray )] = axisMap.getOrElse( axis, None )
   def getAxisData( axis: Char, section: CDSection ): Option[( Int, ma2.Array )] = axisMap.getOrElse( axis, None ).map {
     case ( axis_index, array ) => ( axis_index, array.toUcarDoubleArray.section( List( section.getRange(axis_index) ) ) )
+  }
+  def getAxisData( axis: Char, section: Option[CDSection] ): Option[( Int, ma2.Array )] = section match {
+    case Some(section) => getAxisData( axis, section );
+    case None => getAxisData( axis ).map { case ( index, array ) => ( index, array.toUcarDoubleArray ) }
   }
 }
 

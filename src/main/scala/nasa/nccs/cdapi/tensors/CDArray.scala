@@ -195,6 +195,7 @@ object CDFloatArray extends Loggable with Serializable {
   def apply( cdIndexMap: CDIndexMap, floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( cdIndexMap, FloatBuffer.wrap(floatData),  invalid )
   def apply( shape: Array[Int], floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( shape, FloatBuffer.wrap(floatData),  invalid )
   def apply( target: CDArray[Float] ): CDFloatArray  = CDFloatArray.cdArrayConverter( target )
+  def const( shape: Array[Int], value: Float ): CDFloatArray = apply( CDIndexMap.const(shape), Array(value), Float.MaxValue )
 
   def toFloatBuffer( array: ucar.ma2.Array ): FloatBuffer = array.getElementType.toString match {
     case "float"  => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]] )
