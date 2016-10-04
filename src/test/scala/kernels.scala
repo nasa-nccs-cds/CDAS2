@@ -76,10 +76,11 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val direct_result_array = getTimeseriesData( "merra.test", "ta", lon_index, lat_index, lev_index )
     val datainputs = s"""[domain=[{"name":"d0","lat":{"start":$lat_index,"end":$lat_index,"system":"indices"},"lon":{"start":$lon_index,"end":$lon_index,"system":"indices"},"lev":{"start":$lev_index,"end":$lev_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.timeBin","input":"v1","unit":"month","period":"1","mod":"12","axes":"t"}]]"""
     val result_node = executeTest(datainputs) \\ "partition" \\ "array"
-    val result_values = result_node.text.split(",").map( _.toFloat )
+    val result_values: Array[Float] = result_node.text.trim.split(' ').head.split(',').map( _.toFloat )
     val result_array = CDFloatArray( Array( result_values.length ), result_values, Float.MaxValue )
     val computed_result = computeCycle( direct_result_array, 12 )
     val max_scaled_diff = maxScaledDiff(result_array, computed_result)
+    printf( "    cdas result: " + result_array.mkDataString(",") + "\n" )
     printf( "computed result: " + computed_result.mkDataString(",") + "\n *** max_scaled_diff = " + max_scaled_diff )
     assert(max_scaled_diff < eps, s" Incorrect series computed for Yearly Cycle")
   }

@@ -129,45 +129,29 @@ class subset extends Kernel {
   override val description = "Subset of Input Fragment"
 }
 
-//  class timeBin extends Kernel {
-//    val inputs = List(Port("input fragment", "1"))
-//    val outputs = List(Port("result", "1"))
-//    override val description = "Aggregate data into bins using specified reduce function"
-//
-//    override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: OperationContext ): Option[DataFragment] = {
-//      inputs.head.map( dataFrag => {
-//        val async = context.config("async", "false").toBoolean
-//        val optargs: Map[String, String] = context.getConfiguration
-//        val axes: AxisIndices = context.getAxisIndices(context.config("axes", ""))
-//
-//        val period = getIntArg(optargs, "period", Some(1) )
-//        val mod = getIntArg(optargs, "mod",  Some(12) )
-//        val unit = getStringArg(optargs, "unit",  Some("month") )
-//        val offset = getIntArg(optargs, "offset", Some(0) )
-//        logger.info("timeBin, input shape = [ %s ], roi = [ %s ]".format(dataFrag.data.getShape.mkString(","),dataFrag.spec.roi.toString))
-//
-//        val t10 = System.nanoTime
-//        val cdTimeCoordMap: CDTimeCoordMap = new CDTimeCoordMap( context.targetGrid, dataFrag.spec.roi )
-//        val coordMap: CDCoordMap = cdTimeCoordMap.getMontlyBinMap( dataFrag.spec.roi )
-//        //  val coordMap: CDCoordMap = cdTimeCoordMap.getTimeCycleMap(period, unit, mod, offset)
-//        val timeData = cdTimeCoordMap.getTimeIndexIterator( "month", dataFrag.spec.roi.getRange(0) ).toArray
-//        //        logger.info("Binned array, timeData = [ %s ]".format(timeData.mkString(",")))
-//        //        logger.info("Binned array, coordMap = %s".format(coordMap.toString))
-//        //        logger.info("Binned array, dates = %s".format(cdTimeCoordMap.getDates.mkString(", ")))
-//        //        logger.info("Binned array, input data = %s".format(dataFrag.data.toDataString))
-//        dataFrag.data.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, None, Some(coordMap)) match {
-//          case (values_sum: CDFloatArray, weights_sum: CDFloatArray) =>
-//            val t11 = System.nanoTime
-//            //            logger.info("Binned array, time = %.4f s, section = %s\n *** values = %s\n *** weights=%s".format((t11 - t10) / 1.0E9, dataFrag.spec.roi.toString, values_sum.toDataString, weights_sum.toDataString ))
-//            //            val resultFragSpec = dataFrag.getReducedSpec(Set(axes.args(0)), values_sum.getShape(axes.args(0)))
-//            logger.info("timeBin, result shape = [ %s ], result spec = %s".format(values_sum.getShape.mkString(","),dataFrag.spec.toString))
-//            DataFragment( dataFrag.spec, values_sum, weights_sum, coordMap )
-//        }
-//      })
-//    }
-//    override def combine(context: OperationContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
-//    override def postOp( result: DataFragment, context: OperationContext ):  DataFragment = weightedValueSumPostOp( result, context )
-//  }
+class timeBin extends Kernel {
+  val inputs = List(Port("input fragment", "1"))
+  val outputs = List(Port("result", "1"))
+  override val description = "Aggregate data into bins using specified reduce function"
+
+  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+    val t0 = System.nanoTime
+    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
+    val period = context.config("period", "1" ).toInt
+    val mod = context.config("mod", "12" ).toInt
+    val unit = context.config("unit", "month" )
+    val offset = context.config("offset", "0" ).toInt
+    val async = context.config("async", "false").toBoolean
+    val ( id, input_array ) = inputs.head
+    val coordMap: CDCoordMap = getMontlyBinMap( id, context )
+    val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, None, Some(coordMap) )
+    val elems = Map( "value" -> HeapFltArray( weighted_value_sum_masked, arrayMdata(inputs,"value") ), "weights" -> HeapFltArray( weights_sum_masked, Map.empty ) )
+    logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
+    RDDPartition( inputs.iPart, elems, inputs.metadata )
+  }
+  override def combineRDD(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices ): RDDPartition =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
+  override def postRDDOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = weightedValueSumRDDPostOp( pre_result, context )
+}
 
 
 //  class anomaly extends SingularRDDKernel {

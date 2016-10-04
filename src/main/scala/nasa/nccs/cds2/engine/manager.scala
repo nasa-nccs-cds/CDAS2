@@ -87,7 +87,7 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
   }
 
   def getKernelModule( moduleName: String  ): KernelModule = {
-    kernelManager.getModule( moduleName ) match {
+    kernelManager.getModule( moduleName.toLowerCase ) match {
       case Some(kmod) => kmod
       case None => throw new Exception("Unrecognized Kernel Module %s, modules = %s ".format( moduleName, kernelManager.getModuleNames.mkString("[ ",", "," ]") ) )
     }

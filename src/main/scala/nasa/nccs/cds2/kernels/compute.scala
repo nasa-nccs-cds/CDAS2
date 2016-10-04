@@ -25,7 +25,7 @@ object ClassInfoRec {
   def apply( classinfo: ClassPath.ClassInfo ): ClassInfoRec = new ClassInfoRec( classinfo.getPackageName.split('.').last, classinfo.getSimpleName, classinfo )
 }
 class ClassInfoRec( val module: String, val name: String, val classinfo: ClassPath.ClassInfo ) {
-  def getMapEntry = ( name -> classinfo )
+  def getMapEntry = ( name.toLowerCase -> classinfo )
 }
 
 object KernelModule {
