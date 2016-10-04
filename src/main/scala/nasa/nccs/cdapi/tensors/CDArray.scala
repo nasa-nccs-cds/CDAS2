@@ -520,7 +520,7 @@ class CDShortArray( cdIndexMap: CDIndexMap, val shortStorage: ShortBuffer ) exte
 object CDDoubleArray {
   type ReduceOpDbl = CDArray.ReduceOp[Double]
   implicit def cdArrayConverter(target: CDArray[Double]): CDDoubleArray = new CDDoubleArray(target.getIndex, target.getStorage.asInstanceOf[DoubleBuffer], target.getInvalid )
-  implicit def toUcarArray(target: CDDoubleArray): ma2.Array = ma2.Array.factory(ma2.DataType.DOUBLE, target.getShape, target.getSectionData())
+  implicit def toUcarArray(target: CDDoubleArray): ma2.Array = ma2.Array.factory( ma2.DataType.DOUBLE, target.getShape, target.getSectionData().array() )
 
   def apply( shape: Array[Int], dblData: Array[Double], invalid: Double ): CDDoubleArray  = new CDDoubleArray( shape, DoubleBuffer.wrap(dblData),  invalid )
 

@@ -4,6 +4,7 @@ import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition}
 import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray._
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDTimeCoordMap}
+import org.apache.spark.rdd.RDD
 
 import scala.reflect.runtime.{universe => u}
 
@@ -111,48 +112,15 @@ class average extends SingularRDDKernel {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
-
-
-    val result_array_map : Map[String,HeapFltArray] = inputs.elements.map { case ( id, data )  =>
-      val input_array = data.toCDFloatArray
-      val weights: CDFloatArray = KernelUtilities.getWeights( id, context )
-      mapCombineOpt match {
-        case Some(combineOp) =>
-          val result = CDFloatArray(input_array.reduce(combineOp, axes.args, initValue))
-          ( id, HeapFltArray( result, data.metadata ) )
-        case None => ( id, HeapFltArray( input_array, data.metadata ) )
-      }
-    }
-    logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( inputs.iPart, result_array_map )
+    val ( id, input_array ) = inputs.head
+    val weights: CDFloatArray = KernelUtilities.getWeights(id, context)
+    val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, Some(weights), None)
+    val elems = Map( "value" -> HeapFltArray( weighted_value_sum_masked, arrayMdata(inputs,"value") ), "weights" -> HeapFltArray( weights_sum_masked, Map.empty ) )
+    logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
+    RDDPartition( inputs.iPart, elems, inputs.metadata )
   }
-
-  override def map_old( partIndex: Int, inputs: List[Option[DataFragment]], context: OperationContext ): Option[DataFragment] = {
-    inputs.head.map( dataFrag => {
-      val async = context.config("async", "false").toBoolean
-      val axes: AxisIndices = context.getAxisIndices(context.config("axes", ""))
-      val resultFragSpec = dataFrag.getReducedSpec(axes)
-      val t10 = System.nanoTime
-      val weighting_type = context.config("weights", if (context.config("axes", "").contains('y')) "cosine" else "")
-      val weights: CDFloatArray = weighting_type match {
-        case "cosine" =>
-          context.targetGrid.getAxisData( 'y', dataFrag.spec.roi ) match {
-            case Some(axis_data) => dataFrag.data.computeWeights(weighting_type, Map( 'y' -> axis_data) )
-            case None => logger.warn( "Can't access AxisData for variable %s => Using constant weighting.".format(dataFrag.spec.varname) ); dataFrag.data := 1f
-          }
-        case x =>
-          if( !x.isEmpty ) { logger.warn( "Can't recognize weighting method: %s => Using constant weighting.".format(x) )}
-          dataFrag.data := 1f
-      }
-      val ( weighted_value_sum_masked, weights_sum_masked ) =  dataFrag.data.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, Some(weights), None )
-      val t11 = System.nanoTime
-      logger.info("Mean_val_masked, time = %.4f s, reduction dims = (%s), sample weighted_value_sum = %s".format((t11 - t10) / 1.0E9, axes.args.mkString(","), getDataSample(weighted_value_sum_masked).mkString(",") ))
-      DataFragment(resultFragSpec, weighted_value_sum_masked, weights_sum_masked )
-    } )
-  }
-  override def combine(context: OperationContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices ): DataFragment =  weightedValueSumCombiner(context)(a0, a1, axes )
-  override def postOp( result: DataFragment, context: OperationContext ):  DataFragment = weightedValueSumPostOp( result, context )
-
+  override def combineRDD(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices ): RDDPartition =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
+  override def postRDDOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = weightedValueSumRDDPostOp( pre_result, context )
 }
 
 class subset extends Kernel {

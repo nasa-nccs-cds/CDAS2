@@ -1,6 +1,6 @@
 package nasa.nccs.cdapi.kernels
 
-import nasa.nccs.cdapi.data.{ArrayBase, HeapFltArray, RDDPartition}
+import nasa.nccs.cdapi.data.{ArrayBase, HeapFltArray, MetadataOps, RDDPartition}
 import nasa.nccs.cdapi.tensors.{CDArray, CDFloatArray}
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.esgf.process._
@@ -60,7 +60,7 @@ class CDASExecutionContext( val operation: OperationContext, val request: Reques
   }
 
   def toKernelContext: KernelContext = {
-    val sectionMap: Map[String,Option[CDSection]] = request.inputs.mapValues( _.map( _.cdsection ) )
+    val sectionMap: Map[String,Option[CDSection]] = request.inputs.mapValues( _.map( _.cdsection ) ).map(identity)
     new KernelContext( operation, GridContext(request.targetGrid), sectionMap, request.getConfiguration )
   }
 
@@ -249,6 +249,8 @@ abstract class Kernel extends Loggable with Serializable {
 
   def postOp( result: DataFragment, context: KernelContext ):  DataFragment = result
 
+  def postRDDOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = pre_result
+
   def reduceOp(context: KernelContext)(a0op: Option[DataFragment], a1op: Option[DataFragment]): Option[DataFragment] = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices(context.config("axes", ""))
@@ -326,6 +328,34 @@ abstract class Kernel extends Loggable with Serializable {
     case Some( weights_sum ) =>
       logger.info( "weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format( result.data.getShape.mkString(","), weights_sum.getShape.mkString(","), result.spec.toString ) )
       new DataFragment( result.spec, Map( "value" -> result.data / weights_sum, "weights"-> weights_sum ), result.optCoordMap )
+    case None =>
+      result
+  }
+
+  def fltArray( a0: RDDPartition, elem: String ): CDFloatArray = a0.element(elem) match { case Some(data) => data.toCDFloatArray; case None => throw new Exception("Error missing array element: " + elem) }
+  def optFltArray( a0: RDDPartition, elem: String ): Option[CDFloatArray] = a0.element(elem).map( _.toCDFloatArray )
+  def arrayMdata( a0: RDDPartition, elem: String ): Map[String,String] = a0.element(elem) match { case Some(data) => data.metadata; case None => Map.empty }
+
+  def weightedValueSumRDDCombiner(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices ): RDDPartition =  {
+    if ( axes.includes(0) ) {
+      val vTot: CDFloatArray = fltArray(a0,"value") + fltArray(a1,"value")
+      val wTotOpt: Option[CDFloatArray] = optFltArray(a0,"weights").map( w => w + fltArray(a1,"weights") )
+      val dataMap = wTotOpt match { case Some(wTot) => Map("value" -> vTot, "weights" -> wTot) case None =>  Map("value" -> vTot ) }
+      val array_mdata = MetadataOps.mergeMetadata( context.operation.name, arrayMdata(a0,"value"), arrayMdata(a1,"value") )
+      val weights_mdata = MetadataOps.mergeMetadata( context.operation.name, arrayMdata(a0,"weights"), arrayMdata(a1,"weights") )
+      val part_mdata = MetadataOps.mergeMetadata( context.operation.name, a0.metadata, a1.metadata )
+      logger.info( "weightedValueSumCombiner, values shape = %s, result spec = %s".format( vTot.getShape.mkString(","), a0.metadata.toString ) )
+      val elements = List( "value" -> HeapFltArray(vTot, array_mdata ) ) ++ wTotOpt.map( wTot => List( "weights" -> HeapFltArray(wTot, weights_mdata ) ) ).getOrElse( List.empty )
+      new RDDPartition( a0.iPart, Map(elements:_*), part_mdata )
+    }
+    else { a0 ++ a1 }
+  }
+
+  def weightedValueSumRDDPostOp( result: RDDPartition, context: KernelContext ):  RDDPartition = optFltArray(result,"weights") match {
+    case Some( weights_sum ) =>
+      val values = fltArray( result, "value" )
+      logger.info( "weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format( values.getShape.mkString(","), weights_sum.getShape.mkString(","), result.metadata.toString ) )
+      new RDDPartition( result.iPart, Map( "value" -> HeapFltArray( values / weights_sum, arrayMdata(result,"value") ), "weights"-> HeapFltArray( weights_sum, arrayMdata(result,"weights") ) ), result.metadata )
     case None =>
       result
   }
@@ -459,7 +489,7 @@ abstract class DualRDDKernel extends Kernel {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
-    val input_arrays = context.operation.inputs.flatMap( inputs.getElement(_) )
+    val input_arrays = context.operation.inputs.flatMap( inputs.element(_) )
     assert( input_arrays.size > 1, "Missing input(s) to dual input operation " + id )
     val result_array: CDFloatArray = mapCombineOpt match {
       case Some(combineOp) => CDFloatArray.combine( combineOp, input_arrays(0).toCDFloatArray, input_arrays(1).toCDFloatArray )
