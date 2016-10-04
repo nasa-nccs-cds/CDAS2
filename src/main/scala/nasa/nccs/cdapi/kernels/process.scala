@@ -208,12 +208,6 @@ abstract class Kernel extends Loggable with Serializable {
 
   def name = identifiers.takeRight(2).mkString(".")
 
-  val inputs: List[Port]
-  val outputs: List[Port]
-  val description: String = ""
-  val keywords: List[String] = List()
-  val identifier: String = ""
-  val metadata: String = ""
 
   val mapCombineOpt: Option[ReduceOpFlt] = None
   val reduceCombineOpt: Option[ReduceOpFlt] = None
