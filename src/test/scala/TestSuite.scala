@@ -84,7 +84,7 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     max_diff
   }
 
-  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDS.workflow" ): xml.Elem = {
+  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
     val t0 = System.nanoTime()
     val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString )
     val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
@@ -115,7 +115,7 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
 
   def getMetaDataInputs(test_dataset: String, varName: String) = Map(
     "variable" -> List(Map("uri" -> test_dataset, "name" -> varName )),
-    "operation" ->  List(Map( ("input"->varName), ("name"->"CDS.metadata" ) )) )
+    "operation" ->  List(Map( ("input"->varName), ("name"->"CDSpark.metadata" ) )) )
 
 
 }

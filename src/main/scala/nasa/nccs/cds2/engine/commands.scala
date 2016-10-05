@@ -63,7 +63,7 @@ object MetadataPrinter {
       case 0 => Map()
       case 1 => Map("variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0")))
     }
-    val tr = TaskRequest("CDS.metadata", dataInputs)
+    val tr = TaskRequest("CDSpark.metadata", dataInputs)
     TaskExecutorSync.execute(tr)
   }
 }

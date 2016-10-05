@@ -5,14 +5,8 @@ import org.slf4j.LoggerFactory
 
 class APIManager( serverConfiguration: Map[String,String] ) {
 
-  val providers = Map(
-    "esgf" -> new esgfServiceProvider(serverConfiguration),
-    "cds2" -> new cds2ServiceProvider(serverConfiguration),
-    "test" -> new esgfServiceProvider(serverConfiguration)
-  )
-
+  val providers = Map( "cds2" -> new cds2ServiceProvider(serverConfiguration) )
   val default_service = "esgf"
-
   val logger = LoggerFactory.getLogger(classOf[APIManager])
 
   def getServiceProvider(service: String = ""): Option[ServiceProvider] = {

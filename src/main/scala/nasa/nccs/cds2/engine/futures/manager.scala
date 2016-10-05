@@ -6,6 +6,7 @@ import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.engine.CDS2ExecutionManager
 import nasa.nccs.esgf.process.{CDSection, DataFragment}
+import nasa.nccs.wps.WPSExecuteResponse
 import ucar.{ma2, nc2}
 import ucar.nc2.Attribute
 
@@ -43,21 +44,21 @@ class CDFuturesExecutionManager( serverConfig: Map[String,String] = Map.empty ) 
   def postOp( future_result: Future[Option[DataFragment]], context: CDASExecutionContext ):  Future[Option[DataFragment]] = future_result
   def reduce( future_results: IndexedSeq[Future[Option[DataFragment]]], context: CDASExecutionContext, kernel: Kernel ):  Future[Option[DataFragment]] = Future.reduce(future_results)(kernel.reduceOp(context.toKernelContext) _)
 
-  def createResponse( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext, kernel: Kernel ): ExecutionResult = {
+  def createResponse( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext, kernel: Kernel ): WPSExecuteResponse = {
     val var_mdata = Map[String,Attribute]()
     val async = context.request.config("async", "false").toBoolean
     val finalResultFut = resultFut.map( _.map( pre_result=> kernel.postOp( pre_result, context.toKernelContext ) ) )
-    val resultId = cacheResult( finalResultFut, context, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )
+    val optResultId = cacheResult( finalResultFut, context, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )
     if(async) {
-      new AsyncExecutionResult( resultId )
+      new AsyncExecutionResult( kernel, optResultId )
     } else {
       val resultOpt: Option[DataFragment] = Await.result( finalResultFut, Duration.Inf )
       resultOpt match {
         case Some( result) =>
-          new BlockingExecutionResult (context.operation.identifier, List(result.spec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data, resultId )
+          new BlockingExecutionResult (context.operation.identifier, List(result.spec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data, optResultId )
         case None =>
           logger.error( "Operation %s returned empty result".format( context.operation.identifier ) )
-          new BlockingExecutionResult (context.operation.identifier, List(), context.request.targetGrid, CDFloatArray.empty )
+          new BlockingExecutionResult( kernel,  context.operation.identifier, List(), context.request.targetGrid, CDFloatArray.empty )
       }
     }
   }

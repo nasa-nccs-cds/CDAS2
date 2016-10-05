@@ -45,51 +45,51 @@ class wpsSuite extends LocalExecutionTestSuite {
     executeTest(datainputs)
   }
   test("anomaly_1D", Tag("anomaly")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.anomaly","input":"v1","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, fragment, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDSpark.anomaly","input":"v1","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, fragment, frag_varname)
     executeTest(datainputs)
   }
   test("subset_1D", Tag("subset")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.subset","input":"v1","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, fragment, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDSpark.subset","input":"v1","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, fragment, frag_varname)
     executeTest(datainputs)
   }
   test("subset_1D_cache", Tag("subset+cache")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.subset","input":"v1","domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
     executeTest(datainputs)
   }
   test("anomaly_1D_cache", Tag("subset+cache")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.anomaly","input":"v1","domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDSpark.anomaly","input":"v1","domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
     executeTest(datainputs)
   }
   test("binnedArray_1D_cache", Tag("subset+cache")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.timeBin","input":"v1","domain":"d2","axes":"t","bins":"t|month|ave|year"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDSpark.timeBin","input":"v1","domain":"d2","axes":"t","bins":"t|month|ave|year"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
     executeTest(datainputs)
   }
   test("average_1D", Tag("average")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.average","input":"v1","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, fragment, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDSpark.average","input":"v1","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, fragment, frag_varname)
     executeTest(datainputs)
   }
   test("subset_0D") {
-    val datainputs = """[domain=[{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}},{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d3","time":{"start":"2006-06-18T10:00:00","end":"2006-06-18T10:00:00","system":"values"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.subset","input":"v1","domain":"d2,d3","axes":"t"}]]""".format(level, level, lat, lat, lon, lon, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}},{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d3","time":{"start":"2006-06-18T10:00:00","end":"2006-06-18T10:00:00","system":"values"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d2,d3","axes":"t"}]]""".format(level, level, lat, lat, lon, lon, frag_collection, frag_varname)
     executeTest(datainputs)
   }
   test("subset_empty") {
-    val datainputs = """[domain=[{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}},{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d3","time":{"start":"2026-06-18T10:00:00","end":"2026-06-18T10:00:00","system":"values"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.subset","input":"v1","domain":"d2,d3","axes":"t"}]]""".format(level, level, lat, lat, lon, lon, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}},{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d3","time":{"start":"2026-06-18T10:00:00","end":"2026-06-18T10:00:00","system":"values"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d2,d3","axes":"t"}]]""".format(level, level, lat, lat, lon, lon, frag_collection, frag_varname)
     executeTest(datainputs)
   }
   test("subset_1Dts") {
-    val datainputs = """[domain=[{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}},{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.subset","input":"v1","domain":"d2","axes":"t"}]]""".format(level, level, lat, lat, lon, lon, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}},{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d2","axes":"t"}]]""".format(level, level, lat, lat, lon, lon, frag_collection, frag_varname)
     executeTest(datainputs)
   }
   test("yearly_cycle_1D", Tag("yearly_cycle")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.timeBin","input":"v1","axes":"t","unit":"month","period":"1","mod":"12"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDSpark.timeBin","input":"v1","axes":"t","unit":"month","period":"1","mod":"12"}]]""".format(lat, lat, lon, lon, level, level, frag_collection, frag_varname)
     val response = executeTest(datainputs)
   }
   test("timeseries_ave", Tag("tsave")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDS.average","input":"v1","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, fragment, frag_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"},"lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"fragment:/%s","name":"%s:v1","domain":"d2"}],operation=[{"name":"CDSpark.average","input":"v1","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, fragment, frag_varname)
     val response = executeTest(datainputs)
   }
   test("createV", Tag("createV")) {
-    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDS.timeBin","input":"v1","result":"cycle","domain":"d2","axes":"t","bins":"t|month|ave|year"},{"name":"CDS.diff2","input":["v1","cycle"],"domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, collection_id, collection_varname)
+    val datainputs = """[domain=[{"name":"d2","lat":{"start":%.1f,"end":%.1f,"system":"values"},"lon":{"start":%.1f,"end":%.1f,"system":"values"}},{"name":"d1","lev":{"start":%d,"end":%d,"system":"indices"}}],variable=[{"uri":"collection:/%s","name":"%s:v1","domain":"d1"}],operation=[{"name":"CDSpark.timeBin","input":"v1","result":"cycle","domain":"d2","axes":"t","bins":"t|month|ave|year"},{"name":"CDSpark.diff2","input":["v1","cycle"],"domain":"d2","axes":"t"}]]""".format(lat, lat, lon, lon, level, level, collection_id, collection_varname)
     executeTest(datainputs)
   }
   test("MERRA_Collection", Tag("aggM")) {
@@ -109,11 +109,11 @@ class LocalExecutionTestSuite extends FunSuite with Matchers {
   val configMap = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
   val service = "cds2"
-  val operation = "CDS.sum"
+  val operation = "CDSpark.sum"
   val config_file_path = Paths.get(  System.getProperty("user.home"), ".cdas", "test_config.txt" ).toString
   lazy val config = getConfiguration
 
-  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDS.workflow" ): xml.Elem = {
+  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
     val t0 = System.nanoTime()
     val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString )
     val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)

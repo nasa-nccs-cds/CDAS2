@@ -11,7 +11,9 @@ import java.io.{File, IOException, PrintWriter, StringWriter}
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.caching.collectionDataCache
 import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt
+import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.utilities.Loggable
+import nasa.nccs.wps.{WPSExecuteResponse, WPSProcess, WPSReferenceExecuteResponse, WPSResponse}
 import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
@@ -77,63 +79,54 @@ class CDASExecutionContext( val operation: OperationContext, val request: Reques
   def getOpCDSectionIntersection: Option[ CDSection ] = getOpSectionIntersection.map( CDSection( _ ) )
 }
 
-class ExecutionResult( val id: String ) {
-  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
-  def toXml: xml.Elem = <result id={id} > </result>
+class UtilityExecutionResult( id: String, val response: xml.Elem )  extends WPSExecuteResponse with Loggable {
+  def getProcessOutputs( process_id: String, output_id: String ): xml.Elem = response
 }
-
-class UtilityExecutionResult( id: String, val response: xml.Elem )  extends ExecutionResult(id) {
-  override def toXml = <result id={id}> {response} </result>
-}
-class BlockingExecutionResult( id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray, val resultId: Option[String] = None ) extends ExecutionResult(id) {
-  override def toXml = {
-    val idToks = id.split('-')
-    logger.info( "BlockingExecutionResult-> result_tensor(" + id + "): \n" + result_tensor.toString )
-    val inputs = intputSpecs.map( _.toXml )
-    val grid = gridSpec.toXml
-    val results = result_tensor.mkDataString(",")
-    <result id={id} op={idToks.head} rid={resultId.getOrElse("")}> { inputs } { grid } <data undefined={result_tensor.getInvalid.toString}> {results}  </data>  </result>
+class BlockingExecutionResult( process: WPSProcess, id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray,
+                               optResultId: Option[String] = None ) extends WPSReferenceExecuteResponse( process, optResultId )  with Loggable {
+//  def toXml_old = {
+//    val idToks = id.split('-')
+//    logger.info( "BlockingExecutionResult-> result_tensor(" + id + "): \n" + result_tensor.toString )
+//    val inputs = intputSpecs.map( _.toXml )
+//    val grid = gridSpec.toXml
+//    val results = result_tensor.mkDataString(",")
+//    <result id={id} op={idToks.head} rid={resultId.getOrElse("")}> { inputs } { grid } <data undefined={result_tensor.getInvalid.toString}> {results}  </data>  </result>
+//  }
+  def getProcessOutputs( process_id: String, output_id: String  ): Iterable[xml.Elem] = {
+    getReference( process_id, output_id )
+    List( getData( output_id, result_tensor, intputSpecs.head.units ) )
   }
 }
 
-class RDDExecutionResult( id: String, val result: RDDPartition,  val resultId: Option[String] = None ) extends ExecutionResult(id) {
-  override def toXml = {
-    val idToks = id.split('-')
-    logger.info( "RDDExecutionResult-> result_tensor(" + id + "): \n" + result.toString )
-    <result id={id} op={idToks.head} rid={resultId.getOrElse("")}> { result.toXml } </result>
+class RDDExecutionResult( process: WPSProcess, id: String, val result: RDDPartition,  optResultId: Option[String] = None ) extends WPSReferenceExecuteResponse( process, optResultId )  with Loggable {
+  def getProcessOutputs( process_id: String, output_id: String  ): Iterable[xml.Elem] = {
+    result.elements map { case (id, array) => getData( id, array.toCDFloatArray, array.metadata.get("units","") ) }
   }
 }
 
 
-class ErrorExecutionResult( val err: Throwable ) extends ExecutionResult( err.getClass.getName ) {
-
-  def fatal(): String = {
-    logger.error( "\nError Executing Kernel: %s\n".format(err.getMessage) )
-    val sw = new StringWriter
-    err.printStackTrace(new PrintWriter(sw))
-    logger.error( sw.toString )
-    err.getMessage
-  }
-
-  override def toXml = <error> {fatal()} </error>
-
-}
-
-class XmlExecutionResult( id: String,  val responseXml: xml.Node ) extends ExecutionResult(id) {
-  override def toXml = {
-    val idToks = id.split('~')
-    <result id={idToks(1)} op={idToks(0)}> { responseXml }  </result>
+class ErrorExecutionResult( val err: Throwable ) extends WPSResponse with Loggable {
+  def toXml = {
+    <ows:ExceptionReport xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                         xsi:schemaLocation="http://www.opengis.net/ows/1.1 ../../../ows/1.1.0/owsExceptionReport.xsd" version="1.0.0" xml:lang="en-CA">
+      <ows:Exception exceptionCode={err.getClass.getName}>
+        <ows:ExceptionText>{err.getMessage}</ows:ExceptionText>
+      </ows:Exception>
+    </ows:ExceptionReport>
   }
 }
 
-class AsyncExecutionResult( id: String )  extends ExecutionResult(id)  {
-  def this( resultOpt: Option[String] ) { this( resultOpt.getOrElse("empty") ) }
-  override def toXml = { <result id={id} > </result> }
+class XmlExecutionResult( id: String,  val responseXml: xml.Node ) extends WPSExecuteResponse {
+  def getOutput( process_id: String, output_id: String  ): xml.Elem = {}
 }
 
-class ExecutionResults( val results: List[ExecutionResult] ) {
+class AsyncExecutionResult( process: WPSProcess, optResultId: Option[String] ) extends WPSReferenceExecuteResponse( process, optResultId )  {
+  def getProcessOutputs( process_id: String, output_id: String ): Iterable[xml.Elem] = getReference( process_id, output_id )
+}
+
+class ExecutionResults( val results: List[WPSExecuteResponse] ) {
   def this(err: Throwable ) = this( List( new ErrorExecutionResult( err ) ) )
-  def toXml = <results> { results.map(_.toXml) } </results>
+  def toXml = WPSExecuteResponse.merge( results ).toXml
 }
 
 case class ResultManifest( val name: String, val dataset: String, val description: String, val units: String )
@@ -197,17 +190,14 @@ object KernelUtilities extends Loggable {
   }
 }
 
-abstract class Kernel extends Loggable with Serializable {
+abstract class Kernel extends Loggable with Serializable with WPSProcess {
   val identifiers = this.getClass.getName.split('$').flatMap(_.split('.'))
-
   def operation: String = identifiers.last.toLowerCase
-
   def module = identifiers.dropRight(1).mkString(".")
-
   def id = identifiers.mkString(".")
-
   def name = identifiers.takeRight(2).mkString(".")
 
+  val identifier = name
 
   val mapCombineOpt: Option[ReduceOpFlt] = None
   val reduceCombineOpt: Option[ReduceOpFlt] = None
@@ -215,14 +205,8 @@ abstract class Kernel extends Loggable with Serializable {
 
   def getOpName(context: KernelContext): String = "%s(%s)".format(name, context.operation.inputs.mkString(","))
 
-  def map(partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext): Option[DataFragment] = {
-    inputs.head
-  }
-
-  def map(inputs: RDDPartition, context: KernelContext): RDDPartition = {
-    inputs
-  }
-
+  def map(partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext): Option[DataFragment] = inputs.head
+  def map(inputs: RDDPartition, context: KernelContext): RDDPartition = inputs
 
   def combine(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices): DataFragment = reduceCombineOpt match {
     case Some(combineOp) =>
@@ -290,20 +274,6 @@ abstract class Kernel extends Loggable with Serializable {
       {description}
     </description>}
   </kernel>
-
-  def toXml = {
-    <kernel module={module} name={name}>
-      {if (description.nonEmpty) <description>
-      {description}
-    </description>}{if (keywords.nonEmpty) <keywords>
-      {keywords.mkString(",")}
-    </keywords>}{if (identifier.nonEmpty) <identifier>
-      {identifier}
-    </identifier>}{if (metadata.nonEmpty) <metadata>
-      {metadata}
-    </metadata>}
-    </kernel>
-  }
 
   def getStringArg(args: Map[String, String], argname: String, defaultVal: Option[String] = None): String = {
     args.get(argname) match {
@@ -573,7 +543,7 @@ class TransientFragment( val dataFrag: DataFragment, val request: RequestContext
 }
 
 //object classTest extends App {
-//  import nasa.nccs.cds2.modules.CDS._
-//  printf( Kernel.getClass.isAssignableFrom( CDS. ).toString )
+//  import nasa.nccs.cds2.modules.CDSpark._
+//  printf( Kernel.getClass.isAssignableFrom( CDSpark. ).toString )
 //}
 

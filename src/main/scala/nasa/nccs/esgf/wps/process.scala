@@ -24,21 +24,21 @@ class ProcessManager( serverConfiguration: Map[String,String] ) {
     throw new NotAcceptableException(msg)
   }
 
-  def describeProcess(service: String, name: String): xml.Elem = {
+  def describeWPSProcess(service: String, name: String): xml.Elem = {
     apiManager.getServiceProvider(service) match {
       case Some(serviceProvider) =>
         //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))
-        serviceProvider.describeProcess( name )
+        serviceProvider.describeWPSProcess( name )
       case None =>
         throw new NotAcceptableException("Unrecognized service: " + service)
     }
   }
 
-  def getCapabilities(service: String, identifier: String): xml.Elem = {
+  def GetCapabilities(service: String, identifier: String): xml.Elem = {
     apiManager.getServiceProvider(service) match {
       case Some(serviceProvider) =>
         //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))
-        serviceProvider.getCapabilities( identifier )
+        serviceProvider.getWPSCapabilities( identifier )
       case None =>
         throw new NotAcceptableException("Unrecognized service: " + service)
     }

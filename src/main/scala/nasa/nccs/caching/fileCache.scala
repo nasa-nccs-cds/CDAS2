@@ -205,8 +205,8 @@ class FileToCacheStream( val ncVariable: nc2.Variable, private val _section: ma2
   }
 
   def cachePartition( partition: Partition, stream: BufferedOutputStream ) = {
-    logger.info( "Caching Partition(%d): chunk start indices: (%s), roi: %s".format( partition.index,partition.chunkIndexArray.map(partition.chunkStartIndex(_)).mkString(","), baseShape.mkString(",")) )
-    for (iChunk <- partition.chunkIndexArray; startLoc = partition.chunkStartIndex(iChunk); if ( startLoc < baseShape(0)) ) yield cacheChunk( partition, iChunk, stream  )
+    logger.info( "Caching Partition(%d): chunk start indices: (%s), roi: %s".format( partition.index,partition.chunkIndexArray.map(partition.chunkStartIndex).mkString(","), baseShape.mkString(",")) )
+    for (iChunk <- partition.chunkIndexArray; startLoc = partition.chunkStartIndex(iChunk); if startLoc < baseShape(0) ) yield cacheChunk( partition, iChunk, stream  )
   }
 }
 

@@ -32,10 +32,11 @@ object KernelModule {
   def apply( classInfoRecs: List[ClassInfoRec] ): KernelModule = new KernelModule( classInfoRecs.head.module, Map( classInfoRecs.map( _.getMapEntry ): _* ) )
 }
 
-class KernelModule( val name: String, val kernels: Map[String,ClassPath.ClassInfo] ) {
-//  val spec = kernels.values.head.load().getPackage().getClass().
-  def getKernelClassInfo(name: String): Option[ClassPath.ClassInfo] = kernels.get(name)
-  def getKernel(name: String): Option[Kernel] = kernels.get(name).flatMap( cls => cls.load().getDeclaredConstructors()(0).newInstance() match { case kernel: Kernel => Some(kernel); case _ => None } )
+class KernelModule( val name: String, val kernelClassMap: Map[String,ClassPath.ClassInfo] ) {
+  val kernels: Map[String,Option[Kernel]] = kernelClassMap.mapValues( cls => cls.load().getDeclaredConstructors()(0).newInstance() match { case kernel: Kernel => Some(kernel); case _ => None } )
+  def getKernelClassInfo(name: String): Option[ClassPath.ClassInfo] = kernelClassMap.get(name)
+  def getKernel(name: String): Option[Kernel] = kernels.get(name).flatten
+  def getKernels: Iterable[Kernel] = kernels.values.flatten
   def getKernelNames: List[String] = kernels.keys.toList
 
   def toXml = {

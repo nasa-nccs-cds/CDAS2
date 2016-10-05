@@ -55,8 +55,7 @@ object NCMLWriter extends Loggable {
     }
   }
 
-  def getNcFiles(args: Iterator[File]): Iterator[File] =
-    args.map( (arg: File) => NCMLWriter.getNcFiles(arg)).foldLeft(Iterator[File]())(_ ++ _)
+  def getNcFiles(args: Iterator[File]): Iterator[File] = args.map( (arg: File) => NCMLWriter.getNcFiles(arg)).flatten
 
   def getFileHeaders( files: IndexedSeq[File], nReadProcessors: Int ): IndexedSeq[FileHeader] = {
     if( files.length > 0 ) {
@@ -66,7 +65,7 @@ object NCMLWriter extends Loggable {
       val fileHeaderFuts = Future.sequence(for (workerIndex <- fileGroups.indices; fileGroup = fileGroups(workerIndex)) yield Future {
         FileHeader.factory(fileGroup, workerIndex)
       })
-      Await.result(fileHeaderFuts, Duration.Inf).foldLeft(IndexedSeq[FileHeader]()) { _ ++ _ } sortWith { (afr0, afr1) => (afr0.startValue < afr1.startValue) }
+      Await.result(fileHeaderFuts, Duration.Inf).flatten sortWith { (afr0, afr1) => (afr0.startValue < afr1.startValue) }
     } else IndexedSeq.empty[FileHeader]
   }
 }

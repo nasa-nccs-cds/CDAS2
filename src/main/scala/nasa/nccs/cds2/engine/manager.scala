@@ -29,6 +29,7 @@ import java.util.concurrent._
 
 import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
 import nasa.nccs.cds2.engine.spark.{CDSparkContext, CDSparkExecutionManager}
+import nasa.nccs.wps.{WPSProcess, WPSServer}
 import org.apache.spark.{SparkConf, SparkContext}
 import ucar.nc2.dataset.NetcdfDataset
 
@@ -62,7 +63,7 @@ object CDS2ExecutionManager extends Loggable {
     }
 }
 
-abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) {
+abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String] ) extends WPSServer {
   val serverContext = new ServerContext( collectionDataCache, serverConfiguration )
   val logger = LoggerFactory.getLogger(this.getClass)
   val kernelManager = new KernelMgr()
@@ -85,6 +86,10 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
       }
     }
   }
+
+  def describeWPSProcess( process: String ): xml.Elem = DescribeProcess( process )
+
+  def getProcesses: List[WPSProcess] = kernelManager.getKernelList
 
   def getKernelModule( moduleName: String  ): KernelModule = {
     kernelManager.getModule( moduleName.toLowerCase ) match {
@@ -373,10 +378,8 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
 //    if(async) executeAsync( request, runargs ) else  blockingExecute( request, runargs )
 //  }
 
-  def describeProcess( kernelName: String ): xml.Elem = getKernel( kernelName ).toXml
-
-  def getCapabilities( identifier: String ): xml.Elem = identifier match {
-    case x if x.startsWith("proc") => kernelManager.toXml
+  def getWPSCapabilities( identifier: String ): xml.Elem = identifier match {
+    case x if x.startsWith("proc") => GetCapabilities
     case x if x.startsWith("frag") => FragmentPersistence.getFragmentListXml
     case x if x.startsWith("res") => collectionDataCache.getResultListXml
     case x if x.startsWith("job") => collectionDataCache.getJobListXml
@@ -454,7 +457,7 @@ object SampleTaskRequests {
       "domain" -> List( Map("name" -> "d0", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> s"collection:/$collection", "name" -> s"$varname:v0", "domain" -> "d0")),
       "operation" -> List( Map( "input"->"v0", "axes"->"xy", "weights"->weighting ) ))
-    TaskRequest( "CDS.average", dataInputs )
+    TaskRequest( "CDSpark.average", dataInputs )
   }
 
   def getMaskedSpatialAve(collection: String, varname: String, weighting: String, level_index: Int = 0, time_index: Int = 0): TaskRequest = {
@@ -462,7 +465,7 @@ object SampleTaskRequests {
       "domain" -> List( Map("name" -> "d0", "mask" -> "#ocean50m", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> s"collection:/$collection", "name" -> s"$varname:v0", "domain" -> "d0")),
       "operation" -> List( Map( "input"->"v0", "axes"->"xy", "weights"->weighting ) ))
-    TaskRequest( "CDS.average", dataInputs )
+    TaskRequest( "CDSpark.average", dataInputs )
   }
 
   def getConstant(collection: String, varname: String, level_index: Int = 0 ): TaskRequest = {
@@ -470,7 +473,7 @@ object SampleTaskRequests {
       "domain" -> List( Map("name" -> "d0", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> 10, "end" -> 10, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> s"collection:/$collection", "name" -> s"$varname:v0", "domain" -> "d0")),
       "operation" -> List( Map( "input"->"v0") ))
-    TaskRequest( "CDS.const", dataInputs )
+    TaskRequest( "CDSpark.const", dataInputs )
   }
 
   def getAnomalyTest: TaskRequest = {
@@ -478,7 +481,7 @@ object SampleTaskRequests {
       "domain" ->  List(Map("name" -> "d0", "lat" -> Map("start" -> -7.0854263, "end" -> -7.0854263, "system" -> "values"), "lon" -> Map("start" -> 12.075, "end" -> 12.075, "system" -> "values"), "lev" -> Map("start" -> 1000, "end" -> 1000, "system" -> "values"))),
       "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggtest", "name" -> "t:v0", "domain" -> "d0")),  // collection://merra300/hourly/asm_Cp
       "operation" -> List( Map( "input"->"v0", "axes"->"t" ) ))
-    TaskRequest( "CDS.anomaly", dataInputs )
+    TaskRequest( "CDSpark.anomaly", dataInputs )
   }
 }
 
@@ -503,7 +506,7 @@ object TimeAveSliceTask extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lon" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lev" -> Map("start" -> 8, "end" -> 8, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "hur:v0", "domain" -> "d0")),
       "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
-    TaskRequest("CDS.average", dataInputs)
+    TaskRequest("CDSpark.average", dataInputs)
   }
 }
 
@@ -513,17 +516,17 @@ object YearlyCycleSliceTask extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
       "operation" -> List(Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12)))
-    TaskRequest("CDS.bin", dataInputs)
+    TaskRequest("CDSpark.bin", dataInputs)
   }
 }
 
 //object AveTimeseries extends SyncExecutor {
 //  def getTaskRequest(args: Array[String]): TaskRequest = {
 //    import nasa.nccs.esgf.process.DomainAxis.Type._
-//    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "t")))))
+//    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDSpark.average", List("v0"), Map("axis" -> "t")))))
 //    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "hur", collection = getCollection("merra/mon/atmos"), domain = "d0"))))
 //    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 1, 1), DomainAxis(Y, 100, 100), DomainAxis(X, 100, 100)), None))
-//    new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
+//    new TaskRequest("CDSpark.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
 //  }
 //}
 
@@ -533,8 +536,8 @@ object CreateVTask extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")),
         Map("name" -> "d1", "time" -> Map("start" -> "2010-01-16T12:00:00", "end" -> "2010-01-16T12:00:00", "system" -> "values"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDS.anomaly"), Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12, "name" -> "CDS.timeBin"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDS.subset")))
-    TaskRequest("CDS.workflow", dataInputs)
+      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDSpark.anomaly"), Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12, "name" -> "CDSpark.timeBin"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDSpark.subset")))
+    TaskRequest("CDSpark.workflow", dataInputs)
   }
 }
 
@@ -544,7 +547,7 @@ object YearlyCycleTask extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
       "operation" -> List(Map("input" -> "v0", "period" -> 1, "unit" -> "month", "mod" -> 12)))
-    TaskRequest("CDS.timeBin", dataInputs)
+    TaskRequest("CDSpark.timeBin", dataInputs)
   }
 }
 
@@ -554,7 +557,7 @@ object SeasonalCycleRequest extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "time" -> Map("start" -> 0, "end" -> 36, "system" -> "indices"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
       "operation" -> List(Map("input" -> "v0", "period" -> 3, "unit" -> "month", "mod" -> 4, "offset" -> 2)))
-    TaskRequest("CDS.timeBin", dataInputs)
+    TaskRequest("CDSpark.timeBin", dataInputs)
   }
 }
 
@@ -564,7 +567,7 @@ object YearlyMeansRequest extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 45, "end" -> 45, "system" -> "values"), "lon" -> Map("start" -> 30, "end" -> 30, "system" -> "values"), "lev" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
       "operation" -> List(Map("input" -> "v0", "period" -> 12, "unit" -> "month")))
-    TaskRequest("CDS.timeBin", dataInputs)
+    TaskRequest("CDSpark.timeBin", dataInputs)
   }
 }
 
@@ -575,7 +578,7 @@ object SubsetRequest extends SyncExecutor {
         Map("name" -> "d1", "time" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
       "operation" -> List(Map("input" -> "v0", "domain" -> "d1")))
-    TaskRequest("CDS.subset", dataInputs)
+    TaskRequest("CDSpark.subset", dataInputs)
   }
 }
 
@@ -585,7 +588,7 @@ object TimeSliceAnomaly extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lon" -> Map("start" -> 10, "end" -> 10, "system" -> "values"), "lev" -> Map("start" -> 8, "end" -> 8, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
       "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
-    TaskRequest("CDS.anomaly", dataInputs)
+    TaskRequest("CDSpark.anomaly", dataInputs)
   }
 }
 
@@ -596,7 +599,7 @@ object MetadataRequest extends SyncExecutor {
       case 0 => Map()
       case 1 => Map("variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0")))
     }
-    TaskRequest("CDS.metadata", dataInputs)
+    TaskRequest("CDSpark.metadata", dataInputs)
   }
 }
 
@@ -660,7 +663,7 @@ object Max extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 20, "end" -> 20, "system" -> "indices"), "time" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://merra/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
       "operation" -> List(Map("input" -> "v0", "axes" -> "xy")))
-    TaskRequest("CDS.max", dataInputs)
+    TaskRequest("CDSpark.max", dataInputs)
   }
 }
 
@@ -670,7 +673,7 @@ object Min extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 20, "end" -> 20, "system" -> "indices"), "time" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://merra/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
       "operation" -> List(Map("input" -> "v0", "axes" -> "xy")))
-    TaskRequest("CDS.min", dataInputs)
+    TaskRequest("CDSpark.min", dataInputs)
   }
 }
 
@@ -680,7 +683,7 @@ object AnomalyTest extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> -7.0854263, "end" -> -7.0854263, "system" -> "values"), "lon" -> Map("start" -> 12.075, "end" -> 12.075, "system" -> "values"), "lev" -> Map("start" -> 1000, "end" -> 1000, "system" -> "values"))),
       "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggtest", "name" -> "t:v0", "domain" -> "d0")), // collection://merra300/hourly/asm_Cp
       "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
-    TaskRequest("CDS.anomaly", dataInputs)
+    TaskRequest("CDSpark.anomaly", dataInputs)
   }
 }
 
@@ -690,7 +693,7 @@ object AnomalyTest1 extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 20.0, "end" -> 20.0, "system" -> "values"), "lon" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"))),
       "variable" -> List(Map("uri" -> "collection://merra2/hourly/m2t1nxlnd-2004-04", "name" -> "SFMC:v0", "domain" -> "d0")),
       "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
-    TaskRequest("CDS.anomaly", dataInputs)
+    TaskRequest("CDSpark.anomaly", dataInputs)
   }
 }
 object AnomalyTest2 extends SyncExecutor {
@@ -699,7 +702,7 @@ object AnomalyTest2 extends SyncExecutor {
       "domain" -> List(Map("name" -> "d0", "lat" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"), "lon" -> Map("start" -> 0.0, "end" -> 0.0, "system" -> "values"), "level" -> Map("start" -> 10, "end" -> 10, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://merra/daily/aggTest", "name" -> "t:v0", "domain" -> "d0")),
       "operation" -> List(Map("input" -> "v0", "axes" -> "t")))
-    TaskRequest("CDS.anomaly", dataInputs)
+    TaskRequest("CDSpark.anomaly", dataInputs)
   }
 }
 
@@ -708,8 +711,8 @@ object AnomalyArrayTest extends SyncExecutor {
     val dataInputs = Map(
       "domain" -> List(Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "collection://MERRA/mon/atmos", "name" -> "ta:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDS.anomaly"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDS.subset")))
-    TaskRequest("CDS.workflow", dataInputs)
+      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDSpark.anomaly"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDSpark.subset")))
+    TaskRequest("CDSpark.workflow", dataInputs)
   }
 }
 
@@ -718,8 +721,8 @@ object AnomalyArrayNcMLTest extends SyncExecutor {
     val dataInputs = Map(
       "domain" -> List(Map("name" -> "d1", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices")), Map("name" -> "d0", "lat" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lon" -> Map("start" -> 3, "end" -> 3, "system" -> "indices"), "lev" -> Map("start" -> 30, "end" -> 30, "system" -> "indices"))),
       "variable" -> List(Map("uri" -> "file://Users/tpmaxwel/data/AConaty/comp-ECMWF/ecmwf.xml", "name" -> "Temperature:v0", "domain" -> "d0")),
-      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDS.anomaly"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDS.subset")))
-    TaskRequest("CDS.workflow", dataInputs)
+      "operation" -> List(Map("input" -> "v0", "axes" -> "t", "name" -> "CDSpark.anomaly"), Map("input" -> "v0", "domain" -> "d1", "name" -> "CDSpark.subset")))
+    TaskRequest("CDSpark.workflow", dataInputs)
   }
 }
 
@@ -727,10 +730,10 @@ object AnomalyArrayNcMLTest extends SyncExecutor {
 //  def getTaskRequest(args: Array[String]): TaskRequest = {
 //    import nasa.nccs.esgf.process.DomainAxis.Type._
 //
-//    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDS.average", List("v0"), Map("axis" -> "xy")))))
+//    val workflows = List[WorkflowContainer](new WorkflowContainer(operations = List( OperationContext("CDSpark.average", List("v0"), Map("axis" -> "xy")))))
 //    val variableMap = Map[String, DataContainer]("v0" -> new DataContainer(uid = "v0", source = Some(new DataSource(name = "t", collection = getCollection("merra/daily"), domain = "d0"))))
 //    val domainMap = Map[String, DomainContainer]("d0" -> new DomainContainer(name = "d0", axes = cdsutils.flatlist(DomainAxis(Z, 0, 0)), None))
-//    new TaskRequest("CDS.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
+//    new TaskRequest("CDSpark.average", variableMap, domainMap, workflows, Map("id" -> "v0"))
 //  }
 //}
 

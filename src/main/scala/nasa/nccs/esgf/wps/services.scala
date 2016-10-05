@@ -5,7 +5,6 @@ import java.util.concurrent.ExecutionException
 
 import nasa.nccs.cdapi.kernels.{BlockingExecutionResult, ErrorExecutionResult, ExecutionResults, XmlExecutionResult}
 import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
-import nasa.nccs.esgf.engine.demoExecutionManager
 import nasa.nccs.utilities.cdsutils
 import org.slf4j.LoggerFactory
 
@@ -19,9 +18,9 @@ abstract class ServiceProvider( val serverConfiguration: Map[String,String] ) {
 
   //  def listProcesses(): xml.Elem
 
-  def describeProcess( identifier: String ): xml.Elem
+  def describeWPSProcess( identifier: String ): xml.Elem
 
-  def getCapabilities( identifier: String ): xml.Elem
+  def getWPSCapabilities( identifier: String ): xml.Elem
 
   def getCause( e: Throwable ): Throwable = e match {
     case err: ExecutionException => err.getCause; case x => e
@@ -38,21 +37,6 @@ abstract class ServiceProvider( val serverConfiguration: Map[String,String] ) {
     <error id="Execution Error"> { err.getMessage } </error>
   }
 
-}
-
-class esgfServiceProvider( serverConfiguration: Map[String,String] ) extends ServiceProvider(serverConfiguration) {
-  import nasa.nccs.esgf.engine.demoExecutionManager
-
-  override def executeProcess(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
-    try { demoExecutionManager.execute(process_name, datainputs, runargs) } catch { case e: Exception => <error id="Execution Error"> {e.getMessage} </error> }
-  }
-  override def describeProcess(process_name: String): xml.Elem = {
-    try {  demoExecutionManager.describeProcess(process_name) } catch {  case e: Exception => <error id="Execution Error"> {e.getMessage} </error> }
-  }
-  override def getCapabilities(identifier: String): xml.Elem = {
-    try {  demoExecutionManager.listProcesses() } catch {  case e: Exception => <error id="Execution Error"> {e.getMessage} </error> }
-  }
-  override def getResultFilePath( resultId: String ): Option[String] = None
 }
 
 class cds2ServiceProvider( serverConfiguration: Map[String,String] ) extends ServiceProvider(serverConfiguration) {
@@ -85,15 +69,15 @@ class cds2ServiceProvider( serverConfiguration: Map[String,String] ) extends Ser
       }
     } catch { case e: Exception => fatal(e) }
   }
-  override def describeProcess(process_name: String): xml.Elem = {
+  def describeWPSProcess(process_name: String): xml.Elem = {
     try {
-      cds2ExecutionManager.describeProcess( process_name )
+      cds2ExecutionManager.describeWPSProcess( process_name )
 
     } catch { case e: Exception => fatal(e) }
   }
-  override def getCapabilities(identifier: String): xml.Elem = {
+  def getWPSCapabilities(identifier: String): xml.Elem = {
     try {
-      cds2ExecutionManager.getCapabilities( if(identifier == null) "" else identifier )
+      cds2ExecutionManager.getWPSCapabilities( if(identifier == null) "" else identifier )
 
     } catch { case e: Exception => fatal(e) }
   }

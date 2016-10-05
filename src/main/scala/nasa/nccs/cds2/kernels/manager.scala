@@ -1,7 +1,10 @@
 package nasa.nccs.cds2.kernels
+import nasa.nccs.cdapi.kernels.Kernel
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import nasa.nccs.utilities.cdsutils
+import nasa.nccs.wps.WPSProcess
 
 class KernelMgr(  ) {
 
@@ -17,6 +20,9 @@ class KernelMgr(  ) {
     val elemList: List[xml.Elem] = kernelModules.values.map( _.toXml ).toList
     <kernels>{ elemList }</kernels>
   }
+
+  def getKernelList: Iterable[Kernel] = kernelModules.values.flatMap( _.getKernels )
+
 }
 
 object KernelPackageTools {
@@ -27,7 +33,7 @@ object KernelPackageTools {
   val kernelPackagePaths: List[String] = List( internalKernelsPackage ) ++ externalKernelPackages
 
   def getKernelClasses: List[ClassPath.ClassInfo] = {
-    kernelPackagePaths.map( package_path => classpath.getTopLevelClassesRecursive( package_path ).toList ).foldLeft(List[ClassPath.ClassInfo]())( _ ++ _ )
+    kernelPackagePaths.flatMap( package_path => classpath.getTopLevelClassesRecursive( package_path ).toList )
   }
 
   def getKernelMap: Map[String,KernelModule] = {
