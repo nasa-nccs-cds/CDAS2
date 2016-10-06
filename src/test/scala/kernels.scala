@@ -10,27 +10,41 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   Collections.addCollection( "merra.test", merra_data, "MERRA data", List("ta") )
   Collections.addCollection( "const.test", const_data, "Constant data", List("ta") )
 
+  test("GetCapabilities") {
+    val result_node = getCapabilities( "proc" )
+  }
+
+  test("DescribeProcess") {
+    val result_node = describeProcess( "CDSpark.min" )
+  }
+
   test("Sum") {
     val nco_verified_result = 4.886666e+07
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
-    val result_value = result_node.text.toFloat
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
 
   test("Sum Constant") {
     val nco_verified_result = 180749.0
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/const.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
-    val result_value = result_node.text.toFloat
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
 
   test("Maximum") {
     val nco_verified_result = 291.1066
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
-    val result_value = result_node.text.toFloat
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
   test("SerializeTest") {
@@ -40,9 +54,12 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   test("Minimum") {
     val nco_verified_result = 239.4816
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.min","input":"v1","domain":"d0","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
-    val result_value = result_node.text.toFloat
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
+
   }
 
   def getTimeseriesData( collection: String, varName: String, lon_index: Int, lat_index: Int, lev_index: Int): CDFloatArray = {
@@ -59,8 +76,10 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val lev_index = 0
     val direct_result_array = getTimeseriesData( "merra.test", "ta", lon_index, lat_index, lev_index )
     val datainputs = s"""[domain=[{"name":"d0","lat":{"start":$lat_index,"end":$lat_index,"system":"indices"},"lon":{"start":$lon_index,"end":$lon_index,"system":"indices"},"lev":{"start":$lev_index,"end":$lev_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","axes":"t"}]]"""
-    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
-    val result_values = result_node.text.split(",").map( _.toFloat )
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_values = data_nodes.head.text.split(",").map( _.toFloat )
     val result_array = CDFloatArray( Array( result_values.length ), result_values, Float.MaxValue )
     val max_scaled_diff = maxScaledDiff(result_array, direct_result_array)
     printf( " \n\n        result, shape: " + result_array.getShape.mkString(",") + ", values: " + result_array.mkDataString(",") )
@@ -75,8 +94,9 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val lev_index = 0
     val direct_result_array = getTimeseriesData( "merra.test", "ta", lon_index, lat_index, lev_index )
     val datainputs = s"""[domain=[{"name":"d0","lat":{"start":$lat_index,"end":$lat_index,"system":"indices"},"lon":{"start":$lon_index,"end":$lon_index,"system":"indices"},"lev":{"start":$lev_index,"end":$lev_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.timeBin","input":"v1","unit":"month","period":"1","mod":"12","axes":"t"}]]"""
-    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
-    val result_values: Array[Float] = result_node.text.trim.split(' ').head.split(',').map( _.toFloat )
+    val result_node = executeTest(datainputs)
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_values: Array[Float] = data_nodes.head.text.trim.split(' ').head.split(',').map( _.toFloat )
     val result_array = CDFloatArray( Array( result_values.length ), result_values, Float.MaxValue )
     val computed_result = computeCycle( direct_result_array, 12 )
     val max_scaled_diff = maxScaledDiff(result_array, computed_result)
@@ -102,33 +122,41 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   test("Spatial Average Constant") {
     val nco_verified_result = 1.0
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/const.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","weights":"","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
-    val result_value = result_node.text.trim.split(' ').head.toFloat
-    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Spatial Average Constant")
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = ( result_node \\ "Output" \\ "Data" ).filter( cdsutils.attributeValueEquals("value") _  ) \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
+    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
 
   test("Weighted Spatial Average Constant") {
     val nco_verified_result = 1.0
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/const.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","weights":"cosine","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
-    val result_value = result_node.text.trim.split(' ').head.toFloat
-    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Spatial Average Constant")
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = ( result_node \\ "Output" \\ "Data" ).filter( cdsutils.attributeValueEquals("value") _  ) \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
+    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
 
   test("Spatial Average") {
     val nco_verified_result = 270.092
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","weights":"","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
-    val result_value = result_node.text.trim.split(' ').head.toFloat
-    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Spatial Average Constant")
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = ( result_node \\ "Output" \\ "Data" ).filter( cdsutils.attributeValueEquals("value") _  ) \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
+    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
 
   test("Weighted Spatial Average") {
     val nco_verified_result = 275.4043
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","weights":"cosine","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs) \\ "partition" \\ "array"
-    val result_value = result_node.text.trim.split(' ').head.toFloat
-    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Spatial Average Constant")
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = ( result_node \\ "Output" \\ "Data" ).filter( cdsutils.attributeValueEquals("value") _  ) \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
+    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
 
 

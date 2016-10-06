@@ -9,6 +9,7 @@ import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.engine.{CDS2ExecutionManager, SampleTaskRequests}
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.cdsutils
+import nasa.nccs.wps.{RDDExecutionResult, WPSExecuteResponse, WPSResponse}
 import org.apache.spark.rdd.RDD
 import ucar.nc2
 import ucar.nc2.Attribute
@@ -58,23 +59,23 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map
     result
   }
 
-  def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): ExecutionResult = {
+  def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): WPSExecuteResponse = {
     val t0 = System.nanoTime()
     var pre_result: RDDPartition = mapReduce( context, kernel )
     val kernelContext = context.toKernelContext
     val result = kernel.postRDDOp( pre_result, kernelContext  )
     logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec  ********** \n".format(kernel.name,kernel.id,context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
 //    logger.info( "\n\nResult partition elements= %s \n\n".format( result.elements.values.map( cdsutils.toString(_) ) ) )
-    createResponse( result, context )
+    createResponse( kernel, result, context )
   }
 
   def reduce( mapresult: RDD[RDDPartition], context: KernelContext, kernel: Kernel ):  RDDPartition = mapresult.reduce( kernel.reduceRDDOp(context) _ )
 
-  def createResponse( result: RDDPartition, context: CDASExecutionContext ): ExecutionResult = {    // TODO: Implement async
+  def createResponse( kernel: Kernel, result: RDDPartition, context: CDASExecutionContext ): WPSExecuteResponse = {    // TODO: Implement async
     val var_mdata = Map[String,Attribute]()
 //    val async = context.request.config("async", "false").toBoolean
     val resultId = cacheResult( result, context.operation, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )
-    new RDDExecutionResult( context.operation.identifier, result, resultId )
+    new RDDExecutionResult( kernel, context.operation.identifier, result, resultId )
   }
 
   def cacheResult( result: RDDPartition, context: OperationContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {

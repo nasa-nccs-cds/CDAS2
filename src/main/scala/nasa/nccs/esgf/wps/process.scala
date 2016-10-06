@@ -24,7 +24,7 @@ class ProcessManager( serverConfiguration: Map[String,String] ) {
     throw new NotAcceptableException(msg)
   }
 
-  def describeWPSProcess(service: String, name: String): xml.Elem = {
+  def DescribeProcess(service: String, name: String): xml.Elem = {
     apiManager.getServiceProvider(service) match {
       case Some(serviceProvider) =>
         //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))
@@ -44,7 +44,7 @@ class ProcessManager( serverConfiguration: Map[String,String] ) {
     }
   }
 
-  def executeProcess(service: String, process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
+  def ExecuteProcess(service: String, process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
     apiManager.getServiceProvider(service) match {
       case Some(serviceProvider) =>
         //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))

@@ -21,7 +21,8 @@ class KernelMgr(  ) {
     <kernels>{ elemList }</kernels>
   }
 
-  def getKernelList: Iterable[Kernel] = kernelModules.values.flatMap( _.getKernels )
+  def getKernelMap: Map[String,Kernel] =
+    Map( kernelModules.values.map( _.getKernels ).flatten.map( k => k.identifier.toLowerCase -> k ).toSeq: _* )
 
 }
 

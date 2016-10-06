@@ -198,7 +198,7 @@
 ////      reduce( future_results, context )
 ////    }
 ////
-////    override def executeProcess( context: OperationContext, nprocs: Int  ): ExecutionResult = {
+////    override def executeProcess( context: OperationContext, nprocs: Int  ): WPSResponse = {
 ////      val t0 = System.nanoTime()
 ////      val inputs: List[PartitionedFragment] = inputVars( context )
 ////      var opResult1: Future[Option[DataFragment]] = mapReduce1( inputs, context, nprocs )

@@ -29,9 +29,11 @@ import java.util.concurrent._
 
 import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
 import nasa.nccs.cds2.engine.spark.{CDSparkContext, CDSparkExecutionManager}
-import nasa.nccs.wps.{WPSProcess, WPSServer}
+import nasa.nccs.wps._
 import org.apache.spark.{SparkConf, SparkContext}
 import ucar.nc2.dataset.NetcdfDataset
+
+import scala.xml.Elem
 
 class Counter(start: Int = 0) {
   private val index = new AtomicReference(start)
@@ -89,7 +91,7 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
 
   def describeWPSProcess( process: String ): xml.Elem = DescribeProcess( process )
 
-  def getProcesses: List[WPSProcess] = kernelManager.getKernelList
+  def getProcesses: Map[String,WPSProcess] = kernelManager.getKernelMap
 
   def getKernelModule( moduleName: String  ): KernelModule = {
     kernelManager.getModule( moduleName.toLowerCase ) match {
@@ -238,7 +240,7 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
     newCollection.toXml
   }
 
-  def executeUtilityRequest(util_id: String, request: TaskRequest, run_args: Map[String, String]): ExecutionResults = util_id match {
+  def executeUtilityRequest(util_id: String, request: TaskRequest, run_args: Map[String, String]): WPSMergedEventReport = util_id match {
     case "magg" =>
       val collectionNodes =  request.variableMap.values.flatMap( ds => {
         val pcol = ds.getSource.collection
@@ -249,52 +251,52 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
           aggCollection( col_id, col_path )
         }
       })
-      new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
+      new WPSMergedEventReport( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "agg" =>
       val collectionNodes =  request.variableMap.values.map( ds => aggCollection( ds.getSource ) )
-      new ExecutionResults( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
+      new WPSMergedEventReport( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "clearCache" =>
       val fragIds = FragmentPersistence.clearCache
-      new ExecutionResults( List( new UtilityExecutionResult( "clearCache", <deleted fragments={fragIds.mkString(",")}/> ) ) )
+      new WPSMergedEventReport( List( new UtilityExecutionResult( "clearCache", <deleted fragments={fragIds.mkString(",")}/> ) ) )
     case "cache" =>
       val cached_data: Iterable[(DataFragmentKey,Future[PartitionedFragment])] = cacheInputData(request, createTargetGrid(request), run_args).flatten
       FragmentPersistence.close()
-      new ExecutionResults( cached_data.map( cache_result => new UtilityExecutionResult( cache_result._1.toStrRep, <cache/> ) ).toList )
+      new WPSMergedEventReport( cached_data.map( cache_result => new UtilityExecutionResult( cache_result._1.toStrRep, <cache/> ) ).toList )
     case "dcol" =>
       val colIds = request.variableMap.values.map( _.getSource.collection.id )
       val deletedCollections = Collections.removeCollections( colIds.toArray )
-      new ExecutionResults(List(new UtilityExecutionResult("dcol", <deleted collections={deletedCollections.mkString(",")}/> )))
+      new WPSMergedEventReport(List(new UtilityExecutionResult("dcol", <deleted collections={deletedCollections.mkString(",")}/> )))
     case "dfrag" =>
       val fragIds: Iterable[String] = request.variableMap.values.map( ds => Array( ds.getSource.name, ds.getSource.collection.id, ds.getSource.domain ).mkString("|") )
       logger.info( "Deleting frags: " + fragIds.mkString(", ") + "; Current Frags = " + FragmentPersistence.getFragmentIdList.mkString(", ") )
       FragmentPersistence.delete( fragIds )
-      new ExecutionResults(List(new UtilityExecutionResult("dfrag", <deleted fragments={fragIds.mkString(",")}/> )))
+      new WPSMergedEventReport(List(new UtilityExecutionResult("dfrag", <deleted fragments={fragIds.mkString(",")}/> )))
     case "dres" =>
       val resIds: Iterable[String] = request.variableMap.values.map( ds => ds.uid )
       logger.info( "Deleting results: " + resIds.mkString(", ") + "; Current Results = " + collectionDataCache.getResultIdList.mkString(", ") )
       resIds.foreach( resId => collectionDataCache.deleteResult( resId ) )
-      new ExecutionResults(List(new UtilityExecutionResult("dres", <deleted results={resIds.mkString(",")}/> )))
+      new WPSMergedEventReport(List(new UtilityExecutionResult("dres", <deleted results={resIds.mkString(",")}/> )))
     case x if x.startsWith("gres") =>
       val resId: String = request.variableMap.values.head.uid
       collectionDataCache.getExistingResult( resId ) match {
-        case None => new ExecutionResults( List( new ErrorExecutionResult( new Exception("Unrecognized resId: " + resId + ", existing resIds: " + collectionDataCache.getResultIdList.mkString(", ") )) ) )
+        case None => new WPSMergedEventReport( List( new WPSExceptionReport( new Exception("Unrecognized resId: " + resId + ", existing resIds: " + collectionDataCache.getResultIdList.mkString(", ") )) ) )
         case Some( fut_result ) =>
           if (fut_result.isCompleted) {
             val result = Await.result( fut_result, Duration.Inf )
             x.split(':')(1) match {
               case "xml" =>
-                new ExecutionResults(List(new UtilityExecutionResult(resId,result.toXml(resId))))
+                new WPSMergedEventReport(List(new UtilityExecutionResult(resId,result.toXml(resId))))
               case "netcdf" =>
                 saveResultToFile(resId, result.dataFrag.data, result.request, serverContext, result.metadata, List.empty[nc2.Attribute]) match {
-                  case Some(resultFilePath) => new ExecutionResults(List(new UtilityExecutionResult(resId, <file> {resultFilePath} </file>)))
-                  case None => new ExecutionResults(List(new UtilityExecutionResult(resId, <error> {"Error writing resultFile"} </error>)))
+                  case Some(resultFilePath) => new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <file> {resultFilePath} </file>)))
+                  case None => new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Error writing resultFile"} </error>)))
                 }
             }
-          } else { new ExecutionResults(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }
+          } else { new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }
       }
   }
 
-  def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[ExecutionResults] = Future {
+  def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[WPSResponse] = Future {
     logger.info("Executing task request " + request.name )
     val targetGrid: TargetGrid = createTargetGrid(request)
     val requestContext = loadInputData(request, targetGrid, run_args)
@@ -303,7 +305,7 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
 
   def getRequestContext( request: TaskRequest, run_args: Map[String,String] ): RequestContext = loadInputData( request, createTargetGrid( request ), run_args )
 
-  def blockingExecute( request: TaskRequest, run_args: Map[String,String] ): ExecutionResults =  {
+  def blockingExecute( request: TaskRequest, run_args: Map[String,String] ): WPSResponse =  {
     logger.info("Blocking Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
     runtime.printMemoryUsage(logger)
     val t0 = System.nanoTime
@@ -325,7 +327,7 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
           rv
       }
     } catch {
-      case err: Exception => new ExecutionResults(err)
+      case err: Exception => new WPSExceptionReport(err)
     }
   }
 
@@ -347,7 +349,7 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
     if(resultFile.exists) Some(resultFile.getAbsolutePath) else None
   }
 
-  def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): ( Map[String,String], Future[ExecutionResults] ) = {
+  def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): WPSReferenceExecuteResponse = {
     logger.info("Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
     runtime.printMemoryUsage(logger)
     val jobId = collectionDataCache.addJob( request.getJobRec(run_args) )
@@ -356,20 +358,19 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
     req_ids(0) match {
       case "util" =>
         val util_result = executeUtilityRequest(req_ids(1), request, Map("jobId" -> jobId) ++ run_args )
-        val fragIds = util_result.results.map( _.id )
-        ( Map( "results" -> fragIds.mkString(";") ), Future(util_result) )
+        Future(util_result)
       case _ =>
         val futureResult = this.futureExecute(request, Map("jobId" -> jobId) ++ run_args)
-        futureResult onSuccess { case results: ExecutionResults =>
+        futureResult onSuccess { case results: WPSMergedEventReport =>
           println("Process Completed: " + results.toString)
           processAsyncResult(jobId, results)
         }
         futureResult onFailure { case e: Throwable => fatal(e); collectionDataCache.removeJob(jobId); throw e }
-        ( Map( "job" -> jobId ), futureResult)
     }
+    new AsyncExecutionResult( request.getProcess, Some(jobId) )
   }
 
-  def processAsyncResult( jobId: String, results: ExecutionResults ) = {
+  def processAsyncResult( jobId: String, results: WPSMergedEventReport ) = {
     collectionDataCache.removeJob( jobId )
   }
 
@@ -407,30 +408,30 @@ abstract class CDS2ExecutionManager( val serverConfiguration: Map[String,String]
     <attr id={attr.getFullName.split("--").last}> { sb.toString } </attr>
   }
 
-  def executeWorkflows( request: TaskRequest, requestCx: RequestContext ): ExecutionResults = {
-    val results = new ExecutionResults( request.workflow.map( operationExecution( _, requestCx )))
+  def executeWorkflows( request: TaskRequest, requestCx: RequestContext ): WPSResponse = {
+    val results = request.workflow.head.moduleName match {
+      case "util" =>  new WPSMergedEventReport( request.workflow.map( utilityExecution( _, requestCx )))
+      case x =>       new MergedWPSExecuteResponse( request.workflow.map( operationExecution( _, requestCx )))
+    }
     FragmentPersistence.close()
 //    logger.info( "---------->>> Execute Workflows: Created XML response: " + results.toXml.toString )
     results
   }
 
-  def executeUtility( context: CDASExecutionContext ): ExecutionResult = {
-    val result: xml.Node =  <result> {"Completed executing utility " + context.operation.name.toLowerCase } </result>
-    new XmlExecutionResult( context.operation.name.toLowerCase + "~u0", result )
+  def executeUtility( context: CDASExecutionContext ): UtilityExecutionResult = {
+    val report: xml.Elem =  <ReportText> {"Completed executing utility " + context.operation.name.toLowerCase } </ReportText>
+    new UtilityExecutionResult( context.operation.name.toLowerCase + "~u0", report )
   }
 
-  def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): ExecutionResult
+  def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): WPSExecuteResponse
 
-  def operationExecution( operationCx: OperationContext, requestCx: RequestContext ): ExecutionResult = {
-    val opName = operationCx.name.toLowerCase
-    val module_name = opName.split('.').head
-    logger.info( " ***** Operation Execution: opName=%s, module_name=%s >> Operation = %s ".format(opName, module_name, operationCx.toString ) )
-    module_name match {
-      case "util" =>
-        executeUtility( new CDASExecutionContext( operationCx, requestCx, serverContext ) )
-      case x =>
-        executeProcess( new CDASExecutionContext( operationCx, requestCx, serverContext ), getKernel( opName ) )
-    }
+  def operationExecution( operationCx: OperationContext, requestCx: RequestContext ): WPSExecuteResponse = {
+    logger.info( " ***** Operation Execution: opName=%s >> Operation = %s ".format( operationCx.name, operationCx.toString ) )
+    executeProcess( new CDASExecutionContext( operationCx, requestCx, serverContext ), getKernel( operationCx.name.toLowerCase ) )
+  }
+  def utilityExecution( operationCx: OperationContext, requestCx: RequestContext ): UtilityExecutionResult = {
+    logger.info( " ***** Utility Execution: utilName=%s, >> Operation = %s ".format( operationCx.name, operationCx.toString ) )
+    executeUtility( new CDASExecutionContext( operationCx, requestCx, serverContext ) )
   }
 }
 

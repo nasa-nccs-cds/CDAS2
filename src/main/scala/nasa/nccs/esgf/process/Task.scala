@@ -10,6 +10,7 @@ import ucar.{ma2, nc2}
 import org.joda.time.{DateTime, DateTimeZone}
 import nasa.nccs.utilities.Loggable
 import java.util.UUID
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.util.matching.Regex
@@ -21,6 +22,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.esgf.utilities.wpsNameMatchers
+import nasa.nccs.wps.{WPSDataInput, WPSProcess, WPSProcessOutput, WPSWorkflowProcess}
 import org.apache.commons.lang.RandomStringUtils
 
 import scala.util.Random
@@ -46,6 +48,11 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
     logger.error(error_rep.toString)
     errorReports += error_rep
   }
+
+  def getProcess: WPSWorkflowProcess = new WPSWorkflowProcess( id.toString, getDescription, "Workflow " + name, getInputs, getOutputs )
+
+  def getInputs: List[WPSDataInput] = inputVariables.map( _.toWPSDataInput ).toList
+  def getOutputs: List[WPSProcessOutput] = List( WPSProcessOutput(id.toString,"text/xml","Workflow Output") )
 
   def getJobRec( run_args: Map[String,String] ): JobRecord = {
     val jobIds = for(  operation <- workflow ) yield operation.rid
@@ -93,6 +100,8 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
     }
     taskStr
   }
+
+  def getDescription: String = "Processes { %s }".format( workflow.map(_.toString ) )
 
   def toXml = {
     <task_request name={name}>
@@ -499,11 +508,12 @@ class OperationSpecs( id: String, val optargs: Map[String,String] ) {
   def getSpec( id: String, default: String = "" ): String = optargs.getOrElse( id, default )
 }
 
-
 class DataContainer(val uid: String, private val source : Option[DataSource] = None, private val operation : Option[OperationContext] = None ) extends ContainerBase {
   assert( source.isDefined || operation.isDefined, s"Empty DataContainer: variable uid = $uid" )
   assert( source.isEmpty || operation.isEmpty, s"Conflicted DataContainer: variable uid = $uid" )
   private val optSpecs = mutable.ListBuffer[ OperationSpecs ]()
+
+  def toWPSDataInput: WPSDataInput = WPSDataInput( uid.toString, 1, 1 )
 
   override def toString = {
     val embedded_val: String = if ( source.isDefined ) source.get.toString else operation.get.toString
@@ -717,14 +727,9 @@ object DomainContainer extends ContainerBase {
 
 class OperationContext( val index: Int, val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext with Serializable  {
   def getConfiguration = configuration
-  println( "OperationContext: " + rid )
-
-  override def toString = {
-    s"OperationContext { id = $identifier,  name = $name, rid = $rid, inputs = $inputs, configurations = $configuration }"
-  }
-  override def toXml = {
-    <proc id={identifier} name={name} rid={rid} inputs={inputs.toString} configurations={configuration.toString}/>
-  }
+  val moduleName: String = name.toLowerCase.split('.').head
+  override def toString = s"OperationContext { id = $identifier,  name = $name, rid = $rid, inputs = $inputs, configurations = $configuration }"
+  override def toXml = <proc id={identifier} name={name} rid={rid} inputs={inputs.toString} configurations={configuration.toString}/>
 }
 
 object OperationContext extends ContainerBase  {

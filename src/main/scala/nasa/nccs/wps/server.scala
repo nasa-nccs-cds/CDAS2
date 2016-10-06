@@ -3,13 +3,13 @@ package nasa.nccs.wps
 import nasa.nccs.cds2.utilities.appParameters
 
 trait WPSServer {
+  def getProcesses: Map[String,WPSProcess]
 
-  def getProcesses: List[WPSProcess]
-
-  def DescribeProcess( process: String ) : xml.Elem =
+  def DescribeProcess( process: String ) : xml.Elem = {
     <wps:ProcessDescriptions xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsDescribeProcess_response.xsd" service="WPS" version="1.0.0" xml:lang="en-CA">
-      {getProcesses.map(_.describeWPSProcess)}
+      { List(getProcesses.get(process.toLowerCase)).flatten.map( _.DescribeProcess ) }
     </wps:ProcessDescriptions>
+  }
 
   def GetCapabilities: xml.Elem =
     <wps:Capabilities service="WPS" version="1.0.0" xml:lang="en-CA" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsGetCapabilities_response.xsd" updateSequence="1">
@@ -45,7 +45,7 @@ trait WPSServer {
         <ows:Operation name="DescribeProcess"/>
         <ows:Operation name="Execute"/>
       </ows:OperationsMetadata>
-      <wps:ProcessOfferings>  { getProcesses.map(_.GetCapabilities) }  </wps:ProcessOfferings>
+      <wps:ProcessOfferings>  { getProcesses.values.map( _.GetCapabilities ) }  </wps:ProcessOfferings>
     </wps:Capabilities>
 
 }

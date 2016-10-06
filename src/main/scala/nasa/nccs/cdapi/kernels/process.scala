@@ -13,7 +13,7 @@ import nasa.nccs.caching.collectionDataCache
 import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.utilities.Loggable
-import nasa.nccs.wps.{WPSExecuteResponse, WPSProcess, WPSReferenceExecuteResponse, WPSResponse}
+import nasa.nccs.wps.WPSProcess
 import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
@@ -77,56 +77,6 @@ class CDASExecutionContext( val operation: OperationContext, val request: Reques
       }
   }
   def getOpCDSectionIntersection: Option[ CDSection ] = getOpSectionIntersection.map( CDSection( _ ) )
-}
-
-class UtilityExecutionResult( id: String, val response: xml.Elem )  extends WPSExecuteResponse with Loggable {
-  def getProcessOutputs( process_id: String, output_id: String ): xml.Elem = response
-}
-class BlockingExecutionResult( process: WPSProcess, id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray,
-                               optResultId: Option[String] = None ) extends WPSReferenceExecuteResponse( process, optResultId )  with Loggable {
-//  def toXml_old = {
-//    val idToks = id.split('-')
-//    logger.info( "BlockingExecutionResult-> result_tensor(" + id + "): \n" + result_tensor.toString )
-//    val inputs = intputSpecs.map( _.toXml )
-//    val grid = gridSpec.toXml
-//    val results = result_tensor.mkDataString(",")
-//    <result id={id} op={idToks.head} rid={resultId.getOrElse("")}> { inputs } { grid } <data undefined={result_tensor.getInvalid.toString}> {results}  </data>  </result>
-//  }
-  def getProcessOutputs( process_id: String, output_id: String  ): Iterable[xml.Elem] = {
-    getReference( process_id, output_id )
-    List( getData( output_id, result_tensor, intputSpecs.head.units ) )
-  }
-}
-
-class RDDExecutionResult( process: WPSProcess, id: String, val result: RDDPartition,  optResultId: Option[String] = None ) extends WPSReferenceExecuteResponse( process, optResultId )  with Loggable {
-  def getProcessOutputs( process_id: String, output_id: String  ): Iterable[xml.Elem] = {
-    result.elements map { case (id, array) => getData( id, array.toCDFloatArray, array.metadata.get("units","") ) }
-  }
-}
-
-
-class ErrorExecutionResult( val err: Throwable ) extends WPSResponse with Loggable {
-  def toXml = {
-    <ows:ExceptionReport xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                         xsi:schemaLocation="http://www.opengis.net/ows/1.1 ../../../ows/1.1.0/owsExceptionReport.xsd" version="1.0.0" xml:lang="en-CA">
-      <ows:Exception exceptionCode={err.getClass.getName}>
-        <ows:ExceptionText>{err.getMessage}</ows:ExceptionText>
-      </ows:Exception>
-    </ows:ExceptionReport>
-  }
-}
-
-class XmlExecutionResult( id: String,  val responseXml: xml.Node ) extends WPSExecuteResponse {
-  def getOutput( process_id: String, output_id: String  ): xml.Elem = {}
-}
-
-class AsyncExecutionResult( process: WPSProcess, optResultId: Option[String] ) extends WPSReferenceExecuteResponse( process, optResultId )  {
-  def getProcessOutputs( process_id: String, output_id: String ): Iterable[xml.Elem] = getReference( process_id, output_id )
-}
-
-class ExecutionResults( val results: List[WPSExecuteResponse] ) {
-  def this(err: Throwable ) = this( List( new ErrorExecutionResult( err ) ) )
-  def toXml = WPSExecuteResponse.merge( results ).toXml
 }
 
 case class ResultManifest( val name: String, val dataset: String, val description: String, val units: String )
@@ -392,7 +342,7 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
 //abstract class MultiKernel  extends Kernel {
 //  val kernels: List[Kernel]
 //
-//  def execute( context: CDASExecutionContext, nprocs: Int  ): ExecutionResult = {
+//  def execute( context: CDASExecutionContext, nprocs: Int  ): WPSResponse = {
 //    val inputs: List[PartitionedFragment] = inputVars( context )
 //    for( kernel: Kernel <- kernels ) {
 //      val result = kernel.mapReduce( inputs, context, nprocs )

@@ -6,7 +6,7 @@ import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.engine.CDS2ExecutionManager
 import nasa.nccs.esgf.process.{CDSection, DataFragment}
-import nasa.nccs.wps.WPSExecuteResponse
+import nasa.nccs.wps.{AsyncExecutionResult, BlockingExecutionResult, WPSExecuteResponse, WPSResponse}
 import ucar.{ma2, nc2}
 import ucar.nc2.Attribute
 
@@ -28,7 +28,7 @@ class CDFuturesExecutionManager( serverConfig: Map[String,String] = Map.empty ) 
     reduce(future_results, context, kernel )
   }
 
-  def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): ExecutionResult = {
+  def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): WPSExecuteResponse = {
     val t0 = System.nanoTime()
     var opResult: Future[Option[DataFragment]] = mapReduce( context, kernel )
     opResult.onComplete {
@@ -55,7 +55,7 @@ class CDFuturesExecutionManager( serverConfig: Map[String,String] = Map.empty ) 
       val resultOpt: Option[DataFragment] = Await.result( finalResultFut, Duration.Inf )
       resultOpt match {
         case Some( result) =>
-          new BlockingExecutionResult (context.operation.identifier, List(result.spec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data, optResultId )
+          new BlockingExecutionResult( kernel, context.operation.identifier, List(result.spec), context.request.targetGrid.getSubGrid (result.spec.roi), result.data, optResultId )
         case None =>
           logger.error( "Operation %s returned empty result".format( context.operation.identifier ) )
           new BlockingExecutionResult( kernel,  context.operation.identifier, List(), context.request.targetGrid, CDFloatArray.empty )

@@ -22,7 +22,7 @@ object CDSparkContext {
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf(url,name) ) )
 
-  def getSparkConf( master: String, appName: String, logConf: Boolean = true  ) = new SparkConf(false)
+  def getSparkConf( master: String, appName: String, logConf: Boolean = false  ) = new SparkConf(false)
     .setMaster( master )
     .setAppName( appName )
     .set("spark.logConf", logConf.toString )

@@ -3,7 +3,7 @@ package nasa.nccs.esgf.wps
 import java.io.{PrintWriter, StringWriter}
 import java.util.concurrent.ExecutionException
 
-import nasa.nccs.cdapi.kernels.{BlockingExecutionResult, ErrorExecutionResult, ExecutionResults, XmlExecutionResult}
+import nasa.nccs.wps.{BlockingExecutionResult, WPSExceptionReport, WPSResponse}
 import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
 import nasa.nccs.utilities.cdsutils
 import org.slf4j.LoggerFactory
@@ -28,13 +28,13 @@ abstract class ServiceProvider( val serverConfiguration: Map[String,String] ) {
 
   def getResultFilePath( resultId: String ): Option[String]
 
-  def fatal( e: Throwable ): xml.Elem = {
+  def fatal( e: Throwable ): WPSExceptionReport = {
     val err = getCause( e )
     logger.error( "\nError Executing Kernel: %s\n".format(err.getMessage) )
     val sw = new StringWriter
     err.printStackTrace(new PrintWriter(sw))
     logger.error( sw.toString )
-    <error id="Execution Error"> { err.getMessage } </error>
+    new WPSExceptionReport(err)
   }
 
 }
@@ -53,33 +53,22 @@ class cds2ServiceProvider( serverConfiguration: Map[String,String] ) extends Ser
   override def executeProcess(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
     try {
       cdsutils.time( logger, "\n\n-->> Process %s, datainputs: %s \n\n".format( process_name, datainputs2Str(datainputs) ) ) {
-        if( runargs.getOrElse("async","false").toBoolean ) {
-          cds2ExecutionManager.asyncExecute(TaskRequest(process_name, datainputs), runargs) match {
-            case ( mdata: Map[String,String], futureResult: Future[ExecutionResults] ) =>
-              mdata.get("results") match {
-                case Some(fragments) => <result fragments={fragments}/>
-                case None => <result url={"http://server:port/wps/results?id=%s".format(mdata.getOrElse("job",""))} />
-              }
-            case x =>  <error id="Execution Error"> {"Malformed response from cds2ExecutionManager" } </error>
-          }
-        }
-        else  {
-          cds2ExecutionManager.blockingExecute(TaskRequest(process_name, datainputs), runargs).toXml
-        }
+        if( runargs.getOrElse("async","false").toBoolean )  cds2ExecutionManager.asyncExecute(TaskRequest(process_name, datainputs), runargs).toXml
+        else   cds2ExecutionManager.blockingExecute(TaskRequest(process_name, datainputs), runargs).toXml
       }
-    } catch { case e: Exception => fatal(e) }
+    } catch { case e: Exception => fatal(e).toXml }
   }
   def describeWPSProcess(process_name: String): xml.Elem = {
     try {
       cds2ExecutionManager.describeWPSProcess( process_name )
 
-    } catch { case e: Exception => fatal(e) }
+    } catch { case e: Exception => fatal(e).toXml }
   }
   def getWPSCapabilities(identifier: String): xml.Elem = {
     try {
       cds2ExecutionManager.getWPSCapabilities( if(identifier == null) "" else identifier )
 
-    } catch { case e: Exception => fatal(e) }
+    } catch { case e: Exception => fatal(e).toXml }
   }
   override def getResultFilePath( resultId: String ): Option[String] = cds2ExecutionManager.getResultFilePath( resultId )
 }

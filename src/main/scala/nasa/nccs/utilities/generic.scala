@@ -35,6 +35,8 @@ object cdsutils {
 
   def toString( value: Any, max_len: Int = 250 ): String = { val vstr = value.toString; if( vstr.length > max_len ) vstr.substring(0,max_len) else vstr }
 
+  def attributeValueEquals(value: String)(node: xml.Node) = node.attributes.exists(_.value.text == value)
+
   def getProjectJars: Array[JarFile] = {
     import java.io.File
     val cpitems = System.getProperty("java.class.path").split(File.pathSeparator)
