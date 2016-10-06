@@ -3,7 +3,7 @@ package nasa.nccs.cdapi.data
 import nasa.nccs.caching.Partition
 import nasa.nccs.cdapi.tensors.{CDArray, CDDoubleArray, CDFloatArray}
 import nasa.nccs.esgf.process.CDSection
-import nasa.nccs.utilities.cdsutils
+import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.spark.rdd.RDD
 import ucar.nc2.constants.AxisType
 
@@ -117,6 +117,7 @@ object RDDPartSpec {
 class RDDPartSpec( val partition: Partition, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable {
   def getRDDPartition: RDDPartition = {
     val elements =  Map( varSpecs.map( vSpec => vSpec.uid -> vSpec.toHeapArray(partition) ): _* )
+    println( "\n   RDDPartSpec[%d]: %s".format( partition.index, elements.head._2.data.mkString(",") ) )
     RDDPartition( partition.index, elements )
   }
 

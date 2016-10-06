@@ -59,7 +59,6 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
     val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
-
   }
 
   def getTimeseriesData( collection: String, varName: String, lon_index: Int, lat_index: Int, lev_index: Int): CDFloatArray = {

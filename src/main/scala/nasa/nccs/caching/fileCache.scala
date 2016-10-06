@@ -67,7 +67,8 @@ class Partition( val index: Int, val path: String, val dimIndex: Int, val startI
     val channel: FileChannel  = file.getChannel()
     val buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, partSize * sliceMemorySize)
     channel.close(); file.close()
-    new CDFloatArray( shape, buffer.asFloatBuffer, missing_value )
+    val rv = new CDFloatArray( shape, buffer.asFloatBuffer, missing_value )
+    rv
   }
   def delete() = { FileUtils.deleteQuietly( new File( path ) ) }
   def chunkSection( iChunk: Int, section: ma2.Section ): ma2.Section = {  new ma2.Section( section.getRanges ).replaceRange( dimIndex, chunkRange(iChunk) ) }
