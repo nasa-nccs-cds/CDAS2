@@ -9,6 +9,7 @@ import java.util.Formatter
 import nasa.nccs.cdapi.data.{ArrayBase, HeapDblArray, HeapFltArray}
 import nasa.nccs.cdapi.kernels.AxisIndices
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDDoubleArray, CDFloatArray}
+import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.nc2.time.{CalendarDate, CalendarDateRange}
@@ -437,10 +438,10 @@ class TargetGrid( val variable: CDSVariable = CDSVariable.empty, roiOpt: Option[
   }
 }
 
-class ServerContext( val dataLoader: DataLoader, private val configuration: Map[String,String] )  extends ScopeContext with Serializable {
+class ServerContext( val dataLoader: DataLoader )  extends ScopeContext with Serializable {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
-  def getConfiguration = configuration
   def getVariable( collection: Collection, varname: String ): CDSVariable = dataLoader.getVariable( collection, varname )
+  def getConfiguration: Map[String,String] = appParameters.getParameterMap
 
   def getOperationInput( fragSpec: DataFragmentSpec ): OperationInput = {
     val fragFut = dataLoader.getExistingFragment( fragSpec ) match {

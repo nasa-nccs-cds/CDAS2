@@ -6,7 +6,7 @@ import nasa.nccs.cdapi.cdm.{OperationInput, PartitionedFragment}
 import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.engine.{CDS2ExecutionManager, SampleTaskRequests}
+import nasa.nccs.cds2.engine.{CDS2ExecutionManager}
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.cdsutils
 import nasa.nccs.wps.{RDDExecutionResult, WPSExecuteResponse, WPSResponse}
@@ -44,7 +44,7 @@ object collectionRDDDataCache extends CollectionDataCacheMgr()
 //  }
 
 
-class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map[String,String] = Map.empty ) extends CDS2ExecutionManager(serverConfig) {
+class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext() ) extends CDS2ExecutionManager {
 
   def mapReduce(context: CDASExecutionContext, kernel: Kernel ): RDDPartition = {
     val opInputs: List[PartitionedFragment] = getOperationInputs( context ).flatMap(  _ match { case pf: PartitionedFragment => Some(pf); case x => None } )   // TODO: Ignores Transient Fragments
@@ -55,7 +55,7 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map
     logger.info( "\n\n ----------------------- BEGIN reduce Operation ----------------------- \n" )
 //    logger.info( " ----> Map Result = " + mapresult.collect().map(_.toXml.toString).mkString(","))
     val result = reduce( mapresult, kernelContext, kernel )
-    logger.info( "\n\n ----------------------- FINISHED reduce Operation: result = " + result.toString )
+    logger.info( "\n\n ----------------------- FINISHED reduce Operation ----------------------- "  )
     result
   }
 

@@ -8,7 +8,7 @@ object appParameters extends Loggable {
 
   val cacheDir = getCacheDirectory
   val parmFile = Paths.get( cacheDir, "cdas.properties" ).toString
-  private val _map: Map[String,String]  = getParameterMap
+  private var _map: Map[String,String]  = getParameterMap
 
   def apply( key: String, default: String ): String = _map.getOrElse( key, default )
 
@@ -21,6 +21,8 @@ object appParameters extends Loggable {
     case Some( value ) => value.toLowerCase.trim.startsWith("t")
     case None => default
   }
+
+  def addConfigParams( configuration: Map[String,String] ) = { _map = _map ++ configuration }
 
   def keySet: Set[String] = _map.keySet
 

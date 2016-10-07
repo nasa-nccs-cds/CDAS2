@@ -12,6 +12,9 @@ class NotAcceptableException(message: String = null, cause: Throwable = null) ex
 class ProcessManager( serverConfiguration: Map[String,String] ) {
   val logger = LoggerFactory.getLogger(this.getClass)
   def apiManager = new APIManager( serverConfiguration )
+  logger.info( "\n\n _____________________________________________________________________________")
+  logger.info( "   ****  NEW ProcessManager Created  **** ")
+  logger.info( "_____________________________________________________________________________\n\n")
 
   def printLoggerInfo = {
     import ch.qos.logback.classic.LoggerContext
@@ -24,7 +27,7 @@ class ProcessManager( serverConfiguration: Map[String,String] ) {
     throw new NotAcceptableException(msg)
   }
 
-  def DescribeProcess(service: String, name: String): xml.Elem = {
+  def describeProcess(service: String, name: String): xml.Elem = {
     apiManager.getServiceProvider(service) match {
       case Some(serviceProvider) =>
         //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))
@@ -34,7 +37,7 @@ class ProcessManager( serverConfiguration: Map[String,String] ) {
     }
   }
 
-  def GetCapabilities(service: String, identifier: String): xml.Elem = {
+  def getCapabilities(service: String, identifier: String): xml.Elem = {
     apiManager.getServiceProvider(service) match {
       case Some(serviceProvider) =>
         //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))
@@ -44,7 +47,7 @@ class ProcessManager( serverConfiguration: Map[String,String] ) {
     }
   }
 
-  def ExecuteProcess(service: String, process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
+  def executeProcess(service: String, process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
     apiManager.getServiceProvider(service) match {
       case Some(serviceProvider) =>
         //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))

@@ -15,7 +15,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Success}
 
-class CDFuturesExecutionManager( serverConfig: Map[String,String] = Map.empty ) extends CDS2ExecutionManager(serverConfig) {
+class CDFuturesExecutionManager extends CDS2ExecutionManager {
 
   def mapReduce(context: CDASExecutionContext, kernel: Kernel ): Future[Option[DataFragment]] = {
     val opInputs: List[OperationInput] = getOperationInputs( context )

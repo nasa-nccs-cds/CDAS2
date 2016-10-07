@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
-abstract class ServiceProvider( val serverConfiguration: Map[String,String] ) {
+trait ServiceProvider {
   val logger = LoggerFactory.getLogger(this.getClass)
 
   def executeProcess(identifier: String, parsed_data_inputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem
@@ -39,11 +39,11 @@ abstract class ServiceProvider( val serverConfiguration: Map[String,String] ) {
 
 }
 
-class cds2ServiceProvider( serverConfiguration: Map[String,String] ) extends ServiceProvider(serverConfiguration) {
+object cds2ServiceProvider extends ServiceProvider {
   import nasa.nccs.cds2.engine.CDS2ExecutionManager
   import nasa.nccs.esgf.process.TaskRequest
 
-  val cds2ExecutionManager = CDS2ExecutionManager( serverConfiguration )
+  val cds2ExecutionManager = CDS2ExecutionManager()
 
   def datainputs2Str( datainputs: Map[String, Seq[Map[String, Any]]] ): String = {
     datainputs.map { case ( key:String, value:Seq[Map[String, Any]] ) =>
@@ -78,7 +78,7 @@ object resourceTest extends App {
   import nasa.nccs.cds2.engine.CDS2ExecutionManager
   val serverConfiguration: Map[String,String] = Map()
 
-  val cds2ExecutionManager = CDS2ExecutionManager( serverConfiguration )
+  val cds2ExecutionManager = CDS2ExecutionManager()
 
   val resourcePath = cds2ExecutionManager.getResourcePath("/collections.xml")
   println( resourcePath )
