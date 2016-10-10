@@ -41,7 +41,7 @@ class KernelModule( val name: String, val kernelClassMap: Map[String,ClassPath.C
 
   def toXml = {
     <kernelModule name={name}>
-      <kernels> { kernels.keys.map( kname => <kernel name={kname}/> ) } </kernels>
+      <kernels> { kernels.keys.map( kname => <kernel module={name} name={kname}/> ) } </kernels>
     </kernelModule>
   }
 

@@ -78,10 +78,10 @@ abstract class CDS2ExecutionManager extends WPSServer {
         case Some(inputSpec) =>
           logger.info("getInputSpec: %s -> %s ".format(uid, inputSpec.longname))
           context.server.getOperationInput(inputSpec)
-        case None => collectionDataCache.getExistingResult(uid) match {
-          case Some(tFragFut) =>
-            val rv = Await result(tFragFut, Duration.Inf)
-            logger.info("getExistingResult: %s -> %s ".format(uid, rv.dataFrag.spec.longname))
+        case None => collectionDataCache.getExistingRDDResult(uid) match {
+          case Some(tRDDFut) =>
+            val rv = Await result(tRDDFut, Duration.Inf)
+            logger.info("getExistingResult: %s -> %s ".format(uid, rv.elements.values.head.metadata.mkString(",")))
             rv
           case None => throw new Exception("Unrecognized input id: " + uid)
         }
@@ -278,7 +278,7 @@ abstract class CDS2ExecutionManager extends WPSServer {
       new WPSMergedEventReport(List(new UtilityExecutionResult("dres", <deleted results={resIds.mkString(",")}/> )))
     case x if x.startsWith("gres") =>
       val resId: String = request.variableMap.values.head.uid
-      collectionDataCache.getExistingResult( resId ) match {
+      collectionDataCache.getExistingRDDResult( resId ) match {
         case None => new WPSMergedEventReport( List( new WPSExceptionReport( new Exception("Unrecognized resId: " + resId + ", existing resIds: " + collectionDataCache.getResultIdList.mkString(", ") )) ) )
         case Some( fut_result ) =>
           if (fut_result.isCompleted) {
@@ -382,7 +382,7 @@ abstract class CDS2ExecutionManager extends WPSServer {
   def getWPSCapabilities( identifier: String ): xml.Elem = identifier match {
     case x if x.startsWith("proc") => GetCapabilities
     case x if x.startsWith("frag") => FragmentPersistence.getFragmentListXml
-    case x if x.startsWith("res") => collectionDataCache.getResultListXml
+    case x if x.startsWith("res") => collectionDataCache.getResultListXml // collectionDataCache
     case x if x.startsWith("job") => collectionDataCache.getJobListXml
     case x if x.startsWith("coll") => {
       val itToks = x.split(':')
@@ -411,7 +411,9 @@ abstract class CDS2ExecutionManager extends WPSServer {
   def executeWorkflows( request: TaskRequest, requestCx: RequestContext ): WPSResponse = {
     val results = request.workflow.head.moduleName match {
       case "util" =>  new WPSMergedEventReport( request.workflow.map( utilityExecution( _, requestCx )))
-      case x =>       new MergedWPSExecuteResponse( request.workflow.map( operationExecution( _, requestCx )))
+      case x =>
+        logger.info( "---------->>> Execute Workflows: " + request.workflow.mkString(",") )
+        new MergedWPSExecuteResponse( request.workflow.map( operationExecution( _, requestCx )))
     }
     FragmentPersistence.close()
 //    logger.info( "---------->>> Execute Workflows: Created XML response: " + results.toXml.toString )

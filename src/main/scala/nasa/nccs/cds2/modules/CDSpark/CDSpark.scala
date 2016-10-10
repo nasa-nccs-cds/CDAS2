@@ -9,6 +9,14 @@ import org.apache.spark.rdd.RDD
 
 import scala.reflect.runtime.{universe => u}
 
+//package object CDSpark {
+//  val name = "CDSpark"
+//  val version = "1.0-SNAPSHOT"
+//  val organization = "nasa.nccs"
+//  val author = "Thomas Maxwell"
+//  val contact = "thomas.maxwell@nasa.gov"
+//}
+
 class max extends SingularRDDKernel {
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )

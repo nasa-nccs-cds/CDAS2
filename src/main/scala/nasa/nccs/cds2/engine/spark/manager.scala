@@ -81,6 +81,7 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
   def cacheResult( result: RDDPartition, context: OperationContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
     try {
       collectionDataCache.putRDDResult( context.rid, result )
+      logger.info( " **** Cached result, results = " + collectionDataCache.getResultIdList.mkString(",") )
       Some(context.rid)
     } catch {
       case ex: Exception => logger.error( "Can't cache result: " + ex.getMessage ); None

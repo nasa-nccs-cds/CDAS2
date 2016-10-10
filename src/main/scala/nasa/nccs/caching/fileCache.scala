@@ -388,11 +388,8 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     override def entrySize( key: String, value: Future[PartitionedFragment] ): Int = { math.max( (( DataFragmentKey(key).getSize * 4 ) / K ).round, 1 ) }
   }
 
-  def getPartitionCache(): ConcurrentLinkedHashMap[ String, RDDPartition ] = {
-    new ConcurrentLinkedHashMap.Builder[String, RDDPartition].initialCapacity(64).maximumWeightedCapacity(128).build()
-  }
   private val transientFragmentCache: Cache[String,TransientFragment] = new FutureCache("Store","result",false)
-  private val rddPartitionCache: ConcurrentLinkedHashMap[ String, RDDPartition ] = getPartitionCache()
+  private val rddPartitionCache: Cache[ String, RDDPartition ] = new FutureCache( "RDDStore", "result", false )
   private val execJobCache = new ConcurrentLinkedHashMap.Builder[ String, JobRecord ].initialCapacity(64).maximumWeightedCapacity(128).build()
   private val datasetCache: Cache[String,CDSDataset] = new FutureCache("Store","dataset",false)
   private val variableCache: Cache[String,CDSVariable] = new FutureCache("Store","variable",false)
@@ -437,10 +434,15 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     logger.info( ">>>>>>>>>>>>>>>> Get result from cache: search key = " + resultId + ", existing keys = " + transientFragmentCache.keys.toArray.mkString("[",",","]") + ", Success = " + result.isDefined.toString )
     result
   }
+  def getExistingRDDResult( resultId: String  ): Option[Future[RDDPartition]] = {
+    val result: Option[Future[RDDPartition]] = rddPartitionCache.get( resultId )
+    logger.info( ">>>>>>>>>>>>>>>> Get result from cache: search key = " + resultId + ", existing keys = " + rddPartitionCache.keys.toArray.mkString("[",",","]") + ", Success = " + result.isDefined.toString )
+    result
+  }
   def deleteResult( resultId: String  ): Option[Future[TransientFragment]] = transientFragmentCache.remove(resultId)
   def putResult( resultId: String, resultFut: Future[Option[TransientFragment]]  ) = resultFut.onSuccess { case resultOpt => resultOpt.map( result => transientFragmentCache.put(resultId, result) ) }
-  def putRDDResult( resultId: String, result: RDDPartition  ) = rddPartitionCache.put(resultId, result)
-  def getResultListXml(): xml.Elem = <results> { for( rkey <- transientFragmentCache.keys ) yield <result id={rkey} /> } </results>
+  def putRDDResult( resultId: String, result: Future[RDDPartition]  ) = rddPartitionCache.putF(resultId, result )
+  def getResultListXml(): xml.Elem = <results> { for( rkey <- transientFragmentCache.keys ) yield <result type="fragment" id={rkey} /> } { for( rkey <- rddPartitionCache.keys ) yield <result type="rdd" id={rkey} /> } </results>
   def getResultIdList = transientFragmentCache.keys
   def getJobListXml(): xml.Elem = <jobs> { for( jrec: JobRecord <- execJobCache.values ) yield jrec.toXml } </jobs>
 

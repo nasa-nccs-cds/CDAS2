@@ -41,7 +41,7 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
   val errorReports = new ListBuffer[ErrorReport]()
   val logger = LoggerFactory.getLogger( this.getClass )
   validate()
-//  logger.info( s"TaskRequest: name= $name, workflows= " + workflows.toString + ", variableMap= " + variableMap.toString + ", domainMap= " + domainMap.toString )
+  logger.info( s"TaskRequest: name= $name, workflows= " + workflow.mkString(",") + ", variableMap= " + variableMap.toString + ", domainMap= " + domainMap.toString )
 
   def addErrorReport(severity: String, message: String) = {
     val error_rep = ErrorReport(severity, message)
@@ -148,7 +148,7 @@ class UID {
 object TaskRequest {
   val logger = LoggerFactory.getLogger( this.getClass )
   def apply(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]]) = {
-//    logger.info( "TaskRequest--> process_name: %s, datainputs: %s".format( process_name, datainputs.toString ) )
+    logger.info( "TaskRequest--> process_name: %s, datainputs: %s".format( process_name, datainputs.toString ) )
     val uid = UID()
     val data_list: List[DataContainer] = datainputs.getOrElse("variable", List() ).flatMap( DataContainer.factory(uid,_) ).toList
     val domain_list: List[DomainContainer] = datainputs.getOrElse("domain", List()).map(DomainContainer(_)).toList

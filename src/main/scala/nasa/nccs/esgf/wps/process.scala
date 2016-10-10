@@ -12,7 +12,7 @@ class NotAcceptableException(message: String = null, cause: Throwable = null) ex
 class ProcessManager( serverConfiguration: Map[String,String] ) {
   val logger = LoggerFactory.getLogger(this.getClass)
   def apiManager = new APIManager( serverConfiguration )
-  logger.info( "\n\n _____________________________________________________________________________")
+  logger.info( "_____________________________________________________________________________")
   logger.info( "   ****  NEW ProcessManager Created  **** ")
   logger.info( "_____________________________________________________________________________\n\n")
 
