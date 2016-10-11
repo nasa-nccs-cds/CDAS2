@@ -134,7 +134,7 @@ class average extends SingularRDDKernel {
     val ( id, input_array ) = inputs.head
     val weights: CDFloatArray = KernelUtilities.getWeights(id, context)
     val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, Some(weights), None)
-    val elems = Map( "value" -> HeapFltArray( weighted_value_sum_masked, arrayMdata(inputs,"value") ), "weights" -> HeapFltArray( weights_sum_masked, Map.empty ) )
+    val elems = Map( "value" -> HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value") ), "weights" -> HeapFltArray( weights_sum_masked, input_array.origin, Map.empty ) )
     logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
     RDDPartition( inputs.iPart, elems, inputs.metadata )
   }
@@ -166,7 +166,7 @@ class timeBin extends Kernel {
     val ( id, input_array ) = inputs.head
     val coordMap: CDCoordMap = getMontlyBinMap( id, context )
     val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, None, Some(coordMap) )
-    val elems = Map( "value" -> HeapFltArray( weighted_value_sum_masked, arrayMdata(inputs,"value") ), "weights" -> HeapFltArray( weights_sum_masked, Map.empty ) )
+    val elems = Map( "value" -> HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value") ), "weights" -> HeapFltArray( weights_sum_masked, input_array.origin, Map.empty ) )
     logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
     RDDPartition( inputs.iPart, elems, inputs.metadata )
   }

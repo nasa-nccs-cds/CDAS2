@@ -291,8 +291,12 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
     case Some(data) => data.toCDFloatArray;
     case None => throw new Exception("Error missing array element: " + elem)
   }
-
   def optFltArray(a0: RDDPartition, elem: String): Option[CDFloatArray] = a0.element(elem).map(_.toCDFloatArray)
+
+  def originArray(a0: RDDPartition, elem: String): Array[Int]  = a0.element(elem) match {
+    case Some(data) => data.origin;
+    case None => throw new Exception("Error missing array element: " + elem)
+  }
 
   def arrayMdata(a0: RDDPartition, elem: String): Map[String, String] = a0.element(elem) match {
     case Some(data) => data.metadata;
@@ -302,6 +306,7 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   def weightedValueSumRDDCombiner(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices): RDDPartition = {
     if (axes.includes(0)) {
       val vTot: CDFloatArray = fltArray(a0, "value") + fltArray(a1, "value")
+      val vOrigin: Array[Int] = originArray( a0, "value" )
       val wTotOpt: Option[CDFloatArray] = optFltArray(a0, "weights").map(w => w + fltArray(a1, "weights"))
       val dataMap = wTotOpt match {
         case Some(wTot) => Map("value" -> vTot, "weights" -> wTot)
@@ -311,7 +316,7 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
       val weights_mdata = MetadataOps.mergeMetadata(context.operation.name, arrayMdata(a0, "weights"), arrayMdata(a1, "weights"))
       val part_mdata = MetadataOps.mergeMetadata(context.operation.name, a0.metadata, a1.metadata)
       logger.info("weightedValueSumCombiner, values shape = %s, result spec = %s".format(vTot.getShape.mkString(","), a0.metadata.toString))
-      val elements = List("value" -> HeapFltArray(vTot, array_mdata)) ++ wTotOpt.map(wTot => List("weights" -> HeapFltArray(wTot, weights_mdata))).getOrElse(List.empty)
+      val elements = List("value" -> HeapFltArray(vTot, vOrigin, array_mdata)) ++ wTotOpt.map(wTot => List("weights" -> HeapFltArray(wTot, vOrigin, weights_mdata))).getOrElse(List.empty)
       new RDDPartition(a0.iPart, Map(elements: _*), part_mdata)
     }
     else {
@@ -322,8 +327,9 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   def weightedValueSumRDDPostOp(result: RDDPartition, context: KernelContext): RDDPartition = optFltArray(result, "weights") match {
     case Some(weights_sum) =>
       val values = fltArray(result, "value")
+      val vOrigin: Array[Int] = originArray( result, "value" )
       logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(values.getShape.mkString(","), weights_sum.getShape.mkString(","), result.metadata.toString))
-      new RDDPartition(result.iPart, Map("value" -> HeapFltArray(values / weights_sum, arrayMdata(result, "value")), "weights" -> HeapFltArray(weights_sum, arrayMdata(result, "weights"))), result.metadata)
+      new RDDPartition(result.iPart, Map("value" -> HeapFltArray(values / weights_sum, vOrigin, arrayMdata(result, "value")), "weights" -> HeapFltArray(weights_sum, vOrigin, arrayMdata(result, "weights"))), result.metadata)
     case None =>
       result
   }
@@ -451,10 +457,10 @@ abstract class SingularRDDKernel extends Kernel {
         case Some(combineOp) =>
           val result = CDFloatArray(input_array.reduce(combineOp, axes.args, initValue))
           logger.info(" ##### KERNEL [%s]: Map Op: combine, axes = %s, result shape = %s".format( name, axes, result.getShape.mkString(",") ) )
-          HeapFltArray( result, data.metadata )
+          HeapFltArray( result, data.origin, data.metadata )
         case None =>
           logger.info(" ##### KERNEL [%s]: Map Op: NONE".format( name ) )
-          HeapFltArray( input_array, data.metadata )
+          HeapFltArray( input_array, data.origin, data.metadata )
       }
     }
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
@@ -475,16 +481,16 @@ abstract class DualRDDKernel extends Kernel {
     }
     val result_metadata = input_arrays(0).mergeMetadata( name,input_arrays(1) )
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( inputs.iPart, Map( getOpName(context) -> HeapFltArray(result_array,result_metadata) ), inputs.metadata )
+    RDDPartition( inputs.iPart, Map( getOpName(context) -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata) ), inputs.metadata )
   }
 }
 
-class TransientFragment( val dataFrag: DataFragment, val request: RequestContext, val mdata: Map[String,nc2.Attribute] ) extends OperationInput( dataFrag.spec, mdata ) {
+class TransientFragment( val dataFrag: DataFragment, val request: RequestContext, val varMetadata: Map[String,nc2.Attribute] ) extends OperationDataInput( dataFrag.spec, varMetadata ) {
   def toXml(id: String): xml.Elem = {
-    val units = metadata.get("units") match { case Some(attr) => attr.getStringValue; case None => "" }
-    val long_name = metadata.getOrElse("long_name",metadata.getOrElse("fullname",metadata.getOrElse("varname", new Attribute("varname","UNDEF")))).getStringValue
-    val description = metadata.get("description") match { case Some(attr) => attr.getStringValue; case None => "" }
-    val axes = metadata.get("axes") match { case Some(attr) => attr.getStringValue; case None => "" }
+    val units = varMetadata.get("units") match { case Some(attr) => attr.getStringValue; case None => "" }
+    val long_name = varMetadata.getOrElse("long_name",varMetadata.getOrElse("fullname",varMetadata.getOrElse("varname", new Attribute("varname","UNDEF")))).getStringValue
+    val description = varMetadata.get("description") match { case Some(attr) => attr.getStringValue; case None => "" }
+    val axes = varMetadata.get("axes") match { case Some(attr) => attr.getStringValue; case None => "" }
     <result id={id} missing_value={dataFrag.data.getInvalid.toString} shape={dataFrag.data.getShape.mkString("(",",",")")} units={units} long_name={long_name} description={description} axes={axes}> { dataFrag.data.mkBoundedDataString( ", ", 1100 ) } </result>
   }
   def domainDataFragment( partIndex: Int,  optSection: Option[ma2.Section]  ): Option[DataFragment] = Some(dataFrag)

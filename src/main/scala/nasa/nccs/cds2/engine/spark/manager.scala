@@ -1,12 +1,12 @@
 package nasa.nccs.cds2.engine.spark
 
-import nasa.nccs.caching.{CollectionDataCacheMgr, collectionDataCache}
+import nasa.nccs.caching.{CollectionDataCacheMgr, RDDTransientVariable, collectionDataCache}
 import nasa.nccs.cdapi.cdm
 import nasa.nccs.cdapi.cdm.{OperationInput, PartitionedFragment}
 import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.engine.{CDS2ExecutionManager}
+import nasa.nccs.cds2.engine.CDS2ExecutionManager
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.cdsutils
 import nasa.nccs.wps.{RDDExecutionResult, WPSExecuteResponse, WPSResponse}
@@ -47,9 +47,9 @@ object collectionRDDDataCache extends CollectionDataCacheMgr()
 class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext() ) extends CDS2ExecutionManager {
 
   def mapReduce(context: CDASExecutionContext, kernel: Kernel ): RDDPartition = {
-    val opInputs: List[PartitionedFragment] = getOperationInputs( context ).flatMap(  _ match { case pf: PartitionedFragment => Some(pf); case x => None } )   // TODO: Ignores Transient Fragments
+    val opInputs: List[OperationInput] = getOperationInputs( context )
     val kernelContext = context.toKernelContext
-    logger.info( "\n\n ----------------------- BEGIN map Operation -------> opInputs = " + opInputs.map( df => "%s(%s)".format( df.getKeyString, df.fragmentSpec.toString ) ).mkString( "," ) + "\n")
+    logger.info( "\n\n ----------------------- BEGIN map Operation -------\n")
     val inputRDD: RDD[ RDDPartition ] = cdsContext.domainRDDPartition( opInputs, context )
     val mapresult: RDD[RDDPartition] = inputRDD.map( rdd_part => kernel.map( rdd_part, kernelContext ) )
     logger.info( "\n\n ----------------------- BEGIN reduce Operation ----------------------- \n" )
@@ -72,22 +72,21 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
   def reduce( mapresult: RDD[RDDPartition], context: KernelContext, kernel: Kernel ):  RDDPartition = mapresult.reduce( kernel.reduceRDDOp(context) _ )
 
   def createResponse( kernel: Kernel, result: RDDPartition, context: CDASExecutionContext ): WPSExecuteResponse = {    // TODO: Implement async
-    val var_mdata = Map[String,Attribute]()
-//    val async = context.request.config("async", "false").toBoolean
-    val resultId = cacheResult( result, context.operation, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )
+    val resultId = cacheResult( result, context )
     new RDDExecutionResult( kernel, context.operation.identifier, result, resultId )
   }
 
-  def cacheResult( result: RDDPartition, context: OperationContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
+  def cacheResult( result: RDDPartition, context: CDASExecutionContext ): Option[String] = {
     try {
-      collectionDataCache.putRDDResult( context.rid, result )
-      logger.info( " **** Cached result, results = " + collectionDataCache.getResultIdList.mkString(",") )
-      Some(context.rid)
+      collectionDataCache.putResult( context.operation.rid, new RDDTransientVariable(result,context.operation,context.request) )
+      logger.info( " ^^^^## Cached result, results = " + collectionDataCache.getResultIdList.mkString(",") )
+      Some(context.operation.rid)
     } catch {
       case ex: Exception => logger.error( "Can't cache result: " + ex.getMessage ); None
     }
   }
 }
+
 //
 //  override def execute( request: TaskRequest, run_args: Map[String,String] ): xml.Elem = {
 //    logger.info("Execute { request: " + request.toString + ", runargs: " + run_args.toString + "}"  )

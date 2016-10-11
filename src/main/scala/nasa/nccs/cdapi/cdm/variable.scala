@@ -1,6 +1,6 @@
 package nasa.nccs.cdapi.cdm
 
-import nasa.nccs.caching.{Partition, Partitions}
+import nasa.nccs.caching.{Partition, Partitions, RDDTransientVariable}
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition, RDDVariableSpec}
 import nasa.nccs.cdapi.kernels.CDASExecutionContext
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
@@ -67,7 +67,15 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
   def getCoordinateAxesList = dataset.getCoordinateAxes
 }
 
-abstract class OperationInput( val fragmentSpec: DataFragmentSpec, val metadata: Map[String,nc2.Attribute] ) extends Loggable {
+trait OperationInput {
+//  def domainDataFragment( partIndex: Int,  optSection: Option[ma2.Section] ): Option[DataFragment]
+}
+
+class OperationTransientInput( val variable: RDDTransientVariable ) extends OperationInput with Loggable {
+//  def domainDataFragment( partIndex: Int,  optSection: Option[ma2.Section] ): Option[DataFragment] = variable.
+}
+
+abstract class OperationDataInput( val fragmentSpec: DataFragmentSpec, val metadata: Map[String,nc2.Attribute] ) extends OperationInput with Loggable {
   def toBoundsString = fragmentSpec.toBoundsString
   def getKey: DataFragmentKey = fragmentSpec.getKey
   def getKeyString: String = fragmentSpec.getKeyString
@@ -75,13 +83,11 @@ abstract class OperationInput( val fragmentSpec: DataFragmentSpec, val metadata:
   def contains( requestedSection: ma2.Section ): Boolean = fragmentSpec.roi.contains( requestedSection )
   def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] = { fragmentSpec.getVariableMetadata(serverContext) ++ metadata }
   def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = { fragmentSpec.getDatasetMetadata(serverContext) }
-
-  def domainDataFragment( partIndex: Int,  optSection: Option[ma2.Section] ): Option[DataFragment]
   def data(partIndex: Int ): CDFloatArray
   def delete
 }
 
-class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByteArray], fragSpec: DataFragmentSpec, mdata: Map[String,nc2.Attribute] = Map.empty ) extends OperationInput(fragSpec,mdata)  {
+class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByteArray], fragSpec: DataFragmentSpec, mdata: Map[String,nc2.Attribute] = Map.empty ) extends OperationDataInput(fragSpec,mdata)  {
   val LOG = org.slf4j.LoggerFactory.getLogger(this.getClass)
 
   def delete = partitions.delete
@@ -107,11 +113,11 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
     val partition = partitions.getPart(partIndex)
     val data: CDFloatArray = partition.data( fragmentSpec.missing_value )
     val spec: DataFragmentSpec = partFragSpec(partIndex)
-    RDDPartition( partIndex, Map( spec.uid -> HeapFltArray(data, spec.getMetadata) ) )
+    RDDPartition( partIndex, Map( spec.uid -> HeapFltArray(data, fragSpec.getOrigin, spec.getMetadata) ) )
   }
 
   def domainRDDPartition(partIndex: Int, optSection: Option[ma2.Section] ): Option[RDDPartition] = domainCDDataSection( partIndex, optSection ) match {
-    case Some((uid, metadata, data)) => Some(  RDDPartition( partIndex, Map( uid -> HeapFltArray(data, metadata ) ) ) )
+    case Some((uid, section, metadata, data)) => Some(  RDDPartition( partIndex, Map( uid -> HeapFltArray(data, section.getOrigin, metadata ) ) ) )
     case None => None
   }
 
@@ -148,12 +154,12 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
 //    }
 //  }
 
-  def domainCDDataSection( partIndex: Int,  optSection: Option[ma2.Section] ): Option[ ( String, Map[String,String], CDFloatArray )] = {
+  def domainCDDataSection( partIndex: Int,  optSection: Option[ma2.Section] ): Option[ ( String, ma2.Section, Map[String,String], CDFloatArray )] = {
     try {
       val partition = partitions.getPart(partIndex)
       val partition_data = partition.data(fragmentSpec.missing_value)
       domainSection( partition, optSection ) map {
-        case ( fragSpec, section )  => ( fragSpec.uid, fragSpec.getMetadata, CDFloatArray( partition_data.section( section ) ) )
+        case ( fragSpec, section )  => ( fragSpec.uid, section, fragSpec.getMetadata, CDFloatArray( partition_data.section( section ) ) )
       }
     } catch {
       case ex: Exception => logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )

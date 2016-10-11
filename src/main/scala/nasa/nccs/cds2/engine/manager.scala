@@ -27,10 +27,11 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import java.util.concurrent._
 
-import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
+import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cds2.engine.spark.{CDSparkContext, CDSparkExecutionManager}
 import nasa.nccs.wps._
 import org.apache.spark.{SparkConf, SparkContext}
+import ucar.nc2.Attribute
 import ucar.nc2.dataset.NetcdfDataset
 
 import scala.xml.Elem
@@ -49,8 +50,10 @@ object CDS2ExecutionManager extends Loggable {
   def apply(): CDS2ExecutionManager =
     appParameters( handler_type_key, "spark" ) match {
       case exeMgr if exeMgr.toLowerCase.startsWith("future") =>
-        logger.info("\nExecuting Futures manager: serverConfig = " + exeMgr)
-        new CDFuturesExecutionManager()
+        throw new Exception( "CDFuturesExecutionManager no currently supported.")
+//        import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
+//        logger.info("\nExecuting Futures manager: serverConfig = " + exeMgr)
+//        new CDFuturesExecutionManager()
       case exeMgr if exeMgr.toLowerCase.startsWith("spark") =>
         logger.info("\nExecuting Spark manager: serverConfig = " + exeMgr)
         new CDSparkExecutionManager()
@@ -78,10 +81,10 @@ abstract class CDS2ExecutionManager extends WPSServer {
         case Some(inputSpec) =>
           logger.info("getInputSpec: %s -> %s ".format(uid, inputSpec.longname))
           context.server.getOperationInput(inputSpec)
-        case None => collectionDataCache.getExistingRDDResult(uid) match {
-          case Some(tRDDFut) =>
-            val rv = Await result(tRDDFut, Duration.Inf)
-            logger.info("getExistingResult: %s -> %s ".format(uid, rv.elements.values.head.metadata.mkString(",")))
+        case None => collectionDataCache.getExistingResult(uid) match {
+          case Some(tVar: RDDTransientVariable) =>
+            val rv = new OperationTransientInput(tVar)
+            logger.info("getExistingResult: %s -> %s ".format(uid, tVar.result.elements.values.head.metadata.mkString(",")))
             rv
           case None => throw new Exception("Unrecognized input id: " + uid)
         }
@@ -151,17 +154,27 @@ abstract class CDS2ExecutionManager extends WPSServer {
       yield serverContext.cacheInputData(data_container, domainOpt, targetGrid )
   }
 
-  def searchForValue(metadata: Map[String, nc2.Attribute], keys: List[String], default_val: String): String = {
+  def searchForAttrValue(metadata: Map[String, nc2.Attribute], keys: List[String], default_val: String): String = {
     keys.length match {
       case 0 => default_val
       case x => metadata.get(keys.head) match {
         case Some(valueAttr) => valueAttr.getStringValue()
+        case None => searchForAttrValue(metadata, keys.tail, default_val)
+      }
+    }
+  }
+
+  def searchForValue(metadata: Map[String,String], keys: List[String], default_val: String): String = {
+    keys.length match {
+      case 0 => default_val
+      case x => metadata.get(keys.head) match {
+        case Some(valueAttr) => valueAttr
         case None => searchForValue(metadata, keys.tail, default_val)
       }
     }
   }
 
-  def saveResultToFile( resultId: String, maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, varMetadata: Map[String,nc2.Attribute], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
+  def saveResultToFile( resultId: String, maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, varMetadata: Map[String,String], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
     val optInputSpec: Option[DataFragmentSpec] = request.getInputSpec()
     val targetGrid = request.targetGrid
     request.getDataset(server) map { dataset =>
@@ -187,7 +200,7 @@ abstract class CDS2ExecutionManager extends WPSServer {
         resultId, resultFile.getAbsolutePath, varname, dims.map(_.toString).mkString(","), maskedTensor.getShape.mkString(","),
         newCoordVars.map { case (cvar, data) => "%s: (%s)".format(cvar.getFullName, data.getShape.mkString(",")) }.mkString(",")))
       val variable: nc2.Variable = writer.addVariable(null, varname, ma2.DataType.FLOAT, dims.toList)
-      varMetadata.values.foreach(attr => variable.addAttribute(attr))
+      varMetadata map {case (key, value) => variable.addAttribute( new Attribute(key, value)) }
       variable.addAttribute(new nc2.Attribute("missing_value", maskedTensor.getInvalid))
       dsetMetadata.foreach(attr => writer.addGroupAttribute(null, attr))
       try {
@@ -278,21 +291,22 @@ abstract class CDS2ExecutionManager extends WPSServer {
       new WPSMergedEventReport(List(new UtilityExecutionResult("dres", <deleted results={resIds.mkString(",")}/> )))
     case x if x.startsWith("gres") =>
       val resId: String = request.variableMap.values.head.uid
-      collectionDataCache.getExistingRDDResult( resId ) match {
+      logger.info( "Locating result: " + resId + ", variableMap = " + request.variableMap.mkString(",") )
+      collectionDataCache.getExistingResult( resId ) match {
         case None => new WPSMergedEventReport( List( new WPSExceptionReport( new Exception("Unrecognized resId: " + resId + ", existing resIds: " + collectionDataCache.getResultIdList.mkString(", ") )) ) )
-        case Some( fut_result ) =>
-          if (fut_result.isCompleted) {
-            val result = Await.result( fut_result, Duration.Inf )
-            x.split(':')(1) match {
-              case "xml" =>
-                new WPSMergedEventReport(List(new UtilityExecutionResult(resId,result.toXml(resId))))
-              case "netcdf" =>
-                saveResultToFile(resId, result.dataFrag.data, result.request, serverContext, result.metadata, List.empty[nc2.Attribute]) match {
-                  case Some(resultFilePath) => new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <file> {resultFilePath} </file>)))
-                  case None => new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Error writing resultFile"} </error>)))
-                }
-            }
-          } else { new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }
+        case Some( tvar: RDDTransientVariable ) =>
+//          val result: RDDPartition = Await.result( fut_result, Duration.Inf )
+          val result = tvar.result.elements.values.head
+          x.split(':')(1) match {
+            case "xml" =>
+              new WPSMergedEventReport( List(new UtilityExecutionResult( resId, result.toXml ) ) )
+            case "netcdf" =>
+              saveResultToFile(resId, result.toCDFloatArray, tvar.request, serverContext, result.metadata, List.empty[nc2.Attribute]) match {
+                case Some(resultFilePath) => new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <file> {resultFilePath} </file>)))
+                case None => new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Error writing resultFile"} </error>)))
+              }
+          }
+//          } else { new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }
       }
   }
 

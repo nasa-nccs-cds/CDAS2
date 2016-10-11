@@ -4,7 +4,6 @@ import java.io.{PrintWriter, StringWriter}
 import java.util.concurrent.ExecutionException
 
 import nasa.nccs.wps.{BlockingExecutionResult, WPSExceptionReport, WPSResponse}
-import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
 import nasa.nccs.utilities.cdsutils
 import org.slf4j.LoggerFactory
 

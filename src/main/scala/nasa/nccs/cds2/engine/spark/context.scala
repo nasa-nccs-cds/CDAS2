@@ -1,7 +1,7 @@
 package nasa.nccs.cds2.engine.spark
 
 import nasa.nccs.caching.{CDASPartitioner, Partition}
-import nasa.nccs.cdapi.cdm.{CDSVariable, PartitionedFragment}
+import nasa.nccs.cdapi.cdm.{CDSVariable, OperationInput, OperationTransientInput, PartitionedFragment}
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartSpec, RDDPartition}
 import nasa.nccs.cdapi.kernels.CDASExecutionContext
 import nasa.nccs.cdapi.tensors.CDFloatArray
@@ -14,13 +14,21 @@ import ucar.ma2
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
-object CDSparkContext {
+object CDSparkContext extends Loggable {
   val kyro_buffer_mb = 24
   val kyro_buffer_max_mb = 64
   val default_master = "local[%d]".format(CDASPartitioner.nProcessors)
 
-  def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = false ) : CDSparkContext =
-    new CDSparkContext( new SparkContext( getSparkConf( master, appName, logConf) ) )
+  def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = false ) : CDSparkContext = {
+    logger.info( "--------------------------------------------------------")
+    logger.info( "   ****  NEW CDSparkContext Created  **** ")
+    logger.info( "--------------------------------------------------------\n\n")
+    val rv = new CDSparkContext(new SparkContext(getSparkConf(master, appName, logConf)))
+    logger.info( "--------------------------------------------------------")
+    logger.info( "   ****  CDSparkContext Creation FINISHED  **** ")
+    logger.info( "--------------------------------------------------------")
+    rv
+  }
   def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false ) ) )
@@ -50,11 +58,21 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     indexRDD.map( iPart => partFrag.partRDDPartition( iPart ) )
   }
 
-  def domainRDDPartition(partFrags: List[PartitionedFragment], context: CDASExecutionContext): RDD[RDDPartition] = {
-    val parts = partFrags.head.partitions.parts
+  def domainRDDPartition( opInputs: List[OperationInput], context: CDASExecutionContext): RDD[RDDPartition] = {
     val opSection: Option[ma2.Section] = context.getOpSectionIntersection
-    val partSpecs: Array[ RDDPartSpec ] = parts.map( partition => RDDPartSpec( partition, partFrags.map(pFrag => pFrag.getRDDVariableSpec(partition, opSection) ) ) )
-    sparkContext.parallelize(partSpecs).map( _.getRDDPartition )
+    opInputs.headOption match {
+      case  Some(pFrag: PartitionedFragment) =>
+        val partFrags = opInputs.asInstanceOf[ List[PartitionedFragment]]
+        val parts = partFrags.head.partitions.parts
+        val partSpecs: Array[ RDDPartSpec ] = parts.map( partition => RDDPartSpec( partition, partFrags.map(pFrag => pFrag.getRDDVariableSpec(partition, opSection) ) ) )
+        sparkContext.parallelize(partSpecs).map( _.getRDDPartition )
+      case Some(tVar: OperationTransientInput) =>
+        val transVars = opInputs.asInstanceOf[ List[OperationTransientInput]]
+        val nparts = 3 // FIXME
+        val part = transVars.head.variable.result
+        sparkContext.parallelize( (0 until nparts) ).map( ip => part )
+      case _ => throw new Exception( "Error, can't create RDD")
+    }
   }
 }
 

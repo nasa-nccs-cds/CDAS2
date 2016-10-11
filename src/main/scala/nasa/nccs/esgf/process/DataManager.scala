@@ -383,7 +383,7 @@ class TargetGrid( val variable: CDSVariable = CDSVariable.empty, roiOpt: Option[
   }
   def getAxisCDData( axis: Char ): Option[( Int, HeapDblArray )] = {
     grid.getAxisSpec(axis.toString).map(axisSpec => {
-      axisSpec.index -> HeapDblArray( axisSpec.coordAxis.read(), axisSpec.getMetadata, variable.missing )
+      axisSpec.index -> HeapDblArray( axisSpec.coordAxis.read(), Array(0), axisSpec.getMetadata, variable.missing )
     })
   }
 

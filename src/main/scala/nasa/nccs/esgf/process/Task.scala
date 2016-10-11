@@ -164,8 +164,8 @@ object TaskRequest {
     var data_var_items = for( data_container <- data ) yield data_container.uid -> data_container
     var op_var_items = for( operation<- workflow; if !operation.rid.isEmpty ) yield operation.rid -> DataContainer(operation)
     val var_map = Map( op_var_items ++ data_var_items: _* )
-    logger.info( "Created Variable Map: op_var_items = (%s), data_var_items = (%s)".format( op_var_items.map(_._1).mkString(","), data_var_items.map(_._1).mkString(",") ) )
-//    logger.info( "Created Variable Map: " + var_map.toString + " from data containers: " + data.map( data_container => ( "id:" + data_container.uid ) ).mkString("[ ",", "," ]") )
+//    logger.info( "Created Variable Map: op_var_items = (%s), data_var_items = (%s)".format( op_var_items.map(_._1).mkString(","), data_var_items.map(_._1).mkString(",") ) )
+    logger.info( "Created Variable Map: " + var_map.toString + " from data containers: " + data.map( data_container => ( "id:" + data_container.uid ) ).mkString("[ ",", "," ]") )
     for( operation<-workflow; vid<-operation.inputs; if !vid.isEmpty  ) var_map.get( vid ) match {
       case Some(data_container) => data_container.addOpSpec( operation )
       case None => throw new Exception( "Unrecognized variable %s in varlist [%s]".format( vid, var_map.keys.mkString(",") ) )
@@ -384,6 +384,7 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
   def getRangeCF( CFName: String ): Option[ma2.Range] = Option( roi.find(CFName) )
 
   def getShape = roi.getShape
+  def getOrigin = roi.getOrigin
   def getRank = roi.getShape.length
 
   def getGridShape: Array[Int] = {
@@ -600,8 +601,10 @@ object DataContainer extends ContainerBase {
           for ((name, index) <- var_names.zipWithIndex) yield {
             val name_items = name.split(':')
             val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain))
-            val vid = normalize(name_items.last)
-            new DataContainer(if (vid.isEmpty) uid+s"c-$base_index$index" else uid+vid, source = Some(dsource))
+            val vid = stripQuotes(name_items.last)
+            val vname = normalize(name_items.head)
+            val dcid = if (vid.isEmpty) uid+s"c-$base_index$index" else if (vname.isEmpty) vid else uid+vid
+            new DataContainer( dcid, source = Some(dsource))
           }
       }
     } catch {
