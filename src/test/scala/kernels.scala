@@ -92,8 +92,9 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val lon_index = 100
     val lev_index = 0
     val direct_result_array = getTimeseriesData( "merra.test", "ta", lon_index, lat_index, lev_index )
-    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":$lat_index,"end":$lat_index,"system":"indices"},"lon":{"start":$lon_index,"end":$lon_index,"system":"indices"},"lev":{"start":$lev_index,"end":$lev_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.timeBin","input":"v1","unit":"month","period":"1","mod":"12","axes":"t"}]]"""
+    val datainputs = s"""[domain=[{"name":"d2","lat":{"start":$lat_index,"end":$lat_index,"system":"indices"},"lon":{"start":$lon_index,"end":$lon_index,"system":"indices"}},{"name":"d0","lev":{"start":$lev_index,"end":$lev_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.timeBin","input":"v1","result":"cycle","domain":"d2","axes":"t","bins":"t|month|ave|year"},{"name":"CDSpark.diff2","input":["v1","cycle"],"domain":"d2","axes":"t"}]]"""
     val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
     val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
     val result_values: Array[Float] = data_nodes.head.text.trim.split(' ').head.split(',').map( _.toFloat )
     val result_array = CDFloatArray( Array( result_values.length ), result_values, Float.MaxValue )
@@ -157,6 +158,19 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
+
+  //  test("Seasonal Cycle") {
+  //    readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
+  //      case Some( nco_subsetted_timeseries ) =>
+  //        val dataInputs = getTemporalDataInputs(merra_data, 0, ( "unit"->"month"), ( "period"->"3"), ( "mod"->"4"), ( "offset"->"2") )
+  //        val result_values = computeArray("CDSpark.timeBin", dataInputs)
+  //        val nco_verified_result = computeSeriesAverage( nco_subsetted_timeseries, 3, 2, 4 )
+  //        val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
+  //        println("Test Result: (%s)\n NCO Result: (%s)\n Max_scaled_diff: %f".format(result_values.toString(), nco_verified_result.toString(), max_scaled_diff))
+  //        assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Yearly Cycle")
+  //      case None => fail( "Error reading verification data")
+  //    }
+  //  }
 
 
   //  test("Subset(d0)") {
@@ -235,18 +249,6 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 //    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Weighted Masked Spatial Average")
 //  }
 //
-//  test("Seasonal Cycle") {
-//    readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
-//      case Some( nco_subsetted_timeseries ) =>
-//        val dataInputs = getTemporalDataInputs(merra_data, 0, ( "unit"->"month"), ( "period"->"3"), ( "mod"->"4"), ( "offset"->"2") )
-//        val result_values = computeArray("CDSpark.timeBin", dataInputs)
-//        val nco_verified_result = computeSeriesAverage( nco_subsetted_timeseries, 3, 2, 4 )
-//        val max_scaled_diff = maxScaledDiff(result_values, nco_verified_result)
-//        println("Test Result: (%s)\n NCO Result: (%s)\n Max_scaled_diff: %f".format(result_values.toString(), nco_verified_result.toString(), max_scaled_diff))
-//        assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Yearly Cycle")
-//      case None => fail( "Error reading verification data")
-//    }
-//  }
 //
 //  test("Yearly Means") {
 //    readVerificationData( "/data/ta_subset_0_0.nc", "ta" ) match {
