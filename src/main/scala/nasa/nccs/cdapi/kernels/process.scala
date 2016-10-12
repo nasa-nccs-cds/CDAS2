@@ -1,6 +1,6 @@
 package nasa.nccs.cdapi.kernels
 
-import nasa.nccs.cdapi.data.{ArrayBase, HeapFltArray, MetadataOps, RDDPartition}
+import nasa.nccs.cdapi.data._
 import nasa.nccs.cdapi.tensors.{CDArray, CDCoordMap, CDFloatArray, CDTimeCoordMap}
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.esgf.process._
@@ -263,35 +263,37 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
     }
   }
 
-  def weightedValueSumCombiner(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices): DataFragment = {
-    if (axes.includes(0)) {
-      val vTot: CDFloatArray = a0.data + a1.data
-      val wTotOpt: Option[CDFloatArray] = a0.weights.map(w => w + a1.weights.get)
-      val dataMap = wTotOpt match {
-        case Some(wTot) => Map("value" -> vTot, "weights" -> wTot)
-        case None => Map("value" -> vTot)
-      }
-      logger.info("weightedValueSumCombiner, values shape = %s, result spec = %s".format(vTot.getShape.mkString(","), a0.spec.toString))
-      new DataFragment(a0.spec, dataMap, DataFragment.combineCoordMaps(a0, a1))
-    }
-    else {
-      a0 ++ a1
-    }
-  }
-
-  def weightedValueSumPostOp(result: DataFragment, context: KernelContext): DataFragment = result.weights match {
-    case Some(weights_sum) =>
-      logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(result.data.getShape.mkString(","), weights_sum.getShape.mkString(","), result.spec.toString))
-      new DataFragment(result.spec, Map("value" -> result.data / weights_sum, "weights" -> weights_sum), result.optCoordMap)
-    case None =>
-      result
-  }
+//  def weightedValueSumCombiner(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices): DataFragment = {
+//    if (axes.includes(0)) {
+//      val vTot: CDFloatArray = a0.data + a1.data
+//      val wTotOpt: Option[CDFloatArray] = a0.weights.map(w => w + a1.weights.get)
+//      val dataMap = wTotOpt match {
+//        case Some(wTot) => Map("value" -> vTot, "weights" -> wTot)
+//        case None => Map("value" -> vTot)
+//      }
+//      logger.info("weightedValueSumCombiner, values shape = %s, result spec = %s".format(vTot.getShape.mkString(","), a0.spec.toString))
+//      new DataFragment(a0.spec, dataMap, DataFragment.combineCoordMaps(a0, a1))
+//    }
+//    else {
+//      a0 ++ a1
+//    }
+//  }
+//
+//  def weightedValueSumPostOp(result: DataFragment, context: KernelContext): DataFragment = result.weights match {
+//    case Some(weights_sum) =>
+//      logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(result.data.getShape.mkString(","), weights_sum.getShape.mkString(","), result.spec.toString))
+//      new DataFragment(result.spec, Map("value" -> result.data / weights_sum, "weights" -> weights_sum), result.optCoordMap)
+//    case None =>
+//      result
+//  }
 
   def fltArray(a0: RDDPartition, elem: String): CDFloatArray = a0.element(elem) match {
     case Some(data) => data.toCDFloatArray;
     case None => throw new Exception("Error missing array element: " + elem)
   }
   def optFltArray(a0: RDDPartition, elem: String): Option[CDFloatArray] = a0.element(elem).map(_.toCDFloatArray)
+
+  def wtArray(a0: RDDPartition, elem: String): Option[CDFloatArray] = a0.element(elem).flatMap( _.toCDWeightsArray )
 
   def originArray(a0: RDDPartition, elem: String): Array[Int]  = a0.element(elem) match {
     case Some(data) => data.origin;
@@ -305,33 +307,35 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
 
   def weightedValueSumRDDCombiner(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices): RDDPartition = {
     if (axes.includes(0)) {
-      val vTot: CDFloatArray = fltArray(a0, "value") + fltArray(a1, "value")
-      val vOrigin: Array[Int] = originArray( a0, "value" )
-      val wTotOpt: Option[CDFloatArray] = optFltArray(a0, "weights").map(w => w + fltArray(a1, "weights"))
-      val dataMap = wTotOpt match {
-        case Some(wTot) => Map("value" -> vTot, "weights" -> wTot)
-        case None => Map("value" -> vTot)
+      val rid = context.operation.rid
+      val vTot: CDFloatArray = fltArray(a0, rid) + fltArray(a1, rid)
+      val vOrigin: Array[Int] = originArray( a0, rid )
+      val wTotOpt: Option[CDFloatArray] = wtArray(a0, rid ).map(w => w + wtArray(a1,rid).get )
+      val array_mdata = MetadataOps.mergeMetadata(context.operation.name, arrayMdata(a0, rid), arrayMdata(a1, rid))
+      val element = wTotOpt match {
+        case Some(wTot) => rid -> WeightedHeapFltArray(vTot,wTot,vOrigin,array_mdata)
+        case None => rid -> HeapFltArray(vTot,vOrigin,array_mdata)
       }
-      val array_mdata = MetadataOps.mergeMetadata(context.operation.name, arrayMdata(a0, "value"), arrayMdata(a1, "value"))
-      val weights_mdata = MetadataOps.mergeMetadata(context.operation.name, arrayMdata(a0, "weights"), arrayMdata(a1, "weights"))
       val part_mdata = MetadataOps.mergeMetadata(context.operation.name, a0.metadata, a1.metadata)
       logger.info("weightedValueSumCombiner, values shape = %s, result spec = %s".format(vTot.getShape.mkString(","), a0.metadata.toString))
-      val elements = List("value" -> HeapFltArray(vTot, vOrigin, array_mdata)) ++ wTotOpt.map(wTot => List("weights" -> HeapFltArray(wTot, vOrigin, weights_mdata))).getOrElse(List.empty)
-      new RDDPartition(a0.iPart, Map(elements: _*), part_mdata)
+      new RDDPartition(a0.iPart, Map(element), part_mdata)
     }
     else {
       a0 ++ a1
     }
   }
 
-  def weightedValueSumRDDPostOp(result: RDDPartition, context: KernelContext): RDDPartition = optFltArray(result, "weights") match {
-    case Some(weights_sum) =>
-      val values = fltArray(result, "value")
-      val vOrigin: Array[Int] = originArray( result, "value" )
-      logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(values.getShape.mkString(","), weights_sum.getShape.mkString(","), result.metadata.toString))
-      new RDDPartition(result.iPart, Map("value" -> HeapFltArray(values / weights_sum, vOrigin, arrayMdata(result, "value")), "weights" -> HeapFltArray(weights_sum, vOrigin, arrayMdata(result, "weights"))), result.metadata)
-    case None =>
-      result
+  def weightedValueSumRDDPostOp(result: RDDPartition, context: KernelContext): RDDPartition = {
+    val rid = context.operation.rid
+    wtArray( result, rid ) match {
+      case Some(weights_sum) =>
+        val values = fltArray(result, rid)
+        val vOrigin: Array[Int] = originArray(result, rid)
+        logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(values.getShape.mkString(","), weights_sum.getShape.mkString(","), result.metadata.toString))
+        new RDDPartition( result.iPart, Map(rid -> WeightedHeapFltArray(values / weights_sum, weights_sum, vOrigin, arrayMdata(result, "value"))), result.metadata )
+      case None =>
+        result
+    }
   }
 
   def getMontlyBinMap(id: String, context: KernelContext): CDCoordMap = {
@@ -397,74 +401,76 @@ abstract class DualOperationKernel extends Kernel {
   }
 }
 */
-abstract class SingularKernel extends Kernel {
-  override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext ): Option[DataFragment] = {
-    val t0 = System.nanoTime
-    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
-    logger.info("\n\n ****** SingularKernel-reduceOp START, axes = " + axes.getAxes.mkString(",") + "\n")
-    inputs.head.map( dataFrag => {
-      val async = context.config("async", "false").toBoolean
-      val resultFragSpec = dataFrag.getReducedSpec(axes)
-      val result_val_masked: CDFloatArray = mapCombineOpt match {
-        case Some(combineOp) =>
-          val result = dataFrag.data.reduce(combineOp, axes.args, initValue)
-          logger.info(" ****** SingularKernel-reduceOp, shape = " + result.getShape.mkString(","))
-          result
-        case None =>
-          logger.info(" ****** SingularKernel-No-Op")
-          dataFrag.data
-      }
-      logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
-      DataFragment(resultFragSpec, result_val_masked)
-    } )
-  }
-}
-
-abstract class DualKernel extends Kernel {
-  override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext ): Option[DataFragment] = {
-    val t0 = System.nanoTime
-    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
-    assert( inputs.length > 1, "Missing input(s) to dual input operation " + id )
-    inputs(0).flatMap( dataFrag0 => {
-      inputs(1).map( dataFrag1 => {
-        logger.info("DualKernel: %s[%s] + %s[%s]".format( dataFrag0.spec.longname, dataFrag0.data.getShape.mkString(","), dataFrag1.spec.longname, dataFrag1.data.getShape.mkString(",") ) )
-        val async = context.config("async", "false").toBoolean
-        val result_val_masked: DataFragment = mapCombineOpt match {
-          case Some(combineOp) =>
-            logger.info( "DIFF2: dataFrag0 coordMap = %s".format( dataFrag0.optCoordMap.map( _.toString ).getOrElse("") ) )
-            logger.info( "DIFF2: dataFrag1 coordMap = %s".format( dataFrag1.optCoordMap.map( _.toString ).getOrElse("") ) )
-            DataFragment.combine( combineOp, dataFrag0, dataFrag1 )
-          case None => dataFrag0
-        }
-        logger.info("\nExecuted Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
-//        logger.info("->> input0(%s): %s".format(dataFrag0.spec.varname, dataFrag0.data.mkDataString(",")))
-//        logger.info("->> input1(%s): %s".format(dataFrag1.spec.varname, dataFrag1.data.mkDataString(",")))
-//        logger.info("->> result: %s".format(result_val_masked.data.mkDataString(",")))
-        result_val_masked
-      })
-    })
-  }
-}
+//abstract class SingularKernel extends Kernel {
+//  override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext ): Option[DataFragment] = {
+//    val t0 = System.nanoTime
+//    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
+//    logger.info("\n\n ****** SingularKernel-reduceOp START, axes = " + axes.getAxes.mkString(",") + "\n")
+//    inputs.head.map( dataFrag => {
+//      val async = context.config("async", "false").toBoolean
+//      val resultFragSpec = dataFrag.getReducedSpec(axes)
+//      val result_val_masked: CDFloatArray = mapCombineOpt match {
+//        case Some(combineOp) =>
+//          val result = dataFrag.data.reduce(combineOp, axes.args, initValue)
+//          logger.info(" ****** SingularKernel-reduceOp, shape = " + result.getShape.mkString(","))
+//          result
+//        case None =>
+//          logger.info(" ****** SingularKernel-No-Op")
+//          dataFrag.data
+//      }
+//      logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
+//      DataFragment(resultFragSpec, result_val_masked)
+//    } )
+//  }
+//}
+//
+//abstract class DualKernel extends Kernel {
+//  override def map( partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext ): Option[DataFragment] = {
+//    val t0 = System.nanoTime
+//    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
+//    assert( inputs.length > 1, "Missing input(s) to dual input operation " + id )
+//    inputs(0).flatMap( dataFrag0 => {
+//      inputs(1).map( dataFrag1 => {
+//        logger.info("DualKernel: %s[%s] + %s[%s]".format( dataFrag0.spec.longname, dataFrag0.data.getShape.mkString(","), dataFrag1.spec.longname, dataFrag1.data.getShape.mkString(",") ) )
+//        val async = context.config("async", "false").toBoolean
+//        val result_val_masked: DataFragment = mapCombineOpt match {
+//          case Some(combineOp) =>
+//            logger.info( "DIFF2: dataFrag0 coordMap = %s".format( dataFrag0.optCoordMap.map( _.toString ).getOrElse("") ) )
+//            logger.info( "DIFF2: dataFrag1 coordMap = %s".format( dataFrag1.optCoordMap.map( _.toString ).getOrElse("") ) )
+//            DataFragment.combine( combineOp, dataFrag0, dataFrag1 )
+//          case None => dataFrag0
+//        }
+//        logger.info("\nExecuted Kernel %s[%d] map op, time = %.4f s".format(name, partIndex, (System.nanoTime - t0) / 1.0E9))
+////        logger.info("->> input0(%s): %s".format(dataFrag0.spec.varname, dataFrag0.data.mkDataString(",")))
+////        logger.info("->> input1(%s): %s".format(dataFrag1.spec.varname, dataFrag1.data.mkDataString(",")))
+////        logger.info("->> result: %s".format(result_val_masked.data.mkDataString(",")))
+//        result_val_masked
+//      })
+//    })
+//  }
+//}
 
 abstract class SingularRDDKernel extends Kernel {
   override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
-    val result_array_map : Map[String,HeapFltArray] = inputs.elements.mapValues { data  =>
-      val input_array = data.toCDFloatArray
-      mapCombineOpt match {
-        case Some(combineOp) =>
-          val result = CDFloatArray(input_array.reduce(combineOp, axes.args, initValue))
-          logger.info(" ##### KERNEL [%s]: Map Op: combine, axes = %s, result shape = %s".format( name, axes, result.getShape.mkString(",") ) )
-          HeapFltArray( result, data.origin, data.metadata )
-        case None =>
-          logger.info(" ##### KERNEL [%s]: Map Op: NONE".format( name ) )
-          HeapFltArray( input_array, data.origin, data.metadata )
-      }
+    val inputId = context.operation.inputs.headOption.getOrElse("NULL")
+    val elem = inputs.element(inputId) match {
+      case Some( input_array ) =>
+        mapCombineOpt match {
+          case Some(combineOp) =>
+            val result = CDFloatArray(input_array.toCDFloatArray.reduce(combineOp, axes.args, initValue))
+            logger.info(" ##### KERNEL [%s]: Map Op: combine, axes = %s, result shape = %s".format( name, axes, result.getShape.mkString(",") ) )
+            context.operation.rid -> HeapFltArray( result, input_array.origin, input_array.metadata )
+          case None =>
+            logger.info(" ##### KERNEL [%s]: Map Op: NONE".format( name ) )
+            context.operation.rid -> HeapFltArray( input_array.toCDFloatArray, input_array.origin, input_array.metadata )
+        }
+      case None => throw new Exception( "Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
     }
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( inputs.iPart, result_array_map )
+    RDDPartition( inputs.iPart, Map( elem ) )
   }
 }
 
@@ -474,14 +480,14 @@ abstract class DualRDDKernel extends Kernel {
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
     val input_arrays = context.operation.inputs.flatMap( inputs.element(_) )
-    assert( input_arrays.size > 1, "Missing input(s) to dual input operation " + id )
+    assert( input_arrays.size > 1, "Missing input(s) to dual input operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
     val result_array: CDFloatArray = mapCombineOpt match {
       case Some(combineOp) => CDFloatArray.combine( combineOp, input_arrays(0).toCDFloatArray, input_arrays(1).toCDFloatArray )
       case None => input_arrays(0).toCDFloatArray
     }
     val result_metadata = input_arrays(0).mergeMetadata( name,input_arrays(1) )
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( inputs.iPart, Map( getOpName(context) -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata) ), inputs.metadata )
+    RDDPartition( inputs.iPart, Map( context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata) ), inputs.metadata )
   }
 }
 

@@ -59,6 +59,7 @@ abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray
   def toCDDoubleArray: CDDoubleArray
   def toUcarFloatArray: ucar.ma2.Array = toCDFloatArray
   def toUcarDoubleArray: ucar.ma2.Array = toCDDoubleArray
+  def toCDWeightsArray: Option[CDFloatArray] = None
   def merge( other: ArrayBase[T] ): ArrayBase[T]
   def combine( combineOp: CDArray.ReduceOp[T], other: ArrayBase[T] ): ArrayBase[T]
   override def toString = "<array shape=(%s), %s> %s </array>".format( shape.mkString(","), metadata.mkString(","), cdsutils.toString(data.mkString(",")) )
@@ -76,6 +77,18 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
 object HeapFltArray {
   def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String] ): HeapFltArray = new HeapFltArray( cdarray.getShape, origin, cdarray.getArrayData(), cdarray.getInvalid, metadata )
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], metadata: Map[String,String], missing: Float ): HeapFltArray = HeapFltArray( CDArray.factory(ucarray,missing), origin, metadata )
+}
+
+class WeightedHeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, _data: Array[Float]=Array.emptyFloatArray, private val _weights: Array[Float]=Array.emptyFloatArray, missing: Float=Float.MaxValue, metadata: Map[String,String]=Map.empty ) extends HeapFltArray(shape,origin,_data,missing,metadata) {
+  def weights: Array[Float] = _weights
+  override def toCDWeightsArray: Option[CDFloatArray] = Some(CDFloatArray( shape, weights, missing ))
+
+  def merge( other: WeightedHeapFltArray ): ArrayBase[Float] = WeightedHeapFltArray( toCDFloatArray.merge( other.toCDFloatArray ), toCDWeightsArray.get.merge( other.toCDWeightsArray.get ), origin, mergeMetadata("merge",other) )
+//  def combine( combineOp: CDArray.ReduceOp[Float], other: ArrayBase[Float] ): ArrayBase[Float] = HeapFltArray( CDFloatArray.combine( combineOp, toCDFloatArray, other.toCDFloatArray ), origin, mergeMetadata("merge",other) )
+}
+object WeightedHeapFltArray {
+  def apply( cdarray: CDFloatArray, warray: CDFloatArray, origin: Array[Int], metadata: Map[String,String] ): WeightedHeapFltArray = new WeightedHeapFltArray( cdarray.getShape, origin, cdarray.getArrayData(), warray.getArrayData(), cdarray.getInvalid, metadata )
+  def apply( ucarray: ucar.ma2.Array, warray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], missing: Float ): WeightedHeapFltArray = WeightedHeapFltArray( CDArray.factory(ucarray,missing), warray, origin, metadata )
 }
 
 class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, val _data_ : Array[Double]=Array.emptyDoubleArray, missing: Double=Double.MaxValue, metadata: Map[String,String]=Map.empty ) extends ArrayBase[Double](shape,origin,missing,metadata) {
@@ -107,6 +120,7 @@ class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase[Float]] ,
 
 object RDDPartition {
   def apply ( iPart: Int = -1, elements: Map[String,ArrayBase[Float]] = Map.empty,  metadata: Map[String,String] = Map.empty ) = new RDDPartition( iPart, elements, metadata )
+  def apply ( iPart: Int, rdd: RDDPartition ) = new RDDPartition( iPart, rdd.elements, rdd.metadata )
   def merge( rdd_parts: Seq[RDDPartition] ) = rdd_parts.foldLeft( RDDPartition() )( _ ++ _ )
 }
 

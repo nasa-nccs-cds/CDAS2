@@ -71,7 +71,7 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
 
   def reduce( mapresult: RDD[RDDPartition], context: KernelContext, kernel: Kernel ):  RDDPartition = mapresult.reduce( kernel.reduceRDDOp(context) _ )
 
-  def createResponse( kernel: Kernel, result: RDDPartition, context: CDASExecutionContext ): WPSExecuteResponse = {    // TODO: Implement async
+  def createResponse( kernel: Kernel, result: RDDPartition, context: CDASExecutionContext ): WPSExecuteResponse = {
     val resultId = cacheResult( result, context )
     new RDDExecutionResult( kernel, context.operation.identifier, result, resultId )
   }

@@ -124,7 +124,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/const.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","weights":"","axes":"xy"}]]"""
     val result_node = executeTest(datainputs)
     logger.info( "Test Result: " + printer.format(result_node) )
-    val data_nodes: xml.NodeSeq = ( result_node \\ "Output" \\ "Data" ).filter( cdsutils.attributeValueEquals("value") _  ) \\ "LiteralData"
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "Data" \\ "LiteralData"
     val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
@@ -134,7 +134,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/const.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","weights":"cosine","axes":"xy"}]]"""
     val result_node = executeTest(datainputs)
     logger.info( "Test Result: " + printer.format(result_node) )
-    val data_nodes: xml.NodeSeq = ( result_node \\ "Output" \\ "Data" ).filter( cdsutils.attributeValueEquals("value") _  ) \\ "LiteralData"
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "Data" \\ "LiteralData"
     val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
@@ -144,7 +144,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","weights":"","axes":"xy"}]]"""
     val result_node = executeTest(datainputs)
     logger.info( "Test Result: " + printer.format(result_node) )
-    val data_nodes: xml.NodeSeq = ( result_node \\ "Output" \\ "Data" ).filter( cdsutils.attributeValueEquals("value") _  ) \\ "LiteralData"
+    val data_nodes: xml.NodeSeq =  result_node \\ "Output" \\ "Data" \\ "LiteralData"
     val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }
@@ -154,7 +154,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","weights":"cosine","axes":"xy"}]]"""
     val result_node = executeTest(datainputs)
     logger.info( "Test Result: " + printer.format(result_node) )
-    val data_nodes: xml.NodeSeq = ( result_node \\ "Output" \\ "Data" ).filter( cdsutils.attributeValueEquals("value") _  ) \\ "LiteralData"
+    val data_nodes: xml.NodeSeq =  result_node \\ "Output" \\ "Data" \\ "LiteralData"
     val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
   }

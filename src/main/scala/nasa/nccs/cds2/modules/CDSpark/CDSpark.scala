@@ -1,6 +1,6 @@
 package nasa.nccs.cds2.modules.CDSpark
 
-import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition}
+import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition, WeightedHeapFltArray}
 import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray._
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDTimeCoordMap}
@@ -131,12 +131,15 @@ class average extends SingularRDDKernel {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
-    val ( id, input_array ) = inputs.head
-    val weights: CDFloatArray = KernelUtilities.getWeights(id, context)
-    val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, Some(weights), None)
-    val elems = Map( "value" -> HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value") ), "weights" -> HeapFltArray( weights_sum_masked, input_array.origin, Map.empty ) )
+    val elems = context.operation.inputs.map( inputId => inputs.element(inputId) match {
+      case Some( input_array ) =>
+        val weights: CDFloatArray = KernelUtilities.getWeights(inputId, context)
+        val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, Some(weights), None)
+        context.operation.rid -> WeightedHeapFltArray(weighted_value_sum_masked, weights_sum_masked, input_array.origin, arrayMdata(inputs, "value"))
+      case None => throw new Exception( "Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
+    })
     logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( inputs.iPart, elems, inputs.metadata )
+    RDDPartition( inputs.iPart, Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
   override def combineRDD(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices ): RDDPartition =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
   override def postRDDOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = weightedValueSumRDDPostOp( pre_result, context )
@@ -166,9 +169,9 @@ class timeBin extends Kernel {
     val ( id, input_array ) = inputs.head
     val coordMap: CDCoordMap = getMontlyBinMap( id, context )
     val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, None, Some(coordMap) )
-    val elems = Map( "value" -> HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value") ), "weights" -> HeapFltArray( weights_sum_masked, input_array.origin, Map.empty ) )
+    val elems = Map( context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value") ), "weights" -> HeapFltArray( weights_sum_masked, input_array.origin, Map.empty ) )
     logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( inputs.iPart, elems, inputs.metadata )
+    RDDPartition( inputs.iPart, elems, inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
   override def combineRDD(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices ): RDDPartition =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
   override def postRDDOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = weightedValueSumRDDPostOp( pre_result, context )

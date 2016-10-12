@@ -63,7 +63,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
   def getPartitions( opInputs: List[OperationInput] ): Option[Partitions] = {
     for( opInput <- opInputs ) opInput match {
       case pfrag: PartitionedFragment => return Some( pfrag.partitions )
-      case _ => _
+      case _ => None
     }
     None
   }
@@ -73,7 +73,8 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     sparkContext.parallelize(rddSpecs).map(_.getRDDPartition)
   }
   def getRDD( tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[RDDPartition] = {
-    sparkContext.parallelize(partitions.parts.indices).map(_ => tVar.variable.result )
+    val rddParts = partitions.parts.indices.map( RDDPartition( _, tVar.variable.result ) )
+    sparkContext.parallelize(rddParts)
   }
 
 
