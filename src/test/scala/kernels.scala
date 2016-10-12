@@ -11,7 +11,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   Collections.addCollection( "const.test", const_data, "Constant data", List("ta") )
 
   test("GetCapabilities") {
-    val result_node = getCapabilities( "proc" )
+    val result_node = getCapabilities("")
   }
 
   test("DescribeProcess") {
@@ -87,7 +87,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Subset")
   }
 
-  test("Yearly Cycle") {
+  test("Workflow: Yearly Cycle Anomaly") {
     val lat_index = 50
     val lon_index = 100
     val lev_index = 0

@@ -394,7 +394,7 @@ abstract class CDS2ExecutionManager extends WPSServer {
 //  }
 
   def getWPSCapabilities( identifier: String ): xml.Elem = identifier match {
-    case x if x.startsWith("proc") => GetCapabilities
+    case x if x.startsWith("ker") => kernelManager.toXml
     case x if x.startsWith("frag") => FragmentPersistence.getFragmentListXml
     case x if x.startsWith("res") => collectionDataCache.getResultListXml // collectionDataCache
     case x if x.startsWith("job") => collectionDataCache.getJobListXml
@@ -410,7 +410,7 @@ abstract class CDS2ExecutionManager extends WPSServer {
       if( itToks.length < 2 )  <error message="Unspecified collection and variables" />
       else                     Collections.getVariableListXml( itToks(1).split(',') )
     }
-    case _ => kernelManager.toXml
+    case _ => GetCapabilities
   }
 
   def attrToXml( attr: nc2.Attribute ): xml.Elem = {

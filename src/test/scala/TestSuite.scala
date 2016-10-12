@@ -88,7 +88,7 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     response
   }
 
-  def getCapabilities( identifier: String, async: Boolean = false ): xml.Elem = {
+  def getCapabilities( identifier: String="", async: Boolean = false ): xml.Elem = {
     val t0 = System.nanoTime()
     val response: xml.Elem = webProcessManager.getCapabilities(service, identifier )
     webProcessManager.logger.info("Completed GetCapabilities '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))

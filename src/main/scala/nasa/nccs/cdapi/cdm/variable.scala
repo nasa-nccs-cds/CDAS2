@@ -69,10 +69,16 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
 
 trait OperationInput {
 //  def domainDataFragment( partIndex: Int,  optSection: Option[ma2.Section] ): Option[DataFragment]
+  def getKeyString: String
 }
 
 class OperationTransientInput( val variable: RDDTransientVariable ) extends OperationInput with Loggable {
 //  def domainDataFragment( partIndex: Int,  optSection: Option[ma2.Section] ): Option[DataFragment] = variable.
+  def getKeyString: String =  variable.request.getInputSpec match {
+    case Some( dataFrag )=> dataFrag.getKeyString
+    case None => variable.operation.inputs.mkString(":")
+  }
+
 }
 
 abstract class OperationDataInput( val fragmentSpec: DataFragmentSpec, val metadata: Map[String,nc2.Attribute] ) extends OperationInput with Loggable {

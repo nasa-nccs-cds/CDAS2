@@ -1,8 +1,8 @@
 package nasa.nccs.cds2.engine.spark
 
-import nasa.nccs.caching.{CDASPartitioner, Partition}
+import nasa.nccs.caching.{CDASPartitioner, Partition, Partitions}
 import nasa.nccs.cdapi.cdm.{CDSVariable, OperationInput, OperationTransientInput, PartitionedFragment}
-import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartSpec, RDDPartition}
+import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartSpec, RDDPartition, RDDVariableSpec}
 import nasa.nccs.cdapi.kernels.CDASExecutionContext
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.esgf.process._
@@ -33,6 +33,8 @@ object CDSparkContext extends Loggable {
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false ) ) )
 
+  def merge( rdd0: RDD[RDDPartition], rdd1: RDD[RDDPartition] ): RDD[RDDPartition] = rdd0.zip(rdd1).map( p => p._1 ++ p._2 )
+
   def getSparkConf( master: String, appName: String, logConf: Boolean  ) = new SparkConf(false)
     .setMaster( master )
     .setAppName( appName )
@@ -58,22 +60,41 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     indexRDD.map( iPart => partFrag.partRDDPartition( iPart ) )
   }
 
+  def getPartitions( opInputs: List[OperationInput] ): Option[Partitions] = {
+    for( opInput <- opInputs ) opInput match {
+      case pfrag: PartitionedFragment => return Some( pfrag.partitions )
+      case _ => _
+    }
+    None
+  }
+
+  def getRDD( pFrag: PartitionedFragment, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[RDDPartition] = {
+    val rddSpecs: Array[RDDPartSpec] = partitions.parts.map(partition => RDDPartSpec(partition, List(pFrag.getRDDVariableSpec(partition, opSection))))
+    sparkContext.parallelize(rddSpecs).map(_.getRDDPartition)
+  }
+  def getRDD( tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[RDDPartition] = {
+    sparkContext.parallelize(partitions.parts.indices).map(_ => tVar.variable.result )
+  }
+
+
   def domainRDDPartition( opInputs: List[OperationInput], context: CDASExecutionContext): RDD[RDDPartition] = {
     val opSection: Option[ma2.Section] = context.getOpSectionIntersection
-    opInputs.headOption match {
-      case  Some(pFrag: PartitionedFragment) =>
-        val partFrags = opInputs.asInstanceOf[ List[PartitionedFragment]]
-        val parts = partFrags.head.partitions.parts
-        val partSpecs: Array[ RDDPartSpec ] = parts.map( partition => RDDPartSpec( partition, partFrags.map(pFrag => pFrag.getRDDVariableSpec(partition, opSection) ) ) )
-        sparkContext.parallelize(partSpecs).map( _.getRDDPartition )
-      case Some(tVar: OperationTransientInput) =>
-        val transVars = opInputs.asInstanceOf[ List[OperationTransientInput]]
-        val nparts = 3 // FIXME
-        val part = transVars.head.variable.result
-        sparkContext.parallelize( (0 until nparts) ).map( ip => part )
-      case _ => throw new Exception( "Error, can't create RDD")
+    val rdds: List[RDD[RDDPartition]] = getPartitions(opInputs) match {
+      case Some(partitions) =>
+        opInputs.map( opInput => opInput match {
+          case pFrag: PartitionedFragment => getRDD( pFrag, partitions, opSection )
+          case tVar: OperationTransientInput => getRDD( tVar, partitions, opSection )
+          case _ => throw new Exception( "Unsupported OperationInput class: " + opInput.getClass.getName )
+        })
+      case None =>
+        opInputs.map( opInput => opInput match {
+          case tVar: OperationTransientInput => sparkContext.parallelize(List(0)).map(_ => tVar.variable.result )
+          case _ => throw new Exception( "Unsupported OperationInput class: " + opInput.getClass.getName )
+        })
     }
+    if( opInputs.length == 1 ) rdds.head else rdds.tail.foldLeft( rdds.head )( CDSparkContext.merge(_,_) )
   }
+
 }
 
 

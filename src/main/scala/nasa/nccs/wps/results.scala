@@ -62,6 +62,7 @@ class UtilityExecutionResult( id: String, val report: xml.Elem )  extends WPSEve
 }
 
 class WPSExceptionReport( val err: Throwable ) extends WPSEventReport with Loggable {
+  print_error
   override def toXml = {
     <ows:ExceptionReport xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                          xsi:schemaLocation="http://www.opengis.net/ows/1.1 ../../../ows/1.1.0/owsExceptionReport.xsd" version="1.0.0" xml:lang="en-CA">
@@ -69,6 +70,7 @@ class WPSExceptionReport( val err: Throwable ) extends WPSEventReport with Logga
     </ows:ExceptionReport>
   }
   def getReport: Iterable[xml.Elem] =  List(  <ows:Exception exceptionCode={err.getClass.getName}> <ows:ExceptionText>{err.getMessage}</ows:ExceptionText> </ows:Exception> )
+  def print_error = logger.error( err.toString + "\n" + err.getStackTrace.mkString("\n") + "\n" )
 }
 
 class AsyncExecutionResult( process: WPSProcess, optResultId: Option[String] ) extends WPSReferenceExecuteResponse( process, optResultId )  {
