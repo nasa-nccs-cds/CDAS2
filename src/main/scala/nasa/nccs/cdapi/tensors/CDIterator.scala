@@ -5,7 +5,7 @@ import nasa.nccs.cdapi.tensors.CDArray.{StorageIndex,FlatIndex}
 
 object CDIterator {
 
-  def factory( shape: Array[Int] ): CDArrayIndexIterator = factory( CDIndexMap.factory(shape) )
+  def factory( shape: Array[Int] ): CDArrayIndexIterator = factory( CDIndexMap(shape) )
 
   def factory( cdIndexMap: CDIndexMap ): CDArrayIndexIterator = cdIndexMap.getRank match {
     case 1 =>
@@ -24,7 +24,7 @@ object CDIterator {
 }
 
 abstract class CDIterator( _cdIndexMap: CDIndexMap  ) extends collection.Iterator[Int] {
-  protected val cdIndexMap: CDIndexMap = CDIndexMap.factory( _cdIndexMap )
+  protected val cdIndexMap: CDIndexMap = CDIndexMap( _cdIndexMap )
   protected val rank = cdIndexMap.getRank
   protected val stride = cdIndexMap.getStride
   protected val shape = cdIndexMap.getShape
@@ -46,7 +46,7 @@ abstract class CDIterator( _cdIndexMap: CDIndexMap  ) extends collection.Iterato
   protected def setCurrentCounter( _currElement: FlatIndex ) {
     var currElement = _currElement
     currElement -= offset
-    for( ii <-(0 until rank ) ) if (shape(ii) < 0) { coordIndices(ii) = -1 } else {
+    for( ii <-(0 until rank ) ) if (shape(ii) < 0) { coordIndices(ii) = -1 } else if( stride(ii) > 0 ) {
       coordIndices(ii) = currElement / stride(ii)
       currElement -= coordIndices(ii) * stride(ii)
     }
@@ -702,7 +702,7 @@ object DualArrayIterator {
       else if ( s1 == 1 ) s0
       else throw new Exception( "Attempt to combine incummensurate shapes: (%s) vs (%s)".format( input0.getShape.mkString(","), input1.getShape.mkString(",") ) ) ).toArray
 
-    val cdIndexMap = CDIndexMap.factory(shape)
+    val cdIndexMap = CDIndexMap(shape)
     val sameShape0 = input0.getShape.sameElements(shape)
     val sameShape1 = input1.getShape.sameElements(shape)
     val array0 = if(sameShape0) input0 else input0.broadcast(shape)

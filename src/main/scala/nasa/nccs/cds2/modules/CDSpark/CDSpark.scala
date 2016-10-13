@@ -1,9 +1,9 @@
 package nasa.nccs.cds2.modules.CDSpark
 
-import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition }
+import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition}
 import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray._
-import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDTimeCoordMap}
+import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDIndexMap, CDTimeCoordMap}
 import nasa.nccs.wps.{WPSDataInput, WPSProcessOutput}
 import org.apache.spark.rdd.RDD
 
@@ -132,10 +132,12 @@ class average extends SingularRDDKernel {
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
     val elems = context.operation.inputs.map( inputId => inputs.element(inputId) match {
-      case Some( input_array ) =>
+      case Some( input_data ) =>
+        val input_array = input_data.toCDFloatArray
+        val accumulation_index = input_array.getAccumulationIndex( axes.args )
         val weights: CDFloatArray = KernelUtilities.getWeights(inputId, context)
-        val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, Some(weights), None)
-        context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked) )
+        val (weighted_value_sum_masked, weights_sum_masked) = input_array.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index, Some(weights) )
+        context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked) )
       case None => throw new Exception( "Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
     })
     logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
@@ -167,8 +169,8 @@ class timeBin extends Kernel {
     val offset = context.config("offset", "0" ).toInt
     val async = context.config("async", "false").toBoolean
     val ( id, input_array ) = inputs.head
-    val coordMap: CDCoordMap = getMontlyBinMap( id, context )
-    val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce(CDFloatArray.getOp("add"), axes.args, 0f, None, Some(coordMap) )
+    val accumulation_index: CDIndexMap = input_array.toCDFloatArray.getIndex.getAccumulator( axes.args, List( getMontlyBinMap( id, context ) )  )
+    val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index )
     val elems = Map( context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), None ), "weights" -> HeapFltArray( weights_sum_masked, input_array.origin, Map.empty[String,String], None ) )
     logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
     RDDPartition( inputs.iPart, elems, inputs.metadata ++ List( "rid" -> context.operation.rid ) )
