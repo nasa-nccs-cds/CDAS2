@@ -193,7 +193,7 @@ object CDFloatArray extends Loggable with Serializable {
   }
 
   def apply( cdIndexMap: CDIndexMap, floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( cdIndexMap, FloatBuffer.wrap(floatData),  invalid )
-  def apply( shape: Array[Int], floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( shape, FloatBuffer.wrap(floatData),  invalid )
+  def apply( shape: Array[Int], floatData: Array[Float], invalid: Float, indexMaps: List[CDCoordMap] = List.empty ): CDFloatArray  = new CDFloatArray( CDIndexMap(shape,indexMaps), FloatBuffer.wrap(floatData),  invalid )
   def apply( target: CDArray[Float] ): CDFloatArray  = CDFloatArray.cdArrayConverter( target )
   def const( shape: Array[Int], value: Float ): CDFloatArray = apply( CDIndexMap.const(shape), Array(value), Float.MaxValue )
 
@@ -282,8 +282,8 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   import CDFloatArray._
   def getStorageValue( index: StorageIndex ): Float = floatStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Float ): Unit = floatStorage.put( index, value )
-  def this( shape: Array[Int], storage: FloatBuffer, invalid: Float ) = this( CDIndexMap.factory(shape), storage, invalid )
-  def this( storage: FloatBuffer, invalid: Float ) = this( CDIndexMap.factory( Array(storage.capacity()) ), storage, invalid )
+  def this( shape: Array[Int], storage: FloatBuffer, invalid: Float ) = this( CDIndexMap(shape, List.empty), storage, invalid )
+  def this( storage: FloatBuffer, invalid: Float ) = this( CDIndexMap( Array( storage.capacity()), List.empty ), storage, invalid )
   protected def getData: FloatBuffer = floatStorage
   override def getSectionData( maxSize: Int = Int.MaxValue ): FloatBuffer = if( getSize > 0 ) { super.getSectionData(maxSize).asInstanceOf[FloatBuffer] } else FloatBuffer.allocate(0)
   def getStorageData: FloatBuffer = floatStorage

@@ -22,10 +22,14 @@ import scala.collection.JavaConverters._
 
 object CDIndexMap {
 
-  def factory(index: CDIndexMap): CDIndexMap = new CDIndexMap(index.getShape, index.getStride, index.getOffset )
-  def factory(shape: Array[Int]=Array.emptyIntArray, stride: Array[Int]=Array.emptyIntArray, offset: Int = 0): CDIndexMap = new CDIndexMap(shape, stride, offset )
+  def apply(index: CDIndexMap): CDIndexMap = new CDIndexMap(index.getShape, index.getStride, index.getOffset )
+  def apply(shape: Array[Int]=Array.emptyIntArray, stride: Array[Int]=Array.emptyIntArray, offset: Int = 0): CDIndexMap = new CDIndexMap(shape, stride, offset )
+  def apply( shape: Array[Int], coordMapList: List[CDCoordMap] = List.empty ): CDIndexMap = {
+    val coordMaps = coordMapList.map( cmap => cmap.dimension -> cmap )
+    new CDIndexMap( shape, Array.emptyIntArray, 0, Map(coordMaps:_*) )
+  }
   def const(shape: Array[Int]): CDIndexMap = new CDIndexMap(shape, Array.fill[Int](shape.length)(0), 0 )
-  def empty = factory()
+  def empty = apply()
 }
 
 abstract class IndexMapIterator extends collection.Iterator[Int] {
@@ -67,7 +71,7 @@ class DayOfYearIter( timeOffsets: Array[Double], range: ma2.Range ) extends Time
   def getValue( count_index: Int ): Int = toDate( getCalendarDate(count_index+index_offset) ).getDayOfYear
 }
 
-class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val offset: Int = 0 ) extends Serializable {
+class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val offset: Int = 0, protected val coordMaps: Map[Int,CDCoordMap] = Map.empty ) extends Serializable {
   protected val rank: Int = shape.length
   protected val stride = if( _stride.isEmpty ) computeStrides(shape) else _stride
   def this( index: CDIndexMap ) = this( index.shape, index.stride, index.offset )
@@ -76,16 +80,16 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
     for( i <- (1 until rank) ) if(shape(i) != other.shape(i) ) throw new Exception( "Can't merge arrays with non-commensurate shapes: %s vs %s".format(shape.mkString(","),other.shape.mkString(",")))
     assert( (offset==0) || (other.offset==0), "Can't merge subsetted arrays, should extract section first." )
     val newShape: IndexedSeq[Int] = for( i <- (0 until rank) ) yield if( i==0 ) shape(i) + other.shape(i) else shape(i)
-    new CDIndexMap( newShape.toArray, _stride, offset )
+    new CDIndexMap( newShape.toArray, _stride, offset, coordMaps )
   }
 
   def getRank: Int = rank
   def getShape: Array[Int] = shape.clone
   def getStride: Array[Int] = stride.clone
   def getShape(index: Int): Int = shape(index)
-  def getSize: Int = if( rank == 0 ) { 0 } else { shape.filter( _ > 0 ).foldLeft(1)( _ * _ ) }
+  def getSize: Int = if( rank == 0 ) { 0 } else { shape.filter( _ > 0 ).product }
   def getOffset: Int = offset
-  def getReducedShape: Array[Int] = { ( for( idim <- ( 0 until rank) ) yield if( stride(idim) == 0 ) 1 else shape( idim ) ).toArray }
+  def getReducedShape: Array[Int] = { ( for( idim <- (0 until rank) ) yield if( stride(idim) == 0 ) 1 else coordMaps.get(idim).map(_.nBins).getOrElse(shape( idim )) ).toArray }
   override def toString: String = "{ Shape: " + shape.mkString("[ ",", "," ], Stride: " + stride.mkString("[ ",", "," ]") + " Offset: " + offset + " } ")
 
   def broadcasted: Boolean = {
@@ -106,8 +110,9 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   def getStorageIndex( coordIndices: Array[Int] ): Int = {
     assert( coordIndices.length == rank, "Wrong number of coordinates in getStorageIndex for Array of rank %d: %d".format( rank, coordIndices.length) )
     var value: Int = offset
-    for( ii <-(0 until rank ); if (shape(ii) >= 0) ) {
-      value += coordIndices(ii) * stride(ii)
+    for( ii <-(0 until rank ); if (shape(ii) >= 0)  ) coordMaps.get(ii) match {
+      case Some(cmap) => value += cmap.mapArray( coordIndices(ii) ) * stride(ii)
+      case None =>  value += coordIndices(ii) * stride(ii)
     }
     value
   }
@@ -117,7 +122,7 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
     var strides = for (ii <- (shape.length - 1 to 0 by -1); thisDim = shape(ii) ) yield
       if (thisDim >= 0) {
         val curr_stride = product
-        product *= thisDim
+        product *= coordMaps.get(ii).map(_.nBins).getOrElse(thisDim)
         curr_stride
       } else { 0 }
     return strides.reverse.toArray
@@ -224,42 +229,36 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   }
 }
 
-trait CDCoordMapBase {
-  def dimIndex: Int
-  val nBins: Int
-  def map( coordIndices: Array[Int] ): Array[Int]
-  def mapShape( shape: Array[Int] ): Array[Int] = { val new_shape=shape.clone; new_shape(dimIndex)=nBins; new_shape }
-}
-
-class CDCoordMap( val dimIndex: Int, val dimOffset: Int, val mapArray: Array[Int] ) extends CDCoordMapBase with Loggable {
-  def this( dimIndex: Int, section: ma2.Section, mapArray: Array[Int] ) =  this( dimIndex, section.getRange(dimIndex).first(), mapArray )
-  val nBins: Int = mapArray.max + 1
+class CDCoordMap( val dimension: Int, val start: Int, val mapArray: Array[Int]  ) extends Serializable with Loggable {
+  def this( dimension: Int, section: ma2.Section, mapArray: Array[Int] ) =  this( dimension, section.getRange(dimension).first(), mapArray )
+  val nBins = mapArray.max + 1
+  val length = mapArray.length
 
   def map( coordIndices: Array[Int] ): Array[Int] = {
     val result = coordIndices.clone()
     try {
-      result(dimIndex) = mapArray(coordIndices(dimIndex))
+      result(dimension) = mapArray(coordIndices(dimension))
       result
     } catch {
       case ex: java.lang.ArrayIndexOutOfBoundsException =>
-        logger.error( " ArrayIndexOutOfBoundsException: mapArray[%d] = (%s), dimIndex=%d, coordIndices = (%s)".format( mapArray.size, mapArray.mkString(","), dimIndex, coordIndices.mkString(",") ) )
+        logger.error( " ArrayIndexOutOfBoundsException: mapArray[%d] = (%s), dimension=%d, coordIndices = (%s)".format( mapArray.size, mapArray.mkString(","), dimension, coordIndices.mkString(",") ) )
         throw ex
     }
   }
-  override def toString = "CDCoordMap{ nbins=%d, dim=%d, offset=%d, mapArray[%d]=[ %s ]}".format( nBins, dimIndex, dimOffset, mapArray.size, mapArray.mkString(", ") )
+  override def toString = "CDCoordMap{ nbins=%d, dim=%d, offset=%d, mapArray[%d]=[ %s ]}".format( nBins, dimension, start, mapArray.size, mapArray.mkString(", ") )
 
   def subset( section: ma2.Section ): CDCoordMap = {
-    assert( dimOffset==0, "Attempt to subset a partitioned CoordMap: not supported.")
-    val start: Int = section.getRange(dimIndex).first()
-    logger.info( "CDCoordMap[%d].subset(%s): start=%d, until=%d, size=%d".format( dimIndex, section.toString, start, mapArray.length, mapArray.length-start) )
-    new CDCoordMap( dimIndex, start, mapArray.slice( start, mapArray.length ) )
+    assert( start==0, "Attempt to subset a partitioned CoordMap: not supported.")
+    val new_start: Int = section.getRange(dimension).first()
+    logger.info( "CDCoordMap[%d].subset(%s): start=%d, until=%d, size=%d".format( dimension, section.toString, new_start, mapArray.length, mapArray.length-new_start) )
+    new CDCoordMap( dimension, new_start, mapArray.slice( new_start, mapArray.length ) )
   }
 
   def ++( cmap: CDCoordMap ): CDCoordMap = {
-    assert(dimIndex == cmap.dimIndex, "Attempt to combine incommensurate index maps, dimIndex mismatch: %d vs %d".format( dimIndex, cmap.dimIndex ) )
-    if (dimIndex == 0) {
-      assert(cmap.dimOffset == dimOffset + mapArray.length, "Attempt to combine incommensurate index maps, dimOffset mismatch: %d vs %d".format( cmap.dimOffset, dimOffset + mapArray.length )  )
-      new CDCoordMap(dimIndex, dimOffset, mapArray ++ cmap.mapArray)
+    assert(dimension == cmap.dimension, "Attempt to combine incommensurate index maps, dimension mismatch: %d vs %d".format( dimension, cmap.dimension ) )
+    if (dimension == 0) {
+      assert(cmap.start == start + mapArray.length, "Attempt to combine incommensurate index maps, dimOffset mismatch: %d vs %d".format( cmap.start, start + mapArray.length )  )
+      new CDCoordMap(dimension, start, mapArray ++ cmap.mapArray)
     } else {
       assert( mapArray == cmap.mapArray, "Attempt to combine incommensurate index maps" )
       clone.asInstanceOf[CDCoordMap]

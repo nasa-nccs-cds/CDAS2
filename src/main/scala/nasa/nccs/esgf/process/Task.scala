@@ -134,7 +134,7 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
 //}
 
 object UID {
-  def ndigits = 8
+  def ndigits = 6
   def apply() = new UID()
 }
 class UID {

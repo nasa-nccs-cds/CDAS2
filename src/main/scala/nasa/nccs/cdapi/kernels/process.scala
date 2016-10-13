@@ -1,6 +1,6 @@
 package nasa.nccs.cdapi.kernels
 
-import nasa.nccs.cdapi.data._
+import nasa.nccs.cdapi.data.{HeapFltArray, _}
 import nasa.nccs.cdapi.tensors.{CDArray, CDCoordMap, CDFloatArray, CDTimeCoordMap}
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.esgf.process._
@@ -312,10 +312,7 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
       val vOrigin: Array[Int] = originArray( a0, rid )
       val wTotOpt: Option[CDFloatArray] = wtArray(a0, rid ).map(w => w + wtArray(a1,rid).get )
       val array_mdata = MetadataOps.mergeMetadata(context.operation.name, arrayMdata(a0, rid), arrayMdata(a1, rid))
-      val element = wTotOpt match {
-        case Some(wTot) => rid -> WeightedHeapFltArray(vTot,wTot,vOrigin,array_mdata)
-        case None => rid -> HeapFltArray(vTot,vOrigin,array_mdata)
-      }
+      val element = rid -> HeapFltArray( vTot,vOrigin,array_mdata,wTotOpt )
       val part_mdata = MetadataOps.mergeMetadata(context.operation.name, a0.metadata, a1.metadata)
       logger.info("weightedValueSumCombiner, values shape = %s, result spec = %s".format(vTot.getShape.mkString(","), a0.metadata.toString))
       new RDDPartition(a0.iPart, Map(element), part_mdata)
@@ -332,7 +329,7 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
         val values = fltArray(result, rid)
         val vOrigin: Array[Int] = originArray(result, rid)
         logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(values.getShape.mkString(","), weights_sum.getShape.mkString(","), result.metadata.toString))
-        new RDDPartition( result.iPart, Map(rid -> WeightedHeapFltArray(values / weights_sum, weights_sum, vOrigin, arrayMdata(result, "value"))), result.metadata )
+        new RDDPartition( result.iPart, Map(rid -> HeapFltArray(values / weights_sum, vOrigin, arrayMdata(result, "value"), Some(weights_sum))), result.metadata )
       case None =>
         result
     }
@@ -462,10 +459,10 @@ abstract class SingularRDDKernel extends Kernel {
           case Some(combineOp) =>
             val result = CDFloatArray(input_array.toCDFloatArray.reduce(combineOp, axes.args, initValue))
             logger.info(" ##### KERNEL [%s]: Map Op: combine, axes = %s, result shape = %s".format( name, axes, result.getShape.mkString(",") ) )
-            context.operation.rid -> HeapFltArray( result, input_array.origin, input_array.metadata )
+            context.operation.rid -> HeapFltArray( result, input_array.origin, input_array.metadata, None )
           case None =>
             logger.info(" ##### KERNEL [%s]: Map Op: NONE".format( name ) )
-            context.operation.rid -> HeapFltArray( input_array.toCDFloatArray, input_array.origin, input_array.metadata )
+            context.operation.rid -> HeapFltArray( input_array.toCDFloatArray, input_array.origin, input_array.metadata, None )
         }
       case None => throw new Exception( "Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
     }
@@ -487,7 +484,7 @@ abstract class DualRDDKernel extends Kernel {
     }
     val result_metadata = input_arrays(0).mergeMetadata( name,input_arrays(1) )
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( inputs.iPart, Map( context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata) ), inputs.metadata )
+    RDDPartition( inputs.iPart, Map( context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
   }
 }
 
