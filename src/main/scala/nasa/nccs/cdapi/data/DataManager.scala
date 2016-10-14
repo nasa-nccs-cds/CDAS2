@@ -53,7 +53,7 @@ trait RDDataManager {
 
 }
 
-abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray, val origin: Array[Int]=Array.emptyIntArray, val missing: Option[T]=None, metadata: Map[String,String]=Map.empty, indexMaps: List[CDCoordMap] = List.empty ) extends MetadataCarrier(metadata) with Serializable {
+abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray, val origin: Array[Int]=Array.emptyIntArray, val missing: Option[T]=None, metadata: Map[String,String]=Map.empty, val indexMaps: List[CDCoordMap] = List.empty ) extends MetadataCarrier(metadata) with Serializable {
   def data:  Array[T]
   def toCDFloatArray: CDFloatArray
   def toCDDoubleArray: CDDoubleArray
@@ -65,7 +65,8 @@ abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray
   override def toString = "<array shape=(%s), %s> %s </array>".format( shape.mkString(","), metadata.mkString(","), cdsutils.toString(data.mkString(",")) )
 }
 
-class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, private val _data:  Array[Float]=Array.emptyFloatArray, _missing: Option[Float]=None, metadata: Map[String,String]=Map.empty, private val _optWeights: Option[Array[Float]]=None ) extends ArrayBase[Float](shape,origin,_missing,metadata) {
+class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, private val _data:  Array[Float]=Array.emptyFloatArray, _missing: Option[Float]=None,
+                    metadata: Map[String,String]=Map.empty, private val _optWeights: Option[Array[Float]]=None, indexMaps: List[CDCoordMap] = List.empty ) extends ArrayBase[Float](shape,origin,_missing,metadata,indexMaps) {
   def data: Array[Float] = _data
   def weights: Option[Array[Float]] = _optWeights
   override def toCDWeightsArray: Option[CDFloatArray] = _optWeights.map( CDFloatArray( shape, _, missing() ) )
@@ -79,7 +80,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={missing().toString}> {_data.mkString(",")} </array> % metadata
 }
 object HeapFltArray {
-  def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray = new HeapFltArray( cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), metadata, optWeights.map( _.getArrayData()) )
+  def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[CDFloatArray], indexMaps: List[CDCoordMap] = List.empty ): HeapFltArray = new HeapFltArray( cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), metadata, optWeights.map( _.getArrayData()), indexMaps )
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], metadata: Map[String,String], missing: Float ): HeapFltArray = HeapFltArray( CDArray(ucarray,missing), origin, metadata, None )
 }
 

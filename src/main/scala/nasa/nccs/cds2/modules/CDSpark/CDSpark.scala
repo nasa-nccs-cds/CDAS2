@@ -171,7 +171,8 @@ class timeBin extends Kernel {
     val ( id, input_array ) = inputs.head
     val accumulation_index: CDIndexMap = input_array.toCDFloatArray.getIndex.getAccumulator( axes.args, List( getMontlyBinMap( id, context ) )  )
     val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index )
-    val elems = Map( context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), None ), "weights" -> HeapFltArray( weights_sum_masked, input_array.origin, Map.empty[String,String], None ) )
+    val elems = Map( context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), None ),
+                     "weights"             -> HeapFltArray( weights_sum_masked, input_array.origin, Map.empty[String,String], None, accumulation_index.getCoordMaps ) )
     logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
     RDDPartition( inputs.iPart, elems, inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }

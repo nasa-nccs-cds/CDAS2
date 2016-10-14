@@ -11,8 +11,9 @@ import org.slf4j.LoggerFactory
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import ucar.ma2
-import org.apache.log4j.Logger
-import org.apache.log4j.Level
+import org.apache.log4j.{ Logger, LogManager, Level }
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 object CDSparkContext extends Loggable {
   val kyro_buffer_mb = 24
@@ -23,12 +24,18 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  NEW CDSparkContext Created  **** ")
     logger.info( "--------------------------------------------------------\n\n")
+
+    setLogLevel(Level.INFO)
     val rv = new CDSparkContext(new SparkContext(getSparkConf(master, appName, logConf)))
+    setLogLevel(Level.INFO)
+
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  CDSparkContext Creation FINISHED  **** ")
     logger.info( "--------------------------------------------------------")
+    logger.info( "\n\n LOGGERS:  >>>>------------> " + LogManager.getCurrentLoggers.toList.map( _.asInstanceOf[Logger].getName ).mkString(",") )
     rv
   }
+  def setLogLevel( level: Level ) = LogManager.getCurrentLoggers.toList.foreach( _.asInstanceOf[Logger].setLevel(level) )
   def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false ) ) )
@@ -45,8 +52,6 @@ object CDSparkContext extends Loggable {
 }
 
 class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggable {
-  Logger.getLogger("org").setLevel(Level.OFF)
-  Logger.getLogger("akka").setLevel(Level.OFF)
 
   def setLocalProperty(key: String, value: String): Unit = {
     sparkContext.setLocalProperty(key, value)

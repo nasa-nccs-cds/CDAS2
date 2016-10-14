@@ -77,6 +77,7 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   protected val rank: Int = shape.length
   protected val stride = if( _stride.isEmpty ) computeStrides(shape) else _stride
   def this( index: CDIndexMap ) = this( index.shape, index.stride, index._offset )
+  def getCoordMaps: List[CDCoordMap] = _coordMaps.values.toList
 
   def append( other: CDIndexMap ): CDIndexMap = {
     for( i <- (1 until rank) ) if(shape(i) != other.shape(i) ) throw new Exception( "Can't merge arrays with non-commensurate shapes: %s vs %s".format(shape.mkString(","),other.shape.mkString(",")))

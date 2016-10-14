@@ -13,7 +13,7 @@ abstract class CDASparkDataManager( val executionMgr: CDSparkExecutionManager ) 
 
   def getDatasetMetadata( dsid: String ): Map[String,String] =
     Map( Collections.getCollectionMetadata( dsid  ).map( attr => ( attr.getShortName -> attrValue(attr) ) ):_*)
-  
+
   def getVariables( dsid: String ): Set[String]
   def getVariableMetadata( vid: String ): Map[String,String]
 
