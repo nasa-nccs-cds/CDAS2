@@ -14,7 +14,7 @@ object CDArray {
   type StorageIndex = Int
   type FlatIndex = Int
 
-  def apply[T <: AnyVal]( shape: Array[Int], storage: Buffer, invalid: T ): CDArray[T] = apply[T]( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage, invalid )
+  def apply[T <: AnyVal]( shape: Array[Int], storage: Buffer, invalid: T, indexMap: Map[Int,CDCoordMap] = Map.empty ): CDArray[T] = apply[T]( CDIndexMap(shape,indexMap), storage, invalid )
 
   def apply[T <: AnyVal]( index: CDIndexMap, storage: Buffer, invalid: T ): CDArray[T] = {
     storage match {
@@ -52,13 +52,17 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   protected val rank = cdIndexMap.getRank
   protected val dataType = CDArray.getDataType( storage )
 
-  def isStorageCongruent: Boolean = ( cdIndexMap.getSize == getStorageSize ) && !cdIndexMap.broadcasted
+  def isStorageCongruent: Boolean = cdIndexMap.isStorageCongruent(getStorageSize)
   def getInvalid: T
   def getStorageSize: Int = storage.capacity
   def getElementSize: Int = dataType.getSize
   def getIndex: CDIndexMap = new CDIndexMap( this.cdIndexMap )
   def dup() = CDArray[T]( cdIndexMap, storage, getInvalid )
-  def getIterator: CDIterator = if(isStorageCongruent) new CDStorageIndexIterator( cdIndexMap ) else CDIterator.factory( cdIndexMap )
+  def getIterator: CDIterator =
+    if(isStorageCongruent)
+      new CDStorageIndexIterator( cdIndexMap )
+    else
+      CDIterator.factory( cdIndexMap )
   def getRank: Int = rank
   def getShape: Array[Int] = cdIndexMap.getShape
   def getStride: Array[Int] = cdIndexMap.getStride
@@ -299,6 +303,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   override def getSectionData( maxSize: Int = Int.MaxValue ): FloatBuffer = if( getSize > 0 ) { super.getSectionData(maxSize).asInstanceOf[FloatBuffer] } else FloatBuffer.allocate(0)
   def getStorageData: FloatBuffer = floatStorage
   def isMapped: Boolean = !floatStorage.hasArray
+  def getCoordMaps = cdIndexMap.getCoordMaps
   def getStorageArray: Array[Float] = CDFloatArray.toArray( floatStorage )
   def getSectionArray( maxSize: Int = Int.MaxValue ): Array[Float] = CDFloatArray.toArray( getSectionData(maxSize) )
   def getArrayData( maxSize: Int = Int.MaxValue ): Array[Float]  = if( isStorageCongruent ) getStorageArray else getSectionArray( maxSize )
@@ -361,6 +366,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def weightedReduce( reductionOp: ReduceOpFlt, initVal: Float, accumulation_index: CDIndexMap, weightsOpt: Option[CDFloatArray] = None ): ( CDFloatArray, CDFloatArray ) = {
     val value_accumulator: CDFloatArray = spawn( accumulation_index, initVal )
     val weights_accumulator: CDFloatArray = spawn( accumulation_index, initVal )
+    val shape = value_accumulator.getShape
     val iter = getIterator
     for (index <- iter; array_value = getStorageValue(index); if valid(array_value); coordIndices = iter.getCoordinateIndices) weightsOpt match {
       case Some(weights) =>

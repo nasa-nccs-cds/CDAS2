@@ -476,11 +476,13 @@ abstract class DualRDDKernel extends Kernel {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
-    val input_arrays = context.operation.inputs.flatMap( inputs.element(_) )
+    val input_arrays = context.operation.inputs.flatMap( inputs.element )
     assert( input_arrays.size > 1, "Missing input(s) to dual input operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
+    val i0 = input_arrays(0).toCDFloatArray
+    val i1 = input_arrays(1).toCDFloatArray
     val result_array: CDFloatArray = mapCombineOpt match {
-      case Some(combineOp) => CDFloatArray.combine( combineOp, input_arrays(0).toCDFloatArray, input_arrays(1).toCDFloatArray )
-      case None => input_arrays(0).toCDFloatArray
+      case Some( combineOp ) => CDFloatArray.combine( combineOp, i0, i1 )
+      case None => i0
     }
     val result_metadata = input_arrays(0).mergeMetadata( name,input_arrays(1) )
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))

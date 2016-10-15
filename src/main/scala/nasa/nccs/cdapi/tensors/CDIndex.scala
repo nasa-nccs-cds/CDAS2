@@ -23,7 +23,7 @@ import scala.collection.JavaConverters._
 object CDIndexMap {
 
   def apply(index: CDIndexMap): CDIndexMap = new CDIndexMap(index.getShape, index.getStride, index.getOffset )
-  def apply(shape: Array[Int], stride: Array[Int]=Array.emptyIntArray, offset: Int = 0): CDIndexMap = new CDIndexMap(shape, stride, offset )
+  def apply( shape: Array[Int], stride: Array[Int]=Array.emptyIntArray, offset: Int = 0, coordMaps: Map[Int,CDCoordMap] = Map.empty): CDIndexMap = new CDIndexMap(shape, stride, offset, coordMaps )
   def apply( shape: Array[Int], coordMap: Map[Int,CDCoordMap] ): CDIndexMap = new CDIndexMap( shape, Array.emptyIntArray, 0, coordMap )
   def apply( shape: Array[Int] ): CDIndexMap = new CDIndexMap( shape, Array.emptyIntArray, 0, Map.empty[Int,CDCoordMap] )
   def apply( shape: Array[Int], coordMapList: List[CDCoordMap] ): CDIndexMap = {
@@ -76,7 +76,7 @@ class DayOfYearIter( timeOffsets: Array[Double], range: ma2.Range ) extends Time
 class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val _offset: Int = 0, protected val _coordMaps: Map[Int,CDCoordMap] = Map.empty ) extends Serializable {
   protected val rank: Int = shape.length
   protected val stride = if( _stride.isEmpty ) computeStrides(shape) else _stride
-  def this( index: CDIndexMap ) = this( index.shape, index.stride, index._offset )
+  def this( index: CDIndexMap ) = this( index.shape, index.stride, index._offset, index._coordMaps )
   def getCoordMaps: List[CDCoordMap] = _coordMaps.values.toList
 
   def append( other: CDIndexMap ): CDIndexMap = {
@@ -85,7 +85,7 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
     val newShape: IndexedSeq[Int] = for( i <- (0 until rank) ) yield if( i==0 ) shape(i) + other.shape(i) else shape(i)
     new CDIndexMap( newShape.toArray, _stride, _offset, _coordMaps )
   }
-
+  def isStorageCongruent(storageSize: Int): Boolean = ( getSize == storageSize ) && !broadcasted &&  _coordMaps.isEmpty   // isStorageCongruent(getStorageSize)
   def getRank: Int = rank
   def getShape: Array[Int] = shape.clone
   def getStride: Array[Int] = stride.clone
@@ -232,7 +232,7 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
       _shape(idim) = bsize
       if( size0 == 1 ) { _stride(idim) = 0 }
     }
-    CDIndexMap( _shape, _stride, _offset )
+    CDIndexMap( _shape, _stride, _offset, _coordMaps )
   }
 }
 
