@@ -87,12 +87,21 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   }
   def isStorageCongruent(storageSize: Int): Boolean = ( getSize == storageSize ) && !broadcasted &&  _coordMaps.isEmpty   // isStorageCongruent(getStorageSize)
   def getRank: Int = rank
-  def getShape: Array[Int] = shape.clone
+  def getShape: Array[Int] = ( for( idim <- (0 until rank) ) yield _coordMaps.get(idim).map( _.mapArray.length ).getOrElse(shape( idim )) ).toArray
   def getStride: Array[Int] = stride.clone
   def getShape(index: Int): Int = shape(index)
   def getSize: Int = if( rank == 0 ) { 0 } else { shape.filter( _ > 0 ).product }
   def getOffset: Int = _offset
-  def getReducedShape: Array[Int] = { ( for( idim <- (0 until rank) ) yield if( stride(idim) == 0 ) 1 else _coordMaps.get(idim).map(_.nBins).getOrElse(shape( idim )) ).toArray }
+
+  def getStorageShape: Array[Int] = {
+    val shape_seq = for (idim <- (0 until rank)) yield
+      _coordMaps.get(idim) match {
+        case Some(cmap) => cmap.nBins
+        case None => if (stride(idim) == 0) 1 else shape(idim)
+      }
+    shape_seq.toArray
+  }
+
   override def toString: String = "{ Shape: " + shape.mkString("[ ",", "," ], Stride: " + stride.mkString("[ ",", "," ]") + " Offset: " + _offset + " } ")
 
   def broadcasted: Boolean = {
@@ -114,20 +123,26 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
     assert( coordIndices.length == rank, "Wrong number of coordinates in getStorageIndex for Array of rank %d: %d".format( rank, coordIndices.length) )
     var value: Int = _offset
     for( ii <-(0 until rank ); if (shape(ii) >= 0)  ) _coordMaps.get(ii) match {
-      case Some(cmap) => value += cmap.mapArray( coordIndices(ii) ) * stride(ii)
-      case None =>  value += coordIndices(ii) * stride(ii)
+      case Some(cmap) =>
+        value += cmap.mapArray( coordIndices(ii) ) * stride(ii)
+      case None =>
+        value += coordIndices(ii) * stride(ii)
     }
     value
   }
 
   def computeStrides( shape: Array[Int] ): Array[Int] = {
     var product: Int = 1
-    var strides = for (ii <- (shape.length - 1 to 0 by -1); thisDim = shape(ii) ) yield
-      if ( thisDim > 1 ) {
+    var strides = for (ii <- (shape.length - 1 to 0 by -1); thisDim = shape(ii) ) yield {
+      val cmap = _coordMaps.get(ii)
+      if ( (thisDim > 1) || cmap.isDefined ) {
         val curr_stride = product
-        product *= _coordMaps.get(ii).map(_.nBins).getOrElse(thisDim)
+        product *= cmap.map(_.nBins).getOrElse(thisDim)
         curr_stride
-      } else { 0 }
+      } else {
+        0
+      }
+    }
     return strides.reverse.toArray
   }
 
