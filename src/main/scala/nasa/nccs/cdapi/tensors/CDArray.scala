@@ -91,7 +91,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   def getAccumulator( reduceDims: Array[Int], fillval: T, coordMapOpt: Option[CDCoordMap] = None ): CDArray[T] =
     spawn( cdIndexMap.getAccumulator( reduceDims, coordMapOpt ), fillval )
 
-  def getReducedArray: CDArray[T] = CDArray[T]( getStorageShape, storage, getInvalid )
+  def getReducedArray: CDArray[T] = CDArray[T]( getStorageShape, storage, getInvalid, cdIndexMap.getCoordMap )
 
 //  def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T, coordMapOpt: Option[CDCoordMap] = None ): CDArray[T] = {
 //    val fullShape = coordMapOpt match { case Some(coordMap) => coordMap.mapShape( getShape ); case None => getShape }

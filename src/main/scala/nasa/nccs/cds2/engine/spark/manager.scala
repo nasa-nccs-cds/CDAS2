@@ -53,7 +53,7 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
     val inputRDD: RDD[ RDDPartition ] = cdsContext.domainRDDPartition( opInputs, context )
     val mapresult: RDD[RDDPartition] = inputRDD.map( rdd_part => kernel.map( rdd_part, kernelContext ) )
     logger.info( "\n\n ----------------------- BEGIN reduce Operation ----------------------- \n" )
-//    logger.info( " ----> Map Result = " + mapresult.collect().map(_.toXml.toString).mkString(","))
+    logger.info( " ----> Map Result = " + mapresult.collect().map(_.toXml.toString).mkString(","))
     val result = reduce( mapresult, kernelContext, kernel )
     logger.info( "\n\n ----------------------- FINISHED reduce Operation ----------------------- "  )
     result
@@ -69,7 +69,8 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
     createResponse( kernel, result, context )
   }
 
-  def reduce( mapresult: RDD[RDDPartition], context: KernelContext, kernel: Kernel ):  RDDPartition = mapresult.reduce( kernel.reduceRDDOp(context) _ )
+  def reduce( mapresult: RDD[RDDPartition], context: KernelContext, kernel: Kernel ):  RDDPartition =
+    mapresult.reduce( kernel.reduceRDDOp(context) _ )
 
   def createResponse( kernel: Kernel, result: RDDPartition, context: CDASExecutionContext ): WPSExecuteResponse = {
     val resultId = cacheResult( result, context )

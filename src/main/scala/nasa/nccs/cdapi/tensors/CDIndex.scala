@@ -78,6 +78,7 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   protected val stride = if( _stride.isEmpty ) computeStrides(shape) else _stride
   def this( index: CDIndexMap ) = this( index.shape, index.stride, index._offset, index._coordMaps )
   def getCoordMaps: List[CDCoordMap] = _coordMaps.values.toList
+  def getCoordMap: Map[Int,CDCoordMap] = _coordMaps
 
   def append( other: CDIndexMap ): CDIndexMap = {
     for( i <- (1 until rank) ) if(shape(i) != other.shape(i) ) throw new Exception( "Can't merge arrays with non-commensurate shapes: %s vs %s".format(shape.mkString(","),other.shape.mkString(",")))
@@ -152,11 +153,12 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   def getAccumulator( reduceDims: Array[Int], coordMaps: Map[Int,CDCoordMap] = Map.empty  ): CDIndexMap = {
     val cMaps = coordMaps ++ _coordMaps
     val full_shape = getShape
-    val new_shape: IndexedSeq[Int] = for( ii <-(0 until rank )  ) yield _coordMaps.get(ii) match {
+    val new_shape: IndexedSeq[Int] = for( ii <-(0 until rank )  ) yield cMaps.get(ii) match {
       case Some(cmap) => cmap.nBins
-      case None =>  if( reduceDims.contains(ii) ) 1 else full_shape(ii)
+      case None => if( reduceDims.contains(ii) ) 1 else full_shape(ii)
     }
-    CDIndexMap( new_shape.toArray, cMaps ).broadcast( full_shape )
+    val rv = CDIndexMap( new_shape.toArray, cMaps ).broadcast( full_shape )
+    rv
   }
 
 //  def flip(index: Int): CDIndexMap = {
