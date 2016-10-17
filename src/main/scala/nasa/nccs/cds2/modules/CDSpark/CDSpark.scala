@@ -169,12 +169,11 @@ class timeBin extends Kernel {
     val offset = context.config("offset", "0" ).toInt
     val async = context.config("async", "false").toBoolean
     val ( id, input_array ) = inputs.head
-    val accumulation_index: CDIndexMap = input_array.toCDFloatArray.getIndex.getAccumulator( axes.args, List( getMontlyBinMap( id, context ) )  )
+    val accumulation_index: CDIndexMap = input_array.toCDFloatArray.getIndex.getAccumulator( axes.args, List( getMontlyBinMap( id, context ) )  )  // TODO: Check range of getMontlyBinMap- subset by part?
     val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index )
-    val elems = Map( context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), None ),
-                     "weights"             -> HeapFltArray( weights_sum_masked, input_array.origin, Map.empty[String,String], None ) )
-    logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( inputs.iPart, elems, inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+    val result_array = HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), Some( weights_sum_masked ) )
+    logger.info("Executed Kernel %s[%d] map op, input = %s, index=%s, time = %.4f s".format(name, inputs.iPart, id, result_array.toCDFloatArray.getIndex.toString , (System.nanoTime - t0) / 1.0E9))
+    RDDPartition( inputs.iPart, Map( context.operation.rid -> result_array ), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
   override def combineRDD(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices ): RDDPartition =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
   override def postRDDOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = weightedValueSumRDDPostOp( pre_result, context )

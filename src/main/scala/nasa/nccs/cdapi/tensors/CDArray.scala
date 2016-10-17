@@ -291,7 +291,12 @@ object CDFloatArray extends Loggable with Serializable {
 
 class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, protected val invalid: Float ) extends CDArray[Float](cdIndexMap,floatStorage) {
   import CDFloatArray._
-  def getStorageValue( index: StorageIndex ): Float = floatStorage.get( index )
+  def getStorageValue( index: StorageIndex ): Float = {
+    try{ floatStorage.get( index ) } catch {
+      case ex: Exception =>
+        Float.NaN
+    }
+  }
   def setStorageValue( index: StorageIndex, value: Float ): Unit = floatStorage.put( index, value )
   def this( shape: Array[Int], storage: FloatBuffer, invalid: Float ) = this( CDIndexMap(shape, List.empty), storage, invalid )
   def this( storage: FloatBuffer, invalid: Float ) = this( CDIndexMap( Array( storage.capacity()), List.empty ), storage, invalid )

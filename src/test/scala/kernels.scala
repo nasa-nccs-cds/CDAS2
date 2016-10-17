@@ -2,11 +2,14 @@ import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
 import nasa.nccs.cdapi.cdm.Collection
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.Collections
-import nasa.nccs.esgf.process.RequestContext
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.ma2
+import org.apache.log4j.{ Logger, LogManager, Level }
 
 class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
+//  LogManager.getCurrentLoggers.toList.foreach( _.asInstanceOf[Logger].setLevel(Level.INFO) )
   Collections.addCollection( "merra.test", merra_data, "MERRA data", List("ta") )
   Collections.addCollection( "const.test", const_data, "Constant data", List("ta") )
 
@@ -85,6 +88,24 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     printf( " \n\n direct result, shape: " + direct_result_array.getShape.mkString(",") + ", values: " + direct_result_array.mkDataString(",") )
     printf( "\n\n *** max_scaled_diff = " + max_scaled_diff )
     assert(max_scaled_diff < eps, s" Incorrect timeseries computed for Subset")
+  }
+
+  test("Yearly Cycle") {
+    val lat_index = 50
+    val lon_index = 100
+    val lev_index = 0
+    val direct_result_array = getTimeseriesData( "merra.test", "ta", lon_index, lat_index, lev_index )
+    val datainputs = s"""[domain=[{"name":"d2","lat":{"start":$lat_index,"end":$lat_index,"system":"indices"},"lon":{"start":$lon_index,"end":$lon_index,"system":"indices"}},{"name":"d0","lev":{"start":$lev_index,"end":$lev_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.timeBin","input":"v1","result":"cycle","domain":"d2","axes":"t","bins":"t|month|ave|year"}]]"""
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_values: Array[Float] = data_nodes.head.text.trim.split(' ').head.split(',').map( _.toFloat )
+    val result_array = CDFloatArray( Array( result_values.length ), result_values, Float.MaxValue )
+    val computed_result = computeCycle( direct_result_array, 12 )
+    val max_scaled_diff = maxScaledDiff(result_array, computed_result)
+    printf( "    cdas result: " + result_array.mkDataString(",") + "\n" )
+    printf( "computed result: " + computed_result.mkDataString(",") + "\n *** max_scaled_diff = " + max_scaled_diff )
+    assert(max_scaled_diff < eps, s" Incorrect series computed for Yearly Cycle")
   }
 
   test("Workflow: Yearly Cycle Anomaly") {

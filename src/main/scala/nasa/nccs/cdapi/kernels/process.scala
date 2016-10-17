@@ -170,6 +170,7 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   }
 
   def combineRDD(context: KernelContext)(rdd0: RDDPartition, rdd1: RDDPartition, axes: AxisIndices): RDDPartition = {
+    logger.warn( "\n\n\n______________________________combineRDD__________________________________________________________________________________________\n\n\n")
     val new_elements = rdd0.elements.flatMap { case (key, element0) =>
       rdd1.elements.get(key) match {
         case Some(element1) =>
@@ -209,8 +210,8 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   }
 
   def reduceRDDOp(context: KernelContext)(a0: RDDPartition, a1: RDDPartition): RDDPartition = {
-    val axes: AxisIndices = context.grid.getAxisIndices(context.config("axes", ""))
-    combineRDD(context)(a0, a1, axes)
+//    val axes: AxisIndices = context.grid.getAxisIndices(context.config("axes", ""))
+    combineRDD(context)(a0, a1, new AxisIndices( Set(0) ) )
   }
 
   def getDataSample(result: CDFloatArray, sample_size: Int = 20): Array[Float] = {

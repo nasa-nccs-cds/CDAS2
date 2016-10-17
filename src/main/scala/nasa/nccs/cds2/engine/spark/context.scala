@@ -1,10 +1,13 @@
 package nasa.nccs.cds2.engine.spark
 
+import java.nio.file.Paths
+
 import nasa.nccs.caching.{CDASPartitioner, Partition, Partitions}
 import nasa.nccs.cdapi.cdm.{CDSVariable, OperationInput, OperationTransientInput, PartitionedFragment}
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartSpec, RDDPartition, RDDVariableSpec}
 import nasa.nccs.cdapi.kernels.CDASExecutionContext
 import nasa.nccs.cdapi.tensors.CDFloatArray
+import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.Loggable
 import org.slf4j.LoggerFactory
@@ -25,9 +28,9 @@ object CDSparkContext extends Loggable {
     logger.info( "   ****  NEW CDSparkContext Created  **** ")
     logger.info( "--------------------------------------------------------\n\n")
 
-    setLogLevel(Level.INFO)
+    setLogLevel(Level.OFF)
     val rv = new CDSparkContext(new SparkContext(getSparkConf(master, appName, logConf)))
-    setLogLevel(Level.INFO)
+    setLogLevel(Level.OFF)
 
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  CDSparkContext Creation FINISHED  **** ")
@@ -52,10 +55,14 @@ object CDSparkContext extends Loggable {
 }
 
 class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggable {
+  val logWriter = new java.io.PrintWriter( Paths.get( appParameters.cacheDir, "cdas.spark.log" ).toFile )
 
   def setLocalProperty(key: String, value: String): Unit = {
     sparkContext.setLocalProperty(key, value)
   }
+
+  def log( msg: String ) = logWriter.write( msg + "\n" )
+  def log( partIndex: Int, msg: String ) = logWriter.write( "P[%d]: %s\n".format( partIndex, msg ) )
 
   def getConf: SparkConf = sparkContext.getConf
 
@@ -75,10 +82,12 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
 
   def getRDD( pFrag: PartitionedFragment, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[RDDPartition] = {
     val rddSpecs: Array[RDDPartSpec] = partitions.parts.map(partition => RDDPartSpec(partition, List(pFrag.getRDDVariableSpec(partition, opSection))))
+//    log( " Create RDD, rddParts = " + rddSpecs.map(_.toXml.toString()).mkString(",") )
     sparkContext.parallelize(rddSpecs).map(_.getRDDPartition)
   }
   def getRDD( tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[RDDPartition] = {
     val rddParts = partitions.parts.indices.map( RDDPartition( _, tVar.variable.result ) )
+//    log( " Create RDD, rddParts = " + rddParts.map(_.toXml.toString()).mkString(",") )
     sparkContext.parallelize(rddParts)
   }
 

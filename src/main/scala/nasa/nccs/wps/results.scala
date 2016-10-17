@@ -70,7 +70,13 @@ class WPSExceptionReport( val err: Throwable ) extends WPSEventReport with Logga
     </ows:ExceptionReport>
   }
   def getReport: Iterable[xml.Elem] =  List(  <ows:Exception exceptionCode={err.getClass.getName}> <ows:ExceptionText>{err.getMessage}</ows:ExceptionText> </ows:Exception> )
-  def print_error = logger.error( err.toString + "\n" + err.getStackTrace.mkString("\n") + "\n" )
+  def print_error = {
+    val err1 = if (err.getCause == null) err else err.getCause
+    logger.error("\n\n-------------------------------------------\n" + err1.toString + "\n")
+    logger.error(  err1.getStackTrace.mkString("\n")  )
+    if (err.getCause != null) { logger.error( "\nTriggered at: \n" + err.getStackTrace.mkString("\n") ) }
+    logger.error( "\n-------------------------------------------\n\n")
+  }
 }
 
 class AsyncExecutionResult( process: WPSProcess, optResultId: Option[String] ) extends WPSReferenceExecuteResponse( process, optResultId )  {

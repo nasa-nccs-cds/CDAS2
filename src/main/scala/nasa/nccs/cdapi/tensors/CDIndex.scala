@@ -73,7 +73,7 @@ class DayOfYearIter( timeOffsets: Array[Double], range: ma2.Range ) extends Time
   def getValue( count_index: Int ): Int = toDate( getCalendarDate(count_index+index_offset) ).getDayOfYear
 }
 
-class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val _offset: Int = 0, protected val _coordMaps: Map[Int,CDCoordMap] = Map.empty ) extends Serializable {
+class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val _offset: Int = 0, protected val _coordMaps: Map[Int,CDCoordMap] = Map.empty ) extends Serializable with Loggable {
   protected val rank: Int = shape.length
   protected val stride = if( _stride.isEmpty ) computeStrides(shape) else _stride
   def this( index: CDIndexMap ) = this( index.shape, index.stride, index._offset, index._coordMaps )
@@ -171,10 +171,11 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
 //    } else new CDIndexMap( this )
 //    return new_index
 //  }
+  def isActive( r: ma2.Range ) = (r != null) && (r != ma2.Range.VLEN)
 
   def section( ranges: List[ma2.Range] ): CDIndexMap = {
     assert(ranges.size == rank, "Bad ranges [] length")
-    for( ii <-(0 until rank); r = ranges(ii); if ((r != null) && (r != ma2.Range.VLEN)) ) {
+    for( ii <-(0 until rank); r = ranges(ii); if( isActive(r) && (r != ma2.Range.EMPTY) )) {
       assert ((r.first >= 0) && (r.first < shape(ii)), "Bad range starting value at index " + ii + " => " + r.first + ", shape = " + shape(ii) )
       assert ((r.last >= 0) && (r.last < shape(ii)), "Bad range ending value at index " + ii + " => " + r.last + ", shape = " + shape(ii) )
     }
@@ -182,11 +183,14 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
     val _shape: Array[Int] = Array.fill[Int](rank)(0)
     val _stride: Array[Int] = Array.fill[Int](rank)(0)
     for( ii <-(0 until rank); r = ranges(ii) ) {
-      if (r == null) {
+      if( !isActive(r) ) {
         _shape(ii) = shape(ii)
         _stride(ii) = stride(ii)
       }
-      else {
+      else if ( r == ma2.Range.EMPTY ) {
+        _shape(ii) = 0
+        _stride(ii) = 0
+      } else {
         _shape(ii) = r.length
         _stride(ii) = stride(ii) * r.stride
         __offset += stride(ii) * r.first

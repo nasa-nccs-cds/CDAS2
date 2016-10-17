@@ -693,7 +693,7 @@ class CDIndexIterator5D( index: CDIndexMap ) extends  CDArrayIndexIterator( inde
 }
 
 object DualArrayIterator {
-  def apply[T <: AnyVal]( input0: CDArray[T], input1: CDArray[T] ): DualArrayIterator[T] = {
+  def apply[T <: AnyVal]( input0: CDArray[T], input1: CDArray[T] ): DualArrayIterator[T] = {  // TODO: Sanity-check for inputs with coord maps.
     assert( input0.getRank == input1.getRank, "Can't combine arrays with different ranks")
     val sameShape = input0.getShape.sameElements(input1.getShape)
     val shape: Array[Int] = if(sameShape) input0.getShape else ( for( iS <- (0 until input0.getRank); s0 = input0.getShape(iS); s1 = input1.getShape(iS) )  yield
@@ -702,7 +702,7 @@ object DualArrayIterator {
       else if ( s1 == 1 ) s0
       else throw new Exception( "Attempt to combine incummensurate shapes: (%s) vs (%s)".format( input0.getShape.mkString(","), input1.getShape.mkString(",") ) ) ).toArray
 
-    val cdIndexMap = CDIndexMap(shape)
+    val cdIndexMap = CDIndexMap( shape, input0.getIndex.getCoordMap )
     val sameShape0 = input0.getShape.sameElements(shape)
     val sameShape1 = input1.getShape.sameElements(shape)
     val array0 = if(sameShape0) input0 else input0.broadcast(shape)
