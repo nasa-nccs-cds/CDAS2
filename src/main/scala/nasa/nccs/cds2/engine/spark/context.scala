@@ -28,17 +28,17 @@ object CDSparkContext extends Loggable {
     logger.info( "   ****  NEW CDSparkContext Created  **** ")
     logger.info( "--------------------------------------------------------\n\n")
 
-    setLogLevel(Level.OFF)
-    val rv = new CDSparkContext(new SparkContext(getSparkConf(master, appName, logConf)))
-    setLogLevel(Level.OFF)
+    val sparkContext = new SparkContext( getSparkConf(master, appName, logConf) )
+    sparkContext.setLogLevel("WARN")
+    val rv = new CDSparkContext( sparkContext )
 
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  CDSparkContext Creation FINISHED  **** ")
     logger.info( "--------------------------------------------------------")
-    logger.info( "\n\n LOGGERS:  >>>>------------> " + LogManager.getCurrentLoggers.toList.map( _.asInstanceOf[Logger].getName ).mkString(",") )
+    logger.info( "\n\n LOGGERS:  >>>>------------> " + LogManager.getCurrentLoggers.toList.map( _.asInstanceOf[Logger] ).map( logger => logger.getName + " -> " + logger.getLevel.toString ).mkString(",") )
     rv
   }
-  def setLogLevel( level: Level ) = LogManager.getCurrentLoggers.toList.foreach( _.asInstanceOf[Logger].setLevel(level) )
+
   def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false ) ) )

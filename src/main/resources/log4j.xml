@@ -17,14 +17,27 @@
         </layout>
     </appender>
 
+    <appender name="fileAppender" class="org.apache.log4j.FileAppender">
+        <param name="file" value="/Users/tpmaxwel/.cdas/cdas.log" />
+        <param name="threshold" value="debug" />
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%d{ISO8601} %-5p [%c{1}] - %m%n" />
+        </layout>
+    </appender>
+
     <logger name="cache" additivity="false">
         <level value="info"/>
         <appender-ref ref="cacheCap" />
     </logger>
 
+    <logger name="fileLogger">
+        <level value="debug"/>
+        <appender-ref ref="fileAppender" />
+    </logger>
+
     <root>
         <level value="info"/>
-        <appender-ref ref="console" />
+        <appender-ref ref="fileLogger" />
     </root>
 
 </log4j:configuration>
