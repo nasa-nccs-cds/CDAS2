@@ -22,7 +22,7 @@ abstract class WPSExecuteResponse( val processes: List[WPSProcess] ) extends WPS
   def toXml: xml.Elem =
     <wps:ExecuteResponse xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsExecute_response.xsd" service="WPS" version="1.0.0" xml:lang="en-CA" serviceInstance={serviceInstance} statusLocation={statusLocation}>
       { processes.map( _.ExecuteHeader ) }
-      <ns0:Status> <ns0:ProcessSucceeded> PyWPS Process successfully calculated </ns0:ProcessSucceeded> </ns0:Status>
+      <wps:Status> <wps:ProcessSucceeded> PyWPS Process successfully calculated </wps:ProcessSucceeded> </wps:Status>
       <wps:ProcessOutputs> { getOutputs } </wps:ProcessOutputs>
     </wps:ExecuteResponse>
 
