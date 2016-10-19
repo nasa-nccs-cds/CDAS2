@@ -674,7 +674,7 @@ object DomainAxis extends ContainerBase {
         val axis_map = getStringKeyMap( generic_axis_map )
         val start = getGenericNumber( axis_map.get("start") )
         val end = getGenericNumber( axis_map.get("end") )
-        val system = getStringValue( axis_map.get("system") )
+        val system = axis_map.getOrElse( "system", axis_map.getOrElse("crs", "values") ).toString
         val bounds = getStringValue( axis_map.get("bounds") )
         Some( new DomainAxis( axistype, start, end, normalize(system), normalize(bounds) ) )
       case Some(sval: String) =>
