@@ -554,9 +554,17 @@ object DataContainer extends ContainerBase {
   }
   def absPath( path: String ): String = new java.io.File(path).getAbsolutePath.toLowerCase
 
+  def vid( varId: String, uid: Boolean ) = {
+    val idItems = varId.split( Array(':','|') )
+    if(uid) { if( idItems.length < 2 ) idItems.head else idItems(2) }
+    else idItems.head
+  }
+
   def getCollection(metadata: Map[String, Any]): ( Collection, Option[String] ) = {
     val uri = metadata.getOrElse("uri","").toString
-    val varsList: List[String] = metadata.getOrElse("name","").toString.split(",").map( item => stripQuotes( item.split(':').head ) ).toList
+    val varsList: List[String] =
+      if(metadata.keySet.contains("id")) metadata.getOrElse("id","").toString.split(",").map( item => stripQuotes( vid(item,false) ) ).toList
+      else metadata.getOrElse("name","").toString.split(",").map( item => stripQuotes( vid(item,false)   ) ).toList
     val path =  metadata.getOrElse("path","").toString
     val collection =  metadata.getOrElse("collection","").toString
     val title =  metadata.getOrElse("title","").toString
@@ -565,7 +573,7 @@ object DataContainer extends ContainerBase {
     logger.info( s" >>>>>>>>>>>----> getCollection, uri=$uri, id=$id")
     val colId = if(!collection.isEmpty) { collection } else uri match {
       case colUri if(colUri.startsWith("collection")) => id
-      case fragUri if(fragUri.startsWith("fragment")) => id.split('|')(1)
+      case fragUri if(fragUri.startsWith("fragment")) => vid(id,true)
       case x => ""
     }
     val fragIdOpt = if(uri.startsWith("fragment")) Some(id) else None
@@ -585,7 +593,7 @@ object DataContainer extends ContainerBase {
 
   def factory(uid: UID, metadata: Map[String, Any]): Array[DataContainer] = {
     try {
-      val fullname = metadata.getOrElse("name", "").toString
+      val fullname = if(metadata.keySet.contains("id"))  metadata.getOrElse("id", "").toString else metadata.getOrElse("name", "").toString
       val domain = metadata.getOrElse("domain", "").toString
       val (collection, fragIdOpt) = getCollection(metadata)
       val var_names: Array[String] = if (fullname.equals("*")) collection.varNames.toArray else fullname.toString.split(',')
@@ -593,13 +601,13 @@ object DataContainer extends ContainerBase {
 
       fragIdOpt match {
         case Some(fragId) =>
-          val name_items = var_names.head.split(':')
+          val name_items = var_names.head.split(Array(':','|'))
           val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain), fragIdOpt )
           val vid = normalize(name_items.last)
           Array( new DataContainer(if (vid.isEmpty) uid+s"c-$base_index" else uid+vid, source = Some(dsource)) )
         case None =>
           for ((name, index) <- var_names.zipWithIndex) yield {
-            val name_items = name.split(':')
+            val name_items = name.split(Array(':','|'))
             val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain))
             val vid = stripQuotes(name_items.last)
             val vname = normalize(name_items.head)
@@ -710,7 +718,7 @@ object DomainContainer extends ContainerBase {
   def apply(metadata: Map[String, Any]): DomainContainer = {
     var items = new ListBuffer[ Option[DomainAxis] ]()
     try {
-      val name = filterMap(metadata, key_equals("name")) match { case None => ""; case Some(x) => x.toString }
+      val name = if( metadata.keySet.contains("id") ) metadata.getOrElse("id","") else metadata.getOrElse("name","")
       items += DomainAxis( DomainAxis.Type.Y,   filterMap(metadata,  key_equals( wpsNameMatchers.yAxis )))
       items += DomainAxis( DomainAxis.Type.X,   filterMap(metadata,  key_equals( wpsNameMatchers.xAxis )))
       items += DomainAxis( DomainAxis.Type.Z,   filterMap(metadata,  key_equals( wpsNameMatchers.zAxis )))

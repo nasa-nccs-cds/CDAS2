@@ -148,10 +148,12 @@ abstract class CDS2ExecutionManager extends WPSServer {
     rv
   }
 
-  def cacheInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ):  Iterable[ Option[( DataFragmentKey, Future[PartitionedFragment] )] ] = {
+  def cacheInputData(request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String, String]): Iterable[Option[(DataFragmentKey, Future[PartitionedFragment])]] = {
     val sourceContainers = request.variableMap.values.filter(_.isSource)
-    for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
-      yield serverContext.cacheInputData(data_container, domainOpt, targetGrid )
+    for (data_container: DataContainer <- request.variableMap.values;
+         if data_container.isSource;
+         domainOpt = request.getDomain(data_container.getSource))
+      yield serverContext.cacheInputData(data_container, domainOpt, targetGrid)
   }
 
   def searchForAttrValue(metadata: Map[String, nc2.Attribute], keys: List[String], default_val: String): String = {
@@ -297,7 +299,7 @@ abstract class CDS2ExecutionManager extends WPSServer {
         case Some( tvar: RDDTransientVariable ) =>
 //          val result: RDDPartition = Await.result( fut_result, Duration.Inf )
           val result = tvar.result.elements.values.head
-          x.split(':')(1) match {
+          x.split( Array(':','|') )(1) match {
             case "xml" =>
               new WPSMergedEventReport( List(new UtilityExecutionResult( resId, result.toXml ) ) )
             case "netcdf" =>
@@ -393,25 +395,26 @@ abstract class CDS2ExecutionManager extends WPSServer {
 //    if(async) executeAsync( request, runargs ) else  blockingExecute( request, runargs )
 //  }
 
-  def getWPSCapabilities( identifier: String ): xml.Elem = identifier match {
-    case x if x.startsWith("ker") => kernelManager.toXml
-    case x if x.startsWith("frag") => FragmentPersistence.getFragmentListXml
-    case x if x.startsWith("res") => collectionDataCache.getResultListXml // collectionDataCache
-    case x if x.startsWith("job") => collectionDataCache.getJobListXml
-    case x if x.startsWith("coll") => {
-      val itToks = x.split(':')
-      if( itToks.length < 2 ) Collections.toXml
-      else <collection id={itToks(0)}> { Collections.getCollectionMetadata( itToks(1) ).map( attr => attrToXml( attr ) ) } </collection>
+  def getWPSCapabilities( identifier: String ): xml.Elem =
+    identifier match {
+      case x if x.startsWith("ker") => kernelManager.toXml
+      case x if x.startsWith("frag") => FragmentPersistence.getFragmentListXml
+      case x if x.startsWith("res") => collectionDataCache.getResultListXml // collectionDataCache
+      case x if x.startsWith("job") => collectionDataCache.getJobListXml
+      case x if x.startsWith("coll") => {
+        val itToks = x.split(Array(':','|'))
+        if( itToks.length < 2 ) Collections.toXml
+        else <collection id={itToks(0)}> { Collections.getCollectionMetadata( itToks(1) ).map( attr => attrToXml( attr ) ) } </collection>
+      }
+      case x if x.startsWith("op") => kernelManager.getModulesXml
+      case x if x.startsWith("var") => {
+        println( "getCapabilities->identifier: " + identifier )
+        val itToks = x.split(Array(':','|'))
+        if( itToks.length < 2 )  <error message="Unspecified collection and variables" />
+        else                     Collections.getVariableListXml( itToks(1).split(',') )
+      }
+      case _ => GetCapabilities
     }
-    case x if x.startsWith("op") => kernelManager.getModulesXml
-    case x if x.startsWith("var") => {
-      println( "getCapabilities->identifier: " + identifier )
-      val itToks = x.split(':')
-      if( itToks.length < 2 )  <error message="Unspecified collection and variables" />
-      else                     Collections.getVariableListXml( itToks(1).split(',') )
-    }
-    case _ => GetCapabilities
-  }
 
   def attrToXml( attr: nc2.Attribute ): xml.Elem = {
     val sb = new StringBuffer()

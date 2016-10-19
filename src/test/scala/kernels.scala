@@ -21,6 +21,15 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val result_node = describeProcess( "CDSpark.min" )
   }
 
+  test("Cache") {
+    val nco_verified_result = 4.886666e+07
+    val datainputs = s"""[domain=[{"name":"d0","lev":{"start":3,"end":3,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}]]"""
+    val cache_result_node = executeTest(datainputs,false,"util.cache")
+    logger.info( "Cache Result: " + printer.format(cache_result_node) )
+    val lfrags_result_node = getCapabilities("frag")
+    logger.info( "Fragments: " + printer.format(lfrags_result_node) )
+  }
+
   test("Sum") {
     val nco_verified_result = 4.886666e+07
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"xy"}]]"""

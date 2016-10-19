@@ -41,7 +41,7 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
   val ncmlFile: File = NCMLWriter.getCachePath("NCML").resolve(Collections.idToFile(id)).toFile
   override def toString = "Collection( id=%s, ctype=%s, path=%s, title=%s, fileFilter=%s )".format( id, ctype, dataPath, title, fileFilter )
   def isEmpty = dataPath.isEmpty
-  lazy val varNames = vars.map( varStr => varStr.split(':').head )
+  lazy val varNames = vars.map( varStr => varStr.split( Array(':','|') ).head )
 //  println( s"====> Collection($id), vars = %s".format( vars.mkString(",")))
 
   def url(varName:String="") = ctype match {
