@@ -10,6 +10,7 @@ import org.slf4j.Logger
 
 trait Loggable {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
+
   def logError( err: Throwable, msg: String ) = {
     logger.error(msg)
     logger.error(err.getMessage)
