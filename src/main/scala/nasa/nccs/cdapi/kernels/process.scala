@@ -170,7 +170,6 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   }
 
   def combineRDD(context: KernelContext)(rdd0: RDDPartition, rdd1: RDDPartition, axes: AxisIndices): RDDPartition = {
-    logger.warn( "\n\n\n______________________________combineRDD__________________________________________________________________________________________\n\n\n")
     val new_elements = rdd0.elements.flatMap { case (key, element0) =>
       rdd1.elements.get(key) match {
         case Some(element1) =>
