@@ -75,21 +75,21 @@ abstract class CDS2ExecutionManager extends WPSServer {
   private val counter = new Counter
   val nprocs: Int = CDASPartitioner.nProcessors
 
-  def getOperationInputs( context: CDASExecutionContext ): List[OperationInput] = {
-    for (uid <- context.operation.inputs) yield {
+  def getOperationInputs( context: CDASExecutionContext ): Map[String,OperationInput] = {
+    val items = for (uid <- context.operation.inputs) yield {
       context.request.getInputSpec(uid) match {
         case Some(inputSpec) =>
           logger.info("getInputSpec: %s -> %s ".format(uid, inputSpec.longname))
-          context.server.getOperationInput(inputSpec)
+          uid -> context.server.getOperationInput(inputSpec)
         case None => collectionDataCache.getExistingResult(uid) match {
           case Some(tVar: RDDTransientVariable) =>
-            val rv = new OperationTransientInput(tVar)
             logger.info("getExistingResult: %s -> %s ".format(uid, tVar.result.elements.values.head.metadata.mkString(",")))
-            rv
+            uid -> new OperationTransientInput(tVar)
           case None => throw new Exception("Unrecognized input id: " + uid)
         }
       }
     }
+    Map(items:_*)
   }
 
   def describeWPSProcess( process: String ): xml.Elem = DescribeProcess( process )

@@ -13,6 +13,7 @@ scalaVersion := "2.11.7"
 organization := "nasa.nccs"
 
 lazy val root = project in file(".")
+val sbtcp = taskKey[Unit]("sbt-classpath")
 
 resolvers += "Unidata maven repository" at "http://artifacts.unidata.ucar.edu/content/repositories/unidata-releases"
 resolvers += "Java.net repository" at "http://download.java.net/maven/2"
@@ -32,7 +33,14 @@ libraryDependencies ++= Dependencies.geo
 
 libraryDependencies ++= Dependencies.netcdf
 
-compile  <<= (compile in Compile)
+sbtcp := {
+  val files: Seq[File] = (fullClasspath in Compile).value.files
+  val sbtClasspath : String = files.map(x => x.getAbsolutePath).mkString(":")
+  println("Set SBT classpath to 'sbt-classpath' environment variable")
+  System.setProperty("sbt-classpath", sbtClasspath)
+}
+
+compile  <<= (compile in Compile).dependsOn(sbtcp)
 
 fork in run:= true
 fork in test:= true
@@ -60,7 +68,7 @@ cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
 
 
-//  try{ IO.write( cdasProperties.value, "", cdasPropertiesFile.value ) } catch { case err: Exception => println("Error writing to properties file: " + err.getMessage ) }
+// try{ IO.write( cdasProperties.value, "", cdasPropertiesFile.value ) } catch { case err: Exception => println("Error writing to properties file: " + err.getMessage ) }
 
 cdasProperties := {
   val prop = new Properties()

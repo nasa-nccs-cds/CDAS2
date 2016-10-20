@@ -47,7 +47,7 @@ object collectionRDDDataCache extends CollectionDataCacheMgr()
 class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext() ) extends CDS2ExecutionManager {
 
   def mapReduce(context: CDASExecutionContext, kernel: Kernel ): RDDPartition = {
-    val opInputs: List[OperationInput] = getOperationInputs( context )
+    val opInputs: Map[String,OperationInput] = getOperationInputs( context )
     val kernelContext = context.toKernelContext
     logger.info( "\n\n ----------------------- BEGIN map Operation -------\n")
     val inputRDD: RDD[ RDDPartition ] = cdsContext.domainRDDPartition( opInputs, context )

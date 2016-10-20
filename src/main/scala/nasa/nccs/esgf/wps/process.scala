@@ -13,12 +13,6 @@ class ProcessManager( serverConfiguration: Map[String,String] ) {
   val logger = LoggerFactory.getLogger(this.getClass)
   def apiManager = new APIManager( serverConfiguration )
 
-  def printLoggerInfo = {
-    import ch.qos.logback.classic.LoggerContext
-    import ch.qos.logback.core.util.StatusPrinter
-    StatusPrinter.print( LoggerFactory.getILoggerFactory.asInstanceOf[LoggerContext] )
-  }
-
   def unacceptable(msg: String): Unit = {
     logger.error(msg)
     throw new NotAcceptableException(msg)

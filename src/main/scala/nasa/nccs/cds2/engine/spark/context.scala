@@ -35,7 +35,6 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  CDSparkContext Creation FINISHED  **** ")
     logger.info( "--------------------------------------------------------")
-    logger.info( "\n\n LOGGERS:  >>>>------------> " + LogManager.getCurrentLoggers.toList.map( _.asInstanceOf[Logger] ).map( logger => logger.getName + " -> " + logger.getLevel.toString ).mkString(",") )
     rv
   }
 
@@ -55,14 +54,10 @@ object CDSparkContext extends Loggable {
 }
 
 class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggable {
-  val logWriter = new java.io.PrintWriter( Paths.get( appParameters.cacheDir, "cdas.spark.log" ).toFile )
 
   def setLocalProperty(key: String, value: String): Unit = {
     sparkContext.setLocalProperty(key, value)
   }
-
-  def log( msg: String ) = logWriter.write( msg + "\n" )
-  def log( partIndex: Int, msg: String ) = logWriter.write( "P[%d]: %s\n".format( partIndex, msg ) )
 
   def getConf: SparkConf = sparkContext.getConf
 
@@ -72,7 +67,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     indexRDD.map( iPart => partFrag.partRDDPartition( iPart ) )
   }
 
-  def getPartitions( opInputs: List[OperationInput] ): Option[Partitions] = {
+  def getPartitions( opInputs: Iterable[OperationInput] ): Option[Partitions] = {
     for( opInput <- opInputs ) opInput match {
       case pfrag: PartitionedFragment => return Some( pfrag.partitions )
       case _ => None
@@ -80,34 +75,32 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     None
   }
 
-  def getRDD( pFrag: PartitionedFragment, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[RDDPartition] = {
-    val rddSpecs: Array[RDDPartSpec] = partitions.parts.map(partition => RDDPartSpec(partition, List(pFrag.getRDDVariableSpec(partition, opSection))))
+  def getRDD( uid: String, pFrag: PartitionedFragment, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[RDDPartition] = {
+    val rddSpecs: Array[RDDPartSpec] = partitions.parts.map(partition => RDDPartSpec(partition, List(pFrag.getRDDVariableSpec(uid, partition, opSection))))
 //    log( " Create RDD, rddParts = " + rddSpecs.map(_.toXml.toString()).mkString(",") )
     sparkContext.parallelize(rddSpecs).map(_.getRDDPartition)
   }
-  def getRDD( tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[RDDPartition] = {
+  def getRDD( uid: String, tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[RDDPartition] = {
     val rddParts = partitions.parts.indices.map( RDDPartition( _, tVar.variable.result ) )
 //    log( " Create RDD, rddParts = " + rddParts.map(_.toXml.toString()).mkString(",") )
     sparkContext.parallelize(rddParts)
   }
 
 
-  def domainRDDPartition( opInputs: List[OperationInput], context: CDASExecutionContext): RDD[RDDPartition] = {
+  def domainRDDPartition( opInputs: Map[String,OperationInput], context: CDASExecutionContext): RDD[RDDPartition] = {
     val opSection: Option[ma2.Section] = context.getOpSectionIntersection
-    val rdds: List[RDD[RDDPartition]] = getPartitions(opInputs) match {
-      case Some(partitions) =>
-        opInputs.map( opInput => opInput match {
-          case pFrag: PartitionedFragment => getRDD( pFrag, partitions, opSection )
-          case tVar: OperationTransientInput => getRDD( tVar, partitions, opSection )
-          case _ => throw new Exception( "Unsupported OperationInput class: " + opInput.getClass.getName )
-        })
-      case None =>
-        opInputs.map( opInput => opInput match {
-          case tVar: OperationTransientInput => sparkContext.parallelize(List(0)).map(_ => tVar.variable.result )
-          case _ => throw new Exception( "Unsupported OperationInput class: " + opInput.getClass.getName )
-        })
+    val rdds: Iterable[RDD[RDDPartition]] = getPartitions(opInputs.values) match {
+      case Some(partitions) => opInputs.map {
+          case (uid: String, pFrag: PartitionedFragment) => getRDD( uid, pFrag, partitions, opSection )
+          case (uid: String, tVar: OperationTransientInput ) => getRDD( uid, tVar, partitions, opSection )
+          case (uid, x ) => throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
+        }
+      case None => opInputs.map {
+          case (uid: String, tVar: OperationTransientInput ) => sparkContext.parallelize(List(0)).map(_ => tVar.variable.result )
+          case (uid, x ) => throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
+        }
     }
-    if( opInputs.length == 1 ) rdds.head else rdds.tail.foldLeft( rdds.head )( CDSparkContext.merge(_,_) )
+    if( opInputs.size == 1 ) rdds.head else rdds.tail.foldLeft( rdds.head )( CDSparkContext.merge(_,_) )
   }
 
 }

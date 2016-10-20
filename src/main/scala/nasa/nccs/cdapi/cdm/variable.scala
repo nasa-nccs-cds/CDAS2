@@ -172,12 +172,12 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
         None
     }
   }
-  def getRDDVariableSpec( partition: Partition,  optSection: Option[ma2.Section] ): RDDVariableSpec =
+  def getRDDVariableSpec( uid: String, partition: Partition,  optSection: Option[ma2.Section] ): RDDVariableSpec =
     domainSection(partition,optSection) match {
       case Some( ( fragSpec, section ) ) =>
-        new RDDVariableSpec( fragSpec.uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection(section) )
+        new RDDVariableSpec( uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection(section) )
       case _ =>
-        new RDDVariableSpec( fragSpec.uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
+        new RDDVariableSpec( uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
     }
 
 
