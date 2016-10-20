@@ -464,7 +464,7 @@ abstract class SingularRDDKernel extends Kernel {
             logger.info(" ##### KERNEL [%s]: Map Op: NONE".format( name ) )
             context.operation.rid -> HeapFltArray( input_array.toCDFloatArray, input_array.origin, input_array.metadata, None )
         }
-      case None => throw new Exception( "Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
+      case None => throw new Exception( "Missing input to '" + this.getClass.getName + "' map op: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
     }
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
     RDDPartition( inputs.iPart, Map( elem ) )

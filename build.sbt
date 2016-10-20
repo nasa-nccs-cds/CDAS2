@@ -32,6 +32,8 @@ libraryDependencies ++= Dependencies.geo
 
 libraryDependencies ++= Dependencies.netcdf
 
+compile  <<= (compile in Compile)
+
 fork in run:= true
 fork in test:= true
 logBuffered in Test := false
