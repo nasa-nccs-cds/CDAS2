@@ -1,6 +1,7 @@
 package nasa.nccs.esgf.utilities.numbers
+import nasa.nccs.utilities.Loggable
+
 import scala.language.implicitConversions
-import org.slf4j.LoggerFactory
 
 class IllegalNumberException( value: Any ) extends RuntimeException("Error, " + value.toString + " is not a valid Number")
 
@@ -46,8 +47,7 @@ object GenericNumber {
   }
 }
 
-abstract class GenericNumber {
-  val logger = LoggerFactory.getLogger( this.getClass )
+abstract class GenericNumber extends Loggable {
   type NumericType
   def value: NumericType
   override def toString = value.toString

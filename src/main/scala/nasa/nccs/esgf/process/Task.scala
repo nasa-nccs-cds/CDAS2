@@ -18,8 +18,7 @@ import scala.collection.{immutable, mutable}
 import scala.collection.mutable.HashSet
 import scala.xml._
 import mutable.ListBuffer
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
+import org.apache.log4j.Logger
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.esgf.utilities.wpsNameMatchers
 import nasa.nccs.wps.{WPSDataInput, WPSProcess, WPSProcessOutput, WPSWorkflowProcess}
@@ -37,9 +36,8 @@ case class ErrorReport(severity: String, message: String) {
   }
 }
 
-class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflow: List[OperationContext] = List(), val targetGridSpec: Map[String,String]=Map("id"->"#META") ) {
+class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflow: List[OperationContext] = List(), val targetGridSpec: Map[String,String]=Map("id"->"#META") ) extends Loggable {
   val errorReports = new ListBuffer[ErrorReport]()
-  val logger = LoggerFactory.getLogger( this.getClass )
   validate()
   logger.info( s"TaskRequest: name= $name, workflows= " + workflow.mkString(",") + ", variableMap= " + variableMap.toString + ", domainMap= " + domainMap.toString )
 
@@ -145,8 +143,7 @@ class UID {
 }
 
 
-object TaskRequest {
-  val logger = LoggerFactory.getLogger( this.getClass )
+object TaskRequest extends Loggable {
   def apply(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]]) = {
     logger.info( "TaskRequest--> process_name: %s, datainputs: %s".format( process_name, datainputs.toString ) )
     val uid = UID()
@@ -180,8 +177,7 @@ object TaskRequest {
   }
 }
 
-class ContainerBase {
-  val logger = LoggerFactory.getLogger( this.getClass )
+class ContainerBase extends Loggable {
   def item_key(map_item: (String, Any)): String = map_item._1
 
   def normalize(sval: String): String = stripQuotes(sval).toLowerCase

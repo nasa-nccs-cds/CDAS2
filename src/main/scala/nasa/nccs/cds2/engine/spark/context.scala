@@ -10,7 +10,6 @@ import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.Loggable
-import org.slf4j.LoggerFactory
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import ucar.ma2

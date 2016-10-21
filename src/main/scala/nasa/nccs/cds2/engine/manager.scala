@@ -68,9 +68,8 @@ object CDS2ExecutionManager extends Loggable {
     }
 }
 
-abstract class CDS2ExecutionManager extends WPSServer {
+abstract class CDS2ExecutionManager extends WPSServer with Loggable {
   val serverContext = new ServerContext( collectionDataCache )
-  val logger = LoggerFactory.getLogger(this.getClass)
   val kernelManager = new KernelMgr()
   private val counter = new Counter
   val nprocs: Int = CDASPartitioner.nProcessors

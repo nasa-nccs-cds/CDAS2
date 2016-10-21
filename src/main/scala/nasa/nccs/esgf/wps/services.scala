@@ -2,16 +2,12 @@ package nasa.nccs.esgf.wps
 
 import java.io.{PrintWriter, StringWriter}
 import java.util.concurrent.ExecutionException
-
 import nasa.nccs.wps.{BlockingExecutionResult, WPSExceptionReport, WPSResponse}
-import nasa.nccs.utilities.cdsutils
-import org.slf4j.LoggerFactory
-
+import nasa.nccs.utilities.{Loggable, cdsutils}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
-trait ServiceProvider {
-  val logger = LoggerFactory.getLogger(this.getClass)
+trait ServiceProvider extends Loggable {
 
   def executeProcess(identifier: String, parsed_data_inputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem
 
