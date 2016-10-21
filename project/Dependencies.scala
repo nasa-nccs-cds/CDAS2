@@ -2,7 +2,6 @@ import sbt._
 
 object Version {
   val hadoop    = "2.6.0"
-  val logback   = "1.1.3"
   val mockito   = "1.10.19"
   val scala     = "2.11.7"
   val scalaTest = "2.2.4"
@@ -11,8 +10,6 @@ object Version {
 }
 
 object Library {
-  val hadoopClient   = "org.apache.hadoop" %  "hadoop-client"   % Version.hadoop
-  val logbackClassic = "ch.qos.logback"    %  "logback-classic" % Version.logback
   val mockitoAll     = "org.mockito"       %  "mockito-all"     % Version.mockito
   val scalaTest      = "org.scalatest"     %% "scalatest"       % Version.scalaTest
   val slf4jApi       = "org.slf4j"         %  "slf4j-api"       % Version.slf4j
@@ -33,27 +30,20 @@ object Library {
   val udunits        = "edu.ucar"           %  "udunits"        % "4.6.0"
   val joda           = "joda-time"          % "joda-time"       % "2.8.1"
   val natty          = "com.joestelmach"    % "natty"           % "0.12"
-  val guava          = "com.google.guava"   % "guava"           % "18.0"
   val geotools       = "org.geotools"      %  "gt-shapefile"    % "13.2"
   val breeze         = "org.scalanlp"      %% "breeze"          % "0.12"
   val sprayCache     = "io.spray"       % "spray-caching_2.11" % "1.3.3"
   val sprayUtil      = "io.spray"       % "spray-util_2.11"    % "1.3.3"
-  val scalactic      = "org.scalactic" %% "scalactic" % "3.0.0"
+  val scalactic      = "org.scalactic" %% "scalactic"          % "3.0.0"
   val scalatest      = "org.scalatest" %% "scalatest" % "3.0.0" % "test"
   val concurrentlinkedhashmap = "com.googlecode.concurrentlinkedhashmap" % "concurrentlinkedhashmap-lru" % "1.4.2"
+  val reflections    = "org.reflections" % "reflections"       % "0.9.10"
 }
 
 object Dependencies {
   import Library._
 
-  val sparkAkkaHadoop = Seq(
-    sparkSQL,
-    hadoopClient,
-    logbackClassic % "test",
-    scalaTest      % "test",
-    mockitoAll     % "test"
-  )
-  val scala = Seq( logbackClassic, slf4jApi, scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest )
+  val scala = Seq( slf4jApi, scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest )
 
   val spark = Seq( sparkCore )
 

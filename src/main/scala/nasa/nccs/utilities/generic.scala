@@ -10,6 +10,7 @@ import org.slf4j.Logger
 
 trait Loggable {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
+
   def logError( err: Throwable, msg: String ) = {
     logger.error(msg)
     logger.error(err.getMessage)
@@ -33,11 +34,19 @@ object cdsutils {
 
   def isValid(obj: Any): Boolean = Option(obj) match { case Some(x) => true; case None => false }
 
+  def toString( value: Any, max_len: Int = 250 ): String = { val vstr = value.toString; if( vstr.length > max_len ) vstr.substring(0,max_len) else vstr }
+
+  def attributeValueEquals(value: String)(node: xml.Node) = node.attributes.exists(_.value.text == value)
+
   def getProjectJars: Array[JarFile] = {
     import java.io.File
     val cpitems = System.getProperty("java.class.path").split(File.pathSeparator)
     for ( cpitem <- cpitems; fileitem = new File(cpitem); if fileitem.isFile && fileitem.getName.toLowerCase.endsWith(".jar") ) yield new JarFile(fileitem)
   }
+
+  def envList(name: String): Array[String] =
+    try { sys.env(name).split(':') }
+    catch { case ex: java.util.NoSuchElementException => Array.empty[String] }
 
   def testSerializable( test_object: AnyRef ) = {
     import java.io._

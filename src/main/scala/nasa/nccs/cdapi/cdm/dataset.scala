@@ -41,7 +41,7 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
   val ncmlFile: File = NCMLWriter.getCachePath("NCML").resolve(Collections.idToFile(id)).toFile
   override def toString = "Collection( id=%s, ctype=%s, path=%s, title=%s, fileFilter=%s )".format( id, ctype, dataPath, title, fileFilter )
   def isEmpty = dataPath.isEmpty
-  lazy val varNames = vars.map( varStr => varStr.split(':').head )
+  lazy val varNames = vars.map( varStr => varStr.split( Array(':','|') ).head )
 //  println( s"====> Collection($id), vars = %s".format( vars.mkString(",")))
 
   def url(varName:String="") = ctype match {
@@ -77,7 +77,7 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
   def createNCML(): Boolean = {
     val recreate =  appParameters.bool("ncml.recreate",false)
     if( !ncmlFile.exists || recreate ) {
-      assert( !dataPath.isEmpty, "Attempt to create NCML from empty data path" )
+      assert( !dataPath.isEmpty, "Attempt to create NCML from empty data path: " + dataPath )
       val pathFile = new File(toFilePath(dataPath))
       if( pathFile.isDirectory ) { ncmlFile.getParentFile.mkdirs }
       val ncmlWriter = NCMLWriter(pathFile)

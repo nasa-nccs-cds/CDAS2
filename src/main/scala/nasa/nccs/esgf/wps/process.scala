@@ -13,51 +13,32 @@ class ProcessManager( serverConfiguration: Map[String,String] ) {
   val logger = LoggerFactory.getLogger(this.getClass)
   def apiManager = new APIManager( serverConfiguration )
 
-  def printLoggerInfo = {
-    import ch.qos.logback.classic.LoggerContext
-    import ch.qos.logback.core.util.StatusPrinter
-    StatusPrinter.print( LoggerFactory.getILoggerFactory.asInstanceOf[LoggerContext] )
-  }
-
   def unacceptable(msg: String): Unit = {
     logger.error(msg)
     throw new NotAcceptableException(msg)
   }
 
   def describeProcess(service: String, name: String): xml.Elem = {
-    apiManager.getServiceProvider(service) match {
-      case Some(serviceProvider) =>
-        //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))
-        serviceProvider.describeProcess( name )
-      case None =>
-        throw new NotAcceptableException("Unrecognized service: " + service)
-    }
+    val serviceProvider = apiManager.getServiceProvider(service)
+    //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))
+    serviceProvider.describeWPSProcess( name )
   }
 
   def getCapabilities(service: String, identifier: String): xml.Elem = {
-    apiManager.getServiceProvider(service) match {
-      case Some(serviceProvider) =>
+    val serviceProvider = apiManager.getServiceProvider(service)
         //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))
-        serviceProvider.getCapabilities( identifier )
-      case None =>
-        throw new NotAcceptableException("Unrecognized service: " + service)
-    }
+    serviceProvider.getWPSCapabilities( identifier )
   }
 
   def executeProcess(service: String, process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
-    apiManager.getServiceProvider(service) match {
-      case Some(serviceProvider) =>
+    val serviceProvider = apiManager.getServiceProvider(service)
         //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))
-        serviceProvider.executeProcess(process_name, datainputs, runargs)
-      case None => throw new NotAcceptableException("Unrecognized service: " + service)
-    }
+    serviceProvider.executeProcess(process_name, datainputs, runargs)
   }
 
   def getResultFilePath( service: String, resultId: String ): Option[String] = {
-    apiManager.getServiceProvider(service) match {
-      case Some(serviceProvider) => serviceProvider.getResultFilePath(resultId)
-      case None => throw new NotAcceptableException("Unrecognized service: " + service)
-    }
+    val serviceProvider = apiManager.getServiceProvider(service)
+    serviceProvider.getResultFilePath(resultId)
   }
 }
 

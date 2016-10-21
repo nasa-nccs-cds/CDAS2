@@ -1,10 +1,4 @@
-import java.io.File
-
-import nasa.nccs.cdapi.cdm.Collection
-import nasa.nccs.cdapi.kernels.{BlockingExecutionResult, ErrorExecutionResult, ExecutionResult, XmlExecutionResult}
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.engine.CDS2ExecutionManager
-import nasa.nccs.esgf.process.{RequestContext, TaskRequest}
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import org.scalatest._
 import ucar.nc2.dataset.NetcdfDataset
@@ -13,11 +7,12 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
   val serverConfiguration = Map[String,String]()
   val configMap = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
-  val service = "cds2"
   val eps = 0.0002
+  val service = "cds2"
   val merra_data = getClass.getResource("/data/merra_test_data.ta.nc").toString.split(":").last
   val const_data = getClass.getResource("/data/constant_test_data.ta.nc").toString.split(":").last
   val run_args = Map("async" -> "false")
+  val printer = new scala.xml.PrettyPrinter(200, 3)
 
   def readVerificationData( fileResourcePath: String, varName: String ): Option[CDFloatArray] = {
     try {
@@ -84,15 +79,31 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     max_diff
   }
 
-  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDS.workflow" ): xml.Elem = {
+  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
     val t0 = System.nanoTime()
     val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString )
     val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
     val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
     webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
-    webProcessManager.logger.info(response.toString)
     response
   }
+
+  def getCapabilities( identifier: String="", async: Boolean = false ): xml.Elem = {
+    val t0 = System.nanoTime()
+    val response: xml.Elem = webProcessManager.getCapabilities(service, identifier )
+    webProcessManager.logger.info("Completed GetCapabilities '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+    webProcessManager.logger.info( printer.format(response) )
+    response
+  }
+
+  def describeProcess( identifier: String, async: Boolean = false ): xml.Elem = {
+    val t0 = System.nanoTime()
+    val response: xml.Elem = webProcessManager.describeProcess(service, identifier )
+    webProcessManager.logger.info("Completed DescribeProcess '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+    webProcessManager.logger.info( printer.format(response) )
+    response
+  }
+
   def getSpatialDataInputs(test_dataset: String, op_args: (String,String)* )  = Map(
     "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
     "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
@@ -116,7 +127,7 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
 
   def getMetaDataInputs(test_dataset: String, varName: String) = Map(
     "variable" -> List(Map("uri" -> test_dataset, "name" -> varName )),
-    "operation" ->  List(Map( ("input"->varName), ("name"->"CDS.metadata" ) )) )
+    "operation" ->  List(Map( ("input"->varName), ("name"->"CDSpark.metadata" ) )) )
 
 
 }

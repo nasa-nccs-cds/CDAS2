@@ -7,13 +7,13 @@ import org.apache.spark.rdd.RDD
 import ucar.nc2
 import ucar.nc2.constants.AxisType
 
-class CDASparkDataManager( val executionMgr: CDSparkExecutionManager ) extends RDDataManager {
+abstract class CDASparkDataManager( val executionMgr: CDSparkExecutionManager ) extends RDDataManager {
 
   def getDatasets(): Set[String] = Collections.idSet
 
   def getDatasetMetadata( dsid: String ): Map[String,String] =
     Map( Collections.getCollectionMetadata( dsid  ).map( attr => ( attr.getShortName -> attrValue(attr) ) ):_*)
-  
+
   def getVariables( dsid: String ): Set[String]
   def getVariableMetadata( vid: String ): Map[String,String]
 

@@ -1,13 +1,15 @@
 package nasa.nccs.cds2.engine.spark
 
-import nasa.nccs.caching.{CollectionDataCacheMgr, collectionDataCache}
+import nasa.nccs.caching.{CollectionDataCacheMgr, RDDTransientVariable, collectionDataCache}
 import nasa.nccs.cdapi.cdm
 import nasa.nccs.cdapi.cdm.{OperationInput, PartitionedFragment}
+import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.engine.{CDS2ExecutionManager, SampleTaskRequests}
+import nasa.nccs.cds2.engine.CDS2ExecutionManager
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.cdsutils
+import nasa.nccs.wps.{RDDExecutionResult, WPSExecuteResponse, WPSResponse}
 import org.apache.spark.rdd.RDD
 import ucar.nc2
 import ucar.nc2.Attribute
@@ -42,49 +44,50 @@ object collectionRDDDataCache extends CollectionDataCacheMgr()
 //  }
 
 
-class CDSparkExecutionManager( val cdsContext: CDSparkContext, serverConfig: Map[String,String] = Map.empty ) extends CDS2ExecutionManager(serverConfig) {
+class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext() ) extends CDS2ExecutionManager {
 
-  def mapReduce(context: CDASExecutionContext, kernel: Kernel ): Option[DataFragment] = {
-    val opInputs: List[PartitionedFragment] = getOperationInputs( context ).flatMap(  _ match { case pf: PartitionedFragment => Some(pf); case x => None } )   // TODO: Ignores Transient Fragments
-    logger.info( "mapReduce: opInputs = " + opInputs.map( df => "%s(%s)".format( df.getKeyString, df.fragmentSpec.toString ) ).mkString( "," ))
-    val inputRDD = cdsContext.domainFragmentRDD( opInputs, context )
-    val mapresult: RDD[Option[DataFragment]] = inputRDD.map( cdpart => kernel.map( cdpart.iPartIndex,cdpart.dataFragments,context ) )
-    reduce( mapresult, context, kernel )
+  def mapReduce(context: CDASExecutionContext, kernel: Kernel ): RDDPartition = {
+    val opInputs: Map[String,OperationInput] = getOperationInputs( context )
+    val kernelContext = context.toKernelContext
+    logger.info( "\n\n ----------------------- BEGIN map Operation -------\n")
+    val inputRDD: RDD[ RDDPartition ] = cdsContext.domainRDDPartition( opInputs, context )
+    val mapresult: RDD[RDDPartition] = inputRDD.map( rdd_part => kernel.map( rdd_part, kernelContext ) )
+    logger.info( "\n\n ----------------------- BEGIN reduce Operation ----------------------- \n" )
+    logger.info( " ----> Map Result = " + mapresult.collect().map(_.toXml.toString).mkString(","))
+    val result = reduce( mapresult, kernelContext, kernel )
+    logger.info( "\n\n ----------------------- FINISHED reduce Operation ----------------------- "  )
+    result
   }
 
-  def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): ExecutionResult = {
+  def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): WPSExecuteResponse = {
     val t0 = System.nanoTime()
-    var pre_result: Option[DataFragment] = mapReduce( context, kernel )
+    var pre_result: RDDPartition = mapReduce( context, kernel )
+    val kernelContext = context.toKernelContext
+    val result = kernel.postRDDOp( pre_result, kernelContext  )
     logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec  ********** \n".format(kernel.name,kernel.id,context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
-    createResponse( postOp( pre_result, context  ), context )
+//    logger.info( "\n\nResult partition elements= %s \n\n".format( result.elements.values.map( cdsutils.toString(_) ) ) )
+    createResponse( kernel, result, context )
   }
 
-  def postOp( pre_result: Option[DataFragment], context: CDASExecutionContext ):  Option[DataFragment] = pre_result
-  def reduce( mapresult: RDD[Option[DataFragment]], context: CDASExecutionContext, kernel: Kernel ):  Option[DataFragment] = mapresult.reduce( kernel.reduceOp(context) _ )
+  def reduce( mapresult: RDD[RDDPartition], context: KernelContext, kernel: Kernel ):  RDDPartition =
+    mapresult.reduce( kernel.reduceRDDOp(context) _ )
 
-  def createResponse( result: Option[DataFragment], context: CDASExecutionContext ): ExecutionResult = {    // TODO: Implement async
-    val var_mdata = Map[String,Attribute]()
-//    val async = context.request.config("async", "false").toBoolean
-    val resultId = cacheResult( Future(result), context, var_mdata /*, inputVar.getVariableMetadata(context.server) */ )
-    result match {
-      case Some(result) =>
-        new BlockingExecutionResult(context.operation.identifier, List(result.spec), context.request.targetGrid.getSubGrid(result.spec.roi), result.data, resultId)
-      case None =>
-        logger.error("Operation %s returned empty result".format(context.operation.identifier))
-        new BlockingExecutionResult(context.operation.identifier, List(), context.request.targetGrid, CDFloatArray.empty)
-    }
+  def createResponse( kernel: Kernel, result: RDDPartition, context: CDASExecutionContext ): WPSExecuteResponse = {
+    val resultId = cacheResult( result, context )
+    new RDDExecutionResult( kernel, context.operation.identifier, result, resultId )
   }
 
-  def cacheResult( resultFut: Future[Option[DataFragment]], context: CDASExecutionContext, varMetadata: Map[String,nc2.Attribute] ): Option[String] = {
+  def cacheResult( result: RDDPartition, context: CDASExecutionContext ): Option[String] = {
     try {
-      val tOptFragFut = resultFut.map( dataFragOpt => dataFragOpt.map( dataFrag => new TransientFragment( dataFrag, context.request, varMetadata ) ) )
-      collectionDataCache.putResult( context.operation.rid, tOptFragFut )
+      collectionDataCache.putResult( context.operation.rid, new RDDTransientVariable(result,context.operation,context.request) )
+      logger.info( " ^^^^## Cached result, results = " + collectionDataCache.getResultIdList.mkString(",") )
       Some(context.operation.rid)
     } catch {
       case ex: Exception => logger.error( "Can't cache result: " + ex.getMessage ); None
     }
   }
 }
+
 //
 //  override def execute( request: TaskRequest, run_args: Map[String,String] ): xml.Elem = {
 //    logger.info("Execute { request: " + request.toString + ", runargs: " + run_args.toString + "}"  )

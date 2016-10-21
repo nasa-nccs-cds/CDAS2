@@ -9,6 +9,7 @@ import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
 import org.joda.time.{DateTime, DateTimeZone}
 import nasa.nccs.utilities.Loggable
+import java.util.UUID
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -21,6 +22,8 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.esgf.utilities.wpsNameMatchers
+import nasa.nccs.wps.{WPSDataInput, WPSProcess, WPSProcessOutput, WPSWorkflowProcess}
+import org.apache.commons.lang.RandomStringUtils
 
 import scala.util.Random
 
@@ -34,11 +37,11 @@ case class ErrorReport(severity: String, message: String) {
   }
 }
 
-class TaskRequest(val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflows: List[WorkflowContainer] = List(), val targetGridSpec: Map[String,String]=Map("id"->"#META") ) {
+class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflow: List[OperationContext] = List(), val targetGridSpec: Map[String,String]=Map("id"->"#META") ) {
   val errorReports = new ListBuffer[ErrorReport]()
   val logger = LoggerFactory.getLogger( this.getClass )
   validate()
-//  logger.info( s"TaskRequest: name= $name, workflows= " + workflows.toString + ", variableMap= " + variableMap.toString + ", domainMap= " + domainMap.toString )
+  logger.info( s"TaskRequest: name= $name, workflows= " + workflow.mkString(",") + ", variableMap= " + variableMap.toString + ", domainMap= " + domainMap.toString )
 
   def addErrorReport(severity: String, message: String) = {
     val error_rep = ErrorReport(severity, message)
@@ -46,8 +49,13 @@ class TaskRequest(val name: String, val variableMap : Map[String,DataContainer],
     errorReports += error_rep
   }
 
+  def getProcess: WPSWorkflowProcess = new WPSWorkflowProcess( id.toString, getDescription, "Workflow " + name, getInputs, getOutputs )
+
+  def getInputs: List[WPSDataInput] = inputVariables.map( _.toWPSDataInput ).toList
+  def getOutputs: List[WPSProcessOutput] = List( WPSProcessOutput(id.toString,"text/xml","Workflow Output") )
+
   def getJobRec( run_args: Map[String,String] ): JobRecord = {
-    val jobIds = for( workflow <- workflows; operation <- workflow.operations ) yield operation.rid
+    val jobIds = for(  operation <- workflow ) yield operation.rid
     new JobRecord( jobIds.mkString("-"))
   }
 
@@ -76,7 +84,7 @@ class TaskRequest(val name: String, val variableMap : Map[String,DataContainer],
         throw new Exception( s"Error, Missing domain $domid in variable $vid" )
       }
     }
-    for (workflow <- workflows; operation <- workflow.operations; opid = operation.name; var_arg <- operation.inputs; if !var_arg.isEmpty ) {
+    for (operation <- workflow; opid = operation.name; var_arg <- operation.inputs; if !var_arg.isEmpty ) {
       if (!variableMap.contains(var_arg)) {
         var keylist = variableMap.keys.mkString("[", ",", "]")
         logger.error(s"Error, No $var_arg in $keylist in operation $opid")
@@ -86,12 +94,14 @@ class TaskRequest(val name: String, val variableMap : Map[String,DataContainer],
   }
 
   override def toString = {
-    var taskStr = s"TaskRequest { name='$name', variables = '$variableMap', domains='$domainMap', workflows='$workflows' }"
+    var taskStr = s"TaskRequest { name='$name', variables = '$variableMap', domains='$domainMap', workflows='$workflow' }"
     if ( errorReports.nonEmpty ) {
       taskStr += errorReports.mkString("\nError Reports: {\n\t", "\n\t", "\n}")
     }
     taskStr
   }
+
+  def getDescription: String = "Processes { %s }".format( workflow.map(_.toString ) )
 
   def toXml = {
     <task_request name={name}>
@@ -102,7 +112,7 @@ class TaskRequest(val name: String, val variableMap : Map[String,DataContainer],
         {domainMap.values.map(_.toXml ) }
       </domains>
       <operation>
-        { workflows.map(_.toXml ) }
+        { workflow.map(_.toXml ) }
       </operation>
       <error_reports>
         {errorReports.map(_.toXml ) }
@@ -115,26 +125,48 @@ class TaskRequest(val name: String, val variableMap : Map[String,DataContainer],
   }
 }
 
+//object UID1 {
+//  def apply() = new UID()
+//}
+//class UID1 {
+//  val uid = UUID.randomUUID()
+//  def +( id: String ): String = id + "-" + uid.toString
+//}
+
+object UID {
+  def ndigits = 6
+  def apply() = new UID()
+}
+class UID {
+  import UID._
+  val uid = RandomStringUtils.random( ndigits, true, true )
+  def +( id: String ): String = id + "-" + uid.toString
+  override def toString = uid
+}
+
+
 object TaskRequest {
   val logger = LoggerFactory.getLogger( this.getClass )
   def apply(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]]) = {
-//    logger.info( "TaskRequest--> process_name: %s, datainputs: %s".format( process_name, datainputs.toString ) )
-    val data_list: List[DataContainer] = datainputs.getOrElse("variable", List() ).flatMap(DataContainer.factory(_)).toList
+    logger.info( "TaskRequest--> process_name: %s, datainputs: %s".format( process_name, datainputs.toString ) )
+    val uid = UID()
+    val data_list: List[DataContainer] = datainputs.getOrElse("variable", List() ).flatMap( DataContainer.factory(uid,_) ).toList
     val domain_list: List[DomainContainer] = datainputs.getOrElse("domain", List()).map(DomainContainer(_)).toList
-    val operation_list: List[WorkflowContainer] = datainputs.getOrElse("operation", List() ).map(WorkflowContainer( process_name, data_list.map(_.uid), _ ) ).toList
+    val operation_list: List[OperationContext] = datainputs.getOrElse("operation", List() ).zipWithIndex.map { case (op, index) => OperationContext( index, uid, process_name, data_list.map(_.uid), op ) }.toList
     val variableMap = buildVarMap( data_list, operation_list )
     val domainMap = buildDomainMap( domain_list )
     val gridId = datainputs.getOrElse("grid", data_list.headOption.map( dc => dc.uid ).getOrElse("#META") ).toString
     val gridSpec = Map( "id" -> gridId.toString )
-    new TaskRequest( process_name, variableMap, domainMap, operation_list, gridSpec )
+    new TaskRequest( uid, process_name, variableMap, domainMap, operation_list, gridSpec )
   }
 
-  def buildVarMap( data: List[DataContainer], workflow: List[WorkflowContainer] ): Map[String,DataContainer] = {
-    var data_var_items = for( data_container <- data ) yield ( data_container.uid -> data_container )
-    var op_var_items = for( workflow_container<- workflow; operation<-workflow_container.operations; if !operation.rid.isEmpty ) yield ( operation.rid -> DataContainer(operation) )
+  def buildVarMap( data: List[DataContainer], workflow: List[OperationContext] ): Map[String,DataContainer] = {
+    var data_var_items = for( data_container <- data ) yield data_container.uid -> data_container
+    var op_var_items = for( operation<- workflow; if !operation.rid.isEmpty ) yield operation.rid -> DataContainer(operation)
     val var_map = Map( op_var_items ++ data_var_items: _* )
-//    logger.info( "Created Variable Map: " + var_map.toString + " from data containers: " + data.map( data_container => ( "id:" + data_container.uid ) ).mkString("[ ",", "," ]") )
-    for( workflow_container<- workflow; operation<-workflow_container.operations; vid<-operation.inputs; if(!vid.isEmpty)  ) var_map.get( vid ) match {
+//    logger.info( "Created Variable Map: op_var_items = (%s), data_var_items = (%s)".format( op_var_items.map(_._1).mkString(","), data_var_items.map(_._1).mkString(",") ) )
+    logger.info( "Created Variable Map: " + var_map.toString + " from data containers: " + data.map( data_container => ( "id:" + data_container.uid ) ).mkString("[ ",", "," ]") )
+    for( operation<-workflow; vid<-operation.inputs; if !vid.isEmpty  ) var_map.get( vid ) match {
       case Some(data_container) => data_container.addOpSpec( operation )
       case None => throw new Exception( "Unrecognized variable %s in varlist [%s]".format( vid, var_map.keys.mkString(",") ) )
     }
@@ -299,7 +331,7 @@ object SectionMerge {
   def incommensurate( s0: ma2.Section, s1: ma2.Section ) = { "Attempt to combine incommensurate sections: %s vs %s".format( s0.toString, s1.toString ) }
 }
 
-class DataFragmentSpec( val varname: String="", val collection: Collection = Collection("empty",""), val fragIdOpt: Option[String]=None,
+class DataFragmentSpec( val uid: String="", val varname: String="", val collection: Collection = Collection("empty",""), val fragIdOpt: Option[String]=None,
                         val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
                         val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section],
                         val missing_value: Float, val mask: Option[String] = None ) extends Loggable with Serializable {
@@ -308,25 +340,29 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = Col
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
     mask match {
-      case None => <input varname={varname} longname={longname} units={units} roi={roi.toString} >{collection.toXml}</input>
-      case Some(maskId) => <input varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
+      case None => <input uid={uid} varname={varname} longname={longname} units={units} roi={roi.toString} >{collection.toXml}</input>
+      case Some(maskId) => <input uid={uid} varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
+  def getMetadata: Map[String,String] = Map( "name" -> varname, "collection" -> collection.id, "fragment" -> fragIdOpt.getOrElse(""), "dimensions" -> dimensions, "units" -> units, "longname" -> longname, "uid" -> uid, "roi" -> roi.toString )
+
   def combine( other: DataFragmentSpec, sectionMerge: Boolean = true ): ( DataFragmentSpec, SectionMerge.Status ) = {
     val combined_varname = varname + ":" + other.varname
     val combined_longname = longname + ":" + other.longname
     val ( combined_section, mergeStatus ) = if(sectionMerge) combineRoi( other.roi ) else ( roi, SectionMerge.Overlap )
-    ( new DataFragmentSpec( combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, missing_value, mask ) -> mergeStatus )
+    ( new DataFragmentSpec( uid, combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, missing_value, mask ) -> mergeStatus )
   }
   def roi = targetGridOpt match {
     case None => new ma2.Section( _section )
     case Some( targetGrid ) => targetGrid.addSectionMetadata( _section )
   }
+  def cdsection: CDSection = CDSection(roi)
+
   def domainSectOpt = _domSectOpt.map( sect => new ma2.Section( sect ) )
 
   def toBoundsString = { targetGridOpt.map( _.toBoundsString ).getOrElse("") }
 
-  def reshape( newSection: ma2.Section ): DataFragmentSpec = new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newSection), domainSectOpt, missing_value, mask )
+  def reshape( newSection: ma2.Section ): DataFragmentSpec = new DataFragmentSpec( uid, varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newSection), domainSectOpt, missing_value, mask )
 
   def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
     case Some( array ) => array
@@ -348,6 +384,8 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = Col
   def getRangeCF( CFName: String ): Option[ma2.Range] = Option( roi.find(CFName) )
 
   def getShape = roi.getShape
+  def getOrigin = roi.getOrigin
+  def getRank = roi.getShape.length
 
   def getGridShape: Array[Int] = {
     val grid_axes = List( "x", "y" )
@@ -368,7 +406,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = Col
 
   def domainSpec: DataFragmentSpec = domainSectOpt match {
     case None => this;
-    case Some(cutSection) => new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask )
+    case Some(cutSection) => new DataFragmentSpec( uid, varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, roi.intersect(cutSection), domainSectOpt, missing_value, mask )
   }
 
   def intersectRoi( cutSection: ma2.Section ): ma2.Section = {
@@ -400,7 +438,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = Col
     if( roi.intersects( cutSection ) ) {
       val intersection = intersectRoi(cutSection)
 //      logger.info( "DOMAIN INTERSECTION:  %s <-> %s  => %s".format( roi.toString, cutSection.toString, intersection.toString ))
-      Some( new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, intersection, domainSectOpt, missing_value, mask ) )
+      Some( new DataFragmentSpec( uid, varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, intersection, domainSectOpt, missing_value, mask ) )
     }  else None
 
   def getReducedSection( axisIndices: Set[Int], newsize: Int = 1 ): ma2.Section = {
@@ -450,7 +488,7 @@ class DataFragmentSpec( val varname: String="", val collection: Collection = Col
   def reSection( newSection: ma2.Section ): DataFragmentSpec = {
 //    println( " ++++ ReSection: newSection=(%s), roi=(%s)".format( newSection.toString, roi.toString ) )
     val newRanges = for( iR <- roi.getRanges.indices; r0 = roi.getRange(iR); rNew = newSection.getRange(iR) ) yield new ma2.Range(r0.getName,rNew)
-    new DataFragmentSpec( varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), domainSectOpt, missing_value, mask )
+    new DataFragmentSpec( uid, varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newRanges), domainSectOpt, missing_value, mask )
   }
   def reSection( fkey: DataFragmentKey ): DataFragmentSpec = reSection( fkey.getRoi )
 
@@ -471,11 +509,12 @@ class OperationSpecs( id: String, val optargs: Map[String,String] ) {
   def getSpec( id: String, default: String = "" ): String = optargs.getOrElse( id, default )
 }
 
-
 class DataContainer(val uid: String, private val source : Option[DataSource] = None, private val operation : Option[OperationContext] = None ) extends ContainerBase {
   assert( source.isDefined || operation.isDefined, s"Empty DataContainer: variable uid = $uid" )
   assert( source.isEmpty || operation.isEmpty, s"Conflicted DataContainer: variable uid = $uid" )
   private val optSpecs = mutable.ListBuffer[ OperationSpecs ]()
+
+  def toWPSDataInput: WPSDataInput = WPSDataInput( uid.toString, 1, 1 )
 
   override def toString = {
     val embedded_val: String = if ( source.isDefined ) source.get.toString else operation.get.toString
@@ -515,9 +554,17 @@ object DataContainer extends ContainerBase {
   }
   def absPath( path: String ): String = new java.io.File(path).getAbsolutePath.toLowerCase
 
+  def vid( varId: String, uid: Boolean ) = {
+    val idItems = varId.split( Array(':','|') )
+    if(uid) { if( idItems.length < 2 ) idItems.head else idItems(2) }
+    else idItems.head
+  }
+
   def getCollection(metadata: Map[String, Any]): ( Collection, Option[String] ) = {
     val uri = metadata.getOrElse("uri","").toString
-    val varsList: List[String] = metadata.getOrElse("name","").toString.split(",").map( item => stripQuotes( item.split(':').head ) ).toList
+    val varsList: List[String] =
+      if(metadata.keySet.contains("id")) metadata.getOrElse("id","").toString.split(",").map( item => stripQuotes( vid(item,false) ) ).toList
+      else metadata.getOrElse("name","").toString.split(",").map( item => stripQuotes( vid(item,false)   ) ).toList
     val path =  metadata.getOrElse("path","").toString
     val collection =  metadata.getOrElse("collection","").toString
     val title =  metadata.getOrElse("title","").toString
@@ -526,7 +573,7 @@ object DataContainer extends ContainerBase {
     logger.info( s" >>>>>>>>>>>----> getCollection, uri=$uri, id=$id")
     val colId = if(!collection.isEmpty) { collection } else uri match {
       case colUri if(colUri.startsWith("collection")) => id
-      case fragUri if(fragUri.startsWith("fragment")) => id.split('|')(1)
+      case fragUri if(fragUri.startsWith("fragment")) => vid(id,true)
       case x => ""
     }
     val fragIdOpt = if(uri.startsWith("fragment")) Some(id) else None
@@ -544,9 +591,9 @@ object DataContainer extends ContainerBase {
     }
   }
 
-  def factory(metadata: Map[String, Any]): Array[DataContainer] = {
+  def factory(uid: UID, metadata: Map[String, Any]): Array[DataContainer] = {
     try {
-      val fullname = metadata.getOrElse("name", "").toString
+      val fullname = if(metadata.keySet.contains("id"))  metadata.getOrElse("id", "").toString else metadata.getOrElse("name", "").toString
       val domain = metadata.getOrElse("domain", "").toString
       val (collection, fragIdOpt) = getCollection(metadata)
       val var_names: Array[String] = if (fullname.equals("*")) collection.varNames.toArray else fullname.toString.split(',')
@@ -554,16 +601,18 @@ object DataContainer extends ContainerBase {
 
       fragIdOpt match {
         case Some(fragId) =>
-          val name_items = var_names.head.split(':')
+          val name_items = var_names.head.split(Array(':','|'))
           val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain), fragIdOpt )
           val vid = normalize(name_items.last)
-          Array( new DataContainer(if (vid.isEmpty) s"c-$base_index" else vid, source = Some(dsource)) )
+          Array( new DataContainer(if (vid.isEmpty) uid+s"c-$base_index" else uid+vid, source = Some(dsource)) )
         case None =>
           for ((name, index) <- var_names.zipWithIndex) yield {
-            val name_items = name.split(':')
+            val name_items = name.split(Array(':','|'))
             val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain))
-            val vid = normalize(name_items.last)
-            new DataContainer(if (vid.isEmpty) s"c-$base_index$index" else vid, source = Some(dsource))
+            val vid = stripQuotes(name_items.last)
+            val vname = normalize(name_items.head)
+            val dcid = if (vid.isEmpty) uid+s"c-$base_index$index" else if (vname.isEmpty) vid else uid+vid
+            new DataContainer( dcid, source = Some(dsource))
           }
       }
     } catch {
@@ -625,7 +674,7 @@ object DomainAxis extends ContainerBase {
         val axis_map = getStringKeyMap( generic_axis_map )
         val start = getGenericNumber( axis_map.get("start") )
         val end = getGenericNumber( axis_map.get("end") )
-        val system = getStringValue( axis_map.get("system") )
+        val system = axis_map.getOrElse( "system", axis_map.getOrElse("crs", "values") ).toString
         val bounds = getStringValue( axis_map.get("bounds") )
         Some( new DomainAxis( axistype, start, end, normalize(system), normalize(bounds) ) )
       case Some(sval: String) =>
@@ -669,7 +718,7 @@ object DomainContainer extends ContainerBase {
   def apply(metadata: Map[String, Any]): DomainContainer = {
     var items = new ListBuffer[ Option[DomainAxis] ]()
     try {
-      val name = filterMap(metadata, key_equals("name")) match { case None => ""; case Some(x) => x.toString }
+      val name = if( metadata.keySet.contains("id") ) metadata.getOrElse("id","") else metadata.getOrElse("name","")
       items += DomainAxis( DomainAxis.Type.Y,   filterMap(metadata,  key_equals( wpsNameMatchers.yAxis )))
       items += DomainAxis( DomainAxis.Type.X,   filterMap(metadata,  key_equals( wpsNameMatchers.xAxis )))
       items += DomainAxis( DomainAxis.Type.Z,   filterMap(metadata,  key_equals( wpsNameMatchers.zAxis )))
@@ -687,49 +736,20 @@ object DomainContainer extends ContainerBase {
   def empty( name: String ):  DomainContainer = new DomainContainer( name )
 }
 
-class WorkflowContainer(val operations: Iterable[OperationContext] = List() ) extends ContainerBase {
-  def this( oc: OperationContext ) = this( List(oc) )
-  override def toString = {
-    s"WorkflowContainer { operations = $operations }"
-  }
-  override def toXml = {
-    <workflow>  { operations.map( _.toXml ) }  </workflow>
-  }
-}
-
-object WorkflowContainer extends ContainerBase {
-  def apply(process_name: String, uid_list: List[String], metadata: Map[String, Any]): WorkflowContainer = {
-    try {
-      new WorkflowContainer( OperationContext( process_name, uid_list, metadata ) )
-    } catch {
-      case e: Exception =>
-        val msg = "Error creating WorkflowContainer: " + e.getMessage
-        logger.error(msg)
-        throw e
-    }
-  }
-}
-
-class OperationContext( val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext with Serializable  {
+class OperationContext( val index: Int, val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext with Serializable  {
   def getConfiguration = configuration
-  println( "OperationContext: " + rid )
-
-  override def toString = {
-    s"OperationContext { id = $identifier,  name = $name, rid = $rid, inputs = $inputs, configurations = $configuration }"
-  }
-  override def toXml = {
-    <proc id={identifier} name={name} rid={rid} inputs={inputs.toString} configurations={configuration.toString}/>
-  }
+  val moduleName: String = name.toLowerCase.split('.').head
+  override def toString = s"OperationContext { id = $identifier,  name = $name, rid = $rid, inputs = $inputs, configurations = $configuration }"
+  override def toXml = <proc id={identifier} name={name} rid={rid} inputs={inputs.toString} configurations={configuration.toString}/>
 }
 
 object OperationContext extends ContainerBase  {
-  private val random = new Random( System.currentTimeMillis )
   var resultIndex = 0
-  def apply( process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
+  def apply( index: Int, uid: UID, process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
     val op_inputs: List[String] = metadata.get( "input" ) match {
-      case Some( input_values: List[_] ) => input_values.map( _.toString.trim.toLowerCase )
-      case Some( input_value: String ) => List( input_value.trim.toLowerCase )
-      case None => uid_list.map( _.trim.toLowerCase )
+      case Some( input_values: List[_] ) => input_values.map( uid + _.toString.trim.toLowerCase )
+      case Some( input_value: String ) => List( uid + input_value.trim.toLowerCase )
+      case None => uid_list.map( uid + _.trim.toLowerCase )
       case x => throw new Exception ( "Unrecognized input in operation spec: " + x.toString )
     }
     val op_name = metadata.getOrElse( "name", process_name ).toString.trim.toLowerCase
@@ -737,9 +757,11 @@ object OperationContext extends ContainerBase  {
     val input = metadata.getOrElse("input","").toString
     val opLongName = op_name + "-" + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
-    val identifier: String = Array( opLongName, dt.toString("MM.dd-hh.mm.ss") ).mkString("-")
-    val rid = metadata.getOrElse("result",identifier).toString
-    new OperationContext( identifier = identifier, name=op_name, rid = rid, inputs = op_inputs, optargs )
+    val rid = metadata.get("result") match {
+      case Some( result_id ) => uid + result_id.toString
+      case None => uid + op_name + "-" + index.toString
+    }
+    new OperationContext( index, identifier = UID() + op_name, name=op_name, rid = rid, inputs = op_inputs, optargs )
   }
   def generateResultId: String = { resultIndex += 1; "$v"+resultIndex.toString }
 }

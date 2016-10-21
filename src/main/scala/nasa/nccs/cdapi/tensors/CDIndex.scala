@@ -6,8 +6,8 @@ import java.util.Formatter
 import ucar.nc2.time.Calendar
 import ucar.nc2.time.CalendarDate
 import nasa.nccs.cdapi.cdm.CDSVariable
-import nasa.nccs.esgf.process.{DomainAxis, GridCoordSpec, TargetGrid}
-import nasa.nccs.utilities.cdsutils
+import nasa.nccs.esgf.process.{DomainAxis, GridContext, GridCoordSpec, TargetGrid}
+import nasa.nccs.utilities.{Loggable, cdsutils}
 
 import scala.collection.mutable.ListBuffer
 import ucar.ma2
@@ -22,9 +22,16 @@ import scala.collection.JavaConverters._
 
 object CDIndexMap {
 
-  def factory(index: CDIndexMap): CDIndexMap = new CDIndexMap(index.getShape, index.getStride, index.getOffset )
-  def factory(shape: Array[Int]=Array.emptyIntArray, stride: Array[Int]=Array.emptyIntArray, offset: Int = 0): CDIndexMap = new CDIndexMap(shape, stride, offset )
-  def empty = factory()
+  def apply(index: CDIndexMap): CDIndexMap = new CDIndexMap(index.getShape, index.getStride, index.getOffset )
+  def apply( shape: Array[Int], stride: Array[Int]=Array.emptyIntArray, offset: Int = 0, coordMaps: Map[Int,CDCoordMap] = Map.empty): CDIndexMap = new CDIndexMap(shape, stride, offset, coordMaps )
+  def apply( shape: Array[Int], coordMap: Map[Int,CDCoordMap] ): CDIndexMap = new CDIndexMap( shape, Array.emptyIntArray, 0, coordMap )
+  def apply( shape: Array[Int] ): CDIndexMap = new CDIndexMap( shape, Array.emptyIntArray, 0, Map.empty[Int,CDCoordMap] )
+  def apply( shape: Array[Int], coordMapList: List[CDCoordMap] ): CDIndexMap = {
+    val coordMaps = coordMapList.map( cmap => cmap.dimension -> cmap )
+    new CDIndexMap( shape, Array.emptyIntArray, 0, Map(coordMaps:_*) )
+  }
+  def const(shape: Array[Int]): CDIndexMap = new CDIndexMap(shape, Array.fill[Int](shape.length)(0), 0 )
+  def empty = apply( Array.emptyIntArray )
 }
 
 abstract class IndexMapIterator extends collection.Iterator[Int] {
@@ -66,26 +73,37 @@ class DayOfYearIter( timeOffsets: Array[Double], range: ma2.Range ) extends Time
   def getValue( count_index: Int ): Int = toDate( getCalendarDate(count_index+index_offset) ).getDayOfYear
 }
 
-class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val offset: Int = 0 ) extends Serializable {
+class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emptyIntArray, protected val _offset: Int = 0, protected val _coordMaps: Map[Int,CDCoordMap] = Map.empty ) extends Serializable with Loggable {
   protected val rank: Int = shape.length
   protected val stride = if( _stride.isEmpty ) computeStrides(shape) else _stride
-  def this( index: CDIndexMap ) = this( index.shape, index.stride, index.offset )
+  def this( index: CDIndexMap ) = this( index.shape, index.stride, index._offset, index._coordMaps )
+  def getCoordMaps: List[CDCoordMap] = _coordMaps.values.toList
+  def getCoordMap: Map[Int,CDCoordMap] = _coordMaps
 
   def append( other: CDIndexMap ): CDIndexMap = {
     for( i <- (1 until rank) ) if(shape(i) != other.shape(i) ) throw new Exception( "Can't merge arrays with non-commensurate shapes: %s vs %s".format(shape.mkString(","),other.shape.mkString(",")))
-    assert( (offset==0) || (other.offset==0), "Can't merge subsetted arrays, should extract section first." )
+    assert( (_offset==0) || (other._offset==0), "Can't merge subsetted arrays, should extract section first." )
     val newShape: IndexedSeq[Int] = for( i <- (0 until rank) ) yield if( i==0 ) shape(i) + other.shape(i) else shape(i)
-    new CDIndexMap( newShape.toArray, _stride, offset )
+    new CDIndexMap( newShape.toArray, _stride, _offset, _coordMaps )
   }
-
+  def isStorageCongruent(storageSize: Int): Boolean = ( getSize == storageSize ) && !broadcasted &&  _coordMaps.isEmpty   // isStorageCongruent(getStorageSize)
   def getRank: Int = rank
-  def getShape: Array[Int] = shape.clone
+  def getShape: Array[Int] = ( for( idim <- (0 until rank) ) yield _coordMaps.get(idim).map( _.mapArray.length ).getOrElse(shape( idim )) ).toArray
   def getStride: Array[Int] = stride.clone
   def getShape(index: Int): Int = shape(index)
-  def getSize: Int = if( rank == 0 ) { 0 } else { shape.filter( _ > 0 ).foldLeft(1)( _ * _ ) }
-  def getOffset: Int = offset
-  def getReducedShape: Array[Int] = { ( for( idim <- ( 0 until rank) ) yield if( stride(idim) == 0 ) 1 else shape( idim ) ).toArray }
-  override def toString: String = "{ Shape: " + shape.mkString("[ ",", "," ], Stride: " + stride.mkString("[ ",", "," ]") + " Offset: " + offset + " } ")
+  def getSize: Int = if( rank == 0 ) { 0 } else { shape.filter( _ > 0 ).product }
+  def getOffset: Int = _offset
+
+  def getStorageShape: Array[Int] = {
+    val shape_seq = for (idim <- (0 until rank)) yield
+      _coordMaps.get(idim) match {
+        case Some(cmap) => cmap.nBins
+        case None => if (stride(idim) == 0) 1 else shape(idim)
+      }
+    shape_seq.toArray
+  }
+
+  override def toString: String = "{ Shape: " + shape.mkString("[ ",", "," ], Stride: " + stride.mkString("[ ",", "," ]") + " Offset: " + _offset + " } ")
 
   def broadcasted: Boolean = {
     for( i <- (0 until rank) ) if( (stride(i) == 0) && (shape(i) > 1) ) return true
@@ -94,7 +112,7 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
 
   def getCoordIndices( flatIndex: Int ): IndexedSeq[Int] = {
     var currElement = flatIndex
-    currElement -= offset
+    currElement -= _offset
     for( ii <-(0 until rank ) ) yield if (shape(ii) < 0) {  -1 } else {
       val coordIndex = currElement / stride(ii)
       currElement -= coordIndex * stride(ii)
@@ -104,56 +122,81 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
 
   def getStorageIndex( coordIndices: Array[Int] ): Int = {
     assert( coordIndices.length == rank, "Wrong number of coordinates in getStorageIndex for Array of rank %d: %d".format( rank, coordIndices.length) )
-    var value: Int = offset
-    for( ii <-(0 until rank ); if (shape(ii) >= 0) ) {
-      value += coordIndices(ii) * stride(ii)
+    var value: Int = _offset
+    for( ii <-(0 until rank ); if (shape(ii) >= 0)  ) _coordMaps.get(ii) match {
+      case Some(cmap) =>
+        value += cmap.mapArray( coordIndices(ii) ) * stride(ii)
+      case None =>
+        value += coordIndices(ii) * stride(ii)
     }
     value
   }
 
   def computeStrides( shape: Array[Int] ): Array[Int] = {
     var product: Int = 1
-    var strides = for (ii <- (shape.length - 1 to 0 by -1); thisDim = shape(ii) ) yield
-      if (thisDim >= 0) {
+    var strides = for (ii <- (shape.length - 1 to 0 by -1); thisDim = shape(ii) ) yield {
+      val cmap = _coordMaps.get(ii)
+      if ( (thisDim > 1) || cmap.isDefined ) {
         val curr_stride = product
-        product *= thisDim
+        product *= cmap.map(_.nBins).getOrElse(thisDim)
         curr_stride
-      } else { 0 }
+      } else {
+        0
+      }
+    }
     return strides.reverse.toArray
   }
 
-  def flip(index: Int): CDIndexMap = {
-    assert ( (index >= 0) && (index < rank), "Illegal rank index: " +  index )
-    val new_index = if (shape(index) >= 0) {
-      val _offset = offset + stride(index) * (shape(index) - 1)
-      val _stride = stride.clone
-      _stride(index) = -stride(index)
-      new CDIndexMap( shape, _stride, _offset )
-    } else new CDIndexMap( this )
-    return new_index
+  def getAccumulator( reduceDims: Array[Int], optCoordMap: Option[CDCoordMap]  ): CDIndexMap = getAccumulator( reduceDims, optCoordMap.toList )
+  def getAccumulator( reduceDims: Array[Int], coordMaps: List[CDCoordMap]  ): CDIndexMap = getAccumulator( reduceDims, Map( coordMaps.map(coordMap => coordMap.dimension -> coordMap ):_*) )
+
+  def getAccumulator( reduceDims: Array[Int], coordMaps: Map[Int,CDCoordMap] = Map.empty  ): CDIndexMap = {
+    val cMaps = coordMaps ++ _coordMaps
+    val full_shape = getShape
+    val new_shape: IndexedSeq[Int] = for( ii <-(0 until rank )  ) yield cMaps.get(ii) match {
+      case Some(cmap) => cmap.nBins
+      case None => if( reduceDims.contains(ii) ) 1 else full_shape(ii)
+    }
+    val rv = CDIndexMap( new_shape.toArray, cMaps ).broadcast( full_shape )
+    rv
   }
+
+//  def flip(index: Int): CDIndexMap = {
+//    assert ( (index >= 0) && (index < rank), "Illegal rank index: " +  index )
+//    val new_index = if (shape(index) >= 0) {
+//      val new_offset = _offset + stride(index) * (shape(index) - 1)
+//      val new_stride = stride.clone
+//      new_stride(index) = -stride(index)
+//      new CDIndexMap( shape, new_stride, new_offset )
+//    } else new CDIndexMap( this )
+//    return new_index
+//  }
+  def isActive( r: ma2.Range ) = (r != null) && (r != ma2.Range.VLEN)
 
   def section( ranges: List[ma2.Range] ): CDIndexMap = {
     assert(ranges.size == rank, "Bad ranges [] length")
-    for( ii <-(0 until rank); r = ranges(ii); if ((r != null) && (r != ma2.Range.VLEN)) ) {
+    for( ii <-(0 until rank); r = ranges(ii); if( isActive(r) && (r != ma2.Range.EMPTY) )) {
       assert ((r.first >= 0) && (r.first < shape(ii)), "Bad range starting value at index " + ii + " => " + r.first + ", shape = " + shape(ii) )
       assert ((r.last >= 0) && (r.last < shape(ii)), "Bad range ending value at index " + ii + " => " + r.last + ", shape = " + shape(ii) )
     }
-    var _offset: Int = offset
+    var __offset: Int = _offset
     val _shape: Array[Int] = Array.fill[Int](rank)(0)
     val _stride: Array[Int] = Array.fill[Int](rank)(0)
     for( ii <-(0 until rank); r = ranges(ii) ) {
-      if (r == null) {
+      if( !isActive(r) ) {
         _shape(ii) = shape(ii)
         _stride(ii) = stride(ii)
       }
-      else {
+      else if ( r == ma2.Range.EMPTY ) {
+        _shape(ii) = 0
+        _stride(ii) = 0
+      } else {
         _shape(ii) = r.length
         _stride(ii) = stride(ii) * r.stride
-        _offset += stride(ii) * r.first
+        __offset += stride(ii) * r.first
       }
     }
-    CDIndexMap.factory( _shape, _stride, _offset )
+    CDIndexMap( _shape, _stride, __offset )
   }
 
   def reduce: CDIndexMap = {
@@ -174,84 +217,76 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
         _shape.append( shape(ii) )
         _stride.append( stride(ii) )
     }
-    CDIndexMap.factory( _shape.toArray, _stride.toArray, offset )
+    CDIndexMap( _shape.toArray, _stride.toArray, _offset )
   }
 
-  def transpose(index1: Int, index2: Int): CDIndexMap = {
-    assert((index1 >= 0) && (index1 < rank), "illegal index in transpose " + index1 )
-    assert((index2 >= 0) && (index2 < rank), "illegal index in transpose " + index1 )
-    val _shape = shape.clone()
-    val _stride = stride.clone()
-    _stride(index1) = stride(index2)
-    _stride(index2) = stride(index1)
-    _shape(index1) = shape(index2)
-    _shape(index2) = shape(index1)
-    CDIndexMap.factory( _shape, _stride, offset )
-  }
-
-  def permute(dims: Array[Int]): CDIndexMap = {
-    assert( (dims.length == shape.length), "illegal shape in permute " + dims )
-    for (dim <- dims) if ((dim < 0) || (dim >= rank)) throw new Exception( "illegal shape in permute " + dims )
-    val _shape = ListBuffer[Int]()
-    val _stride = ListBuffer[Int]()
-    for( i <-(0 until dims.length) ) {
-      _stride.append( stride(dims(i) ) )
-      _shape.append( shape(dims(i)) )
-    }
-    CDIndexMap.factory( _shape.toArray, _stride.toArray, offset )
-  }
-
-  def broadcast(  dim: Int, size: Int ): CDIndexMap = {
-    assert( shape(dim) == 1, "Can't broadcast a dimension with size > 1" )
-    val _shape = shape.clone()
-    val _stride = stride.clone()
-    _shape(dim) = size
-    _stride(dim) = 0
-    CDIndexMap.factory( _shape, _stride, offset )
-  }
+//  def transpose(index1: Int, index2: Int): CDIndexMap = {
+//    assert((index1 >= 0) && (index1 < rank), "illegal index in transpose " + index1 )
+//    assert((index2 >= 0) && (index2 < rank), "illegal index in transpose " + index1 )
+//    val _shape = shape.clone()
+//    val _stride = stride.clone()
+//    _stride(index1) = stride(index2)
+//    _stride(index2) = stride(index1)
+//    _shape(index1) = shape(index2)
+//    _shape(index2) = shape(index1)
+//    CDIndexMap( _shape, _stride, _offset )
+//  }
+//
+//  def permute(dims: Array[Int]): CDIndexMap = {
+//    assert( (dims.length == shape.length), "illegal shape in permute " + dims )
+//    for (dim <- dims) if ((dim < 0) || (dim >= rank)) throw new Exception( "illegal shape in permute " + dims )
+//    val _shape = ListBuffer[Int]()
+//    val _stride = ListBuffer[Int]()
+//    for( i <-(0 until dims.length) ) {
+//      _stride.append( stride(dims(i) ) )
+//      _shape.append( shape(dims(i)) )
+//    }
+//    CDIndexMap( _shape.toArray, _stride.toArray, _offset )
+//  }
 
   def broadcast( bcast_shape: Array[Int] ): CDIndexMap = {
     assert ( bcast_shape.length == rank, "Can't broadcast shape (%s) to (%s)".format( shape.mkString(","), bcast_shape.mkString(",") ) )
     val _shape = shape.clone()
     val _stride = stride.clone()
     for( idim <- (0 until rank ); bsize = bcast_shape(idim); size0 = shape(idim); if( bsize != size0 )  ) {
-      assert((size0 == 1) || (bsize == size0), "Can't broadcast shape (%s) to (%s)".format(shape.mkString(","), bcast_shape.mkString(",")))
+      assert((size0 == 1) || (bsize == size0) || _coordMaps.get(idim).isDefined, "Can't broadcast shape (%s) to (%s)".format(shape.mkString(","), bcast_shape.mkString(",")))
       _shape(idim) = bsize
-      _stride(idim) = 0
+      if( size0 == 1 ) { _stride(idim) = 0 }
     }
-    CDIndexMap.factory( _shape, _stride, offset )
+    CDIndexMap( _shape, _stride, _offset, _coordMaps )
   }
 }
 
-trait CDCoordMapBase {
-  def dimIndex: Int
-  val nBins: Int
-  def map( coordIndices: Array[Int] ): Array[Int]
-  def mapShape( shape: Array[Int] ): Array[Int] = { val new_shape=shape.clone; new_shape(dimIndex)=nBins; new_shape }
-}
-
-class CDCoordMap( val dimIndex: Int, val dimOffset: Int, val mapArray: Array[Int] ) extends CDCoordMapBase {
-  def this( dimIndex: Int, section: ma2.Section, mapArray: Array[Int] ) =  this( dimIndex, section.getRange(dimIndex).first(), mapArray )
-  val nBins: Int = mapArray.max + 1
+class CDCoordMap( val dimension: Int, val start: Int, val mapArray: Array[Int]  ) extends Serializable with Loggable {
+  def this( dimension: Int, section: ma2.Section, mapArray: Array[Int] ) =  this( dimension, section.getRange(dimension).first(), mapArray )
+  val nBins = mapArray.max + 1
+  val length = mapArray.length
 
   def map( coordIndices: Array[Int] ): Array[Int] = {
     val result = coordIndices.clone()
-    result( dimIndex ) = mapArray( coordIndices(dimIndex) )
-    result
+    try {
+      result(dimension) = mapArray(coordIndices(dimension))
+      result
+    } catch {
+      case ex: java.lang.ArrayIndexOutOfBoundsException =>
+        logger.error( " ArrayIndexOutOfBoundsException: mapArray[%d] = (%s), dimension=%d, coordIndices = (%s)".format( mapArray.size, mapArray.mkString(","), dimension, coordIndices.mkString(",") ) )
+        throw ex
+    }
   }
-  override def toString = "CDCoordMap{ nbins=%d, dim=%d, offset=%d, mapArray=[ %s ]}".format( nBins, dimIndex, dimOffset, mapArray.mkString(", ") )
+  override def toString = "CDCoordMap{ nbins=%d, dim=%d, _offset=%d, mapArray[%d]=[ %s ]}".format( nBins, dimension, start, mapArray.size, mapArray.mkString(", ") )
 
   def subset( section: ma2.Section ): CDCoordMap = {
-    assert( dimOffset==0, "Attempt to subset a partitioned CoordMap: not supported.")
-    val start: Int = section.getRange(dimIndex).first()
-    new CDCoordMap( dimIndex, start, mapArray.slice( start, mapArray.length ) )
+    assert( start==0, "Attempt to subset a partitioned CoordMap: not supported.")
+    val new_start: Int = section.getRange(dimension).first()
+    logger.info( "CDCoordMap[%d].subset(%s): start=%d, until=%d, size=%d".format( dimension, section.toString, new_start, mapArray.length, mapArray.length-new_start) )
+    new CDCoordMap( dimension, new_start, mapArray.slice( new_start, mapArray.length ) )
   }
 
   def ++( cmap: CDCoordMap ): CDCoordMap = {
-    assert(dimIndex == cmap.dimIndex, "Attempt to combine incommensurate index maps, dimIndex mismatch: %d vs %d".format( dimIndex, cmap.dimIndex ) )
-    if (dimIndex == 0) {
-      assert(cmap.dimOffset == dimOffset + mapArray.length, "Attempt to combine incommensurate index maps, dimOffset mismatch: %d vs %d".format( cmap.dimOffset, dimOffset + mapArray.length )  )
-      new CDCoordMap(dimIndex, dimOffset, mapArray ++ cmap.mapArray)
+    assert(dimension == cmap.dimension, "Attempt to combine incommensurate index maps, dimension mismatch: %d vs %d".format( dimension, cmap.dimension ) )
+    if (dimension == 0) {
+      assert(cmap.start == start + mapArray.length, "Attempt to combine incommensurate index maps, dimOffset mismatch: %d vs %d".format( cmap.start, start + mapArray.length )  )
+      new CDCoordMap(dimension, start, mapArray ++ cmap.mapArray)
     } else {
       assert( mapArray == cmap.mapArray, "Attempt to combine incommensurate index maps" )
       clone.asInstanceOf[CDCoordMap]
@@ -268,21 +303,16 @@ class IndexValueAccumulator( start_value: Int = 0 ) {
   }
 }
 
-class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
-  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
-  val axisSpec: GridCoordSpec = getAxisSpec
+class CDTimeCoordMap( val gridContext: GridContext, section: ma2.Section ) extends Loggable {
   val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, cdsutils.baseTimeUnits )
   val timeOffsets: Array[Double] = getTimeAxisData()
+  val time_axis_index = gridContext.getAxisIndex("t")
 
-  def getAxisSpec: GridCoordSpec = gridSpec.grid.getAxisSpec("t") match {
-    case Some(axisSpec) => axisSpec
-    case None => throw new Exception("Can't timeBin a variable with no apparent time axis: %s ".format(gridSpec.ncVariable.getNameAndDimensions))
-  }
   def getDates(): Array[String] = { timeOffsets.map( timeHelper.makeCalendarDateFromOffset(_).toString ) }
 
-  def getTimeAxisData(): Array[Double] = axisSpec.coordAxis.getAxisType match {
-    case AxisType.Time => CDDoubleArray.toDoubleArray( axisSpec.coordAxis.read() )
-    case x => throw new Exception("Binning not yet implemented for this axis type: %s".format(x.getClass.getName))
+  def getTimeAxisData(): Array[Double] = gridContext.getAxisData('t') match {
+    case Some(( index, array )) => array.data.map(_.toDouble)
+    case None => logger.error( "Cant get Time Axis Data" ); Array.emptyDoubleArray
   }
 
   def getTimeIndexIterator( unit: String, range: ma2.Range ) = unit match {
@@ -297,7 +327,7 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
     val timeIter = new MonthOfYearIter( timeOffsets, section.getRange(0) );
     val accum = new IndexValueAccumulator()
     val timeIndices = for( time_index <- timeIter ) yield {time_index}
-    new CDCoordMap( axisSpec.index, section.getRange(axisSpec.index).first(), timeIndices.toArray )
+    new CDCoordMap( time_axis_index, section.getRange(time_axis_index).first(), timeIndices.toArray )
   }
   def getTimeCycleMap(period: Int, unit: String, mod: Int, offset: Int, section: ma2.Section ): CDCoordMap = {
     val timeIter = getTimeIndexIterator( unit, section.getRange(0) )
@@ -309,7 +339,7 @@ class CDTimeCoordMap( val  gridSpec: TargetGrid, section: ma2.Section ) {
     val timeIndices = for (time_index <- timeIter; bin_index = accum.getValue(time_index)) yield {
       (( bin_index + op_offset ) / period) % mod
     }
-    new CDCoordMap(axisSpec.index, section.getRange(axisSpec.index).first(), timeIndices.toArray.map(_.toInt) )
+    new CDCoordMap(time_axis_index, section.getRange(time_axis_index).first(), timeIndices.toArray )
   }
 }
 
