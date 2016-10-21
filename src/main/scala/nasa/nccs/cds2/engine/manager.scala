@@ -313,7 +313,7 @@ abstract class CDS2ExecutionManager extends WPSServer {
   }
 
   def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[WPSResponse] = Future {
-    logger.info("Executing task request " + request.name )
+    logger.info("ASYNC Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
     val targetGrid: TargetGrid = createTargetGrid(request)
     val requestContext = loadInputData(request, targetGrid, run_args)
     executeWorkflows(request, requestContext)
