@@ -35,6 +35,7 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  CDSparkContext Creation FINISHED  **** ")
     logger.info( "--------------------------------------------------------")
+    logger.info( " Loggers: " + LogManager.getCurrentLoggers.map( _.asInstanceOf[Logger].getName ).mkString(",") )
     rv
   }
 
