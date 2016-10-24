@@ -206,7 +206,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
         val start = cvals.head
         val incr = cvals(1) - cvals(0)
         val index = math.round( ( cval - start ) / incr ).toInt
-        if( index >= cvals.size ) -1 else index
+        if( (index >= cvals.size) || (index < 0) ) -1 else index
       }
     } else {
       coordAxis1D.findCoordElement( cval )
