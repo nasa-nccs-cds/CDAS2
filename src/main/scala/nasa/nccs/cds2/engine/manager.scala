@@ -321,7 +321,7 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
   def getRequestContext( request: TaskRequest, run_args: Map[String,String] ): RequestContext = loadInputData( request, createTargetGrid( request ), run_args )
 
   def blockingExecute( request: TaskRequest, run_args: Map[String,String] ): WPSResponse =  {
-    logger.info("Blocking Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
+    logger.info("Blocking Execute { runargs: " + run_args.toString + ", request: " + request.toString + " }")
     runtime.printMemoryUsage(logger)
     val t0 = System.nanoTime
     try {
@@ -382,7 +382,7 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
         }
         futureResult onFailure { case e: Throwable => fatal(e); collectionDataCache.removeJob(jobId); throw e }
     }
-    new AsyncExecutionResult( request.getProcess, Some(jobId) )
+    new AsyncExecutionResult( request.id.toString, request.getProcess, Some(jobId) )
   }
 
   def processAsyncResult( jobId: String, results: WPSMergedEventReport ) = {
@@ -429,7 +429,7 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
       case "util" =>  new WPSMergedEventReport( request.workflow.map( utilityExecution( _, requestCx )))
       case x =>
         logger.info( "---------->>> Execute Workflows: " + request.workflow.mkString(",") )
-        new MergedWPSExecuteResponse( request.workflow.map( operationExecution( _, requestCx )))
+        new MergedWPSExecuteResponse( request.id.toString, request.workflow.map( operationExecution( _, requestCx )))
     }
     FragmentPersistence.close()
 //    logger.info( "---------->>> Execute Workflows: Created XML response: " + results.toXml.toString )

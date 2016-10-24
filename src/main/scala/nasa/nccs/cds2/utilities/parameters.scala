@@ -10,7 +10,8 @@ object appParameters extends Loggable {
   val parmFile = Paths.get( cacheDir, "cdas.properties" ).toString
   private var _map: Map[String,String]  = getParameterMap
 
-  def apply( key: String, default: String ): String = _map.getOrElse( key, default )
+  def apply( key: String, default: String ): String =
+    _map.getOrElse( key, default )
 
   def apply( key: String ): String = _map.get( key ) match {
     case Some( value ) => value

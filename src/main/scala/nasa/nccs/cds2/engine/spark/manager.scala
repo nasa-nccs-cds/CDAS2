@@ -74,7 +74,7 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
 
   def createResponse( kernel: Kernel, result: RDDPartition, context: CDASExecutionContext ): WPSExecuteResponse = {
     val resultId = cacheResult( result, context )
-    new RDDExecutionResult( kernel, context.operation.identifier, result, resultId )
+    new RDDExecutionResult( "", kernel, context.operation.identifier, result, resultId ) // TODO: serviceInstance
   }
 
   def cacheResult( result: RDDPartition, context: CDASExecutionContext ): Option[String] = {
