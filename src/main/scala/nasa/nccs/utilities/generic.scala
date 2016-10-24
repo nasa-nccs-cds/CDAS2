@@ -8,19 +8,26 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import org.apache.log4j.{ Logger, LogManager, Level }
 
-trait Loggable {
+object CDASLogManager extends Serializable {
   val logger = getLogger
+
+  def getLogger: Logger = {
+    val _logger: Logger = LogManager.getLogger(this.getClass)
+    _logger.setLevel(Level.INFO)
+    _logger
+  }
+}
+
+trait Loggable extends Serializable {
+
+  def logger = CDASLogManager.logger
 
   def logError( err: Throwable, msg: String ) = {
     logger.error(msg)
     logger.error(err.getMessage)
     logger.error( err.getStackTrace.mkString("\n") )
   }
-  def getLogger: Logger = {
-    val _logger: Logger = LogManager.getLogger(this.getClass)
-    _logger.setLevel(Level.INFO)
-    _logger
-  }
+
 }
 
 object cdsutils {
