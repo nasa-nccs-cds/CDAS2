@@ -25,9 +25,11 @@ abstract class WPSExecuteResponse( val serviceInstance: String, val processes: L
       <wps:ProcessOutputs> { getOutputs } </wps:ProcessOutputs>
     </wps:ExecuteResponse>
 
-  def getOutputs: List[xml.Elem] = processes.flatMap( p => p.outputs.map( output => <wps:Output> {output.getHeader} { getProcessOutputs( p.identifier, output.identifier) } </wps:Output> ) )
+  def getOutputs: List[xml.Elem] = processes.flatMap( p => p.outputs.map( output => <wps:Output> { output.getHeader } { getReference(output.identifier) } { getProcessOutputs( p.identifier, output.identifier) } </wps:Output> ) )
   def getProcessOutputs( process_id: String, output_id: String ): Iterable[xml.Elem]
   def getData( id: String, array: CDFloatArray, units: String ): xml.Elem = <wps:Data id={id}> <wps:LiteralData uom={units} shape={array.getShape.mkString(",")}>{ array.mkDataString(",") }</wps:LiteralData> </wps:Data>
+  def getReference( pid: String ): xml.Elem = <wps:Reference encoding="UTF-8" mimeType="text/xml" href={getHref(pid)}/>
+  def getHref(  pid: String ) = statusLocation + """?id="%s"""".format( pid )
 }
 
 abstract class WPSReferenceExecuteResponse( serviceInstance: String, val process: WPSProcess, val optResultId: Option[String] )  extends WPSExecuteResponse( serviceInstance, process )  {
