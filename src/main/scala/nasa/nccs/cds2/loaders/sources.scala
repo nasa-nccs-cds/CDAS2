@@ -166,6 +166,7 @@ object Collections extends XmlResource {
   def addCollection( id: String, dataPath: String, fileFilter: String, title: String, vars: List[String] ): Collection = {
     val cvars = if(vars.isEmpty) getVariableList( dataPath ) else vars
     val collection = Collection( id, dataPath, fileFilter, "local", title, cvars )
+    collection.createNCML
     datasets.put( id, collection  )
     persistLocalCollections()
     collection
@@ -173,6 +174,7 @@ object Collections extends XmlResource {
 
   def addCollection(  id: String, dataPath: String, title: String, vars: List[String] ): Collection = {
     val collection = Collection( id, dataPath, "", "local", title, vars )
+    collection.createNCML
     datasets.put( id, collection  )
     persistLocalCollections()
     collection

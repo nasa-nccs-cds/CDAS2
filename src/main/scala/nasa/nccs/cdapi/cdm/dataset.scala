@@ -79,7 +79,7 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
     if( !ncmlFile.exists || recreate ) {
       assert( !dataPath.isEmpty, "Attempt to create NCML from empty data path: " + dataPath )
       val pathFile = new File(toFilePath(dataPath))
-      if( pathFile.isDirectory ) { ncmlFile.getParentFile.mkdirs }
+      ncmlFile.getParentFile.mkdirs
       val ncmlWriter = NCMLWriter(pathFile)
       ncmlWriter.writeNCML(ncmlFile)
       true
