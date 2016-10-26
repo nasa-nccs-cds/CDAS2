@@ -474,17 +474,11 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     delete(findEnclosingFragSpecs(fragmentIdCache.keys, fragSpec.getKey))
 
   def delete(fragKeys: Iterable[String]) = {
-    for (fragKey <- fragKeys) fragmentIdCache.get(fragKey) match {
-      case Some(cache_id_future) =>
-        val path = DiskCacheFileMgr.getDiskCacheFilePath(
-          getCacheType,
-          Await.result(cache_id_future, Duration.Inf))
-        fragmentIdCache.remove(fragKey)
-        if (new java.io.File(path).delete())
-          logger.info(
-            s"Deleting persisted fragment file '$path', frag: " + fragKey)
-        else logger.warn(s"Failed to delete persisted fragment file '$path'")
-      case None => logger.warn("No Cache ID found for Fragment: " + fragKey)
+    for ( fragKey <- fragKeys; cacheFragKey <- fragmentIdCache.keys; if cacheFragKey.startsWith(fragKey); cache_id_future = fragmentIdCache.get(cacheFragKey).get ) {
+      val path = DiskCacheFileMgr.getDiskCacheFilePath( getCacheType, Await.result(cache_id_future, Duration.Inf) )
+      fragmentIdCache.remove(cacheFragKey)
+      if ( new java.io.File( path ).delete ) logger.info( s"Deleting persisted fragment file '$path', frag: " + cacheFragKey )
+      else logger.warn(s"Failed to delete persisted fragment file '$path'")
     }
     fragmentIdCache.persist()
   }
