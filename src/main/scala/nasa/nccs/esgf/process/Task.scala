@@ -581,7 +581,7 @@ object DataContainer extends ContainerBase {
         if( path.isEmpty && !collection.isEmpty ) {
           (Collections.addCollection( colId, path, title, varsList), fragIdOpt)
         } else {
-          if (path.isEmpty) logger.warn(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", "))
+          if (path.isEmpty) throw new Exception(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", "))
           (Collections.addCollection(colId, path, fileFilter, title, varsList), fragIdOpt)
         }
     }
