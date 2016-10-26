@@ -2,15 +2,11 @@ package nasa.nccs.caching
 
 import java.io._
 import java.nio.channels.FileChannel
-import java.nio.file.Paths
+import java.nio.file.{FileSystems, PathMatcher, Paths}
 import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
 import java.util.Comparator
 
-import com.googlecode.concurrentlinkedhashmap.{
-  ConcurrentLinkedHashMap,
-  EntryWeigher,
-  EvictionListener
-}
+import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EntryWeigher, EvictionListener}
 import nasa.nccs.cds2.utilities.{GeoTools, appParameters, runtime}
 import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
 import nasa.nccs.cdapi.data.RDDPartition
@@ -32,6 +28,8 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
 import scala.util.{Failure, Success, Try}
 import nasa.nccs.cds2.loaders.Collections
+
+import java.nio.file.{ Path, PathMatcher }
 
 object MaskKey {
   def apply(bounds: Array[Double],
@@ -470,21 +468,26 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
   def clearCache(): Set[String] = fragmentIdCache.clear()
 
-  def deleteEnclosing(fragSpec: DataFragmentSpec) =
-    delete(findEnclosingFragSpecs(fragmentIdCache.keys, fragSpec.getKey))
+//  def deleteEnclosing(fragSpec: DataFragmentSpec) =
+ //   delete(findEnclosingFragSpecs(fragmentIdCache.keys, fragSpec.getKey))
 
   def delete(fragKeys: Iterable[String]) = {
     for ( fragKey <- fragKeys; cacheFragKey <- fragmentIdCache.keys; if cacheFragKey.startsWith(fragKey); cache_id_future = fragmentIdCache.get(cacheFragKey).get ) {
       val path = DiskCacheFileMgr.getDiskCacheFilePath( getCacheType, Await.result(cache_id_future, Duration.Inf) )
       fragmentIdCache.remove(cacheFragKey)
-      if ( new java.io.File( path ).delete ) logger.info( s"Deleting persisted fragment file '$path', frag: " + cacheFragKey )
-      else logger.warn(s"Failed to delete persisted fragment file '$path'")
+      val matcher: java.nio.file.PathMatcher  = FileSystems.getDefault().getPathMatcher("glob:" + path + "*" )
+      val fileFilter: java.io.FileFilter = new FileFilter() {  override def accept( pathname: File ): Boolean = { matcher.matches( pathname.toPath ) }
+      val parent = new File( path ).getParentFile
+      for( file <- parent.listFiles(fileFilter) ) {
+        if (file.delete) logger.info(s"Deleting persisted fragment file " + file.getAbsolutePath + ", frag: " + cacheFragKey)
+        else logger.warn(s"Failed to delete persisted fragment file " + file.getAbsolutePath )
+      }
     }
     fragmentIdCache.persist()
   }
 
-  def findEnclosingFragmentData(fragSpec: DataFragmentSpec): Option[String] =
-    findEnclosingFragSpecs(fragmentIdCache.keys, fragSpec.getKey).headOption
+//  def findEnclosingFragmentData(fragSpec: DataFragmentSpec): Option[String] =
+//    findEnclosingFragSpecs(fragmentIdCache.keys, fragSpec.getKey).headOption
 
 }
 
