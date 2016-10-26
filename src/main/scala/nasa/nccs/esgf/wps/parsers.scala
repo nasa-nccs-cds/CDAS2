@@ -1,5 +1,5 @@
 package nasa.nccs.esgf.wps
-import org.slf4j.LoggerFactory
+import nasa.nccs.utilities.Loggable
 
 import scala.util.parsing.combinator._
 
@@ -34,8 +34,7 @@ object CDSecurity {
   }
 }
 
-object wpsObjectParser extends ObjectNotationParser {
-  val logger = LoggerFactory.getLogger(this.getClass)
+object wpsObjectParser extends ObjectNotationParser with Loggable {
 
   def cdata(obj: Any): String = "<![CDATA[\n " + obj.toString + "\n]]>"
 

@@ -1,4 +1,5 @@
 import nasa.nccs.cdapi.tensors.CDFloatArray
+import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import org.scalatest._
 import ucar.nc2.dataset.NetcdfDataset
@@ -9,8 +10,9 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
   val webProcessManager = new ProcessManager( serverConfiguration )
   val eps = 0.0002
   val service = "cds2"
-  val merra_data = getClass.getResource("/data/merra_test_data.ta.nc").toString.split(":").last
-  val const_data = getClass.getResource("/data/constant_test_data.ta.nc").toString.split(":").last
+  val demo_data_location = appParameters("demo.data.location","")
+  val merra_data = demo_data_location + "/merra_test_data.ta.nc" // getClass.getResource("/data/merra_test_data.ta.nc").toString.split(":").last
+  val const_data = demo_data_location + "/constant_test_data.ta.nc" // getClass.getResource("/data/constant_test_data.ta.nc").toString.split(":").last
   val run_args = Map("async" -> "false")
   val printer = new scala.xml.PrettyPrinter(200, 3)
 

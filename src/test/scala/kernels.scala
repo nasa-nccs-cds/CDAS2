@@ -9,7 +9,6 @@ import ucar.ma2
 import org.apache.log4j.{ Logger, LogManager, Level }
 
 class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
-//  LogManager.getCurrentLoggers.toList.foreach( _.asInstanceOf[Logger].setLevel(Level.INFO) )
   Collections.addCollection( "merra.test", merra_data, "MERRA data", List("ta") )
   Collections.addCollection( "const.test", const_data, "Constant data", List("ta") )
 
@@ -73,6 +72,16 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
     val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
+  }
+
+  test("OutOfBounds") {
+    val lat_index = 50
+    val lon_index = 100
+    val lev_value = 75000
+    val nco_verified_result = 239.4816
+    val datainputs = s"""[domain=[{"name":"d1","lat":{"start":$lat_index,"end":$lat_index,"system":"indices"},"lon":{"start":$lon_index,"end":$lon_index,"system":"indices"}},{"name":"d0","lev":{"start":$lev_value,"end":$lev_value,"system":"values"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.min","input":"v1","domain":"d1","axes":"t"}]]"""
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
   }
 
   def getTimeseriesData( collection: String, varName: String, lon_index: Int, lat_index: Int, lev_index: Int): CDFloatArray = {

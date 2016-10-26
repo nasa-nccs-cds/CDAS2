@@ -1,16 +1,11 @@
 package nasa.nccs.esgf.wps
-
 import nasa.nccs.esgf.wps.servers.APIManager
-import scala.collection.mutable
-import scala.collection.immutable
-import scala.xml._
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
+import nasa.nccs.utilities.Loggable
+
 
 class NotAcceptableException(message: String = null, cause: Throwable = null) extends RuntimeException(message, cause)
 
-class ProcessManager( serverConfiguration: Map[String,String] ) {
-  val logger = LoggerFactory.getLogger(this.getClass)
+class ProcessManager( serverConfiguration: Map[String,String] ) extends Loggable {
   def apiManager = new APIManager( serverConfiguration )
 
   def unacceptable(msg: String): Unit = {
@@ -37,8 +32,15 @@ class ProcessManager( serverConfiguration: Map[String,String] ) {
   }
 
   def getResultFilePath( service: String, resultId: String ): Option[String] = {
+    logger.info( "CDAS ProcessManager-> getResultFile: " + resultId)
     val serviceProvider = apiManager.getServiceProvider(service)
     serviceProvider.getResultFilePath(resultId)
+  }
+
+  def getResult( service: String, resultId: String ): xml.Node = {
+    logger.info( "CDAS ProcessManager-> getResult: " + resultId)
+    val serviceProvider = apiManager.getServiceProvider(service)
+    serviceProvider.getResult(resultId)
   }
 }
 

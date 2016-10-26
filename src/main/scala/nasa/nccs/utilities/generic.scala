@@ -6,16 +6,28 @@ import ucar.nc2.time.CalendarDate
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import org.slf4j.Logger
+import org.apache.log4j.{ Logger, LogManager, Level }
 
-trait Loggable {
-  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
+object CDASLogManager extends Serializable {
+  val logger = getLogger
+
+  def getLogger: Logger = {
+    val _logger: Logger = LogManager.getLogger(this.getClass)
+    _logger.setLevel(Level.INFO)
+    _logger
+  }
+}
+
+trait Loggable extends Serializable {
+
+  def logger = CDASLogManager.logger
 
   def logError( err: Throwable, msg: String ) = {
     logger.error(msg)
     logger.error(err.getMessage)
     logger.error( err.getStackTrace.mkString("\n") )
   }
+
 }
 
 object cdsutils {

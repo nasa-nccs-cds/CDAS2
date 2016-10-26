@@ -7,17 +7,17 @@ import nasa.nccs.esgf.process.{DataFragmentSpec, TargetGrid}
 import nasa.nccs.utilities.Loggable
 
 object WPSExecuteResponse {
-  def merge( responses: List[WPSExecuteResponse] ): WPSExecuteResponse = new MergedWPSExecuteResponse( responses )
+  def merge(  serviceInstance: String, responses: List[WPSExecuteResponse] ): WPSExecuteResponse = new MergedWPSExecuteResponse( serviceInstance, responses )
 }
 
 trait WPSResponse {
   def toXml: xml.Elem
 }
 
-abstract class WPSExecuteResponse( val processes: List[WPSProcess] ) extends WPSResponse {
-  val serviceInstance = appParameters("wps.server.result.href","")
+abstract class WPSExecuteResponse( val serviceInstance: String, val processes: List[WPSProcess] ) extends WPSResponse {
   val statusLocation =  appParameters("wps.server.status.href","")
-  def this( process: WPSProcess ) = this( List(process) )
+  def this( serviceInstance: String, process: WPSProcess ) = this( serviceInstance, List(process) )
+  def getReference: xml.Elem
 
   def toXml: xml.Elem =
     <wps:ExecuteResponse xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsExecute_response.xsd" service="WPS" version="1.0.0" xml:lang="en-CA" serviceInstance={serviceInstance} statusLocation={statusLocation}>
@@ -26,19 +26,19 @@ abstract class WPSExecuteResponse( val processes: List[WPSProcess] ) extends WPS
       <wps:ProcessOutputs> { getOutputs } </wps:ProcessOutputs>
     </wps:ExecuteResponse>
 
-  def getOutputs: List[xml.Elem] = processes.flatMap( p => p.outputs.map( output => <wps:Output> {output.getHeader} { getProcessOutputs( p.identifier, output.identifier) } </wps:Output> ) )
+  def getOutputs: List[xml.Elem] = processes.flatMap( p => p.outputs.map( output => <wps:Output> { output.getHeader } { getReference } { getProcessOutputs( p.identifier, output.identifier) } </wps:Output> ) )
   def getProcessOutputs( process_id: String, output_id: String ): Iterable[xml.Elem]
   def getData( id: String, array: CDFloatArray, units: String ): xml.Elem = <wps:Data id={id}> <wps:LiteralData uom={units} shape={array.getShape.mkString(",")}>{ array.mkDataString(",") }</wps:LiteralData> </wps:Data>
 }
 
-abstract class WPSReferenceExecuteResponse( val process: WPSProcess, val optResultId: Option[String] )  extends WPSExecuteResponse(process)  {
-
-  val result_href = serviceInstance + "/" +  optResultId.getOrElse("")
-  def getReference( process_id: String, output_id: String ): xml.Elem = <wps:Reference href={result_href} mimeType="text/xml"/>
+abstract class WPSReferenceExecuteResponse( serviceInstance: String, val process: WPSProcess, val optResultId: Option[String] )  extends WPSExecuteResponse( serviceInstance, process )  {
+  val href: String = optResultId match { case Some( rid ) => statusLocation + s"/results?id=$rid"; case None => "" }
+  def getReference: xml.Elem = <wps:Reference encoding="UTF-8" mimeType="text/xml" href={href}/>
 }
 
-class MergedWPSExecuteResponse( responses: List[WPSExecuteResponse] ) extends WPSExecuteResponse( responses.flatMap(_.processes) ) {
+class MergedWPSExecuteResponse( serviceInstance: String, responses: List[WPSExecuteResponse] ) extends WPSExecuteResponse( serviceInstance, responses.flatMap(_.processes) ) {
   val process_ids: List[String] = responses.flatMap( response => response.processes.map( process => process.identifier ) )
+  def getReference: xml.Elem = responses.head.getReference
   assert( process_ids.distinct.size == process_ids.size, "Error, non unique process IDs in process list: " + processes.mkString(", ") )
   val responseMap: Map[String,WPSExecuteResponse] = Map( responses.flatMap( response => response.processes.map( process => ( process.identifier -> response ) ) ): _* )
   def getProcessOutputs( process_id: String, response_id: String ): Iterable[xml.Elem] = responseMap.get( process_id ) match {
@@ -47,7 +47,7 @@ class MergedWPSExecuteResponse( responses: List[WPSExecuteResponse] ) extends WP
   }
 }
 
-class RDDExecutionResult( process: WPSProcess, id: String, val result: RDDPartition,  optResultId: Option[String] = None ) extends WPSReferenceExecuteResponse( process, optResultId )  with Loggable {
+class RDDExecutionResult( serviceInstance: String, process: WPSProcess, id: String, val result: RDDPartition,  optResultId: Option[String] = None ) extends WPSReferenceExecuteResponse( serviceInstance, process, optResultId )  with Loggable {
   def getProcessOutputs( process_id: String, output_id: String  ): Iterable[xml.Elem] = {
     result.elements map { case (id, array) => getData( id, array.toCDFloatArray, array.metadata.getOrElse("units","") ) }
   }
@@ -80,16 +80,16 @@ class WPSExceptionReport( val err: Throwable ) extends WPSEventReport with Logga
   }
 }
 
-class AsyncExecutionResult( process: WPSProcess, optResultId: Option[String] ) extends WPSReferenceExecuteResponse( process, optResultId )  {
-  def getProcessOutputs( process_id: String, output_id: String ): Iterable[xml.Elem] = List( getReference( process_id, output_id ) )
+class AsyncExecutionResult( serviceInstance: String, process: WPSProcess, optResultId: Option[String] ) extends WPSReferenceExecuteResponse( serviceInstance, process, optResultId )  {
+  def getProcessOutputs( process_id: String, output_id: String ): Iterable[xml.Elem] = List()
 }
 
 class WPSMergedEventReport( val reports: List[WPSEventReport] ) extends WPSEventReport {
   def getReport: Iterable[xml.Elem] = reports.flatMap( _.getReport )
 }
 
-class BlockingExecutionResult( process: WPSProcess, id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray,
-                               optResultId: Option[String] = None ) extends WPSReferenceExecuteResponse( process, optResultId )  with Loggable {
+class BlockingExecutionResult( serviceInstance: String, process: WPSProcess, id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray,
+                               optResultId: Option[String] = None ) extends WPSReferenceExecuteResponse( serviceInstance, process, optResultId )  with Loggable {
   //  def toXml_old = {
   //    val idToks = id.split('-')
   //    logger.info( "BlockingExecutionResult-> result_tensor(" + id + "): \n" + result_tensor.toString )
@@ -98,9 +98,6 @@ class BlockingExecutionResult( process: WPSProcess, id: String, val intputSpecs:
   //    val results = result_tensor.mkDataString(",")
   //    <result id={id} op={idToks.head} rid={resultId.getOrElse("")}> { inputs } { grid } <data undefined={result_tensor.getInvalid.toString}> {results}  </data>  </result>
   //  }
-  def getProcessOutputs( process_id: String, output_id: String  ): Iterable[xml.Elem] = {
-    getReference( process_id, output_id )
-    List( getData( output_id, result_tensor, intputSpecs.head.units ) )
-  }
+  def getProcessOutputs( process_id: String, output_id: String  ): Iterable[xml.Elem] = List( getData( output_id, result_tensor, intputSpecs.head.units ) )
 }
 

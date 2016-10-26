@@ -196,10 +196,27 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
     case x => cval
   }
 
+  def findCoordElement( coordAxis1D: CoordinateAxis1D, cval: Double ): Int = {   // work around ucar bug.
+    if(coordAxis1D.isRegular) {
+      val cvals =  coordAxis1D.getCoordValues
+      assert( cvals.size > 0, "Empty coordinate axis: " + coordAxis1D.getFullName )
+      if( cvals.size == 1 ) {
+        if( cval == cvals(0) ) 0 else -1
+      } else {
+        val start = cvals.head
+        val incr = cvals(1) - cvals(0)
+        val index = math.round( ( cval - start ) / incr ).toInt
+        if( (index >= cvals.size) || (index < 0) ) -1 else index
+      }
+    } else {
+      coordAxis1D.findCoordElement( cval )
+    }
+  }
+
   def getGridCoordIndex(cval: Double, role: BoundsRole.Value, strict: Boolean = true): Option[Int] = {
     val coordAxis1D = CDSVariable.toCoordAxis1D( coordAxis )
     val ncval: Double = getNormalizedCoordinate( cval )
-    coordAxis1D.findCoordElement( ncval ) match {
+    findCoordElement( coordAxis1D, ncval ) match {
       case -1 =>
         val end_index = coordAxis1D.getSize.toInt - 1
         val grid_end = coordAxis1D.getCoordValue(end_index)
