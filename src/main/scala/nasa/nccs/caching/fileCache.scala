@@ -305,27 +305,39 @@ class FileToCacheStream(val ncVariable: nc2.Variable,
                 ncVariable.getShape.mkString(","),
                 subsection.getShape.mkString(","),
                 subsection.getShape.foldLeft(1L)(_ * _)))
-    val data = ncVariable.read(subsection)
-    val chunkShape = subsection.getShape
-    val dataBuffer = data.getDataAsByteBuffer
-    val t1 = System.nanoTime()
-    logger.info(
-      "Finished Reading data chunk %d, shape = [%s], buffer capacity = %.2f M in time %.2f "
-        .format(iChunk,
-                chunkShape.mkString(","),
-                dataBuffer.capacity() / 1.0E6,
-                (t1 - t0) / 1.0E9))
-    val t2 = System.nanoTime()
-    IOUtils.write(dataBuffer.array(), outStr)
-    val t3 = System.nanoTime()
-    logger.info(
-      " -----> Writing chunk %d, size = %.2f M, write time = %.3f "
-        .format(iChunk, partition.chunkMemorySize / 1.0E6, (t3 - t2) / 1.0E9))
-    val t4 = System.nanoTime()
-    logger.info(
-      s"Persisted chunk %d, write time = %.2f "
-        .format(iChunk, (t4 - t3) / 1.0E9))
-    runtime.printMemoryUsage(logger)
+    try {
+      val data = ncVariable.read(subsection)
+      val chunkShape = subsection.getShape
+      val dataBuffer = data.getDataAsByteBuffer
+      val t1 = System.nanoTime()
+      logger.info(
+        "Finished Reading data chunk %d, shape = [%s], buffer capacity = %.2f M in time %.2f "
+          .format(iChunk,
+            chunkShape.mkString(","),
+            dataBuffer.capacity() / 1.0E6,
+            (t1 - t0) / 1.0E9))
+      val t2 = System.nanoTime()
+      IOUtils.write(dataBuffer.array(), outStr)
+      val t3 = System.nanoTime()
+      logger.info(
+        " -----> Writing chunk %d, size = %.2f M, write time = %.3f "
+          .format(iChunk, partition.chunkMemorySize / 1.0E6, (t3 - t2) / 1.0E9))
+      val t4 = System.nanoTime()
+      logger.info(
+        s"Persisted chunk %d, write time = %.2f "
+          .format(iChunk, (t4 - t3) / 1.0E9))
+      runtime.printMemoryUsage(logger)
+    } catch {
+      case ex: Exception =>
+        logger.error(
+          "Error Reading data chunk %d, part %d, startTimIndex = %d, shape [%s], subsection [%s], nElems = %d "
+            .format(iChunk,
+              partition.index,
+              partition.startIndex,
+              ncVariable.getShape.mkString(","),
+              subsection.getShape.mkString(","),
+              subsection.getShape.foldLeft(1L)(_ * _)))
+    }
   }
 
   def cachePartition(partition: Partition, stream: BufferedOutputStream) = {
