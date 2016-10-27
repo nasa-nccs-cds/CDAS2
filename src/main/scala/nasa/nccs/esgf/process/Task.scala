@@ -552,7 +552,7 @@ object DataContainer extends ContainerBase {
 
   def vid( varId: String, uid: Boolean ) = {
     val idItems = varId.split( Array(':','|') )
-    if(uid) { if( idItems.length < 2 ) idItems.head else idItems(2) }
+    if(uid) { if( idItems.length < 2 ) idItems.head else idItems(1) }
     else idItems.head
   }
 
