@@ -201,7 +201,9 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
           capacity_log( key, "++" )
           promise.complete( Success(value) )
         case Failure(e) =>
-          logger.info(s"Failed to add element %s to cache $cname:$ctype due to error %s".format(key.toString, e.getMessage) )
+          val err = if( e.getCause == null ) e else e.getCause
+          logger.warn(s"Failed to add element %s to cache $cname:$ctype due to error %s".format( key.toString, err.toString ) )
+          logger.error( "Error Stack Trace:\n" + err.getStackTrace.mkString("\n"))
           store.remove(key, promise.future)
       }
       case existingFuture ⇒ existingFuture

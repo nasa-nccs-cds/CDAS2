@@ -290,25 +290,7 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
       logger.info( "Deleting results: " + resIds.mkString(", ") + "; Current Results = " + collectionDataCache.getResultIdList.mkString(", ") )
       resIds.foreach( resId => collectionDataCache.deleteResult( resId ) )
       new WPSMergedEventReport(List(new UtilityExecutionResult("dres", <deleted results={resIds.mkString(",")}/> )))
-    case x if x.startsWith("gres") =>
-      val resId: String = request.variableMap.values.head.uid
-      logger.info( "Locating result: " + resId + ", variableMap = " + request.variableMap.mkString(",") )
-      collectionDataCache.getExistingResult( resId ) match {
-        case None => new WPSMergedEventReport( List( new WPSExceptionReport( new Exception("Unrecognized resId: " + resId + ", existing resIds: " + collectionDataCache.getResultIdList.mkString(", ") )) ) )
-        case Some( tvar: RDDTransientVariable ) =>
-//          val result: RDDPartition = Await.result( fut_result, Duration.Inf )
-          val result = tvar.result.elements.values.head
-          x.split( Array(':','|') )(1) match {
-            case "xml" =>
-              new WPSMergedEventReport( List(new UtilityExecutionResult( resId, result.toXml ) ) )
-            case "netcdf" =>
-              saveResultToFile(resId, result.toCDFloatArray, tvar.request, serverContext, result.metadata, List.empty[nc2.Attribute]) match {
-                case Some(resultFilePath) => new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <file> {resultFilePath} </file>)))
-                case None => new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Error writing resultFile"} </error>)))
-              }
-          }
-//          } else { new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }
-      }
+    case x => throw new Exception( "Unrecognized Utility:" + x )
   }
 
   def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[WPSResponse] = Future {
@@ -358,10 +340,29 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
 //    }
 //  }
 
-  def getResultFilePath( resultId: String ): Option[String] = {
-    import java.io.File
-    val resultFile = Kernel.getResultFile( resultId )
-    if(resultFile.exists) Some(resultFile.getAbsolutePath) else None
+  def getResultFilePath( resId: String ): Option[String] = {
+    collectionDataCache.getExistingResult( resId ) match {
+      case Some( tvar: RDDTransientVariable ) =>
+        val result = tvar.result.elements.values.head
+        val resultFile = Kernel.getResultFile( resId )
+        if(resultFile.exists) Some(resultFile.getAbsolutePath)
+        else { saveResultToFile(resId, result.toCDFloatArray, tvar.request, serverContext, result.metadata, List.empty[nc2.Attribute] ) }
+      case None => None
+    }
+    //          } else { new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }
+  }
+
+
+  def getResult( resId: String ): xml.Node = {
+    logger.info( "Locating result: " + resId )
+    val result = collectionDataCache.getExistingResult( resId ) match {
+      case None => new WPSMergedEventReport( List( new WPSExceptionReport( new Exception("Unrecognized resId: " + resId + ", existing resIds: " + collectionDataCache.getResultIdList.mkString(", ") )) ) )
+      case Some( tvar: RDDTransientVariable ) =>
+        val result = tvar.result.elements.values.head
+        new WPSMergedEventReport( List(new UtilityExecutionResult( resId, result.toXml ) ) )
+      //          } else { new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }
+    }
+    result.toXml
   }
 
   def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): WPSReferenceExecuteResponse = {

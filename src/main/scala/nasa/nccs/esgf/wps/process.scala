@@ -32,8 +32,15 @@ class ProcessManager( serverConfiguration: Map[String,String] ) extends Loggable
   }
 
   def getResultFilePath( service: String, resultId: String ): Option[String] = {
+    logger.info( "CDAS ProcessManager-> getResultFile: " + resultId)
     val serviceProvider = apiManager.getServiceProvider(service)
     serviceProvider.getResultFilePath(resultId)
+  }
+
+  def getResult( service: String, resultId: String ): xml.Node = {
+    logger.info( "CDAS ProcessManager-> getResult: " + resultId)
+    val serviceProvider = apiManager.getServiceProvider(service)
+    serviceProvider.getResult(resultId)
   }
 }
 

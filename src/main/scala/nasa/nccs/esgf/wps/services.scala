@@ -22,6 +22,7 @@ trait ServiceProvider extends Loggable {
   }
 
   def getResultFilePath( resultId: String ): Option[String]
+  def getResult( resultId: String ): xml.Node
 
   def fatal( e: Throwable ): WPSExceptionReport = {
     val err = getCause( e )
@@ -66,6 +67,7 @@ object cds2ServiceProvider extends ServiceProvider {
     } catch { case e: Exception => fatal(e).toXml }
   }
   override def getResultFilePath( resultId: String ): Option[String] = cds2ExecutionManager.getResultFilePath( resultId )
+  override def getResult( resultId: String ): xml.Node = cds2ExecutionManager.getResult( resultId )
 }
 
 
