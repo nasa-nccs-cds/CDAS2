@@ -298,10 +298,11 @@ class FileToCacheStream(val ncVariable: nc2.Variable,
     val subsection: ma2.Section = partition.chunkSection(iChunk, roi)
     val t0 = System.nanoTime()
     logger.info(
-      "Reading data chunk %d, part %d, startTimIndex = %d, subsection [%s], nElems = %d "
+      "Reading data chunk %d, part %d, startTimIndex = %d, shape [%s], subsection [%s], nElems = %d "
         .format(iChunk,
                 partition.index,
                 partition.startIndex,
+                ncVariable.getShape.mkString(","),
                 subsection.getShape.mkString(","),
                 subsection.getShape.foldLeft(1L)(_ * _)))
     val data = ncVariable.read(subsection)
