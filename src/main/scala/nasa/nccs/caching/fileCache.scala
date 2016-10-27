@@ -2,15 +2,11 @@ package nasa.nccs.caching
 
 import java.io._
 import java.nio.channels.FileChannel
-import java.nio.file.Paths
+import java.nio.file.{FileSystems, PathMatcher, Paths}
 import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
 import java.util.Comparator
 
-import com.googlecode.concurrentlinkedhashmap.{
-  ConcurrentLinkedHashMap,
-  EntryWeigher,
-  EvictionListener
-}
+import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EntryWeigher, EvictionListener}
 import nasa.nccs.cds2.utilities.{GeoTools, appParameters, runtime}
 import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
 import nasa.nccs.cdapi.data.RDDPartition
@@ -302,10 +298,11 @@ class FileToCacheStream(val ncVariable: nc2.Variable,
     val subsection: ma2.Section = partition.chunkSection(iChunk, roi)
     val t0 = System.nanoTime()
     logger.info(
-      "Reading data chunk %d, part %d, startTimIndex = %d, subsection [%s], nElems = %d "
+      "Reading data chunk %d, part %d, startTimIndex = %d, shape [%s], subsection [%s], nElems = %d "
         .format(iChunk,
                 partition.index,
                 partition.startIndex,
+                ncVariable.getShape.mkString(","),
                 subsection.getShape.mkString(","),
                 subsection.getShape.foldLeft(1L)(_ * _)))
     val data = ncVariable.read(subsection)
@@ -469,29 +466,23 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
     Await.result(Future.sequence(fragmentIdCache.values), Duration.Inf)
 
   def clearCache(): Set[String] = fragmentIdCache.clear()
+  def deleteEnclosing(fragSpec: DataFragmentSpec) = delete(findEnclosingFragSpecs(fragmentIdCache.keys, fragSpec.getKey))
+  def findEnclosingFragmentData(fragSpec: DataFragmentSpec): Option[String] = findEnclosingFragSpecs(fragmentIdCache.keys, fragSpec.getKey).headOption
 
-  def deleteEnclosing(fragSpec: DataFragmentSpec) =
-    delete(findEnclosingFragSpecs(fragmentIdCache.keys, fragSpec.getKey))
-
-  def delete(fragKeys: Iterable[String]) = {
-    for (fragKey <- fragKeys) fragmentIdCache.get(fragKey) match {
-      case Some(cache_id_future) =>
-        val path = DiskCacheFileMgr.getDiskCacheFilePath(
-          getCacheType,
-          Await.result(cache_id_future, Duration.Inf))
-        fragmentIdCache.remove(fragKey)
-        if (new java.io.File(path).delete())
-          logger.info(
-            s"Deleting persisted fragment file '$path', frag: " + fragKey)
-        else logger.warn(s"Failed to delete persisted fragment file '$path'")
-      case None => logger.warn("No Cache ID found for Fragment: " + fragKey)
+  def delete( fragKeys: Iterable[String] ) = {
+    for (fragKey <- fragKeys; cacheFragKey <- fragmentIdCache.keys; if cacheFragKey.startsWith(fragKey); cache_id_future = fragmentIdCache.get(cacheFragKey).get) {
+      val path = DiskCacheFileMgr.getDiskCacheFilePath(getCacheType, Await.result(cache_id_future, Duration.Inf))
+      fragmentIdCache.remove(cacheFragKey)
+      val matcher: java.nio.file.PathMatcher = FileSystems.getDefault().getPathMatcher("glob:" + path + "*")
+      val fileFilter: java.io.FileFilter = new FileFilter() { override def accept(pathname: File): Boolean = {matcher.matches(pathname.toPath) } }
+      val parent = new File(path).getParentFile
+      for (file <- parent.listFiles(fileFilter)) {
+        if (file.delete) logger.info(s"Deleting persisted fragment file " + file.getAbsolutePath + ", frag: " + cacheFragKey)
+        else logger.warn(s"Failed to delete persisted fragment file " + file.getAbsolutePath)
+      }
     }
     fragmentIdCache.persist()
   }
-
-  def findEnclosingFragmentData(fragSpec: DataFragmentSpec): Option[String] =
-    findEnclosingFragSpecs(fragmentIdCache.keys, fragSpec.getKey).headOption
-
 }
 
 trait FragSpecKeySet extends nasa.nccs.utilities.Loggable {

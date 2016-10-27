@@ -88,6 +88,7 @@ object NCMLWriter extends Loggable {
 class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
   private val nReadProcessors = Math.min(Runtime.getRuntime.availableProcessors, maxCores)
   private val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
+  assert( !files.isEmpty, "Error, empty collection at: " + args.map( _.getAbsolutePath ).mkString(",") )
   private val nFiles = files.length
   val fileHeaders = NCMLWriter.getFileHeaders(files, nReadProcessors)
   val fileMetadata = FileMetadata(files.head)
