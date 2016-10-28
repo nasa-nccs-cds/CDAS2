@@ -4,7 +4,8 @@ import java.io._
 import java.nio.channels.FileChannel
 import java.nio.file.{FileSystems, PathMatcher, Paths}
 import java.nio.{ByteBuffer, FloatBuffer, MappedByteBuffer}
-import java.util.Comparator
+import java.text.SimpleDateFormat
+import java.util.{Calendar, Comparator}
 
 import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EntryWeigher, EvictionListener}
 import nasa.nccs.cds2.utilities.{GeoTools, appParameters, runtime}
@@ -561,7 +562,11 @@ class JobRecord(val id: String) {
 
 class RDDTransientVariable(val result: RDDPartition,
                            val operation: OperationContext,
-                           val request: RequestContext) {}
+                           val request: RequestContext) {
+  val timeFormatter = new SimpleDateFormat("MM.dd-HH:mm:ss")
+  val timestamp = Calendar.getInstance().getTime
+  def getTimestamp = timeFormatter.format(timestamp)
+}
 
 class TransientDataCacheMgr extends Loggable {
   private val transientFragmentCache: Cache[String, TransientFragment] =
@@ -685,7 +690,7 @@ class CollectionDataCacheMgr
   def putResult(resultId: String, result: RDDTransientVariable) =
     rddPartitionCache.put(resultId, result)
   def getResultListXml(): xml.Elem =
-    <results> { for( rkey <- rddPartitionCache.keys ) yield <result type="rdd" id={rkey} /> } </results>
+    <results> { rddPartitionCache.map { case (rkey,rval) => { <result type="rdd" id={rkey} timestamp={rval.getTimestamp} /> } } } </results>
   def getResultIdList = rddPartitionCache.keys
   def deleteResult(resultId: String): RDDTransientVariable =
     rddPartitionCache.remove(resultId)
