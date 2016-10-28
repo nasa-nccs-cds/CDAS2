@@ -355,14 +355,17 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
 
   def getResult( resId: String ): xml.Node = {
     logger.info( "Locating result: " + resId )
-    val result = collectionDataCache.getExistingResult( resId ) match {
-      case None => new WPSMergedEventReport( List( new WPSExceptionReport( new Exception("Unrecognized resId: " + resId + ", existing resIds: " + collectionDataCache.getResultIdList.mkString(", ") )) ) )
+    collectionDataCache.getExistingResult( resId ) match {
+      case None =>
+        new WPSMergedEventReport( List( new WPSExceptionReport( new Exception("Unrecognized resId: " + resId + ", existing resIds: " + collectionDataCache.getResultIdList.mkString(", ") )) ) ).toXml
       case Some( tvar: RDDTransientVariable ) =>
-        val result = tvar.result.elements.values.head
-        new WPSMergedEventReport( List(new UtilityExecutionResult( resId, result.toXml ) ) )
-      //          } else { new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }
+        <wps:ExecuteResponse xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsExecute_response.xsd" service="WPS" version="1.0.0" xml:lang="en-CA">
+          <wps:Status> <wps:ProcessSucceeded> CDAS Process successfully calculated </wps:ProcessSucceeded> </wps:Status>
+          <wps:ProcessOutputs> { tvar.result.elements.map { case (id, result) =>
+            <wps:Output> <wps:Data id={id}> <wps:LiteralData> { result.toXml } </wps:LiteralData> </wps:Data> </wps:Output> } }
+          </wps:ProcessOutputs>
+        </wps:ExecuteResponse>
     }
-    result.toXml
   }
 
   def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): WPSReferenceExecuteResponse = {
