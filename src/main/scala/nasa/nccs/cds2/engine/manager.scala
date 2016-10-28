@@ -365,7 +365,7 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
             <wps:Output>
               <wps:Data id={id}>
                 <wps:LiteralData uom={result.metadata.getOrElse("units","")} shape={result.shape.mkString(",")}>
-                  { result.toCDFloatArray.toDataString }
+                  { result.toCDFloatArray.mkDataString(" "," "," ") }
                 </wps:LiteralData>
               </wps:Data>
             </wps:Output> } }
