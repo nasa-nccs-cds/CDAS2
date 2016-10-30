@@ -155,6 +155,13 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
       yield serverContext.cacheInputData(data_container, domainOpt, targetGrid)
   }
 
+  def deleteFragments( fragIds: Iterable[String] ) = {
+    logger.info("Deleting frags: " + fragIds.mkString(", ") + "; Current Frags = " + FragmentPersistence.getFragmentIdList.mkString(", "))
+    serverContext.deleteFragments( fragIds )
+  }
+
+  def clearCache: Set[String] = serverContext.clearCache
+
   def searchForAttrValue(metadata: Map[String, nc2.Attribute], keys: List[String], default_val: String): String = {
     keys.length match {
       case 0 => default_val
@@ -270,7 +277,7 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
       val collectionNodes =  request.variableMap.values.map( ds => aggCollection( ds.getSource ) )
       new WPSMergedEventReport( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "clearCache" =>
-      val fragIds = FragmentPersistence.clearCache
+      val fragIds = clearCache
       new WPSMergedEventReport( List( new UtilityExecutionResult( "clearCache", <deleted fragments={fragIds.mkString(",")}/> ) ) )
     case "cache" =>
       val cached_data: Iterable[(DataFragmentKey,Future[PartitionedFragment])] = cacheInputData(request, createTargetGrid(request), run_args).flatten
@@ -282,8 +289,7 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
       new WPSMergedEventReport(List(new UtilityExecutionResult("dcol", <deleted collections={deletedCollections.mkString(",")}/> )))
     case "dfrag" =>
       val fragIds: Iterable[String] = request.variableMap.values.map( ds => Array( ds.getSource.name, ds.getSource.collection.id, ds.getSource.domain ).mkString("|") )
-      logger.info( "Deleting frags: " + fragIds.mkString(", ") + "; Current Frags = " + FragmentPersistence.getFragmentIdList.mkString(", ") )
-      FragmentPersistence.delete( fragIds )
+      deleteFragments( fragIds )
       new WPSMergedEventReport(List(new UtilityExecutionResult("dfrag", <deleted fragments={fragIds.mkString(",")}/> )))
     case "dres" =>
       val resIds: Iterable[String] = request.variableMap.values.map( ds => ds.uid )
