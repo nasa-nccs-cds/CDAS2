@@ -167,13 +167,16 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
     ostr.close()
   }
 
-  def clear(): Set[K] =
-    if( persistent ) {
-      val keys: Set[K] = Set[K](store.keys.toSeq:_*)
+  def clear(): Set[K] = {
+    val keys: Set[K] = Set[K](store.keys.toSeq: _*)
+    if (persistent) {
+      logger.info( " ** Deleting cache directory: " + cacheFile )
       FileUtils.deleteDirectory( Paths.get(cacheFile).getParent.toFile )
-      store.clear()
-      keys
-    }  else Set.empty[K]
+    }
+    store.clear()
+    keys
+  }
+
 
   protected def restore: Option[ Array[(K,V)] ] = {
     try {
@@ -210,10 +213,10 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
     }
   }
 
-  def remove(key: K) = Option(store.remove(key))
-
   def keys: Set[K] = store.keySet().asScala.toSet
   def values: Iterable[Future[V]] = store.values().asScala
+
+  def remove( key: K ) = Some( store.remove( key ) )
 
   def ascendingKeys(limit: Option[Int] = None) =
     limit.map { lim ⇒ store.ascendingKeySetWithLimit(lim) }

@@ -5,14 +5,12 @@ object Version {
   val mockito   = "1.10.19"
   val scala     = "2.11.7"
   val scalaTest = "2.2.4"
-  val slf4j     = "1.7.6"
-  val spark     = "1.6.0"
+  val spark     = "1.6.2"
 }
 
 object Library {
   val mockitoAll     = "org.mockito"       %  "mockito-all"     % Version.mockito
   val scalaTest      = "org.scalatest"     %% "scalatest"       % Version.scalaTest
-  val slf4jApi       = "org.slf4j"         %  "slf4j-api"       % Version.slf4j
   val sparkSQL       = "org.apache.spark"  %% "spark-sql"       % Version.spark
   val sparkCore      = "org.apache.spark"  %% "spark-core"      % Version.spark
   val scalaxml       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"

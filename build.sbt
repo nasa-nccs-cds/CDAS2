@@ -118,7 +118,7 @@ publishTo := Some(Resolver.file( "file",  sys.env.get("SBT_PUBLISH_DIR") match {
 } ) )
 
 
-//lazy val md = taskKey[Unit]("Prints 'Hello World'")
+lazy val md = taskKey[Unit]("Prints 'Hello World'")
 //
 //md := {
 //  import nasa.nccs.cds2.engine.MetadataPrinter
