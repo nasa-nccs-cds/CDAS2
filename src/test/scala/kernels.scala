@@ -20,6 +20,13 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val result_node = describeProcess( "CDSpark.min" )
   }
 
+  test("Aggregate") {
+    val GISS_path = "/Users/tpmaxwel/Dropbox/Tom/Data/ESGF-CWT/GISS/GISS_r1i1p1.csv"
+    val datainputs = s"""[variable=[{"id":"GISS","path":"$GISS_path"}]]"""
+    val agg_result_node = executeTest(datainputs,false,"util.agg")
+    logger.info( "Agg Result: " + printer.format(agg_result_node) )
+  }
+
   test("Cache") {
     val nco_verified_result = 4.886666e+07
     val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}]]"""
@@ -65,6 +72,16 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     executeTest(datainputs) \\ "data"
   }
   test("Minimum") {
+    val nco_verified_result = 239.4816
+    val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.min","input":"v1","domain":"d0","axes":"xy"}]]"""
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
+    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
+  }
+
+  test("MinimumFragment") {
     val nco_verified_result = 239.4816
     val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.min","input":"v1","domain":"d0","axes":"xy"}]]"""
     val result_node = executeTest(datainputs)

@@ -254,6 +254,8 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
     newCollection.toXml
   }
 
+  def isCollectionPath( path: File ): Boolean = { path.isDirectory || path.getName.endsWith(".csv") }
+
   def executeUtilityRequest(util_id: String, request: TaskRequest, run_args: Map[String, String]): WPSMergedEventReport = util_id match {
     case "magg" =>
       val collectionNodes =  request.variableMap.values.flatMap( ds => {
@@ -261,7 +263,7 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
         val base_dir = new File(pcol.dataPath)
         val base_id = pcol.id
         val col_dirs: Array[File] = base_dir.listFiles
-        for( col_path <- col_dirs; if col_path.isDirectory; col_id = base_id + "/" + col_path.getName ) yield {
+        for( col_path <- col_dirs; if isCollectionPath(col_path); col_id = base_id + "/" + col_path.getName ) yield {
           aggCollection( col_id, col_path )
         }
       })

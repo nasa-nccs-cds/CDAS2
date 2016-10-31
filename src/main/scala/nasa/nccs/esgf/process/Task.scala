@@ -3,7 +3,7 @@ package nasa.nccs.esgf.process
 import nasa.nccs.caching.{CDASPartitioner, JobRecord}
 import nasa.nccs.cdapi.cdm.{CDSDataset, CDSVariable, Collection, PartitionedFragment}
 import nasa.nccs.cdapi.kernels.AxisIndices
-import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt
+import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt2
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray}
 import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
@@ -290,7 +290,7 @@ object DataFragment {
   def apply( spec: DataFragmentSpec, data: CDFloatArray, weights: CDFloatArray ): DataFragment = new DataFragment( spec, Map( ("value" -> data), ("weights" -> weights) ) )
   def apply( spec: DataFragmentSpec, data: CDFloatArray, coordMap: CDCoordMap ): DataFragment = new DataFragment( spec, Map( ("value" -> data) ), Some(coordMap) )
   def apply( spec: DataFragmentSpec, data: CDFloatArray, weights: CDFloatArray, coordMap: CDCoordMap ): DataFragment = new DataFragment( spec, Map( ("value" -> data), ("weights" -> weights) ), Some(coordMap) )
-  def combine( reductionOp: ReduceOpFlt, input0: DataFragment, input1: DataFragment ): DataFragment = {
+  def combine( reductionOp: ReduceOpFlt2, input0: DataFragment, input1: DataFragment ): DataFragment = {
     val ( data, ( fragSpec, mergeStatus) ) = input0.optCoordMap match {
       case Some( coordMap ) =>  ( CDFloatArray.combine( reductionOp, input1.data, input0.data, coordMap.subset(input1.spec.roi) ), input1.spec.combine(input0.spec,false) )
       case None => input1.optCoordMap match {

@@ -22,7 +22,7 @@ class max extends SingularRDDKernel {
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Space/Time Maximum"
   val description = "Computes maximum element value from input variable data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(maxOp)
+  override val mapCombineOpt: Option[ReduceOpFlt2] = Some(maxOp)
   override val reduceCombineOpt = mapCombineOpt
   override val initValue: Float = -Float.MaxValue
 }
@@ -52,7 +52,7 @@ class min2 extends DualRDDKernel {
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Minimum"
   val description = "Computes element-wise minimum values for a pair of input variables data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(minOp)
+  override val mapCombineOpt: Option[ReduceOpFlt2] = Some(minOp)
 }
 
 class max2 extends DualRDDKernel {
@@ -60,7 +60,7 @@ class max2 extends DualRDDKernel {
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Maximum"
   val description = "Computes element-wise maximum values for a pair of input variables data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(maxOp)
+  override val mapCombineOpt: Option[ReduceOpFlt2] = Some(maxOp)
 }
 
 class sum2 extends DualRDDKernel {
@@ -68,7 +68,7 @@ class sum2 extends DualRDDKernel {
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Maximum"
   val description = "Computes element-wise sums for a pair of input variables data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(addOp)
+  override val mapCombineOpt: Option[ReduceOpFlt2] = Some(addOp)
 }
 
 class diff2 extends DualRDDKernel {
@@ -76,7 +76,7 @@ class diff2 extends DualRDDKernel {
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Difference"
   val description = "Computes element-wise diffs for a pair of input variables data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(subtractOp)
+  override val mapCombineOpt: Option[ReduceOpFlt2] = Some(subtractOp)
 }
 
 class mult2 extends DualRDDKernel {
@@ -84,7 +84,7 @@ class mult2 extends DualRDDKernel {
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Product"
   val description = "Computes element-wise products for a pair of input variables data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(multiplyOp)
+  override val mapCombineOpt: Option[ReduceOpFlt2] = Some(multiplyOp)
 }
 
 class div2 extends DualRDDKernel {
@@ -92,7 +92,7 @@ class div2 extends DualRDDKernel {
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Division"
   val description = "Computes element-wise divisions for a pair of input variables data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(divideOp)
+  override val mapCombineOpt: Option[ReduceOpFlt2] = Some(divideOp)
 }
 
 
@@ -101,7 +101,7 @@ class min extends SingularRDDKernel {
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Space/Time Minimum"
   val description = "Computes minimum element value from input variable data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some((x, y) => {
+  override val mapCombineOpt: Option[ReduceOpFlt2] = Some((x, y) => {
     math.min(x, y)
   })
   override val reduceCombineOpt = mapCombineOpt
@@ -114,11 +114,37 @@ class sum extends SingularRDDKernel {
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Space/Time Sum"
   val description = "Computes sums of element values from input variable data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some((x, y) => {
+  override val mapCombineOpt: Option[ReduceOpFlt2] = Some((x, y) => {
     x + y
   })
   override val reduceCombineOpt = mapCombineOpt
   override val initValue: Float = 0f
+}
+
+class multiAverage extends MultiRDDKernel {
+  val inputs = List( WPSDataInput("input variable", 2, Integer.MAX_VALUE ) )
+  val outputs = List( WPSProcessOutput( "operation result" ) )
+  val title = "Ensemble Mean"
+  val description = "Computes point-by-point average over intputs withing specified ROI"
+
+  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+    val t0 = System.nanoTime
+    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
+    val async = context.config("async", "false").toBoolean
+    val elems = context.operation.inputs.map( inputId => inputs.element(inputId) match {
+      case Some( input_data ) =>
+        val input_array = input_data.toCDFloatArray
+        val accumulation_index = input_array.getAccumulationIndex( axes.args )
+        val weights: CDFloatArray = KernelUtilities.getWeights(inputId, context)
+        val (weighted_value_sum_masked, weights_sum_masked) = input_array.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index, Some(weights) )
+        context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked) )
+      case None => throw new Exception( "Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
+    })
+    logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
+    RDDPartition( inputs.iPart, Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+  }
+  override def combineRDD(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices ): RDDPartition =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
+  override def postRDDOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = weightedValueSumRDDPostOp( pre_result, context )
 }
 
 class average extends SingularRDDKernel {

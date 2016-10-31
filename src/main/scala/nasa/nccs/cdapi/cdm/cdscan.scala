@@ -21,15 +21,20 @@ import scala.collection.JavaConversions._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
+import scala.io.Source
 import scala.xml.XML
 
 object NCMLWriter extends Loggable {
 
   def apply( path: File ): NCMLWriter = { new NCMLWriter( Array(path).iterator ) }
 
-  def isNcFile( file: File ): Boolean = {
+  def isNcFileName( fName: String ): Boolean = { val fname = fName.toLowerCase; fname.endsWith(".nc4") || fname.endsWith(".nc") || fname.endsWith(".hdf") }
+
+  def isNcFile( file: File ): Boolean = { file.isFile && isNcFileName( file.getName.toLowerCase ) }
+
+  def isCollectionFile( file: File ): Boolean = {
     val fname = file.getName.toLowerCase
-    file.isFile && (fname.endsWith(".nc4") || fname.endsWith(".nc") || fname.endsWith(".hdf") )
+    file.isFile && fname.endsWith(".csv")
   }
   def getCacheDir: String = {
     val collection_file_path = Collections.getCacheFilePath("local_collections.xml")
@@ -42,6 +47,10 @@ object NCMLWriter extends Loggable {
     try {
       if (isNcFile(file)) {
         Seq(file)
+      } else if( isCollectionFile(file) ) {
+        val bufferedSource = Source.fromFile(file)
+        val entries = for (line <- bufferedSource.getLines; entry <- line.split(",").map(_.trim); if isNcFileName(entry)) yield new File(entry)
+        entries.toIterable
       } else {
         val children = new Iterable[File] {
           def iterator = if (file.isDirectory) file.listFiles.iterator else Iterator.empty
@@ -192,8 +201,8 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
 }
 
 object FileHeader extends Loggable {
-  val maxOpenAttempts = 4
-  val retryIntervalSecs = 30
+  val maxOpenAttempts = 1
+  val retryIntervalSecs = 10
   def apply( file: File, timeRegular: Boolean ): FileHeader = {
     val axisValues: Array[Double] = FileHeader.getTimeCoordValues(file)
     val path: String = file.getAbsolutePath
@@ -245,10 +254,11 @@ object FileHeader extends Loggable {
   }
 
   def openNetCDFFile(ncFile: File, attempt: Int = 0): NetcdfDataset = try {
-    NetcdfDataset.openDataset("file:" + ncFile.getAbsolutePath)
+    val filePath = if( ncFile.getPath.startsWith("http") ) { ncFile.getPath } else { "file:" + ncFile.getAbsolutePath }
+    NetcdfDataset.openDataset( filePath )
   } catch {
     case ex: Throwable =>
-      if (attempt == maxOpenAttempts) throw new Exception("Error opening file '%s' after %d attempts (will retry later): '%s'".format(ncFile.getName, maxOpenAttempts, ex.getMessage))
+      if (attempt == maxOpenAttempts) throw new Exception("Error opening file '%s' after %d attempts (will retry later): '%s'".format(ncFile.getName, maxOpenAttempts, ex.toString))
       else {
         Thread.sleep( retryIntervalSecs * 1000 )
         openNetCDFFile(ncFile, attempt + 1)
