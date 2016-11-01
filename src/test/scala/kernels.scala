@@ -22,7 +22,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
   test("Aggregate") {
     val GISS_path = "/Users/tpmaxwel/Dropbox/Tom/Data/ESGF-CWT/GISS/GISS_r1i1p1.csv"
-    val datainputs = s"""[variable=[{"id":"GISS","path":"$GISS_path"}]]"""
+    val datainputs = s"""[variable=[{"uri":"collection:/GISS_r1i1p1","path":"$GISS_path"}]]"""
     val agg_result_node = executeTest(datainputs,false,"util.agg")
     logger.info( "Agg Result: " + printer.format(agg_result_node) )
   }

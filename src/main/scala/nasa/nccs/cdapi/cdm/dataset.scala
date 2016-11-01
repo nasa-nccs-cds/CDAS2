@@ -38,7 +38,8 @@ object Collection {
   }
 }
 class Collection( val ctype: String, val id: String,  val dataPath: String, val fileFilter: String = "", val scope: String="local", val title: String= "", val vars: List[String] = List() ) extends Serializable with Loggable {
-  val ncmlFile: File = NCMLWriter.getCachePath("NCML").resolve(Collections.idToFile(id)).toFile
+  val collId = Collections.idToFile(id)
+  val ncmlFile: File = NCMLWriter.getCachePath("NCML").resolve(collId).toFile
   override def toString = "Collection( id=%s, ctype=%s, path=%s, title=%s, fileFilter=%s )".format( id, ctype, dataPath, title, fileFilter )
   def isEmpty = dataPath.isEmpty
   lazy val varNames = vars.map( varStr => varStr.split( Array(':','|') ).head )
@@ -398,6 +399,7 @@ object ncReadTest extends App with Loggable {
         NetcdfDataset.setUseNaNs(false)
         val url = "file:" + outputNcFile
         try {
+          logger.info( "Opening NetCDF dataset at: " + url )
           val datset = NetcdfDataset.openDataset(url, true, bufferSize, null, null)
           Option(datset.findVariable(varName)) match {
             case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))

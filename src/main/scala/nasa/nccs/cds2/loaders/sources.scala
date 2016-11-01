@@ -9,6 +9,7 @@ import scala.collection.JavaConversions._
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
+import nasa.nccs.cdapi.cdm.ncReadTest._
 import nasa.nccs.cdapi.cdm.{Collection, DiskCacheFileMgr, NCMLWriter}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.dataset.NetcdfDataset
@@ -110,6 +111,7 @@ object Collections extends XmlResource {
 
   def updateVars = {
     for( ( id: String, collection:Collection ) <- datasets; if collection.scope.equalsIgnoreCase("local") ) {
+      logger.info( "Opening NetCDF dataset at: " + collection.dataPath )
       val dataset: NetcdfDataset = NetcdfDataset.openDataset( collection.dataPath )
       val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => getVariableString(v) ).toList
       val title = findAttribute( dataset, List( "Title", "LongName" ) )
@@ -201,6 +203,7 @@ object Collections extends XmlResource {
   def getVariableList( path: String ): List[String] = {
     findNcFile( new File(path) ) match {
       case Some(f) =>
+        logger.info( "Opening NetCDF dataset at: " + f.getAbsolutePath )
         val dset: NetcdfDataset = NetcdfDataset.openDataset( f.getAbsolutePath )
         dset.getVariables.toList.flatMap( v => if(v.isCoordinateVariable) None else Some(v.getFullName) )
       case None => throw new Exception( "Can't find any nc files in dataset path: " + path )
@@ -228,7 +231,8 @@ object Collections extends XmlResource {
             case None => None;
             case Some(id) =>
 //              logger.info( "Loading collection: " + id.toString.toLowerCase )
-              datasets.put(id.toString.toLowerCase, getCollection(node, scope))
+              val collection = getCollection(node, scope)
+              datasets.put(id.toString.toLowerCase, collection )
           })
         } catch {
           case err: java.io.IOException => throw new Exception("Error opening collection data file {%s}: %s".format(filePath, err.getMessage))

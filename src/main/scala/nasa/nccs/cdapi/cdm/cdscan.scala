@@ -1,6 +1,7 @@
 package nasa.nccs.cdapi.cdm
 
 import java.io._
+import java.net.{URI, URL}
 import java.nio._
 import java.nio.file.{FileSystems, Path, Paths}
 import java.util.Formatter
@@ -43,15 +44,21 @@ object NCMLWriter extends Loggable {
 
   def getCachePath( subdir: String ): Path = {  FileSystems.getDefault().getPath( getCacheDir, subdir ) }
 
+  def getNcURIs(file: File): Iterable[URI] = {
+      if( isCollectionFile(file) ) {
+        val bufferedSource = Source.fromFile(file)
+        val entries = for (line <- bufferedSource.getLines; if isNcFileName(line)) yield new URI(line)
+        entries.toIterable
+      } else {
+        getNcFiles(file).map( _.toURI )
+      }
+  }
+
   def getNcFiles(file: File): Iterable[File] = {
     try {
       if (isNcFile(file)) {
-        Seq(file)
-      } else if( isCollectionFile(file) ) {
-        val bufferedSource = Source.fromFile(file)
-        val entries = for (line <- bufferedSource.getLines; entry <- line.split(",").map(_.trim); if isNcFileName(entry)) yield new File(entry)
-        entries.toIterable
-      } else {
+        Seq( file )
+      } else  {
         val children = new Iterable[File] {
           def iterator = if (file.isDirectory) file.listFiles.iterator else Iterator.empty
         }
@@ -65,8 +72,9 @@ object NCMLWriter extends Loggable {
   }
 
   def getNcFiles(args: Iterator[File]): Iterator[File] = args.map( (arg: File) => NCMLWriter.getNcFiles(arg)).flatten
+  def getNcURIs(args: Iterator[File]): Iterator[URI] = args.map( (arg: File) => NCMLWriter.getNcURIs(arg)).flatten
 
-  def getFileHeaders( files: IndexedSeq[File], nReadProcessors: Int ): IndexedSeq[FileHeader] = {
+  def getFileHeaders( files: IndexedSeq[URI], nReadProcessors: Int ): IndexedSeq[FileHeader] = {
     if( files.length > 0 ) {
       val groupSize = cdsutils.ceilDiv(files.length, nReadProcessors)
       logger.info(" Processing %d files with %d files/group with %d processors".format(files.length, groupSize, nReadProcessors))
@@ -96,7 +104,7 @@ object NCMLWriter extends Loggable {
 
 class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
   private val nReadProcessors = Math.min(Runtime.getRuntime.availableProcessors, maxCores)
-  private val files: IndexedSeq[File] = NCMLWriter.getNcFiles(args).toIndexedSeq
+  private val files: IndexedSeq[URI] = NCMLWriter.getNcURIs(args).toIndexedSeq
   assert( !files.isEmpty, "Error, empty collection at: " + args.map( _.getAbsolutePath ).mkString(",") )
   private val nFiles = files.length
   val fileHeaders = NCMLWriter.getFileHeaders(files, nReadProcessors)
@@ -139,8 +147,8 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
   }
 
   def getAggDataset(fileHeader: FileHeader, timeRegular: Boolean ): xml.Node =
-    if( timeRegular ) <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString}/>
-    else <netcdf location={"file:" + fileHeader.path} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.map("%.4f".format(_)).mkString(", ")}/>
+    if( timeRegular ) <netcdf location={fileHeader.filePath} ncoords={fileHeader.nElem.toString}/>
+    else <netcdf location={fileHeader.filePath} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.map("%.4f".format(_)).mkString(", ")}/>
 
 
   def getVariable( variable: nc2.Variable, timeRegularSpecs: Option[(Double,Double)] ): xml.Node = {
@@ -203,33 +211,32 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
 object FileHeader extends Loggable {
   val maxOpenAttempts = 1
   val retryIntervalSecs = 10
-  def apply( file: File, timeRegular: Boolean ): FileHeader = {
+  def apply( file: URI, timeRegular: Boolean ): FileHeader = {
     val axisValues: Array[Double] = FileHeader.getTimeCoordValues(file)
-    val path: String = file.getAbsolutePath
-    new FileHeader( path, axisValues, timeRegular )
+    new FileHeader( file.toString, axisValues, timeRegular )
   }
 
-  def factory( files: IndexedSeq[File], workerIndex: Int ): IndexedSeq[FileHeader] = {
-    var retryFiles = new ListBuffer[File]()
+  def factory( files: IndexedSeq[URI], workerIndex: Int ): IndexedSeq[FileHeader] = {
+    var retryFiles = new ListBuffer[URI]()
     val timeRegular = false // getTimeAxisRegularity( files.head )
     val firstPass = for (iFile <- files.indices; file = files(iFile)) yield {
       try {
         val t0 = System.nanoTime()
         val fileHeader = FileHeader( file, timeRegular )
         val t1 = System.nanoTime()
-        println("Worker[%d]: Processing file[%d] '%s', start = %.3f, ncoords = %d, time = %.4f ".format(workerIndex, iFile, file.getAbsolutePath, fileHeader.startValue, fileHeader.nElem, (t1 - t0) / 1.0E9))
+        println("Worker[%d]: Processing file[%d] '%s', start = %.3f, ncoords = %d, time = %.4f ".format(workerIndex, iFile, file, fileHeader.startValue, fileHeader.nElem, (t1 - t0) / 1.0E9))
         if( (iFile % 5) == 0 ) runtime.printMemoryUsage(logger)
         Some(fileHeader)
       } catch { case err: Exception =>  retryFiles += file; None }
     }
     val secondPass = for (iFile <- retryFiles.indices; file = retryFiles(iFile)) yield {
-      println("Worker[%d]: Reprocessing file[%d] '%s'".format(workerIndex, iFile, file.getAbsolutePath))
+      println("Worker[%d]: Reprocessing file[%d] '%s'".format(workerIndex, iFile, file ))
       FileHeader(file,timeRegular)
     }
     firstPass.flatten ++ secondPass
   }
 
-  def getTimeAxisRegularity(ncFile: File): Boolean = {
+  def getTimeAxisRegularity( ncFile: URI ): Boolean = {
     val ncDataset: NetcdfDataset = openNetCDFFile( ncFile )
     try {
       Option(ncDataset.findCoordinateAxis(AxisType.Time)) match {
@@ -237,7 +244,7 @@ object FileHeader extends Loggable {
           case coordAxis: CoordinateAxis1D => coordAxis.isRegular
           case _ => throw new Exception("Multidimensional coord axes not currently supported")
         }
-        case None => throw new Exception("ncFile does not have a time axis: " + ncFile.getAbsolutePath)
+        case None => throw new Exception("ncFile does not have a time axis: " + ncFile )
       }
     } finally { ncDataset.close() }
   }
@@ -253,26 +260,26 @@ object FileHeader extends Loggable {
     time_values.toArray[Double]
   }
 
-  def openNetCDFFile(ncFile: File, attempt: Int = 0): NetcdfDataset = try {
-    val filePath = if( ncFile.getPath.startsWith("http") ) { ncFile.getPath } else { "file:" + ncFile.getAbsolutePath }
-    NetcdfDataset.openDataset( filePath )
+  def openNetCDFFile(ncFile: URI, attempt: Int = 0): NetcdfDataset = try {
+    logger.info( "Opening NetCDF dataset at: " + ncFile )
+    NetcdfDataset.openDataset( ncFile.toString )
   } catch {
     case ex: Throwable =>
-      if (attempt == maxOpenAttempts) throw new Exception("Error opening file '%s' after %d attempts (will retry later): '%s'".format(ncFile.getName, maxOpenAttempts, ex.toString))
+      if (attempt == maxOpenAttempts) throw new Exception("Error opening file '%s' after %d attempts (will retry later): '%s'".format(ncFile, maxOpenAttempts, ex.toString))
       else {
         Thread.sleep( retryIntervalSecs * 1000 )
         openNetCDFFile(ncFile, attempt + 1)
       }
   }
 
-  def getTimeCoordValues(ncFile: File): Array[Double] = {
+  def getTimeCoordValues(ncFile: URI): Array[Double] = {
     val ncDataset: NetcdfDataset = openNetCDFFile( ncFile )
     Option( ncDataset.findCoordinateAxis( AxisType.Time ) ) match {
       case Some( timeAxis ) =>
         val values = getTimeValues( ncDataset, timeAxis )
         ncDataset.close()
         values
-      case None => throw new Exception( "ncFile does not have a time axis: " + ncFile.getAbsolutePath )
+      case None => throw new Exception( "ncFile does not have a time axis: " + ncFile.getRawPath )
     }
   }
 }
@@ -286,17 +293,17 @@ class DatasetFileHeaders( val aggDim: String, val aggFileMap: Seq[FileHeader] ) 
     aggFileMap.foldLeft(Array[Double]()) { _ ++ _.axisValues }
 }
 
-class FileHeader( val path: String, val axisValues: Array[Double], val timeRegular: Boolean ) {
+class FileHeader( val filePath: String, val axisValues: Array[Double], val timeRegular: Boolean ) {
   def nElem = axisValues.length
-  def startValue = axisValues(0)
-  override def toString: String = " *** FileHeader { path='%s', nElem=%d, startValue=%d } ".format( path, nElem, startValue )
+  def startValue: Double = axisValues.headOption.getOrElse( Double.NaN )
+  override def toString: String = " *** FileHeader { path='%s', nElem=%d, startValue=%f } ".format( filePath, nElem, startValue )
 }
 
 object FileMetadata {
-  def apply(file: File): FileMetadata = new FileMetadata(file)
+  def apply( file: URI ): FileMetadata = new FileMetadata(file)
 }
 
-class FileMetadata( val ncFile: File ) {
+class FileMetadata( val ncFile: URI ) {
   private val ncDataset: NetcdfDataset = FileHeader.openNetCDFFile( ncFile )
   val coordinateAxes = ncDataset.getCoordinateAxes.toList
   val dimensions: List[nc2.Dimension] = ncDataset.getDimensions.toList
