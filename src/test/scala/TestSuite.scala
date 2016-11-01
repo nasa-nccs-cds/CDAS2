@@ -5,6 +5,7 @@ import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import nasa.nccs.utilities.Loggable
 import org.scalatest._
+import ucar.ma2
 import ucar.nc2.dataset.NetcdfDataset
 
 class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Float, val lon_value : Float ) extends FunSuite with Matchers with Loggable  {
@@ -140,10 +141,16 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
 
 object netcdfTestApp extends App {
   import ucar.nc2.dataset.NetcdfDataset
+  val origin = Array(1404,0,0)
+  val shape = Array(234,90,144)
+  val section: ma2.Section = new ma2.Section(origin,shape)
   val varName = "tas"
-  val uri = new URI("http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc")
-  println( s"Opening dataset " + uri )
-  val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( uri.toString )
+  val ncml_path = "/Users/tpmaxwel/.cdas/cache/collections/NCML/giss_r1i1p1.xml"
+  val dap_uri = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
+  println( s"Opening dataset " + ncml_path )
+  val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( ncml_path )
   val ncVariable = ncDataset.findVariable(varName)
   println( s"Read variable $varName, shape = " + ncVariable.getShape.mkString(",") )
+  val data = ncVariable.read(section)
+  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
 }

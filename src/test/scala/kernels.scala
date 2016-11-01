@@ -28,12 +28,9 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   test("Cache") {
-    val nco_verified_result = 4.886666e+07
-    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}]]"""
+    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/GISS_r1i1p1","name":"tas:v1","domain":"d0"}]]"""
     val cache_result_node = executeTest(datainputs,false,"util.cache")
     logger.info( "Cache Result: " + printer.format(cache_result_node) )
-    val lfrags_result_node = getCapabilities("frag")
-    logger.info( "Fragments: " + printer.format(lfrags_result_node) )
   }
 
   test("Sum") {

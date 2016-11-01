@@ -111,7 +111,7 @@ object Collections extends XmlResource {
 
   def updateVars = {
     for( ( id: String, collection:Collection ) <- datasets; if collection.scope.equalsIgnoreCase("local") ) {
-      logger.info( "Opening NetCDF dataset at: " + collection.dataPath )
+      logger.info( "Opening NetCDF dataset(4) at: " + collection.dataPath )
       val dataset: NetcdfDataset = NetcdfDataset.openDataset( collection.dataPath )
       val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => getVariableString(v) ).toList
       val title = findAttribute( dataset, List( "Title", "LongName" ) )
@@ -203,7 +203,7 @@ object Collections extends XmlResource {
   def getVariableList( path: String ): List[String] = {
     findNcFile( new File(path) ) match {
       case Some(f) =>
-        logger.info( "Opening NetCDF dataset at: " + f.getAbsolutePath )
+        logger.info( "Opening NetCDF dataset(5) at: " + f.getAbsolutePath )
         val dset: NetcdfDataset = NetcdfDataset.openDataset( f.getAbsolutePath )
         dset.getVariables.toList.flatMap( v => if(v.isCoordinateVariable) None else Some(v.getFullName) )
       case None => throw new Exception( "Can't find any nc files in dataset path: " + path )

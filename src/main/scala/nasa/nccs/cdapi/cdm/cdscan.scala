@@ -261,7 +261,7 @@ object FileHeader extends Loggable {
   }
 
   def openNetCDFFile(ncFile: URI, attempt: Int = 0): NetcdfDataset = try {
-    logger.info( "Opening NetCDF dataset at: " + ncFile )
+    logger.info( "Opening NetCDF dataset(1) at: " + ncFile )
     NetcdfDataset.openDataset( ncFile.toString )
   } catch {
     case ex: Throwable =>
