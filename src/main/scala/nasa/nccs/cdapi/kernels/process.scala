@@ -499,13 +499,14 @@ abstract class MultiRDDKernel extends Kernel {
     val input_arrays = context.operation.inputs.flatMap( inputs.element )
     assert( input_arrays.size > 1, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
     val cdFloatArrays = input_arrays.map( _.toCDFloatArray )
-    val result_array: CDFloatArray = mapCombineOptN match {
+    val ( result_array, countArray ) = mapCombineOptN match {
       case Some( combineOp ) => CDFloatArray.combine( combineOp, cdFloatArrays )
       case None => throw new Exception( "Missing map operation in MultiRDDKernel " + getClass.getName )
     }
     val result_metadata = MetadataOps.mergeMetadata( name, input_arrays.map( _.metadata ) )
+    val final_result = result_array / countArray
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( inputs.iPart, Map( context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
+    RDDPartition( inputs.iPart, Map( context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
   }
 }
 

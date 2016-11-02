@@ -11,7 +11,7 @@ import scala.collection.JavaConverters._
 object CDArray {
 
   type ReduceOp[T] = (T,T)=>T
-  type ReduceNOp[T] = (Iterable[T])=>T
+  type ReduceNOp[T] = (Iterable[T],T)=>(T,Int)
   type StorageIndex = Int
   type FlatIndex = Int
 
@@ -188,7 +188,9 @@ object CDFloatArray extends Loggable with Serializable {
   implicit def toUcarArray( target: CDFloatArray ): ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, target.getShape, target.getSectionData().array() )
   val bTrue: Byte = 1
   val bFalse: Byte = 0
+  def CountCombine( op: ReduceOpFlt2, invalid: Float )( elem: (Float,Int), value: Float ): (Float,Int) = if( value == invalid ) { elem } else ( op( elem._1, value ), elem._2 + 1 )
   val addOp: ReduceOpFlt2 = (x:Float, y:Float) => ( x + y )
+  val addOpN: ReduceOpFltN = ( vals: Iterable[Float], invalid: Float ) => vals.foldLeft[(Float,Int)]((0f,0))( CountCombine(addOp,invalid) )
   val subtractOp: ReduceOpFlt2 = (x:Float, y:Float) => ( x - y )
   val multiplyOp: ReduceOpFlt2 = (x:Float, y:Float) => ( x * y )
   val divideOp: ReduceOpFlt2 = (x:Float, y:Float) => ( x / y )
@@ -260,16 +262,22 @@ object CDFloatArray extends Loggable with Serializable {
   def combine( reductionOp: ReduceOpFlt2, input0: CDFloatArray, input1: CDFloatArray ): CDFloatArray = {
     val sameStructure = input0.getStride.sameElements(input1.getStride)
     val iter = MultiArrayIterator(input0,input1)
-    val result = for (flatIndex <- iter; values = iter.values; v0 = values(0); v1 = values(1) ) yield
-        if ( !v0._2 ) input0.invalid else if ( !v1._2 ) input0.invalid else reductionOp( v0._1, v1._1 )
-    new CDFloatArray( iter.getShape, FloatBuffer.wrap(result.toArray), input0.invalid )
+    val result = for (flatIndex <- iter; values = iter.values; v0 = values.head; v1 = values.last ) yield
+        if ( (v0 == iter.invalid) || (v1 == iter.invalid) ) iter.invalid else reductionOp( v0, v1 )
+    new CDFloatArray( iter.getShape, FloatBuffer.wrap(result.toArray), iter.invalid )
   }
 
-  def combine( reductionNOp: ReduceOpFltN, inputs: Iterable[CDFloatArray] ): CDFloatArray = {
+  def combine( reductionNOp: ReduceOpFltN, inputs: Iterable[CDFloatArray] ): ( CDFloatArray, CDFloatArray) = {
     val iter = MultiArrayIterator(inputs)
-    val result = for (flatIndex <- iter; values = iter.values ) yield
-      if( values.find( _._2 == false ).isDefined ) inputs.head.invalid else reductionNOp( values.map( _._1 ) )
-    new CDFloatArray( iter.getShape, FloatBuffer.wrap(result.toArray), inputs.head.invalid )
+    val dataSize = inputs.head.getIndex.getSize
+    val valueBuffer = FloatBuffer.allocate( dataSize )
+    val countBuffer = FloatBuffer.allocate( dataSize )
+    val result = for (flatIndex <- iter; values = iter.values ) yield {
+      val (value, count) = reductionNOp( values, iter.invalid )
+      valueBuffer.put( flatIndex, if( count == 0 ) iter.invalid else value )
+      countBuffer.put( flatIndex, count )
+    }
+    ( new CDFloatArray( iter.getShape, valueBuffer, iter.invalid ),  new CDFloatArray( iter.getShape, countBuffer, iter.invalid ) )
   }
 
   def combine( reductionOp: ReduceOpFlt2, input: CDFloatArray, mappedInput: CDFloatArray, coordMap: CDCoordMap ): CDFloatArray = {
@@ -284,8 +292,8 @@ object CDFloatArray extends Loggable with Serializable {
   def accumulate( reductionOp: ReduceOpFlt2, input0: CDFloatArray, input1: CDFloatArray ): Unit = {
     val sameStructure = input0.getStride.sameElements(input1.getStride)
     val iter = MultiArrayIterator(input0,input1)
-    for ( flatIndex <- iter;  values = iter.values; v0 = values(0); if v0._2; v1 = values(1); if v1._2 ) {
-      input0.setStorageValue(flatIndex, reductionOp(v0._1, v1._1))
+    for ( flatIndex <- iter;  values = iter.values; v0 = values.head; v1 = values.last; if (v0 != iter.invalid) && (v1 != iter.invalid) ) {
+      input0.setStorageValue(flatIndex, reductionOp(v0, v1))
     }
   }
 
@@ -570,10 +578,9 @@ object CDDoubleArray {
   def combine( reductionOp: ReduceOpDbl, input0: CDDoubleArray, input1: CDDoubleArray ): CDDoubleArray = {
     val sameStructure = input0.getStride.sameElements(input1.getStride)
     val iter = MultiArrayIterator(input0,input1)
-    val result = for (flatIndex <- iter; values = iter.values; v0 = values(0); v1 = values(1) ) yield {
-      if (!v0._2) input0.invalid
-      else if (!v1._2) input0.invalid
-      else reductionOp( v0._1, v1._1 )
+    val result = for (flatIndex <- iter; values = iter.values; v0 = values.head; v1 = values.last ) yield {
+      if( (v0 == iter.invalid) || (v1 == iter.invalid) ) iter.invalid
+      else reductionOp( v0, v1 )
     }
     new CDDoubleArray(iter.getShape, DoubleBuffer.wrap(result.toArray), input0.invalid)
   }

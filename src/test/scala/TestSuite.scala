@@ -147,8 +147,8 @@ object netcdfTestApp extends App {
   val varName = "tas"
   val ncml_path = "/Users/tpmaxwel/.cdas/cache/collections/NCML/giss_r1i1p1.xml"
   val dap_uri = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
-  println( s"Opening dataset " + ncml_path )
-  val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( ncml_path )
+  println( s"Opening dataset " + dap_uri )
+  val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( dap_uri )
   val ncVariable = ncDataset.findVariable(varName)
   println( s"Read variable $varName, shape = " + ncVariable.getShape.mkString(",") )
   val data = ncVariable.read(section)

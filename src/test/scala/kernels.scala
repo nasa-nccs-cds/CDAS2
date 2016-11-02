@@ -13,7 +13,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 //  Collections.addCollection( "const.test", const_data, "Constant data", List("ta") )
 
   test("GetCapabilities") {
-    val result_node = getCapabilities("")
+    val result_node = getCapabilities("fragment")
   }
 
   test("DescribeProcess") {
@@ -41,6 +41,15 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
     val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
+  }
+
+  test("Sum1") {
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"xy"}]]"""
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
+    logger.info( "Sum1 Result: " + result_value.toString )
   }
 
   test("Sum Constant") {

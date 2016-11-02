@@ -717,6 +717,7 @@ object MultiArrayIterator {
 class MultiArrayIterator[T <: AnyVal]( val arrays: Iterable[CDArray[T]], cdIndexMap: CDIndexMap ) extends CDArrayIndexIterator( cdIndexMap  ) {
   val array_recs =  arrays.map( array => ( array, checkArrayStructure( array ) ) )
   var storageIndex: StorageIndex = 0
+  val invalid: T = arrays.head.getInvalid
 
   def checkArrayStructure( array: CDArray[T] ): Boolean = {
     assert(array.sameShape(cdIndexMap), "Error, array has wrong shape in DualArrayIterator!")
@@ -724,10 +725,10 @@ class MultiArrayIterator[T <: AnyVal]( val arrays: Iterable[CDArray[T]], cdIndex
   }
   override def incr: StorageIndex = { storageIndex = super.incr; storageIndex }
 
-  def values: Array[(T,Boolean)] = array_recs.map {  case (array, sameStorage) =>                              // ( value: T, isValid: Boolean )
-    val result = if(sameStorage) { array.getStorageValue(storageIndex) } else { array.getValue(coordIndices) }
-    ( result, result != array.getInvalid )
-  }.toArray
+  def values: Iterable[T] = array_recs.map {  case (array, sameStorage) =>                              // ( value: T, isValid: Boolean )
+    val result: T = if(sameStorage) { array.getStorageValue(storageIndex) } else { array.getValue(coordIndices) }
+    if( result == array.getInvalid ) invalid else result
+  }
 }
 
 

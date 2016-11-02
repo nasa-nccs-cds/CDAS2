@@ -340,7 +340,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 
   def expandKeyXml(fragKey: String): xml.Elem = {
     val toks = fragKey.split('|')
-    <fragment variable={toks(0)} origin={toks(2)} shape={toks(3)} coll={toks(1)} maxParts={toks(4)}> { getBounds(fragKey) } </fragment>
+    <fragment variable={toks(0)} origin={toks(2)} shape={toks(3)} coll={toks(1)} maxParts={toks(4)}/> // { getBounds(fragKey) } </fragment>
   }
 
   def contractKey(fragDescription: String): String = {
@@ -606,9 +606,7 @@ class CollectionDataCacheMgr
     val t0 = System.nanoTime()
     val dataset = CDSDataset.load(collection, varName)
     val t1 = System.nanoTime()
-    logger.info(
-      " Completed reading dataset (%s:%s), T: %.4f "
-        .format(collection, varName, (t1 - t0) / 1.0E9))
+    logger.info( " Completed reading dataset (%s:%s), T: %.4f " .format(collection, varName, (t1 - t0) / 1.0E9))
     p.success(dataset)
   }
 

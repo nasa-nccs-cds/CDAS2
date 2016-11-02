@@ -439,7 +439,7 @@ class TargetGrid( val variable: CDSVariable = CDSVariable.empty, roiOpt: Option[
     val array: ma2.Array = data_variable.read(fragmentSpec.roi)
     val cdArray: CDFloatArray = CDFloatArray.factory(array, data_variable.missing, maskOpt )
     val id = "a" + System.nanoTime.toHexString
-    throw new IllegalAccessError( "Direct Read from NecCDF is not currently implemented")
+    throw new IllegalAccessError( "Direct Read from NecCDF is not currently implemented" )
  //   val part = new Partition( )
 ///    val partitions = new Partitions( id, fragmentSpec.getShape, Array(part) )
  //   new PartitionedFragment( partitions, maskOpt, fragmentSpec )
