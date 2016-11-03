@@ -13,7 +13,7 @@ import nasa.nccs.cdapi.cdm.ncReadTest._
 import nasa.nccs.cdapi.cdm.{Collection, DiskCacheFileMgr, NCMLWriter}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.dataset.NetcdfDataset
-import ucar.nc2
+import ucar.{ma2, nc2}
 
 import scala.concurrent.Future
 import scala.xml.XML
@@ -284,6 +284,22 @@ object Collections extends XmlResource {
 
 object UpdateCollectionVars extends App {
   Collections.updateVars
+}
+
+object netcdfTestApp extends App {
+  import ucar.nc2.dataset.NetcdfDataset
+  val origin = Array(1404,0,0)
+  val shape = Array(234,90,144)
+  val section: ma2.Section = new ma2.Section(origin,shape)
+  val varName = "tas"
+  val ncml_path = "/Users/tpmaxwel/.cdas/cache/collections/NCML/giss_r1i1p1.xml"
+  val dap_uri = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
+  println( s"Opening dataset " + dap_uri )
+  val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( dap_uri )
+  val ncVariable = ncDataset.findVariable(varName)
+  println( s"Read variable $varName, shape = " + ncVariable.getShape.mkString(",") )
+  //  val data = ncVariable.read(section)
+  //  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
 }
 
 
