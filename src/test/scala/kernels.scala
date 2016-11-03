@@ -8,6 +8,24 @@ import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.ma2
 import org.apache.log4j.{ Logger, LogManager, Level }
 
+class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
+
+  test("OpenDAP") {
+    import ucar.nc2.dataset.NetcdfDataset
+    val origin = Array(1404,0,0)
+    val shape = Array(234,90,144)
+    val section: ma2.Section = new ma2.Section(origin,shape)
+    val varName = "tas"
+    val dap_uri = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
+    println( s"Opening dataset " + dap_uri )
+    val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( dap_uri )
+    val ncVariable = ncDataset.findVariable(varName)
+    println( s"Read variable $varName, shape = " + ncVariable.getShape.mkString(",") )
+    //  val data = ncVariable.read(section)
+    //  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
+  }
+}
+
 class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 //  Collections.addCollection( "merra.test", merra_data, "MERRA data", List("ta") )
 //  Collections.addCollection( "const.test", const_data, "Constant data", List("ta") )
@@ -32,6 +50,8 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val cache_result_node = executeTest(datainputs,false,"util.cache")
     logger.info( "Cache Result: " + printer.format(cache_result_node) )
   }
+
+
 
   test("Aggregate&Cache") {
     val index = 6
