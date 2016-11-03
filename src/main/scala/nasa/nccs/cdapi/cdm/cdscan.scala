@@ -265,11 +265,10 @@ object FileHeader extends Loggable {
     NetcdfDataset.openDataset( ncFile.toString )
   } catch {
     case ex: Throwable =>
-      if (attempt == maxOpenAttempts) throw new Exception("Error opening file '%s' after %d attempts (will retry later): '%s'".format(ncFile, maxOpenAttempts, ex.toString))
-      else {
-        Thread.sleep( retryIntervalSecs * 1000 )
-        openNetCDFFile(ncFile, attempt + 1)
-      }
+      val error = if( ex.getCause == null ) ex else ex.getCause
+      logger.error( "===> Error opening NetCDF dataset(1) at: " + ncFile + ": " + error )
+      logger.error( "\n\t" + error.getStackTrace.mkString("\n\t") + "\n")
+      throw ex
   }
 
   def getTimeCoordValues(ncFile: URI): Array[Double] = {
