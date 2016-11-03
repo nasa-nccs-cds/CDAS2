@@ -139,7 +139,6 @@ class LocalExecutionTestSuite extends FunSuite with Matchers {
     response
   }
 
-  def clearCache(): Unit = FragmentPersistence.clearCache()
 
   def getConfigValue(key: String, defaultVal: Option[String] = None): String = {
     configMap.get(key) match {

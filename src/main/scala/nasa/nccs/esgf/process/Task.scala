@@ -742,9 +742,9 @@ class OperationContext( val index: Int, val identifier: String, val name: String
 object OperationContext extends ContainerBase  {
   var resultIndex = 0
   def apply( index: Int, uid: UID, process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
-    val op_inputs: List[String] = metadata.get( "input" ) match {
+    val op_inputs: Iterable[String] = metadata.get( "input" ) match {
       case Some( input_values: List[_] ) => input_values.map( uid + _.toString.trim.toLowerCase )
-      case Some( input_value: String ) => List( uid + input_value.trim.toLowerCase )
+      case Some( input_value: String ) => input_value.split(',').map( uid + _.trim.toLowerCase )
       case None => uid_list.map( uid + _.trim.toLowerCase )
       case x => throw new Exception ( "Unrecognized input in operation spec: " + x.toString )
     }
@@ -757,7 +757,7 @@ object OperationContext extends ContainerBase  {
       case Some( result_id ) => uid + result_id.toString
       case None => uid + op_name + "-" + index.toString
     }
-    new OperationContext( index, identifier = UID() + op_name, name=op_name, rid = rid, inputs = op_inputs, optargs )
+    new OperationContext( index, identifier = UID() + op_name, name=op_name, rid = rid, inputs = op_inputs.toList, optargs )
   }
   def generateResultId: String = { resultIndex += 1; "$v"+resultIndex.toString }
 }

@@ -11,7 +11,7 @@ import ucar.nc2.constants.AxisType
 // It is intended to be deployed on the master node of the analytics server (this is not a client API).
 
 object MetadataOps {
-  def mergeMetadata(opName: String, metadata0: Map[String, String], metadata1: Map[String, String]): Map[String, String] = {
+  def mergeMetadata(opName: String)( metadata0: Map[String, String], metadata1: Map[String, String]): Map[String, String] = {
     metadata0.map { case (key, value) =>
       metadata1.get(key) match {
         case None => (key, value)
@@ -21,10 +21,13 @@ object MetadataOps {
       }
     }
   }
+  def mergeMetadata( opName: String, metadata: Iterable[Map[String, String]] ): Map[String, String] = {
+    metadata.foldLeft( metadata.head )( mergeMetadata(opName) )
+  }
 }
 
 abstract class MetadataCarrier( val metadata: Map[String,String] = Map.empty ) extends Serializable {
-  def mergeMetadata( opName: String, other: MetadataCarrier ): Map[String,String] = MetadataOps.mergeMetadata( opName, metadata, other.metadata )
+  def mergeMetadata( opName: String, other: MetadataCarrier ): Map[String,String] = MetadataOps.mergeMetadata( opName )( metadata, other.metadata )
   def toXml: xml.Elem
   def attr(id:String): String = metadata.getOrElse(id,"")
 

@@ -36,6 +36,8 @@ trait DataLoader {
   def getVariable( collection: Collection, varname: String ): CDSVariable
   def getExistingFragment( fragSpec: DataFragmentSpec  ): Option[Future[PartitionedFragment]]
   def cacheFragmentFuture( fragSpec: DataFragmentSpec  ): Future[PartitionedFragment];
+  def deleteFragments( fragIds: Iterable[String] )
+  def clearCache: Set[String]
 }
 
 trait ScopeContext {
@@ -437,7 +439,7 @@ class TargetGrid( val variable: CDSVariable = CDSVariable.empty, roiOpt: Option[
     val array: ma2.Array = data_variable.read(fragmentSpec.roi)
     val cdArray: CDFloatArray = CDFloatArray.factory(array, data_variable.missing, maskOpt )
     val id = "a" + System.nanoTime.toHexString
-    throw new IllegalAccessError( "Direct Read from NecCDF is not currently implemented")
+    throw new IllegalAccessError( "Direct Read from NecCDF is not currently implemented" )
  //   val part = new Partition( )
 ///    val partitions = new Partitions( id, fragmentSpec.getShape, Array(part) )
  //   new PartitionedFragment( partitions, maskOpt, fragmentSpec )
@@ -551,8 +553,15 @@ class ServerContext( val dataLoader: DataLoader )  extends ScopeContext with Ser
     }
   }
 
+  def deleteFragments( fragIds: Iterable[String] ) = {
+    dataLoader.deleteFragments( fragIds )
+  }
+
+  def clearCache: Set[String] = dataLoader.clearCache
+
   def cacheInputData( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid ): Option[( DataFragmentKey, Future[PartitionedFragment] )] = {
     val data_source: DataSource = dataContainer.getSource
+    logger.info( "cacheInputData"  )
     val variable: CDSVariable = dataLoader.getVariable(data_source.collection, data_source.name)
     val maskOpt: Option[String] = domain_container_opt.flatMap( domain_container => domain_container.mask )
     val optSection: Option[ma2.Section] = data_source.fragIdOpt match { case Some(fragId) => Some(DataFragmentKey(fragId).getRoi); case None => targetGrid.grid.getSection }
@@ -561,9 +570,14 @@ class ServerContext( val dataLoader: DataLoader )  extends ScopeContext with Ser
     optSection map { section =>
       val fragSpec = new DataFragmentSpec( dataContainer.uid, variable.name, variable.dataset.collection, data_source.fragIdOpt, Some(targetGrid), variable.ncVariable.getDimensionsString,
       variable.ncVariable.getUnitsString, variable.getAttributeValue("long_name", variable.ncVariable.getFullName), section, optDomainSect, variable.missing, maskOpt)
+      logger.info( "cache fragSpec: " + fragSpec.getKey.toString )
       dataLoader.getExistingFragment(fragSpec) match {
-        case Some(partFut) =>  (fragSpec.getKey -> partFut)
-        case None => (fragSpec.getKey -> dataLoader.cacheFragmentFuture(fragSpec))
+        case Some(partFut) =>
+          logger.info( "Found existing cached fragment to match: " + fragSpec.getKey.toString )
+          (fragSpec.getKey -> partFut)
+        case None =>
+          logger.info( "Creating new cached fragment: " + fragSpec.getKey.toString )
+          (fragSpec.getKey -> dataLoader.cacheFragmentFuture(fragSpec))
       }
     }
   }

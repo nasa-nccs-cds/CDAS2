@@ -13,20 +13,51 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 //  Collections.addCollection( "const.test", const_data, "Constant data", List("ta") )
 
   test("GetCapabilities") {
-    val result_node = getCapabilities("")
+    val result_node = getCapabilities("fragment")
   }
 
   test("DescribeProcess") {
     val result_node = describeProcess( "CDSpark.min" )
   }
 
+  test("Aggregate") {
+    val GISS_path = "/Users/tpmaxwel/Dropbox/Tom/Data/ESGF-CWT/GISS/GISS_r2i1p1.csv"
+    val datainputs = s"""[variable=[{"uri":"collection:/GISS_r2i1p1","path":"$GISS_path"}]]"""
+    val agg_result_node = executeTest(datainputs,false,"util.agg")
+    logger.info( "Agg Result: " + printer.format(agg_result_node) )
+  }
+
   test("Cache") {
-    val nco_verified_result = 4.886666e+07
-    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}]]"""
+    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/GISS_r2i1p1","name":"tas:v1","domain":"d0"}]]"""
     val cache_result_node = executeTest(datainputs,false,"util.cache")
     logger.info( "Cache Result: " + printer.format(cache_result_node) )
-    val lfrags_result_node = getCapabilities("frag")
-    logger.info( "Fragments: " + printer.format(lfrags_result_node) )
+  }
+
+  test("Aggregate&Cache") {
+    val index = 6
+    val collection = s"GISS_r${index}i1p1"
+    val GISS_path = s"/Users/tpmaxwel/Dropbox/Tom/Data/ESGF-CWT/GISS/$collection.csv"
+    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/$collection","path":"${GISS_path}","name":"tas:v1","domain":"d0"}]]"""
+    val agg_result_node = executeTest(datainputs,false,"util.agg")
+    logger.info( "Agg Result: " + printer.format(agg_result_node) )
+    val cache_result_node = executeTest(datainputs,false,"util.cache")
+    logger.info( "Cache Result: " + printer.format(cache_result_node) )
+  }
+
+  test("EnsembleAve") {
+    val variables = ( 1 to 6 ) map { index =>
+      val collection = s"GISS_r${index}i1p1"
+      val GISS_path = s"/Users/tpmaxwel/Dropbox/Tom/Data/ESGF-CWT/GISS/$collection.csv"
+      s"""{"uri":"collection:/$collection","path":"${GISS_path}","name":"tas:v$index","domain":"d0"}"""
+    }
+    val vids = ( 1 to 6 ) map { index => s"v$index" }
+    val datainputs = """[domain=[{"name":"d0"}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format( variables.mkString(","), vids.mkString(",") )
+    logger.info( "Request datainputs: " + datainputs )
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
+    logger.info( "Sum1 Result: " + result_value.toString )
   }
 
   test("Sum") {
@@ -37,6 +68,15 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
     val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
+  }
+
+  test("Sum1") {
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"xy"}]]"""
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
+    logger.info( "Sum1 Result: " + result_value.toString )
   }
 
   test("Sum Constant") {
@@ -72,6 +112,16 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
     val result_value = data_nodes.head.text.toFloat
     assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
+  }
+
+  test("MinimumFragment") {
+    val lat_index = 50
+    val lon_index = 100
+    val datainputs = s"""[domain=[{"name":"d1","lat":{"start":$lat_index,"end":$lat_index,"system":"indices"},"lon":{"start":$lon_index,"end":$lon_index,"system":"indices"}}],variable=[{"uri":"fragment:/t|merra___daily|0,0,0,0|248,1,144,288","name":"t:v1","domain":"d1"}],operation=[{"name":"CDSpark.min","input":"v1","axes":"t"}]]"""
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
   }
 
   test("OutOfBounds") {

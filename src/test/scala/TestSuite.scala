@@ -1,10 +1,14 @@
+import java.net.URI
+
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
+import nasa.nccs.utilities.Loggable
 import org.scalatest._
+import ucar.ma2
 import ucar.nc2.dataset.NetcdfDataset
 
-class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Float, val lon_value : Float ) extends FunSuite with Matchers {
+class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Float, val lon_value : Float ) extends FunSuite with Matchers with Loggable  {
   val serverConfiguration = Map[String,String]()
   val configMap = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
@@ -19,6 +23,7 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
   def readVerificationData( fileResourcePath: String, varName: String ): Option[CDFloatArray] = {
     try {
       val url = getClass.getResource( fileResourcePath ).toString
+      logger.info( "Opening NetCDF dataset at url: " + url )
       val ncDataset: NetcdfDataset = NetcdfDataset.openDataset(url)
       val ncVariable = ncDataset.findVariable(varName)
       Some( CDFloatArray.factory(ncVariable.read(), Float.NaN) )
@@ -132,4 +137,20 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     "operation" ->  List(Map( ("input"->varName), ("name"->"CDSpark.metadata" ) )) )
 
 
+}
+
+object netcdfTestApp extends App {
+  import ucar.nc2.dataset.NetcdfDataset
+  val origin = Array(1404,0,0)
+  val shape = Array(234,90,144)
+  val section: ma2.Section = new ma2.Section(origin,shape)
+  val varName = "tas"
+  val ncml_path = "/Users/tpmaxwel/.cdas/cache/collections/NCML/giss_r1i1p1.xml"
+  val dap_uri = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
+  println( s"Opening dataset " + dap_uri )
+  val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( dap_uri )
+  val ncVariable = ncDataset.findVariable(varName)
+  println( s"Read variable $varName, shape = " + ncVariable.getShape.mkString(",") )
+//  val data = ncVariable.read(section)
+//  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
 }

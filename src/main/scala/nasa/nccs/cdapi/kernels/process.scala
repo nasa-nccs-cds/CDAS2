@@ -10,7 +10,7 @@ import java.io.{File, IOException, PrintWriter, StringWriter}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.caching.collectionDataCache
-import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt
+import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.wps.WPSProcess
@@ -150,6 +150,8 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   val identifier = name
 
   val mapCombineOpt: Option[ReduceOpFlt] = None
+  val mapCombineNOp: Option[ReduceNOpFlt] = None
+  val mapCombineWNOp: Option[ReduceWNOpFlt] = None
   val reduceCombineOpt: Option[ReduceOpFlt] = None
   val initValue: Float = 0f
 
@@ -170,6 +172,8 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   }
 
   def combineRDD(context: KernelContext)(rdd0: RDDPartition, rdd1: RDDPartition, axes: AxisIndices): RDDPartition = {
+    val t0 = System.nanoTime
+    logger.info("&COMBINE: start OP %s (%d <-> %d)".format( context.operation.name, rdd0.iPart, rdd1.iPart  ) )
     val new_elements = rdd0.elements.flatMap { case (key, element0) =>
       rdd1.elements.get(key) match {
         case Some(element1) =>
@@ -182,6 +186,7 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
         case None => None
       }
     }
+    logger.info("&COMBINE: finish OP %s (%d <-> %d), time = %.4f s".format( context.operation.name, rdd0.iPart, rdd1.iPart, (System.nanoTime - t0) / 1.0E9 ) )
     RDDPartition(rdd0.iPart, new_elements, rdd0.mergeMetadata(context.operation.name, rdd1))
   }
 
@@ -209,8 +214,8 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   }
 
   def reduceRDDOp(context: KernelContext)(a0: RDDPartition, a1: RDDPartition): RDDPartition = {
-//    val axes: AxisIndices = context.grid.getAxisIndices(context.config("axes", ""))
-    combineRDD(context)(a0, a1, new AxisIndices( Set(0) ) )
+    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes", "") )
+    combineRDD(context)( a0, a1, axes )
   }
 
   def getDataSample(result: CDFloatArray, sample_size: Int = 20): Array[Float] = {
@@ -311,9 +316,9 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
       val vTot: CDFloatArray = fltArray(a0, rid) + fltArray(a1, rid)
       val vOrigin: Array[Int] = originArray( a0, rid )
       val wTotOpt: Option[CDFloatArray] = wtArray(a0, rid ).map(w => w + wtArray(a1,rid).get )
-      val array_mdata = MetadataOps.mergeMetadata(context.operation.name, arrayMdata(a0, rid), arrayMdata(a1, rid))
+      val array_mdata = MetadataOps.mergeMetadata( context.operation.name )( arrayMdata(a0, rid), arrayMdata(a1, rid) )
       val element = rid -> HeapFltArray( vTot,vOrigin,array_mdata,wTotOpt )
-      val part_mdata = MetadataOps.mergeMetadata(context.operation.name, a0.metadata, a1.metadata)
+      val part_mdata = MetadataOps.mergeMetadata( context.operation.name )( a0.metadata, a1.metadata )
       logger.info("weightedValueSumCombiner, values shape = %s, result spec = %s".format(vTot.getShape.mkString(","), a0.metadata.toString))
       new RDDPartition(a0.iPart, Map(element), part_mdata)
     }
@@ -476,7 +481,7 @@ abstract class DualRDDKernel extends Kernel {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
-    val input_arrays = context.operation.inputs.flatMap( inputs.element )
+    val input_arrays = context.operation.inputs.flatMap( inputs.element ).toArray
     assert( input_arrays.size > 1, "Missing input(s) to dual input operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
     val i0 = input_arrays(0).toCDFloatArray
     val i1 = input_arrays(1).toCDFloatArray
@@ -487,6 +492,27 @@ abstract class DualRDDKernel extends Kernel {
     val result_metadata = input_arrays(0).mergeMetadata( name,input_arrays(1) )
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
     RDDPartition( inputs.iPart, Map( context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
+  }
+}
+
+abstract class MultiRDDKernel extends Kernel {
+  override def map(  inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+    val t0 = System.nanoTime
+    logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart ) )
+    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
+    val async = context.config("async", "false").toBoolean
+    val input_arrays = context.operation.inputs.flatMap( inputs.element )
+    assert( input_arrays.size > 1, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
+    val cdFloatArrays = input_arrays.map( _.toCDFloatArray ).toArray
+    val result_metadata = MetadataOps.mergeMetadata( name, input_arrays.map( _.metadata ) )
+    val final_result: CDFloatArray = if( mapCombineNOp.isDefined ) {
+      CDFloatArray.combine( mapCombineNOp.get, cdFloatArrays )
+    } else if( mapCombineWNOp.isDefined ) {
+      val (result_array, countArray) = CDFloatArray.combine( mapCombineWNOp.get, cdFloatArrays )
+      result_array / countArray
+    } else { throw new Exception("Undefined operation in MultiRDDKernel") }
+    logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
+    RDDPartition( inputs.iPart, Map( context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
   }
 }
 

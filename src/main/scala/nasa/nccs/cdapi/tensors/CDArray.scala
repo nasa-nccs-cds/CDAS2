@@ -11,6 +11,8 @@ import scala.collection.JavaConverters._
 object CDArray {
 
   type ReduceOp[T] = (T,T)=>T
+  type ReduceWNOp[T] = (Iterable[T],T)=>(T,Float)
+  type ReduceNOp[T] = (Iterable[T],T)=>T
   type StorageIndex = Int
   type FlatIndex = Int
 
@@ -182,11 +184,16 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 
 object CDFloatArray extends Loggable with Serializable {
   type ReduceOpFlt = CDArray.ReduceOp[Float]
+  type ReduceWNOpFlt = CDArray.ReduceWNOp[Float]
+  type ReduceNOpFlt = CDArray.ReduceNOp[Float]
   implicit def cdArrayConverter( target: CDArray[Float] ): CDFloatArray = new CDFloatArray( target.getIndex, target.getStorage.asInstanceOf[ FloatBuffer ], target.getInvalid )
   implicit def toUcarArray( target: CDFloatArray ): ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, target.getShape, target.getSectionData().array() )
   val bTrue: Byte = 1
   val bFalse: Byte = 0
+  def CountCombine( op: ReduceOpFlt, invalid: Float )( elem: (Float,Float), value: Float ): (Float,Float) = if( value == invalid ) { elem } else ( op( elem._1, value ), elem._2 + 1f )
   val addOp: ReduceOpFlt = (x:Float, y:Float) => ( x + y )
+  val addOpN: ReduceWNOpFlt = ( vals: Iterable[Float], invalid: Float ) => vals.foldLeft[(Float,Float)]((0f,0f))( CountCombine(addOp,invalid) )
+  val aveOpN: ReduceNOpFlt = ( vals: Iterable[Float], invalid: Float ) => { val (sum,count) = vals.foldLeft[(Float,Float)]((0f,0f))( CountCombine(addOp,invalid) ); if(count == 0) invalid else sum/count }
   val subtractOp: ReduceOpFlt = (x:Float, y:Float) => ( x - y )
   val multiplyOp: ReduceOpFlt = (x:Float, y:Float) => ( x * y )
   val divideOp: ReduceOpFlt = (x:Float, y:Float) => ( x / y )
@@ -257,10 +264,30 @@ object CDFloatArray extends Loggable with Serializable {
 
   def combine( reductionOp: ReduceOpFlt, input0: CDFloatArray, input1: CDFloatArray ): CDFloatArray = {
     val sameStructure = input0.getStride.sameElements(input1.getStride)
-    val iter = DualArrayIterator(input0,input1)
-    val result = for (flatIndex <- iter; v0 = iter.value0; v1 = iter.value1 ) yield
-        if (!input0.valid(v0)) input0.invalid else if (!input1.valid(v1)) input0.invalid else reductionOp(v0, v1)
-    new CDFloatArray( iter.getShape, FloatBuffer.wrap(result.toArray), input0.invalid )
+    val iter = MultiArrayIterator(input0,input1)
+    val result = for (flatIndex <- iter; values = iter.values; v0 = values.head; v1 = values.last ) yield
+        if ( (v0 == iter.invalid) || (v1 == iter.invalid) ) iter.invalid else reductionOp( v0, v1 )
+    new CDFloatArray( iter.getShape, FloatBuffer.wrap(result.toArray), iter.invalid )
+  }
+
+  def combine( reductionNOp: ReduceWNOpFlt, inputs: Iterable[CDFloatArray] ): ( CDFloatArray, CDFloatArray) = {
+    val iter = MultiArrayIterator(inputs)
+    val dataSize = inputs.head.getIndex.getSize
+    val valueBuffer = FloatBuffer.allocate( dataSize )
+    val countBuffer = FloatBuffer.allocate( dataSize )
+    val result = for (flatIndex <- iter; values = iter.values ) yield {
+      val (value, count) = reductionNOp( values, iter.invalid )
+      valueBuffer.put( flatIndex, if( count == 0 ) iter.invalid else value )
+      countBuffer.put( flatIndex, count )
+    }
+    ( new CDFloatArray( iter.getShape, valueBuffer, iter.invalid ),  new CDFloatArray( iter.getShape, countBuffer, iter.invalid ) )
+  }
+
+  def combine( reductionNOp: ReduceNOpFlt, inputs: Iterable[CDFloatArray] ): CDFloatArray = {
+    val iter = MultiArrayIterator(inputs)
+    val dataSize = inputs.head.getIndex.getSize
+    val results: Iterator[Float] = for (flatIndex <- iter; values = iter.values ) yield reductionNOp( values, iter.invalid )
+    new CDFloatArray( iter.getShape, FloatBuffer.wrap(results.toArray), iter.invalid )
   }
 
   def combine( reductionOp: ReduceOpFlt, input: CDFloatArray, mappedInput: CDFloatArray, coordMap: CDCoordMap ): CDFloatArray = {
@@ -274,8 +301,8 @@ object CDFloatArray extends Loggable with Serializable {
 
   def accumulate( reductionOp: ReduceOpFlt, input0: CDFloatArray, input1: CDFloatArray ): Unit = {
     val sameStructure = input0.getStride.sameElements(input1.getStride)
-    val iter = DualArrayIterator(input0,input1)
-    for (flatIndex <- iter;  v0 = iter.value0; if (input0.valid(v0)); v1 = iter.value1; if (input1.valid(v1))) {
+    val iter = MultiArrayIterator(input0,input1)
+    for ( flatIndex <- iter;  values = iter.values; v0 = values.head; v1 = values.last; if (v0 != iter.invalid) && (v1 != iter.invalid) ) {
       input0.setStorageValue(flatIndex, reductionOp(v0, v1))
     }
   }
@@ -560,10 +587,12 @@ object CDDoubleArray {
 
   def combine( reductionOp: ReduceOpDbl, input0: CDDoubleArray, input1: CDDoubleArray ): CDDoubleArray = {
     val sameStructure = input0.getStride.sameElements(input1.getStride)
-    val iter = DualArrayIterator(input0,input1)
-    val result = for (flatIndex <- iter; v0 = iter.value0; v1 = iter.value1 ) yield
-      if (!input0.valid(v0)) input0.invalid else if (!input1.valid(v1)) input0.invalid else reductionOp(v0, v1)
-    new CDDoubleArray( iter.getShape, DoubleBuffer.wrap(result.toArray), input0.invalid )
+    val iter = MultiArrayIterator(input0,input1)
+    val result = for (flatIndex <- iter; values = iter.values; v0 = values.head; v1 = values.last ) yield {
+      if( (v0 == iter.invalid) || (v1 == iter.invalid) ) iter.invalid
+      else reductionOp( v0, v1 )
+    }
+    new CDDoubleArray(iter.getShape, DoubleBuffer.wrap(result.toArray), input0.invalid)
   }
 
 }

@@ -121,6 +121,14 @@ class sum extends SingularRDDKernel {
   override val initValue: Float = 0f
 }
 
+class multiAverage extends MultiRDDKernel {
+  val inputs = List( WPSDataInput("input variable", 2, Integer.MAX_VALUE ) )
+  val outputs = List( WPSProcessOutput( "operation result" ) )
+  val title = "Ensemble Mean"
+  val description = "Computes point-by-point average over intputs withing specified ROI"
+  override val mapCombineNOp: Option[ReduceNOpFlt] = Some(aveOpN)
+}
+
 class average extends SingularRDDKernel {
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )

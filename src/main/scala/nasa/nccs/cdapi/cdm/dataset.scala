@@ -30,6 +30,7 @@ object Collection {
   def apply( id: String,  dataPath: String, fileFilter: String = "", scope: String="", title: String= "", vars: List[String] = List() ) = {
     val ctype = dataPath match {
       case url if(url.startsWith("http:")) => "opendap"
+      case dpath if(dpath.toLowerCase.endsWith("csv")) => "csv"
       case fpath if(new File(fpath).isFile) => "file"
       case dpath if(new File(dpath).isDirectory) => "aggregation"
       case _ => ""
@@ -38,7 +39,8 @@ object Collection {
   }
 }
 class Collection( val ctype: String, val id: String,  val dataPath: String, val fileFilter: String = "", val scope: String="local", val title: String= "", val vars: List[String] = List() ) extends Serializable with Loggable {
-  val ncmlFile: File = NCMLWriter.getCachePath("NCML").resolve(Collections.idToFile(id)).toFile
+  val collId = Collections.idToFile(id)
+  val ncmlFile: File = NCMLWriter.getCachePath("NCML").resolve(collId).toFile
   override def toString = "Collection( id=%s, ctype=%s, path=%s, title=%s, fileFilter=%s )".format( id, ctype, dataPath, title, fileFilter )
   def isEmpty = dataPath.isEmpty
   lazy val varNames = vars.map( varStr => varStr.split( Array(':','|') ).head )
@@ -225,7 +227,7 @@ object CDSDataset extends DiskCachable  {
     NetcdfDataset.setUseNaNs(false)
 //    NcMLReader.setDebugFlags( new DebugFlagsImpl( "NcML/debugURL NcML/debugXML NcML/showParsedXML NcML/debugCmd NcML/debugOpen NcML/debugConstruct NcML/debugAggDetail" ) )
     try {
-      logger.info("Opening NetCDF dataset %s".format(dataPath))
+      logger.info("Opening NetCDF dataset(2) %s".format(dataPath))
       NetcdfDataset.openDataset( toFilePath(dataPath), true, null )
     } catch {
       case e: java.io.IOException =>
@@ -398,6 +400,7 @@ object ncReadTest extends App with Loggable {
         NetcdfDataset.setUseNaNs(false)
         val url = "file:" + outputNcFile
         try {
+          logger.info( "Opening NetCDF dataset(3) at: " + url )
           val datset = NetcdfDataset.openDataset(url, true, bufferSize, null, null)
           Option(datset.findVariable(varName)) match {
             case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
