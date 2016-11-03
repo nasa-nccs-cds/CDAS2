@@ -151,6 +151,6 @@ object netcdfTestApp extends App {
   val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( dap_uri )
   val ncVariable = ncDataset.findVariable(varName)
   println( s"Read variable $varName, shape = " + ncVariable.getShape.mkString(",") )
-  val data = ncVariable.read(section)
-  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
+//  val data = ncVariable.read(section)
+//  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
 }

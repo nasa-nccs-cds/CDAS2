@@ -3,7 +3,7 @@ package nasa.nccs.esgf.process
 import nasa.nccs.caching.{CDASPartitioner, JobRecord}
 import nasa.nccs.cdapi.cdm.{CDSDataset, CDSVariable, Collection, PartitionedFragment}
 import nasa.nccs.cdapi.kernels.AxisIndices
-import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt2
+import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray}
 import nasa.nccs.cds2.loaders.Collections
 import ucar.{ma2, nc2}
@@ -290,7 +290,7 @@ object DataFragment {
   def apply( spec: DataFragmentSpec, data: CDFloatArray, weights: CDFloatArray ): DataFragment = new DataFragment( spec, Map( ("value" -> data), ("weights" -> weights) ) )
   def apply( spec: DataFragmentSpec, data: CDFloatArray, coordMap: CDCoordMap ): DataFragment = new DataFragment( spec, Map( ("value" -> data) ), Some(coordMap) )
   def apply( spec: DataFragmentSpec, data: CDFloatArray, weights: CDFloatArray, coordMap: CDCoordMap ): DataFragment = new DataFragment( spec, Map( ("value" -> data), ("weights" -> weights) ), Some(coordMap) )
-  def combine( reductionOp: ReduceOpFlt2, input0: DataFragment, input1: DataFragment ): DataFragment = {
+  def combine( reductionOp: ReduceOpFlt, input0: DataFragment, input1: DataFragment ): DataFragment = {
     val ( data, ( fragSpec, mergeStatus) ) = input0.optCoordMap match {
       case Some( coordMap ) =>  ( CDFloatArray.combine( reductionOp, input1.data, input0.data, coordMap.subset(input1.spec.roi) ), input1.spec.combine(input0.spec,false) )
       case None => input1.optCoordMap match {
@@ -742,9 +742,9 @@ class OperationContext( val index: Int, val identifier: String, val name: String
 object OperationContext extends ContainerBase  {
   var resultIndex = 0
   def apply( index: Int, uid: UID, process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
-    val op_inputs: List[String] = metadata.get( "input" ) match {
+    val op_inputs: Iterable[String] = metadata.get( "input" ) match {
       case Some( input_values: List[_] ) => input_values.map( uid + _.toString.trim.toLowerCase )
-      case Some( input_value: String ) => List( uid + input_value.trim.toLowerCase )
+      case Some( input_value: String ) => input_value.split(',').map( uid + _.trim.toLowerCase )
       case None => uid_list.map( uid + _.trim.toLowerCase )
       case x => throw new Exception ( "Unrecognized input in operation spec: " + x.toString )
     }
@@ -757,7 +757,7 @@ object OperationContext extends ContainerBase  {
       case Some( result_id ) => uid + result_id.toString
       case None => uid + op_name + "-" + index.toString
     }
-    new OperationContext( index, identifier = UID() + op_name, name=op_name, rid = rid, inputs = op_inputs, optargs )
+    new OperationContext( index, identifier = UID() + op_name, name=op_name, rid = rid, inputs = op_inputs.toList, optargs )
   }
   def generateResultId: String = { resultIndex += 1; "$v"+resultIndex.toString }
 }
