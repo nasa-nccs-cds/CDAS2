@@ -24,6 +24,22 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     //  val data = ncVariable.read(section)
     //  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
   }
+
+  test("EnsembleAve") {
+    val variables = ( 1 to 6 ) map { index =>
+      val collection = s"GISS_r${index}i1p1"
+      val GISS_path = s"/Users/tpmaxwel/Dropbox/Tom/Data/ESGF-CWT/GISS/$collection.csv"
+      s"""{"uri":"collection:/$collection","path":"${GISS_path}","name":"tas:v$index","domain":"d0"}"""
+    }
+    val vids = ( 1 to 6 ) map { index => s"v$index" }
+    val datainputs = """[domain=[{"name":"d0"}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format( variables.mkString(","), vids.mkString(",") )
+    logger.info( "Request datainputs: " + datainputs )
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
+    logger.info( "Sum1 Result: " + result_value.toString )
+  }
 }
 
 class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
