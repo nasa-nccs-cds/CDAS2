@@ -26,11 +26,7 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 //  }
 
   test("EnsembleAve") {
-    val variables = ( 1 to 6 ) map { index =>
-      val collection = s"GISS_r${index}i1p1"
-      val GISS_path = s"/Users/tpmaxwel/Dropbox/Tom/Data/ESGF-CWT/GISS/$collection.csv"
-      s"""{"uri":"collection:/$collection","path":"${GISS_path}","name":"tas:v$index","domain":"d0"}"""
-    }
+    val variables = ( 1 to 6 ) map { index => s"""{"uri":"collection:/GISS_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
     val vids = ( 1 to 6 ) map { index => s"v$index" }
     val datainputs = """[domain=[{"name":"d0"}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format( variables.mkString(","), vids.mkString(",") )
     logger.info( "Request datainputs: " + datainputs )
