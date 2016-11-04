@@ -11,6 +11,7 @@ import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.cds2.utilities.runtime
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.utilities.cdsutils
+import ucar.nc2.{FileWriter2, Group, NetcdfFile, NetcdfFileWriter}
 import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset._
@@ -206,6 +207,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
     bw.write( getNCML.toString )
     bw.close()
   }
+
 }
 
 object FileHeader extends Loggable {

@@ -68,9 +68,9 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
   def getAxisIndices( axisConf: String ): AxisIndices = targetGrid.getAxisIndices( axisConf  )
 }
 
-class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: CoordinateAxis1D, val domainAxisOpt: Option[DomainAxis] ) {
+class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: CoordinateAxis1D, val domainAxisOpt: Option[DomainAxis] )  extends Serializable {
   val logger = org.slf4j.LoggerFactory.getLogger("nasa.nccs.cds2.cdm.GridCoordSpec")
-  private val _optRange: Option[ma2.Range] = getAxisRange( variable, coordAxis, domainAxisOpt )
+  private val _optRange: Option[ma2.Range] = getAxisRange( coordAxis, domainAxisOpt )
   private val _data = getCoordinateValues
   val bounds: Array[Double] = getAxisBounds( coordAxis, domainAxisOpt)
   def getData: Array[Double] = _data
@@ -89,7 +89,7 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
   override def toString: String = "GridCoordSpec{id=%s units=%s cfName=%s type=%s start=%f end=%f length=%d}".format(getAxisName,getUnits,getCFAxisName,getAxisType.toString,getStartValue,getEndValue,getLength)
   def getMetadata: Map[String,String] = Map( "id"->getAxisName, "units"->getUnits, "name"->getCFAxisName, "type"->getAxisType.toString, "start"->getStartValue.toString, "end"->getEndValue.toString, "length"->getLength.toString )
 
-  private def getAxisRange( variable: CDSVariable, coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): Option[ma2.Range] = {
+  private def getAxisRange( coordAxis: CoordinateAxis, domainAxisOpt: Option[DomainAxis]): Option[ma2.Range] = {
     val axis_len = coordAxis.getShape(0)
     domainAxisOpt match {
       case Some( domainAxis ) =>  domainAxis.system match {
@@ -263,18 +263,23 @@ class GridCoordSpec( val index: Int, val variable: CDSVariable, val coordAxis: C
 }
 
 object GridSpec extends Loggable {
-    def apply( variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ): GridSpec = {
-      val coordSpecs: IndexedSeq[Option[GridCoordSpec]] = for (idim <- variable.dims.indices; dim = variable.dims(idim); coord_axis_opt = variable.getCoordinateAxis(dim.getFullName)) yield coord_axis_opt match {
-        case Some( coord_axis ) =>
-          val domainAxisOpt: Option[DomainAxis] = roiOpt.flatMap(axes => axes.find(da => da.matches( coord_axis.getAxisType )))
-          Some( new GridCoordSpec(idim, variable, coord_axis, domainAxisOpt) )
-        case None => logger.warn( "Unrecognized coordinate axis: %s, axes = ( %s )".format( dim.getFullName, variable.getCoordinateAxesList.map( axis => axis.getFullName ).mkString(", ") )); None
-      }
-      new GridSpec( variable, coordSpecs.flatten )
+  def apply( variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ): GridSpec = {
+    val coordSpecs: IndexedSeq[Option[GridCoordSpec]] = for (idim <- variable.dims.indices; dim = variable.dims(idim); coord_axis_opt = variable.getCoordinateAxis(dim.getFullName)) yield coord_axis_opt match {
+      case Some( coord_axis ) =>
+        val domainAxisOpt: Option[DomainAxis] = roiOpt.flatMap(axes => axes.find(da => da.matches( coord_axis.getAxisType )))
+        Some( new GridCoordSpec(idim, variable, coord_axis, domainAxisOpt) )
+      case None => logger.warn( "Unrecognized coordinate axis: %s, axes = ( %s )".format( dim.getFullName, variable.getCoordinateAxesList.map( axis => axis.getFullName ).mkString(", ") )); None
     }
+    new GridSpec( coordSpecs.flatten )
+  }
+
+  def apply( variable: CDSVariable, section: ma2.Section ): GridSpec = {
+    val grid_axes = section.getRanges.map( r => new DomainAxis( DomainAxis.fromCFAxisName(r.getName), r.first, r.last, "indices" ) )
+    GridSpec( variable, Some( grid_axes.toList) )
+  }
 }
 
-class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
+class  GridSpec( val axes: IndexedSeq[GridCoordSpec] ) extends Serializable {
   val logger = org.slf4j.LoggerFactory.getLogger("nasa.nccs.cds2.cdm.GridCoordSpec")
   def getAxisSpec( dim_index: Int ): GridCoordSpec = axes(dim_index)
   def getAxisSpec( axis_type: AxisType ): Option[GridCoordSpec] = axes.find( axis => axis.getAxisType == axis_type )
@@ -290,12 +295,6 @@ class  GridSpec( variable: CDSVariable, val axes: IndexedSeq[GridCoordSpec] ) {
   }
   def addRangeNames( section: ma2.Section ): ma2.Section = new ma2.Section( getRanges( section )  )
   def getRanges( section: ma2.Section ): IndexedSeq[ma2.Range] = for( ir <- section.getRanges.indices; r0 = section.getRange(ir); axspec = getAxisSpec(ir) ) yield new ma2.Range( axspec.getCFAxisName, r0 )
-
-  def getSubGrid( section: ma2.Section ): GridSpec = {
-    assert( section.getRank == getRank, "Section with wrong rank for subgrid: %d vs %d ".format( section.getRank, getRank) )
-    val subgrid_axes = section.getRanges.map( r => new DomainAxis( DomainAxis.fromCFAxisName(r.getName), r.first, r.last, "indices" ) )
-    GridSpec( variable, Some(subgrid_axes.toList) )
-  }
 
   def getSubSection( roi: List[DomainAxis] ): Option[ma2.Section] = {
     val ranges: IndexedSeq[ma2.Range] = for( gridCoordSpec <- axes ) yield {
@@ -358,7 +357,7 @@ class GridContext(val axisMap: Map[Char,Option[( Int, HeapDblArray )]], val cfAx
   }
 }
 
-class TargetGrid( val variable: CDSVariable = CDSVariable.empty, roiOpt: Option[List[DomainAxis]]=None ) extends CDSVariable(variable.name, variable.dataset, variable.ncVariable ) {
+class TargetGrid( variable: CDSVariable = CDSVariable.empty, roiOpt: Option[List[DomainAxis]]=None ) extends CDSVariable(variable.name, variable.dataset, variable.ncVariable ) {
   val grid = GridSpec( variable, roiOpt )
   def toBoundsString = roiOpt.map( _.map( _.toBoundsString ).mkString( "{ ", ", ", " }") ).getOrElse("")
   def getRank = grid.getRank

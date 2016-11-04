@@ -10,7 +10,7 @@ import java.nio._
 
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.XmlResource
-import nasa.nccs.cds2.utilities.{appParameters}
+import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateSystem, NetcdfDataset, VariableDS}
@@ -25,6 +25,7 @@ import scala.reflect.ClassTag
 import scala.xml.XML
 import org.apache.commons.io.IOUtils
 import nasa.nccs.cds2.loaders.Collections
+import ucar.nc2.{Group, NetcdfFileWriter, Variable}
 
 object Collection {
   def apply( id: String,  dataPath: String, fileFilter: String = "", scope: String="", title: String= "", vars: List[String] = List() ) = {
@@ -41,6 +42,7 @@ object Collection {
 class Collection( val ctype: String, val id: String,  val dataPath: String, val fileFilter: String = "", val scope: String="local", val title: String= "", val vars: List[String] = List() ) extends Serializable with Loggable {
   val collId = Collections.idToFile(id)
   val ncmlFile: File = NCMLWriter.getCachePath("NCML").resolve(collId).toFile
+  val gridFile: File = NCMLWriter.getCachePath("NCML").resolve( Collections.idToFile( id,".nc" ) ).toFile
   override def toString = "Collection( id=%s, ctype=%s, path=%s, title=%s, fileFilter=%s )".format( id, ctype, dataPath, title, fileFilter )
   def isEmpty = dataPath.isEmpty
   lazy val varNames = vars.map( varStr => varStr.split( Array(':','|') ).head )
@@ -76,17 +78,39 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
     else path
   }
 
+  def createGridFile( ncmlFile: File, gridFile: File  ) = {
+    val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( ncmlFile.toString )
+    logger.info( "Creating Grid File at: " + gridFile )
+    val gridWriter = NetcdfFileWriter.createNew( NetcdfFileWriter.Version.netcdf4, gridFile.toString, null )
+    val dimMap = Map( ncDataset.getDimensions.map( d => d.getShortName -> gridWriter.addDimension( null, d.getShortName, d.getLength ) ): _* )
+    val varItems = for( cvar <- ncDataset.getVariables; if cvar.isCoordinateVariable ) yield {
+      val newVar = gridWriter.addVariable( null, cvar.getShortName, cvar.getDataType, cvar.getDimensions.flatMap( d => dimMap.get(d.getShortName)) )
+      cvar.getAttributes.map( attr => gridWriter.addVariableAttribute( newVar, attr ) )
+      cvar.getShortName -> newVar
+    }
+    val varMap = Map( varItems: _* )
+    ncDataset.getGlobalAttributes.map( attr => gridWriter.addGroupAttribute( null, attr ) )
+    gridWriter.create()
+    for( cvar <- ncDataset.getVariables; if cvar.isCoordinateVariable ) varMap.get( cvar.getShortName ) match {
+      case Some( newVar ) => gridWriter.write( newVar, cvar.read() )
+    }
+    gridWriter.close()
+  }
+
   def createNCML(): Boolean = {
     val recreate =  appParameters.bool("ncml.recreate",false)
-    if( !ncmlFile.exists || recreate ) {
+    val rv = if( !ncmlFile.exists || recreate ) {
       assert( !dataPath.isEmpty, "Attempt to create NCML from empty data path: " + dataPath )
       val pathFile = new File(toFilePath(dataPath))
       ncmlFile.getParentFile.mkdirs
       val ncmlWriter = NCMLWriter(pathFile)
       ncmlWriter.writeNCML(ncmlFile)
       true
-    } else { false }
+    } else false
+    if( !gridFile.exists || recreate ) createGridFile( ncmlFile, gridFile )
+    rv
   }
+
 }
 
 object DiskCacheFileMgr extends XmlResource {

@@ -148,7 +148,7 @@ object Collections extends XmlResource {
   def uriToFile( uri: String ): String = {
     uri.toLowerCase.split(":").last.stripPrefix("/").stripPrefix("/").replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ".xml"
   }
-  def idToFile( id: String ): String = id.replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ".xml"
+  def idToFile( id: String, ext: String = ".xml" ): String = id.replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ext
 
   def removeCollections( collectionIds: Array[String] ): Array[String] = {
     val removedCids = collectionIds.flatMap( collectionId =>
@@ -156,7 +156,8 @@ object Collections extends XmlResource {
         case Some(collection) =>
           logger.info( "Removing collection: " + collectionId )
           datasets.remove(collectionId)
-          if (collection.ctype.equals("file")) { collection.ncmlFile.delete() }
+          if( collection.ncmlFile.exists() ) { collection.ncmlFile.delete() }
+          if( collection.gridFile.exists() ) { collection.gridFile.delete() }
           Some(collection.id)
         case None => logger.error("Attempt to delete collection that does not exist: " + collectionId); None
       }

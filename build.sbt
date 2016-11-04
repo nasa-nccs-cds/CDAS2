@@ -63,11 +63,12 @@ lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultpropertie
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
 lazy val cdasGlobalCollectionsFile = settingKey[File]("The cdas global Collections file")
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
+lazy val uvcdat_prefix = settingKey[File]("The UVCDAT env directory.")
 
 cdas_cache_dir := { val cache_dir = getCacheDir();  cache_dir.mkdirs();  cache_dir  }
 cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
-
+uvcdat_prefix := getUvcdatEnv
 
 // try{ IO.write( cdasProperties.value, "", cdasPropertiesFile.value ) } catch { case err: Exception => println("Error writing to properties file: " + err.getMessage ) }
 
@@ -92,6 +93,12 @@ def getCacheDir(): File =
     case None => file(System.getProperty("user.home")) / ".cdas" / "cache"
   }
 
+def getUvcdatEnv(): File =
+  sys.env.get("CONDA_PREFIX") match {
+    case Some(uvcdat_dir) => file(uvcdat_dir)
+    case None => file( System.getProperty("user.home") )
+  }
+
 
 cdasLocalCollectionsFile :=  {
   val collections_file = cdas_cache_dir.value / "local_collections.xml"
@@ -108,7 +115,9 @@ cdasGlobalCollectionsFile := {
 
 unmanagedClasspath in Compile += cdas_cache_dir.value
 unmanagedClasspath in Runtime += cdas_cache_dir.value
+unmanagedClasspath in Runtime +=  uvcdat_prefix.value / "lib"
 unmanagedClasspath in Test += cdas_cache_dir.value
+unmanagedClasspath in Test +=  uvcdat_prefix.value / "lib"
 
 publishTo := Some(Resolver.file( "file",  sys.env.get("SBT_PUBLISH_DIR") match {
   case Some(pub_dir) => { val pdir = file(pub_dir); pdir.mkdirs(); pdir }
