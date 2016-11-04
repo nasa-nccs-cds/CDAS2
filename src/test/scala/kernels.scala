@@ -10,19 +10,35 @@ import org.apache.log4j.{ Logger, LogManager, Level }
 
 class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
-  test("OpenDAP") {
-    import ucar.nc2.dataset.NetcdfDataset
-    val origin = Array(1404,0,0)
-    val shape = Array(234,90,144)
-    val section: ma2.Section = new ma2.Section(origin,shape)
-    val varName = "tas"
-    val dap_uri = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
-    println( s"Opening dataset " + dap_uri )
-    val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( dap_uri )
-    val ncVariable = ncDataset.findVariable(varName)
-    println( s"Read variable $varName, shape = " + ncVariable.getShape.mkString(",") )
-    //  val data = ncVariable.read(section)
-    //  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
+//  test("OpenDAP") {
+//    import ucar.nc2.dataset.NetcdfDataset
+//    val origin = Array(1404,0,0)
+//    val shape = Array(234,90,144)
+//    val section: ma2.Section = new ma2.Section(origin,shape)
+//    val varName = "tas"
+//    val dap_uri = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
+//    println( s"Opening dataset " + dap_uri )
+//    val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( dap_uri )
+//    val ncVariable = ncDataset.findVariable(varName)
+//    println( s"Read variable $varName, shape = " + ncVariable.getShape.mkString(",") )
+//    //  val data = ncVariable.read(section)
+//    //  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
+//  }
+
+  test("EnsembleAve") {
+    val variables = ( 1 to 6 ) map { index =>
+      val collection = s"GISS_r${index}i1p1"
+      val GISS_path = s"/Users/tpmaxwel/Dropbox/Tom/Data/ESGF-CWT/GISS/$collection.csv"
+      s"""{"uri":"collection:/$collection","path":"${GISS_path}","name":"tas:v$index","domain":"d0"}"""
+    }
+    val vids = ( 1 to 6 ) map { index => s"v$index" }
+    val datainputs = """[domain=[{"name":"d0"}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format( variables.mkString(","), vids.mkString(",") )
+    logger.info( "Request datainputs: " + datainputs )
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
+    logger.info( "Sum1 Result: " + result_value.toString )
   }
 }
 
