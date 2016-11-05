@@ -83,17 +83,14 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
     logger.info( "Creating Grid File at: " + gridFile )
     val gridWriter = NetcdfFileWriter.createNew( NetcdfFileWriter.Version.netcdf4, gridFile.toString, null )
     val dimMap = Map( ncDataset.getDimensions.map( d => d.getShortName -> gridWriter.addDimension( null, d.getShortName, d.getLength ) ): _* )
-    val varItems = for( cvar <- ncDataset.getVariables; if cvar.isCoordinateVariable ) yield {
+    val varTups = for( cvar <- ncDataset.getVariables; if cvar.isCoordinateVariable ) yield {
       val newVar = gridWriter.addVariable( null, cvar.getShortName, cvar.getDataType, cvar.getDimensions.flatMap( d => dimMap.get(d.getShortName)) )
       cvar.getAttributes.map( attr => gridWriter.addVariableAttribute( newVar, attr ) )
-      cvar.getShortName -> newVar
+      cvar -> newVar
     }
-    val varMap = Map( varItems: _* )
     ncDataset.getGlobalAttributes.map( attr => gridWriter.addGroupAttribute( null, attr ) )
     gridWriter.create()
-    for( cvar <- ncDataset.getVariables; if cvar.isCoordinateVariable ) varMap.get( cvar.getShortName ) match {
-      case Some( newVar ) => gridWriter.write( newVar, cvar.read() )
-    }
+    for( ( cvar, newVar ) <- varTups ) gridWriter.write( newVar, cvar.read() )
     gridWriter.close()
   }
 
