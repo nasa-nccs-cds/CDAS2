@@ -84,7 +84,7 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
     val gridWriter = NetcdfFileWriter.createNew( NetcdfFileWriter.Version.netcdf4, gridFile.toString, null )
     val dimMap = Map( ncDataset.getDimensions.map( d => d.getShortName -> gridWriter.addDimension( null, d.getShortName, d.getLength ) ): _* )
     val varTups = for( cvar <- ncDataset.getVariables; if cvar.isCoordinateVariable ) yield {
-      val newVar = gridWriter.addVariable( null, cvar.getShortName, cvar.getDataType, cvar.getDimensions.flatMap( d => dimMap.get(d.getShortName)) )
+      val newVar = gridWriter.addVariable( null, cvar.getShortName, cvar.getDataType, cvar.getDimensionsString )
       cvar.getAttributes.map( attr => gridWriter.addVariableAttribute( newVar, attr ) )
       cvar -> newVar
     }
