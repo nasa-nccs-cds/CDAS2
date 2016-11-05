@@ -320,22 +320,11 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 //    }
 //  }
 
-  def getBounds(fragKey: String): String = {
-    val dataFragKey = DataFragmentKey(fragKey)
-    Collections.findCollection(dataFragKey.collId) match {
-      case Some(collection) =>
-        val variable: CDSVariable =
-          collectionDataCache.getVariable(collection, dataFragKey.varname)
-      case None => ""
-    }
-    " "
-  }
+
 
   def expandKey(fragKey: String): String = {
-    val bounds = getBounds(fragKey)
     val toks = fragKey.split('|')
-    "variable= %s; origin= (%s); shape= (%s); coll= %s; maxParts=%s; bounds= %s"
-      .format(toks(0), toks(2), toks(3), toks(1), toks(4), bounds)
+    "variable= %s; origin= (%s); shape= (%s); coll= %s; maxParts=%s".format(toks(0), toks(2), toks(3), toks(1), toks(4))
   }
 
   def expandKeyXml(fragKey: String): xml.Elem = {
@@ -559,20 +548,18 @@ class CollectionDataCacheMgr
       .initialCapacity(64)
       .maximumWeightedCapacity(128)
       .build()
-  private val datasetCache: Cache[String, CDSDataset] =
-    new FutureCache("Store", "dataset", false)
-  private val variableCache: Cache[String, CDSVariable] =
-    new FutureCache("Store", "variable", false)
-  private val maskCache: Cache[MaskKey, CDByteArray] =
-    new FutureCache("Store", "mask", false)
+  private val datasetCache: Cache[String, CDSDataset] = new FutureCache("Store", "dataset", false)
+  private val gridCache: Cache[String, NetcdfDataset] = new FutureCache("Store", "grid", false)
+  private val variableCache: Cache[String, CDSVariable] = new FutureCache("Store", "variable", false)
+  private val maskCache: Cache[MaskKey, CDByteArray] = new FutureCache("Store", "mask", false)
+
   def clearFragmentCache() = fragmentCache.clear
   def addJob(jrec: JobRecord): String = {
     execJobCache.put(jrec.id, jrec); jrec.id
   }
   def removeJob(jid: String) = execJobCache.remove(jid)
 
-  def getFragmentList: Array[String] =
-    fragmentCache.getEntries.map {
+  def getFragmentList: Array[String] = fragmentCache.getEntries.map {
       case (key, frag) => "%s, bounds:%s".format(key, frag.toBoundsString)
     } toArray
 
@@ -589,8 +576,7 @@ class CollectionDataCacheMgr
     case None => throw new Exception(s"Error getting cache value $key")
   }
 
-  def getDatasetFuture(collection: Collection,
-                       varName: String): Future[CDSDataset] =
+  def getDatasetFuture(collection: Collection, varName: String): Future[CDSDataset] =
     datasetCache(makeKey(collection.id, varName)) {
       produceDataset(collection, varName) _
     }
@@ -601,8 +587,21 @@ class CollectionDataCacheMgr
     Await.result(futureDataset, Duration.Inf)
   }
 
-  private def produceDataset(collection: Collection, varName: String)(
-      p: Promise[CDSDataset]): Unit = {
+  def getGridDSFuture(collection: Collection): Future[NetcdfDataset] =
+    gridCache(makeKey(collection.id, "#gridDS#")) { produceGridDS(collection) _ }
+
+  def getGridDS(collection: Collection): NetcdfDataset = {
+    val futureGridDS: Future[NetcdfDataset] = getGridDSFuture(collection)
+    Await.result(futureGridDS, Duration.Inf)
+  }
+
+  private def produceGridDS(collection: Collection)( p: Promise[NetcdfDataset]): Unit = {
+    NetcdfDataset.setUseNaNs(false)
+    val gridDS = NetcdfDataset.openDataset( collection.gridFile.toString, true, null )
+    p.success(gridDS)
+  }
+
+  private def produceDataset(collection: Collection, varName: String)( p: Promise[CDSDataset]): Unit = {
     val t0 = System.nanoTime()
     val dataset = CDSDataset.load(collection, varName)
     val t1 = System.nanoTime()

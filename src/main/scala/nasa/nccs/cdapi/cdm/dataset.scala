@@ -67,9 +67,9 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
   def toXml: xml.Elem = {
     val varData = vars.mkString(";")
     if (fileFilter.isEmpty) {
-      <collection id={id} ctype={ctype} ncml={ncmlFile.toString} path={dataPath} title={title}> {varData} </collection>
+      <collection id={id} ctype={ctype} ncml={ncmlFile.toString} grid={gridFile.toString} path={dataPath} title={title}> {varData} </collection>
     } else {
-      <collection id={id} ctype={ctype} ncml={ncmlFile.toString} path={dataPath}  fileFilter={fileFilter} title={title}> {varData} </collection>
+      <collection id={id} ctype={ctype} ncml={ncmlFile.toString} grid={gridFile.toString} path={dataPath}  fileFilter={fileFilter} title={title}> {varData} </collection>
     }
   }
 
@@ -77,6 +77,8 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
     if( path.startsWith( "file:/") ) path.substring(6)
     else path
   }
+
+  def getGridDS: NetcdfDataset = collectionDataCache.getGridDS(this)
 
   def createGridFile( ncmlFile: File, gridFile: File  ) = {
     val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( ncmlFile.toString )
@@ -232,8 +234,7 @@ object CDSDataset extends DiskCachable  {
   def load( dsetName: String, collection: Collection, varName: String ): CDSDataset = {
     val t0 = System.nanoTime
     val uri = collection.url(varName)
-    val ncDataset: NetcdfDataset = loadNetCDFDataSet( uri )
-    val rv = new CDSDataset( dsetName, collection, ncDataset, varName, ncDataset.getCoordinateSystems.toList )
+    val rv = new CDSDataset( dsetName, collection, varName  )
     val t1 = System.nanoTime
     logger.info( "loadDataset(%s)T> %.4f,  ".format( uri, (t1-t0)/1.0E9 ) )
     rv
@@ -282,23 +283,25 @@ class CDSDatasetRec( val dsetName: String, val collection: Collection, val varNa
   def getUri: String = collection.url(varName)
 }
 
-class CDSDataset( val name: String, val collection: Collection, val ncDataset: NetcdfDataset, val varName: String, coordSystems: List[CoordinateSystem] ) extends Serializable {
+class CDSDataset( val name: String, val collection: Collection, val varName: String ) extends Serializable {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
-  val attributes: List[nc2.Attribute] = ncDataset.getGlobalAttributes.map( a => { new nc2.Attribute( name + "--" + a.getFullName, a ) } ).toList
+  val gridDS = collection.getGridDS
+  val coordSystems = gridDS.getCoordinateSystems.toList
+  val attributes: List[nc2.Attribute] = gridDS.getGlobalAttributes.map( a => { new nc2.Attribute( name + "--" + a.getFullName, a ) } ).toList
   val coordAxes: List[CoordinateAxis] = initCoordAxes
   val fileHeaders: Option[DatasetFileHeaders] = getDatasetFileHeaders
 
   def initCoordAxes(): List[CoordinateAxis] = {
-    for( variable <- ncDataset.getVariables; if( variable.isCoordinateVariable ) ) {
+    for( variable <- gridDS.getVariables ) {
       variable match {
-        case cvar: VariableDS => ncDataset.addCoordinateAxis( variable.asInstanceOf[VariableDS] )
+        case cvar: VariableDS => gridDS.addCoordinateAxis( variable.asInstanceOf[VariableDS] )
         case xvar => logger.warn( "Coordinate variable of improper type: " + xvar.getClass.getName )
       }
     }
-    ncDataset.getCoordinateAxes.toList
+    gridDS.getCoordinateAxes.toList
   }
 
-  def getCoordinateAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
+  def getCoordinateAxes: List[CoordinateAxis] = gridDS.getCoordinateAxes.toList
   def getFilePath = collection.dataPath
   def getSerializable = new CDSDatasetRec( name, collection, varName )
 
@@ -314,17 +317,17 @@ class CDSDataset( val name: String, val collection: Collection, val ncDataset: N
     }
   }
 
-  def loadVariable( varName: String ): CDSVariable = {
-    val t0 = System.nanoTime
-    val ncVariable = ncDataset.findVariable(varName)
-    if (ncVariable == null) throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
-    val rv = new CDSVariable( varName, this, ncVariable )
-    val t1 = System.nanoTime
-    logger.info( "loadVariable(%s)T> %.4f,  ".format( varName, (t1-t0)/1.0E9 ) )
-    rv
-  }
+//  def loadVariable( varName: String ): CDSVariable = {
+//    val t0 = System.nanoTime
+//    val ncVariable = ncDataset.findVariable(varName)
+//    if (ncVariable == null) throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
+//    val rv = new CDSVariable( varName, this, ncVariable )
+//    val t1 = System.nanoTime
+//    logger.info( "loadVariable(%s)T> %.4f,  ".format( varName, (t1-t0)/1.0E9 ) )
+//    rv
+//  }
 
-  def findCoordinateAxis( fullName: String ): Option[CoordinateAxis] = ncDataset.findCoordinateAxis( fullName ) match { case null => None; case x => Some( x ) }
+  def findCoordinateAxis( fullName: String ): Option[CoordinateAxis] = gridDS.findCoordinateAxis( fullName ) match { case null => None; case x => Some( x ) }
 
 //  def getCoordinateAxis( axisType: DomainAxis.Type.Value ): Option[CoordinateAxis] = {
 //    axisType match {
