@@ -548,9 +548,7 @@ class CollectionDataCacheMgr
       .initialCapacity(64)
       .maximumWeightedCapacity(128)
       .build()
-  private val datasetCache: Cache[String, CDSDataset] = new FutureCache("Store", "dataset", false)
-  private val gridCache: Cache[String, NetcdfDataset] = new FutureCache("Store", "grid", false)
-  private val variableCache: Cache[String, CDSVariable] = new FutureCache("Store", "variable", false)
+
   private val maskCache: Cache[MaskKey, CDByteArray] = new FutureCache("Store", "mask", false)
 
   def clearFragmentCache() = fragmentCache.clear
@@ -574,39 +572,6 @@ class CollectionDataCacheMgr
         case Failure(t) => throw t
       }
     case None => throw new Exception(s"Error getting cache value $key")
-  }
-
-  def getDatasetFuture(collection: Collection, varName: String): Future[CDSDataset] =
-    datasetCache(makeKey(collection.id, varName)) {
-      produceDataset(collection, varName) _
-    }
-
-  def getDataset(collection: Collection, varName: String): CDSDataset = {
-    val futureDataset: Future[CDSDataset] =
-      getDatasetFuture(collection, varName)
-    Await.result(futureDataset, Duration.Inf)
-  }
-
-  def getGridDSFuture(collection: Collection): Future[NetcdfDataset] =
-    gridCache(makeKey(collection.id, "#gridDS#")) { produceGridDS(collection) _ }
-
-  def getGridDS(collection: Collection): NetcdfDataset = {
-    val futureGridDS: Future[NetcdfDataset] = getGridDSFuture(collection)
-    Await.result(futureGridDS, Duration.Inf)
-  }
-
-  private def produceGridDS(collection: Collection)( p: Promise[NetcdfDataset]): Unit = {
-    NetcdfDataset.setUseNaNs(false)
-    val gridDS = NetcdfDataset.openDataset( collection.gridFile.toString, true, null )
-    p.success(gridDS)
-  }
-
-  private def produceDataset(collection: Collection, varName: String)( p: Promise[CDSDataset]): Unit = {
-    val t0 = System.nanoTime()
-    val dataset = CDSDataset.load(collection, varName)
-    val t1 = System.nanoTime()
-    logger.info( " Completed reading dataset (%s:%s), T: %.4f " .format(collection, varName, (t1 - t0) / 1.0E9))
-    p.success(dataset)
   }
 
   def getExistingResult(resultId: String): Option[RDDTransientVariable] = {
@@ -633,34 +598,6 @@ class CollectionDataCacheMgr
       { for( jrec: JobRecord <- execJobCache.values ) yield jrec.toXml }
     </jobs>
 
-  private def promiseVariable(collection: Collection, varName: String)( p: Promise[CDSVariable]): Unit =
-    getDatasetFuture(collection, varName) onComplete {
-      case Success(dataset) =>
-        try {
-          val t0 = System.nanoTime()
-          val variable = dataset.loadVariable(varName)
-          val t1 = System.nanoTime()
-          logger.info(
-            " Completed reading variable %s, T: %.4f"
-              .format(varName, (t1 - t0) / 1.0E9))
-          p.success(variable)
-        } catch {
-          case e: Exception => p.failure(e)
-        }
-      case Failure(t) => p.failure(t)
-    }
-
-  def getVariableFuture(collection: Collection, varName: String): Future[CDSVariable] =
-    variableCache(makeKey(collection.id, varName)) { promiseVariable(collection, varName) _ }
-
-  def getVariable(collection: Collection, varName: String): CDSVariable = {
-    val futureVariable: Future[CDSVariable] =
-      getVariableFuture(collection, varName)
-    Await.result(futureVariable, Duration.Inf)
-  }
-
-  def getVariable(fragSpec: DataFragmentSpec): CDSVariable =
-    getVariable(fragSpec.collection, fragSpec.varname)
 
 //  private def cutExistingFragment( partIndex: Int, fragSpec: DataFragmentSpec, abortSizeFraction: Float=0f ): Option[DataFragment] = {
 //    getExistingFragment(fragSpec) match {

@@ -90,9 +90,10 @@ object Masks extends XmlResource {
 }
 
 object Collections extends XmlResource {
-  val maxCapacity: Int=100000
-  val initialCapacity: Int=250
+  val maxCapacity: Int=500
+  val initialCapacity: Int=10
   val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( Map( "global" -> getFilePath("global_collections.xml"), "local" -> getCacheFilePath("local_collections.xml") ) )
+  NetcdfDataset.initNetcdfFileCache(10,50,3600)
 
   def toXml: xml.Elem =
     <collections>

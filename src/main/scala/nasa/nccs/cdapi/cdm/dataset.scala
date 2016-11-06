@@ -39,6 +39,11 @@ object Collection {
     new Collection( ctype, id, dataPath, fileFilter, scope, title, vars )
   }
 }
+
+class CDGrid( coordAxes: List[CoordinateAxis], val coordSystems: List[CoordinateSystem], val attributes: List[nc2.Attribute] ) = {
+
+}
+
 class Collection( val ctype: String, val id: String,  val dataPath: String, val fileFilter: String = "", val scope: String="local", val title: String= "", val vars: List[String] = List() ) extends Serializable with Loggable {
   val collId = Collections.idToFile(id)
   val ncmlFile: File = NCMLWriter.getCachePath("NCML").resolve(collId).toFile
@@ -47,6 +52,19 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
   def isEmpty = dataPath.isEmpty
   lazy val varNames = vars.map( varStr => varStr.split( Array(':','|') ).head )
 //  println( s"====> Collection($id), vars = %s".format( vars.mkString(",")))
+
+  def getGrid: CDGrid = {
+    try {
+      val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
+      val coordSystems: List[CoordinateSystem] = gridDS.getCoordinateSystems.toList
+      val attributes: List[nc2.Attribute] = gridDS.getGlobalAttributes.map(a => { new nc2.Attribute(name + "--" + a.getFullName, a) }).toList
+      for (variable <- gridDS.getVariables) { variable match { case cvar: VariableDS => gridDS.addCoordinateAxis(variable.asInstanceOf[VariableDS]) } }
+      val coordAxes: List[CoordinateAxis] = gridDS.getCoordinateAxes.toList
+      new CDGrid( coordAxes, coordSystems, attributes )
+    } finally {
+      gridDS.close()
+    }
+  }
 
   def url(varName:String="") = ctype match {
     case "http" => dataPath
@@ -77,8 +95,6 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
     if( path.startsWith( "file:/") ) path.substring(6)
     else path
   }
-
-  def getGridDS: NetcdfDataset = collectionDataCache.getGridDS(this)
 
   def createGridFile( ncmlFile: File, gridFile: File  ) = {
     val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( ncmlFile.toString )
@@ -285,23 +301,8 @@ class CDSDatasetRec( val dsetName: String, val collection: Collection, val varNa
 
 class CDSDataset( val name: String, val collection: Collection, val varName: String ) extends Serializable {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
-  val gridDS = collection.getGridDS
-  val coordSystems = gridDS.getCoordinateSystems.toList
-  val attributes: List[nc2.Attribute] = gridDS.getGlobalAttributes.map( a => { new nc2.Attribute( name + "--" + a.getFullName, a ) } ).toList
-  val coordAxes: List[CoordinateAxis] = initCoordAxes
   val fileHeaders: Option[DatasetFileHeaders] = getDatasetFileHeaders
-
-  def initCoordAxes(): List[CoordinateAxis] = {
-    for( variable <- gridDS.getVariables ) {
-      variable match {
-        case cvar: VariableDS => gridDS.addCoordinateAxis( variable.asInstanceOf[VariableDS] )
-        case xvar => logger.warn( "Coordinate variable of improper type: " + xvar.getClass.getName )
-      }
-    }
-    gridDS.getCoordinateAxes.toList
-  }
-
-  def getCoordinateAxes: List[CoordinateAxis] = gridDS.getCoordinateAxes.toList
+  val grid = collection.getGrid
   def getFilePath = collection.dataPath
   def getSerializable = new CDSDatasetRec( name, collection, varName )
 
