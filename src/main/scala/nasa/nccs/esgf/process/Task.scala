@@ -1,7 +1,7 @@
 package nasa.nccs.esgf.process
 
 import nasa.nccs.caching.{CDASPartitioner, JobRecord}
-import nasa.nccs.cdapi.cdm.{CDSDataset, CDSVariable, Collection, PartitionedFragment}
+import nasa.nccs.cdapi.cdm.{ CDSVariable, Collection, PartitionedFragment}
 import nasa.nccs.cdapi.kernels.AxisIndices
 import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray}
@@ -36,7 +36,7 @@ case class ErrorReport(severity: String, message: String) {
   }
 }
 
-class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflow: List[OperationContext] = List(), val targetGridSpec: Map[String,String]=Map("id"->"#META") ) extends Loggable {
+class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflow: List[OperationContext] = List(), val metadata: Map[String,String]=Map("id"->"#META") ) extends Loggable {
   val errorReports = new ListBuffer[ErrorReport]()
   validate()
   logger.info( s"TaskRequest: name= $name, workflows= " + workflow.mkString(",") + ", variableMap= " + variableMap.toString + ", domainMap= " + domainMap.toString )
@@ -340,7 +340,10 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
       case Some(maskId) => <input uid={uid} varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
+  def readData( section: ma2.Section ) = collection.readVariableData( varname, section )
+  def getVariableMetadata: Map[String,nc2.Attribute] = nc2.Attribute.makeMap( collection.getVariableMetadata(varname) ).toMap
   def getMetadata: Map[String,String] = Map( "name" -> varname, "collection" -> collection.id, "fragment" -> fragIdOpt.getOrElse(""), "dimensions" -> dimensions, "units" -> units, "longname" -> longname, "uid" -> uid, "roi" -> roi.toString )
+  def getVariable: CDSVariable = collection.getVariable( varname )
 
   def combine( other: DataFragmentSpec, sectionMerge: Boolean = true ): ( DataFragmentSpec, SectionMerge.Status ) = {
     val combined_varname = varname + ":" + other.varname
@@ -461,13 +464,8 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
       "varname" -> new nc2.Attribute("varname",varname), "collection" -> new nc2.Attribute("collection",collection.id) )
   }
 
-  def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = {
-    var dset: CDSDataset = serverContext.getDataset( collection, varname )
-    dset.attributes
-  }
-  def getDataset(serverContext: ServerContext): CDSDataset = {
-    serverContext.getDataset( collection, varname )
-  }
+  def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = collection.getDatasetMetadata()
+  def getCollection: Collection = collection
 
   def reduceSection( dimensions: Int*  ): DataFragmentSpec = {
     var newSection = roi;
@@ -511,6 +509,7 @@ class DataContainer(val uid: String, private val source : Option[DataSource] = N
   private val optSpecs = mutable.ListBuffer[ OperationSpecs ]()
 
   def toWPSDataInput: WPSDataInput = WPSDataInput( uid.toString, 1, 1 )
+  def getVariable: CDSVariable = { val source = getSource; source.collection.getVariable( source.name ) }
 
   override def toString = {
     val embedded_val: String = if ( source.isDefined ) source.get.toString else operation.get.toString
@@ -523,6 +522,7 @@ class DataContainer(val uid: String, private val source : Option[DataSource] = N
   def isSource = source.isDefined
 
   def isOperation = operation.isDefined
+
   def getSource = {
     assert( isSource, s"Attempt to access an operation based DataContainer($uid) as a data source")
     source.get

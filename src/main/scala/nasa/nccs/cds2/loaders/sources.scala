@@ -129,7 +129,7 @@ object Collections extends XmlResource {
   def getVariableListXml(vids: Array[String]): xml.Elem = {
     <collections>
       { for (vid: String <- vids; vidToks = vid.split('!'); varName=vidToks(0); cid=vidToks(1) ) yield Collections.findCollection(cid) match {
-      case Some(collection) => <variables cid={collection.id}> { collectionDataCache.getVariable(collection, varName).toXml } </variables>
+      case Some(collection) => <variables cid={collection.id}> { collection.getVariable(varName).toXml } </variables>
       case None => <error> {"Unknown collection id in identifier: " + cid } </error>
     }}
     </collections>
@@ -157,8 +157,7 @@ object Collections extends XmlResource {
         case Some(collection) =>
           logger.info( "Removing collection: " + collectionId )
           datasets.remove(collectionId)
-          if( collection.ncmlFile.exists() ) { collection.ncmlFile.delete() }
-          if( collection.gridFile.exists() ) { collection.gridFile.delete() }
+          collection.deleteAggregation
           Some(collection.id)
         case None => logger.error("Attempt to delete collection that does not exist: " + collectionId); None
       }
@@ -170,7 +169,7 @@ object Collections extends XmlResource {
   def addCollection( id: String, dataPath: String, fileFilter: String, title: String, vars: List[String] ): Collection = {
     val cvars = if(vars.isEmpty) getVariableList( dataPath ) else vars
     val collection = Collection( id, dataPath, fileFilter, "local", title, cvars )
-    collection.createNCML
+    collection.generateAggregation
     datasets.put( id, collection  )
     persistLocalCollections()
     collection
@@ -178,7 +177,7 @@ object Collections extends XmlResource {
 
   def addCollection(  id: String, dataPath: String, title: String, vars: List[String] ): Collection = {
     val collection = Collection( id, dataPath, "", "local", title, vars )
-    collection.createNCML
+    collection.generateAggregation
     datasets.put( id, collection  )
     persistLocalCollections()
     collection

@@ -124,12 +124,12 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
   }
 
   def createTargetGrid( request: TaskRequest ): TargetGrid = {
-    request.targetGridSpec.get("id") match {
+    request.metadata.get("id") match {
       case Some(varId) => request.variableMap.get(varId) match {
         case Some(dataContainer: DataContainer) => serverContext.createTargetGrid( dataContainer, request.getDomain(dataContainer.getSource) )
         case None => throw new Exception( "Unrecognized variable id in Grid spec: " + varId )
       }
-      case None => throw new Exception("Target grid specification method has not yet been implemented: " + request.targetGridSpec.toString)
+      case None => throw new Exception("Target grid specification method has not yet been implemented: " + request.metadata.toString)
     }
   }
 
@@ -185,12 +185,12 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
   def saveResultToFile( resultId: String, maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, varMetadata: Map[String,String], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
     val optInputSpec: Option[DataFragmentSpec] = request.getInputSpec()
     val targetGrid = request.targetGrid
-    request.getDataset(server) map { dataset =>
+    request.getCollection(server) map { collection =>
       val varname = searchForValue(varMetadata, List("varname", "fullname", "standard_name", "original_name", "long_name"), "Nd4jMaskedTensor")
       val resultFile = Kernel.getResultFile( resultId, true )
       val writer: nc2.NetcdfFileWriter = nc2.NetcdfFileWriter.createNew(nc2.NetcdfFileWriter.Version.netcdf4, resultFile.getAbsolutePath)
       assert(targetGrid.grid.getRank == maskedTensor.getRank, "Axes not the same length as data shape in saveResult")
-      val coordAxes = dataset.getCoordinateAxes
+      val coordAxes = collection.grid.getCoordinateAxes
       val dims: IndexedSeq[nc2.Dimension] = targetGrid.grid.axes.indices.map(idim => writer.addDimension(null, targetGrid.grid.getAxisSpec(idim).getAxisName, maskedTensor.getShape(idim)))
       val dimsMap: Map[String, nc2.Dimension] = Map(dims.map(dim => (dim.getFullName -> dim)): _*)
       val newCoordVars: List[(nc2.Variable, ma2.Array)] = (for (coordAxis <- coordAxes) yield optInputSpec flatMap { inputSpec => inputSpec.getRange(coordAxis.getFullName) match {
@@ -233,33 +233,6 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
       }
     }
   }
-  def aggCollection( dsource: DataSource ): xml.Elem = {
-    val col = dsource.collection
-    logger.info( "Creating collection '" + col.id + "' path: " + col.dataPath )
-    val url = if ( col.dataPath.startsWith("http:") ) {
-      col.dataPath
-    } else {
-      col.createNCML()
-      col.ncmlFile.toString
-    }
-    _aggCollection( NetcdfDataset.openDataset(url), col )
-  }
-
-  def aggCollection( colId: String, path: File ): xml.Elem = {
-    val col = Collection( colId, path.getAbsolutePath )
-    logger.info("Creating collection '" + col.id + "' using path: " + col.dataPath)
-    col.createNCML()
-    val dataset = NetcdfDataset.openDataset(col.ncmlFile.toString)
-    _aggCollection( dataset, col )
-  }
-
-  private def _aggCollection( dataset: NetcdfDataset, col: Collection ): xml.Elem = {
-    val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => Collections.getVariableString(v) ).toList
-    val title: String = Collections.findAttribute( dataset, List( "Title", "LongName" ) )
-    val newCollection = new Collection( col.ctype, col.id, col.dataPath, col.fileFilter, col.scope, title, vars)
-    Collections.updateCollection(newCollection)
-    newCollection.toXml
-  }
 
   def isCollectionPath( path: File ): Boolean = { path.isDirectory || path.getName.endsWith(".csv") }
 
@@ -271,12 +244,12 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
         val base_id = pcol.id
         val col_dirs: Array[File] = base_dir.listFiles
         for( col_path <- col_dirs; if isCollectionPath(col_path); col_id = base_id + "/" + col_path.getName ) yield {
-          aggCollection( col_id, col_path )
+          Collection.aggregate( col_id, col_path )
         }
       })
       new WPSMergedEventReport( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "agg" =>
-      val collectionNodes =  request.variableMap.values.map( ds => aggCollection( ds.getSource ) )
+      val collectionNodes =  request.variableMap.values.map( ds => Collection.aggregate( ds.getSource ) )
       new WPSMergedEventReport( collectionNodes.map( cnode => new UtilityExecutionResult( "aggregate", cnode )).toList )
     case "clearCache" =>
       val fragIds = clearCache

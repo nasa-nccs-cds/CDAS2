@@ -168,12 +168,12 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     logger.info( "Test Result: " + printer.format(result_node) )
   }
 
-  def getTimeseriesData( collection: String, varName: String, lon_index: Int, lat_index: Int, lev_index: Int): CDFloatArray = {
-    val cdvar = collectionDataCache.getVariable( new Collection( "aggregation", collection.replace('/','_'), "" ), varName)
-    val ncVar = cdvar.ncVariable
-    val nTimesteps = ncVar.getShape()(0)
+  def getTimeseriesData( collId: String, varName: String, lon_index: Int, lat_index: Int, lev_index: Int): CDFloatArray = {
+    val collection = new Collection( "aggregation", collId.replace('/','_'), "" )
+    val cdvar = collection.getVariable(varName)
+    val nTimesteps = cdvar.shape(0)
     val section: ma2.Section = new ma2.Section( Array(0,lev_index,lat_index,lon_index), Array(nTimesteps,1,1,1) )
-    CDFloatArray( Array(nTimesteps), CDFloatArray.toFloatArray(ncVar.read( section )), cdvar.missing )
+    CDFloatArray( Array(nTimesteps), CDFloatArray.toFloatArray( collection.readVariableData( varName, section )), cdvar.missing )
   }
 
   test("Subset_Indexed_TS") {
