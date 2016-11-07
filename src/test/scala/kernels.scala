@@ -43,7 +43,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 //  Collections.addCollection( "const.test", const_data, "Constant data", List("ta") )
 
   test("GetCapabilities") {
-    val result_node = getCapabilities("fragment")
+    val result_node = getCapabilities("collections")
   }
 
   test("DescribeProcess") {

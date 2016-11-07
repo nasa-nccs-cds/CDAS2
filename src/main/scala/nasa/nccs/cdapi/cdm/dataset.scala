@@ -61,9 +61,10 @@ object Collection extends Loggable {
   }
 }
 
-object CDGrid {
-  def apply( name: String ): CDGrid = {
+object CDGrid extends Loggable {
+  def apply( name: String, ncmlFile: File ): CDGrid = {
     val gridFile: File = NCMLWriter.getCachePath("NCML").resolve( Collections.idToFile( name,".nc" ) ).toFile
+    ensureGridFile( gridFile, ncmlFile )
     val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
     try {
       val coordSystems: List[CoordinateSystem] = gridDS.getCoordinateSystems.toList
@@ -77,14 +78,7 @@ object CDGrid {
       gridDS.close()
     }
   }
-}
-
-class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis], val coordSystems: List[CoordinateSystem], val dimensions: List[Dimension], val attributes: List[nc2.Attribute] ) extends Loggable {
-
-  def deleteAggregation = if( gridFile.exists() ) { gridFile.delete() }
-  override def toString = gridFile.toString
-
-  def createGridFile( ncmlFile: File  ) = {
+  def ensureGridFile( gridFile: File, ncmlFile: File  ) =  if( !gridFile.exists() ) {
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( ncmlFile.toString, null )
     logger.info( "Creating Grid File at: " + gridFile )
     val gridWriter = NetcdfFileWriter.createNew( NetcdfFileWriter.Version.netcdf4, gridFile.toString, null )
@@ -99,8 +93,16 @@ class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis]
     for( ( cvar, newVar ) <- varTups; if cvar.isCoordinateVariable ) gridWriter.write( newVar, cvar.read() )
     gridWriter.close()
   }
+}
+
+class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis], val coordSystems: List[CoordinateSystem], val dimensions: List[Dimension], val attributes: List[nc2.Attribute] ) extends Loggable {
+
+  def deleteAggregation = if( gridFile.exists() ) { gridFile.delete() }
+  override def toString = gridFile.toString
 
   def getCoordinateAxes: List[CoordinateAxis] = coordAxes
+
+  def createGridFile( ncmlFile: File ) = CDGrid.ensureGridFile( gridFile, ncmlFile )
 
   def findCoordinateAxis(fullName: String): Option[CoordinateAxis] = {
     val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
@@ -153,8 +155,8 @@ class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis]
 
 class Collection( val ctype: String, val id: String,  val dataPath: String, val fileFilter: String = "", val scope: String="local", val title: String= "", val vars: List[String] = List() ) extends Serializable with Loggable {
   val collId = Collections.idToFile(id)
-  private val ncmlFile: File = NCMLWriter.getCachePath("NCML").resolve(collId).toFile
-  val grid = CDGrid(id)
+  private val ncmlFile: File = initNCML
+  val grid = CDGrid( id, ncmlFile )
   val variables = new ConcurrentLinkedHashMap.Builder[String, CDSVariable].initialCapacity(10).maximumWeightedCapacity(500).build()
   override def toString = "Collection( id=%s, ctype=%s, path=%s, title=%s, fileFilter=%s )".format( id, ctype, dataPath, title, fileFilter )
   def isEmpty = dataPath.isEmpty
@@ -178,7 +180,6 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
   }
 
   def generateAggregation(): xml.Elem = {
-    createNCML()
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( ncmlFile.toString, null )
     try {
       _aggCollection( ncDataset )
@@ -225,18 +226,18 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
     else path
   }
 
-  def createNCML(): Boolean = {
+  def initNCML(): File = {
+    val _ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collId).toFile
     val recreate =  appParameters.bool("ncml.recreate",false)
-    val rv = if( !ncmlFile.exists || recreate ) {
+    if( !_ncmlFile.exists || recreate ) {
       assert( !dataPath.isEmpty, "Attempt to create NCML from empty data path: " + dataPath )
       val pathFile = new File(toFilePath(dataPath))
-      ncmlFile.getParentFile.mkdirs
+      _ncmlFile.getParentFile.mkdirs
       val ncmlWriter = NCMLWriter(pathFile)
-      ncmlWriter.writeNCML(ncmlFile)
-      true
-    } else false
-    grid.createGridFile( ncmlFile )
-    rv
+      ncmlWriter.writeNCML(_ncmlFile)
+    }
+    grid.createGridFile( _ncmlFile )
+    _ncmlFile
   }
 
 }
