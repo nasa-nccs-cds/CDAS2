@@ -34,12 +34,12 @@ class CDSVariable( val name: String, val collection: Collection ) extends Loggab
   val missing = getAttributeValue( "missing_value", "" ) match { case "" => Float.MaxValue; case s => s.toFloat }
   val description = getAttributeValue( "description", "" )
   val units = getAttributeValue( "units", "" )
-  val dims = getAttributeValue( "dims", "" ).split(',')
+  val dims = getAttributeValue( "dims", "" ).split(' ')
   val shape = getAttributeValue( "shape", "" ).split(',').map( _.toInt )
   val fullname = getAttributeValue( "fullname", "" )
   val section = new ma2.Section( shape )
   def getFullSection: ma2.Section = section
-  def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last; case None => default_value }
+  def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last.replace('"',' ').trim; case None => default_value }
   override def toString = "\nCDSVariable(%s) { description: '%s', shape: %s, dims: %s, }\n  --> Variable Attributes: %s".format(name, description, shape.mkString("[", " ", "]"), dims.mkString("[", ",", "]"), attributes.mkString("\n\t\t", "\n\t\t", "\n"))
   def normalize(sval: String): String = sval.stripPrefix("\"").stripSuffix("\"").toLowerCase
   def getAttributeValue( name: String ): String =  attributes.getOrElse(name, new nc2.Attribute(new unidata.util.Parameter("",""))).getValue(0).toString
@@ -62,7 +62,7 @@ class CDSVariable( val name: String, val collection: Collection ) extends Loggab
     dims.flatMap( dim => collection.grid.findCoordinateAxis( dim ).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) ) ).toList
   }
   def getCoordinateAxis( axisType: nc2.constants.AxisType ): Option[CoordinateAxis1D] = collection.grid.findCoordinateAxis(axisType).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
-  def getCoordinateAxis( fullName: String ): Option[CoordinateAxis1D] = collection.grid.findCoordinateAxis(fullName).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
+  def getCoordinateAxis( name: String ): Option[CoordinateAxis1D] = collection.grid.findCoordinateAxis(name).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
   def getCoordinateAxesList = collection.grid.getCoordinateAxes
 }
 

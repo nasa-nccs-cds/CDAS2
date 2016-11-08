@@ -110,8 +110,7 @@ class Partition(val index: Int,
   }
   def delete() = { FileUtils.deleteQuietly(new File(path)) }
   def chunkSection(iChunk: Int, section: ma2.Section): ma2.Section = {
-    new ma2.Section(section.getRanges)
-      .replaceRange(dimIndex, chunkRange(iChunk))
+    new ma2.Section(section.getRanges).replaceRange(dimIndex, chunkRange(iChunk)).intersect(section)
   }
   def partSection(section: ma2.Section): ma2.Section = {
     new ma2.Section(section.getRanges).replaceRange(dimIndex, partRange)
@@ -217,12 +216,13 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, val maskOpt: Option[
   val missing_value: Float = getAttributeValue("missing_value", "") match { case "" => Float.MaxValue; case x => x.toFloat }
   private val baseShape = _section.getShape
   val cacheId = "a" + System.nanoTime.toHexString
-  val dType = ma2.DataType.getType( getAttributeValue("dtype", "FLOAT") )
+  val sType = getAttributeValue("dtype", "FLOAT")
+  val dType = ma2.DataType.getType( sType )
   def roi: ma2.Section = new ma2.Section(_section.getRanges)
   val partitioner = new CDASPartitioner(cacheId, roi, dType)
   def getAttributeValue(key: String, default_value: String) =
     attributes.get(key) match {
-      case Some(attr_val) => attr_val.toString.split('=').last.trim;
+      case Some(attr_val) => attr_val.toString.split('=').last.replace('"',' ').trim
       case None => default_value
     }
 

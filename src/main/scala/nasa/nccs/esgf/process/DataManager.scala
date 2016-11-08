@@ -258,11 +258,12 @@ class GridCoordSpec( val index: Int, val grid: CDGrid, val coordAxis: Coordinate
 object GridSection extends Loggable {
   def apply( variable: CDSVariable, roiOpt: Option[List[DomainAxis]] ): GridSection = {
     val grid = variable.collection.grid
-    val coordSpecs: IndexedSeq[Option[GridCoordSpec]] = for (idim <- grid.dimensions.indices; dim = grid.dimensions(idim); coord_axis_opt = variable.getCoordinateAxis(dim.getFullName)) yield coord_axis_opt match {
+    val axes = variable.getCoordinateAxesList
+    val coordSpecs: IndexedSeq[Option[GridCoordSpec]] = for (idim <- variable.dims.indices; dim = variable.dims(idim); coord_axis_opt = variable.getCoordinateAxis(dim)) yield coord_axis_opt match {
       case Some( coord_axis ) =>
         val domainAxisOpt: Option[DomainAxis] = roiOpt.flatMap(axes => axes.find(da => da.matches( coord_axis.getAxisType )))
         Some( new GridCoordSpec(idim, grid, coord_axis, domainAxisOpt) )
-      case None => logger.warn( "Unrecognized coordinate axis: %s, axes = ( %s )".format( dim.getFullName, grid.getCoordinateAxes.map( axis => axis.getFullName ).mkString(", ") )); None
+      case None => logger.warn( "Unrecognized coordinate axis: %s, axes = ( %s )".format( dim, grid.getCoordinateAxes.map( axis => axis.getFullName ).mkString(", ") )); None
     }
     new GridSection( variable.collection.grid, coordSpecs.flatten )
   }
@@ -553,7 +554,12 @@ class ServerContext( val dataLoader: DataLoader )  extends ScopeContext with Ser
     logger.info( "cacheInputData"  )
     val variable: CDSVariable = dataContainer.getVariable
     val maskOpt: Option[String] = domain_container_opt.flatMap( domain_container => domain_container.mask )
-    val optSection: Option[ma2.Section] = data_source.fragIdOpt match { case Some(fragId) => Some(DataFragmentKey(fragId).getRoi); case None => targetGrid.grid.getSection }
+    val optSection: Option[ma2.Section] = data_source.fragIdOpt match {
+      case Some(fragId) =>
+        Some(DataFragmentKey(fragId).getRoi);
+      case None =>
+        targetGrid.grid.getSection
+    }
     val optDomainSect: Option[ma2.Section] = domain_container_opt.flatMap( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
     if( optSection == None ) logger.warn( "Attempt to cache empty segment-> No caching will occur: " + dataContainer.toString )
     optSection map { section =>

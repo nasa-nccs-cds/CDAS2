@@ -91,7 +91,7 @@ object CDGrid extends Loggable {
     }
     ncDataset.getGlobalAttributes.map( attr => gridWriter.addGroupAttribute( null, attr ) )
     gridWriter.create()
-    for( ( cvar, newVar ) <- varTups ) gridWriter.write( newVar, cvar.read() ) // ; if cvar.isCoordinateVariable
+    for( ( cvar, newVar ) <- varTups; if cvar.isCoordinateVariable ) gridWriter.write( newVar, cvar.read() )
     gridWriter.close()
   }
 }
@@ -105,12 +105,12 @@ class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis]
 
   def createGridFile( ncmlFile: File ) = CDGrid.ensureGridFile( gridFile, ncmlFile )
 
-  def findCoordinateAxis(fullName: String): Option[CoordinateAxis] = {
+  def findCoordinateAxis(name: String): Option[CoordinateAxis] = {
     val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
     try {
-      Option( gridDS.findCoordinateAxis( fullName ) )
+      Option( gridDS.findCoordinateAxis( name ) ).map( axis => { axis.setCaching(true); axis.read(); axis } )
     } catch {
-      case err: Exception => logger.error("Can't find Coordinate Axis " + fullName); None
+      case err: Exception => logger.error("Can't find Coordinate Axis " + name); None
     } finally { gridDS.close() }
   }
 
@@ -118,6 +118,8 @@ class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis]
     val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
     try {
       Option( gridDS.findCoordinateAxis( AxisType.Time ) ) map { coordAxis =>
+        coordAxis.setCaching(true);
+        coordAxis.read();
         CoordinateAxis1DTime.factory( gridDS, coordAxis, new Formatter() )
       }
     } catch {
@@ -129,7 +131,7 @@ class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis]
   def findCoordinateAxis( atype: AxisType ): Option[CoordinateAxis] = {
     val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
     try {
-      Option( gridDS.findCoordinateAxis( atype ) )
+      Option( gridDS.findCoordinateAxis( atype ) ).map( axis => { axis.setCaching(true); axis.read(); axis } )
     } catch {
       case err: Exception => logger.error("Can't find Coordinate Axis with type: " + atype.toString ); None
     } finally { gridDS.close() }

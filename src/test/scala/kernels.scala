@@ -60,7 +60,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   test("AggregateFiles") {
-    val collection = "merra.test"
+    val collection = "MERRA_DAILY"
     val path = "/Users/tpmaxwel/Data/MERRA/DAILY"
     val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$path"}]]"""
     val agg_result_node = executeTest(datainputs,false,"util.agg")
@@ -69,6 +69,12 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
   test("Cache") {
     val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/GISS_r2i1p1","name":"tas:v1","domain":"d0"}]]"""
+    val cache_result_node = executeTest(datainputs,false,"util.cache")
+    logger.info( "Cache Result: " + printer.format(cache_result_node) )
+  }
+
+  test("CacheLocal") {
+    val datainputs = s"""[domain=[{"name":"d0","lev":{"start":0,"end":0,"system":"indices"}}],variable=[{"uri":"collection:/MERRA_DAILY","name":"t:v1","domain":"d0"}]]"""
     val cache_result_node = executeTest(datainputs,false,"util.cache")
     logger.info( "Cache Result: " + printer.format(cache_result_node) )
   }
@@ -102,7 +108,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
   test("Sum") {
     val nco_verified_result = 4.886666e+07
-    val datainputs = s"""[domain=[{"name":"d0","lev":{"start":$level_index,"end":$level_index,"system":"indices"},"time":{"start":$time_index,"end":$time_index,"system":"indices"}}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"xy"}]]"""
+    val datainputs = s"""[domain=[{"name":"d0","lev":{"start":0,"end":0,"system":"indices"},"time":{"start":0,"end":0,"system":"indices"}}],variable=[{"uri":"collection:/MERRA_DAILY","name":"t:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"xy"}]]"""
     val result_node = executeTest(datainputs)
     logger.info( "Test Result: " + printer.format(result_node) )
     val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
