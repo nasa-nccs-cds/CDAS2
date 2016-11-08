@@ -74,7 +74,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   test("CacheLocal") {
-    val datainputs = s"""[domain=[{"name":"d0","lev":{"start":0,"end":0,"system":"indices"}}],variable=[{"uri":"collection:/MERRA_DAILY","name":"t:v1","domain":"d0"}]]"""
+    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/merra.test","name":"ta:v1","domain":"d0"}]]"""
     val cache_result_node = executeTest(datainputs,false,"util.cache")
     logger.info( "Cache Result: " + printer.format(cache_result_node) )
   }

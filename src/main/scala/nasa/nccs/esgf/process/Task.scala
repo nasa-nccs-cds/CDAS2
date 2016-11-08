@@ -182,7 +182,7 @@ class ContainerBase extends Loggable {
 
   def normalize(sval: String): String = stripQuotes(sval).toLowerCase
 
-  def stripQuotes(sval: String): String = sval.stripPrefix("\"").stripSuffix("\"")
+  def stripQuotes(sval: String): String = sval.replace('"',' ').trim
 
   def getStringKeyMap( generic_map: Map[_,_] ): Map[String,Any] = {
     assert( generic_map.isEmpty | generic_map.keys.head.isInstanceOf[ String ] )
@@ -233,6 +233,7 @@ class PartitionSpec( val axisIndex: Int, val nPart: Int, val partIndex: Int = 0 
 }
 
 class DataSource(val name: String, val collection: Collection, val domain: String, val fragIdOpt: Option[String] = None ) {
+  val debug = 1
   def this( dsource: DataSource ) = this( dsource.name, dsource.collection, dsource.domain )
   override def toString =  s"DataSource { name = $name, collection = %s, domain = $domain, %s }".format(collection.toString,fragIdOpt.map(", fragment = "+_).getOrElse("") )
   def toXml = <dataset name={name} domain={domain}>{ collection.toXml }</dataset>
