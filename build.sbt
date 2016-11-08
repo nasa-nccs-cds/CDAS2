@@ -61,9 +61,10 @@ lazy val cdasProperties = settingKey[Properties]("The cdas properties map")
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
-lazy val cdasGlobalCollectionsFile = settingKey[File]("The cdas global Collections file")
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val uvcdat_prefix = settingKey[File]("The UVCDAT env directory.")
+
+// lazy val cdasGlobalCollectionsFile = settingKey[File]("The cdas global Collections file")
 
 cdas_cache_dir := { val cache_dir = getCacheDir();  cache_dir.mkdirs();  cache_dir  }
 cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
@@ -106,12 +107,12 @@ cdasLocalCollectionsFile :=  {
   collections_file
 }
 
-cdasGlobalCollectionsFile := {
-  val collections_file = baseDirectory.value / "src" / "main" / "resources" / "global_collections.xml"
-  val collections_install_path = cdas_cache_dir.value / "global_collections.xml"
-  if( !collections_install_path.exists() ) { copy( collections_file.toPath, collections_install_path.toPath ) }
-  collections_install_path
-}
+//cdasGlobalCollectionsFile := {
+//  val collections_file = baseDirectory.value / "src" / "main" / "resources" / "global_collections.xml"
+//  val collections_install_path = cdas_cache_dir.value / "global_collections.xml"
+//  if( !collections_install_path.exists() ) { copy( collections_file.toPath, collections_install_path.toPath ) }
+//  collections_install_path
+//}
 
 unmanagedClasspath in Compile += cdas_cache_dir.value
 unmanagedClasspath in Runtime += cdas_cache_dir.value

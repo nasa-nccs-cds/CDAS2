@@ -59,13 +59,19 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     logger.info( "Agg Result: " + printer.format(agg_result_node) )
   }
 
+  test("AggregateFiles") {
+    val collection = "merra.test"
+    val path = "/Users/tpmaxwel/Data/MERRA/DAILY"
+    val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$path"}]]"""
+    val agg_result_node = executeTest(datainputs,false,"util.agg")
+    logger.info( "Agg Result: " + printer.format(agg_result_node) )
+  }
+
   test("Cache") {
     val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/GISS_r2i1p1","name":"tas:v1","domain":"d0"}]]"""
     val cache_result_node = executeTest(datainputs,false,"util.cache")
     logger.info( "Cache Result: " + printer.format(cache_result_node) )
   }
-
-
 
   test("Aggregate&Cache") {
     val index = 6

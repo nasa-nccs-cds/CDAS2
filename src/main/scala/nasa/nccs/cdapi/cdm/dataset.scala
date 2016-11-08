@@ -78,6 +78,7 @@ object CDGrid extends Loggable {
       gridDS.close()
     }
   }
+  
   def ensureGridFile( gridFile: File, ncmlFile: File  ) =  if( !gridFile.exists() ) {
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( ncmlFile.toString, null )
     logger.info( "Creating Grid File at: " + gridFile )
@@ -90,7 +91,7 @@ object CDGrid extends Loggable {
     }
     ncDataset.getGlobalAttributes.map( attr => gridWriter.addGroupAttribute( null, attr ) )
     gridWriter.create()
-    for( ( cvar, newVar ) <- varTups; if cvar.isCoordinateVariable ) gridWriter.write( newVar, cvar.read() )
+    for( ( cvar, newVar ) <- varTups ) gridWriter.write( newVar, cvar.read() ) // ; if cvar.isCoordinateVariable
     gridWriter.close()
   }
 }
@@ -226,7 +227,7 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
     else path
   }
 
-  def initNCML(): File = {
+  def initNCML: File = {
     val _ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collId).toFile
     val recreate =  appParameters.bool("ncml.recreate",false)
     if( !_ncmlFile.exists || recreate ) {
@@ -236,7 +237,6 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
       val ncmlWriter = NCMLWriter(pathFile)
       ncmlWriter.writeNCML(_ncmlFile)
     }
-    grid.createGridFile( _ncmlFile )
     _ncmlFile
   }
 
