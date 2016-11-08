@@ -524,6 +524,7 @@ class ServerContext( val dataLoader: DataLoader )  extends ScopeContext with Ser
     val optSection: Option[ma2.Section] = fragRoiOpt match { case Some(roi) => Some(roi); case None => targetGrid.grid.getSection }
     val optDomainSect: Option[ma2.Section] = domain_container_opt.flatMap( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
     val fragSpec: Option[DataFragmentSpec] = optSection map { section =>
+      val shape = section.getShape
       new DataFragmentSpec( dataContainer.uid, variable.name, variable.collection, data_source.fragIdOpt, Some(targetGrid), variable.dims.mkString(","),
         variable.units, variable.getAttributeValue("long_name", variable.fullname), section, optDomainSect, variable.missing, maskOpt)
     }

@@ -91,8 +91,10 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     val opSection: Option[ma2.Section] = context.getOpSectionIntersection
     val rdds: Iterable[RDD[RDDPartition]] = getPartitions(opInputs.values) match {
       case Some(partitions) => opInputs.map {
-          case (uid: String, pFrag: PartitionedFragment) => getRDD( uid, pFrag, partitions, opSection )
-          case (uid: String, tVar: OperationTransientInput ) => getRDD( uid, tVar, partitions, opSection )
+          case (uid: String, pFrag: PartitionedFragment) =>
+            getRDD( uid, pFrag, partitions, opSection )
+          case (uid: String, tVar: OperationTransientInput ) =>
+            getRDD( uid, tVar, partitions, opSection )
           case (uid, x ) => throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
         }
       case None => opInputs.map {

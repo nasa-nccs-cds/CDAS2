@@ -102,10 +102,14 @@ class Partition(val index: Int,
   def data(missing_value: Float): CDFloatArray = {
     val file = new RandomAccessFile(path, "r")
     val channel: FileChannel = file.getChannel()
-    val buffer =
-      channel.map(FileChannel.MapMode.READ_ONLY, 0, partSize * sliceMemorySize)
+    val buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, partSize * sliceMemorySize)
     channel.close(); file.close()
+
     val rv = new CDFloatArray(shape, buffer.asFloatBuffer, missing_value)
+    if( index == 0 ) {
+      val debug_data = rv.getArrayData(100)
+      logger.info( "TEst Data = " + debug_data.mkString(","))
+    }
     rv
   }
   def delete() = { FileUtils.deleteQuietly(new File(path)) }
