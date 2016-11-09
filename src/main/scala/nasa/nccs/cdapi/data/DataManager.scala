@@ -115,6 +115,7 @@ class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase[Float]] ,
   }
 }
 
+
 object RDDPartition {
   def apply ( iPart: Int = -1, elements: Map[String,ArrayBase[Float]] = Map.empty,  metadata: Map[String,String] = Map.empty ) = new RDDPartition( iPart, elements, metadata )
   def apply ( iPart: Int, rdd: RDDPartition ) = new RDDPartition( iPart, rdd.elements, rdd.metadata )
