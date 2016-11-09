@@ -18,7 +18,7 @@ object WPSDataInput {
   def apply( _id:String,  minoccurs: Int, maxoccurs: Int, _title: String="", _abstract: String="", _keywords: List[String] = List.empty ) = new WPSDataInput( _id, minoccurs, maxoccurs, _title, _abstract, _keywords )
 }
 
-class WPSDataInput( _id:String,  val minoccurs: Int, val maxoccurs: Int, _title: String, _abstract : String,  _keywords : List[String] ) extends WPSElement  {
+class WPSDataInput( _id:String,  val minoccurs: Int, val maxoccurs: Int, _title: String, _abstract : String,  _keywords : List[String] ) extends WPSElement with Serializable  {
   val identifier = _id
   val title = _title
   val description = _abstract
@@ -30,7 +30,7 @@ object WPSProcessOutput {
   def apply( _id:String,  mimeType: String="text/xml", _title: String="", _abstract: String="", _keywords: List[String] = List.empty ) = new WPSProcessOutput( _id, mimeType, _title, _abstract, _keywords )
 }
 
-class WPSProcessOutput( _id:String,  val mimeType: String, _title: String, _abstract : String,  _keywords: List[String] ) extends WPSElement {
+class WPSProcessOutput( _id:String,  val mimeType: String, _title: String, _abstract : String,  _keywords: List[String] ) extends WPSElement with Serializable {
   val identifier = _id
   val title = _title
   val description = _abstract
@@ -51,7 +51,7 @@ class WPSWorkflowProcess( val identifier: String, val description: String, val t
 
 
 trait WPSProcess extends WPSElement {
-  val inputs: List[WPSDataInput]
+//  val inputs: List[WPSDataInput]
   val outputs: List[WPSProcessOutput]
 
   def GetCapabilities(): xml.Elem = <wps:Process wps:processVersion="1"> {getHeader} </wps:Process>
@@ -59,13 +59,15 @@ trait WPSProcess extends WPSElement {
   def DescribeProcess: xml.Elem =
     <wps:ProcessDescription wps:processVersion="2" storeSupported="true" statusSupported="false">
       {getHeader}
-      <wps:DataInputs> { inputs.map( _.Describe ) } </wps:DataInputs>
-      <wps:ProcessOutputs> { outputs.map( _.Describe ) }</wps:ProcessOutputs>
+      <wps:ProcessOutputs> { outputs.map( _.Describe ) } </wps:ProcessOutputs>
     </wps:ProcessDescription>
 
   def ExecuteHeader: xml.Elem = <wps:Process wps:processVersion="1"> {getHeader} </wps:Process>
 
 }
+
+// <wps:DataInputs> { inputs.map( _.Describe ) } </wps:DataInputs>
+//
 
 object TestProcess extends WPSProcess {
   val identifier = "server-id"
