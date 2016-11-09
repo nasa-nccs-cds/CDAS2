@@ -213,9 +213,9 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
     rv
   }
 
-  def reduceRDDOp(context: KernelContext)(a0: RDDPartition, a1: RDDPartition): RDDPartition = {
+  def reduceRDDOp(context: KernelContext)(a0: ( Int, RDDPartition ), a1: ( Int, RDDPartition ) ): ( Int, RDDPartition ) = {
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes", "") )
-    combineRDD(context)( a0, a1, axes )
+    a0._1 -> combineRDD(context)( a0._2, a1._2, axes )
   }
 
   def getDataSample(result: CDFloatArray, sample_size: Int = 20): Array[Float] = {
