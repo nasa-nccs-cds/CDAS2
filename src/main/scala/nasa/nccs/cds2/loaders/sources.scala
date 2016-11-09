@@ -90,9 +90,10 @@ object Masks extends XmlResource {
 }
 
 object Collections extends XmlResource {
-  val maxCapacity: Int=100000
-  val initialCapacity: Int=250
-  val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( Map( "global" -> getFilePath("global_collections.xml"), "local" -> getCacheFilePath("local_collections.xml") ) )
+  val maxCapacity: Int=500
+  val initialCapacity: Int=10
+  val datasets: ConcurrentLinkedHashMap[String,Collection] =  loadCollectionXmlData( Map( "local" -> getCacheFilePath("local_collections.xml") ) )
+  NetcdfDataset.initNetcdfFileCache(10,50,3600)
 
   def toXml: xml.Elem =
     <collections>
@@ -128,7 +129,7 @@ object Collections extends XmlResource {
   def getVariableListXml(vids: Array[String]): xml.Elem = {
     <collections>
       { for (vid: String <- vids; vidToks = vid.split('!'); varName=vidToks(0); cid=vidToks(1) ) yield Collections.findCollection(cid) match {
-      case Some(collection) => <variables cid={collection.id}> { collectionDataCache.getVariable(collection, varName).toXml } </variables>
+      case Some(collection) => <variables cid={collection.id}> { collection.getVariable(varName).toXml } </variables>
       case None => <error> {"Unknown collection id in identifier: " + cid } </error>
     }}
     </collections>
@@ -148,7 +149,7 @@ object Collections extends XmlResource {
   def uriToFile( uri: String ): String = {
     uri.toLowerCase.split(":").last.stripPrefix("/").stripPrefix("/").replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ".xml"
   }
-  def idToFile( id: String ): String = id.replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ".xml"
+  def idToFile( id: String, ext: String = ".xml" ): String = id.replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ext
 
   def removeCollections( collectionIds: Array[String] ): Array[String] = {
     val removedCids = collectionIds.flatMap( collectionId =>
@@ -156,7 +157,7 @@ object Collections extends XmlResource {
         case Some(collection) =>
           logger.info( "Removing collection: " + collectionId )
           datasets.remove(collectionId)
-          if (collection.ctype.equals("file")) { collection.ncmlFile.delete() }
+          collection.deleteAggregation
           Some(collection.id)
         case None => logger.error("Attempt to delete collection that does not exist: " + collectionId); None
       }
@@ -168,7 +169,7 @@ object Collections extends XmlResource {
   def addCollection( id: String, dataPath: String, fileFilter: String, title: String, vars: List[String] ): Collection = {
     val cvars = if(vars.isEmpty) getVariableList( dataPath ) else vars
     val collection = Collection( id, dataPath, fileFilter, "local", title, cvars )
-    collection.createNCML
+    collection.generateAggregation
     datasets.put( id, collection  )
     persistLocalCollections()
     collection
@@ -176,7 +177,7 @@ object Collections extends XmlResource {
 
   def addCollection(  id: String, dataPath: String, title: String, vars: List[String] ): Collection = {
     val collection = Collection( id, dataPath, "", "local", title, vars )
-    collection.createNCML
+    collection.generateAggregation
     datasets.put( id, collection  )
     persistLocalCollections()
     collection
@@ -226,11 +227,11 @@ object Collections extends XmlResource {
     val datasets = new ConcurrentLinkedHashMap.Builder[String, Collection].initialCapacity(initialCapacity).maximumWeightedCapacity(maxCapacity).build()
     for ( ( scope, filePath ) <- filePaths.iterator ) if( Files.exists( Paths.get(filePath) ) ) {
         try {
- //         logger.info( "Loading collections from file: " + filePath )
+          logger.info( "Loading collections from file: " + filePath )
           XML.loadFile(filePath).child.foreach(node => node.attribute("id") match {
             case None => None;
             case Some(id) =>
-//              logger.info( "Loading collection: " + id.toString.toLowerCase )
+              logger.info( "Loading collection: " + id.toString.toLowerCase )
               val collection = getCollection(node, scope)
               datasets.put(id.toString.toLowerCase, collection )
           })

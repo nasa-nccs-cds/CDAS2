@@ -20,33 +20,32 @@ object CDSVariable extends Loggable {
     case coordAxis1D: CoordinateAxis1D =>
       if( coordAxis1D.getShortName.equalsIgnoreCase("time") ) {
         coordAxis1D.setUnitsString( cdsutils.baseTimeUnits )
-//        logger.info( "CoordinateAxis1D[%s]: units = %s, values = %s".format( coordAxis1D.getFullName, coordAxis1D.getUnitsString, coordAxis1D.getCoordValues.mkString(",") ))
         coordAxis1D
       } else {
         coordAxis1D
       }
     case _ => throw new IllegalStateException("CDSVariable: 2D Coord axes not yet supported: " + coordAxis.getClass.getName)
   }
-  def empty = new CDSVariable( null, null, null )
+  def empty = new CDSVariable( null, null )
 }
 
-class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc2.Variable) extends Loggable with Serializable {
-  val description = ncVariable.getDescription
-  val dims = ncVariable.getDimensionsAll.toList
-  val units = ncVariable.getUnitsString
-  val shape = ncVariable.getShape.toList
-  val fullname = ncVariable.getFullName
-  val attributes = nc2.Attribute.makeMap(ncVariable.getAttributes).toMap
+class CDSVariable( val name: String, val collection: Collection ) extends Loggable with Serializable {
+  val attributes: Map[String,nc2.Attribute] = nc2.Attribute.makeMap( collection.grid.getVariableMetadata( name ) ).toMap
   val missing = getAttributeValue( "missing_value", "" ) match { case "" => Float.MaxValue; case s => s.toFloat }
-
-  def getFullSection: ma2.Section = ncVariable.getShapeAsSection
-  def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last; case None => default_value }
+  val description = getAttributeValue( "description", "" )
+  val units = getAttributeValue( "units", "" )
+  val dims = getAttributeValue( "dims", "" ).split(' ')
+  val shape = getAttributeValue( "shape", "" ).split(',').map( _.toInt )
+  val fullname = getAttributeValue( "fullname", "" )
+  val section = new ma2.Section( shape )
+  def getFullSection: ma2.Section = section
+  def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last.replace('"',' ').trim; case None => default_value }
   override def toString = "\nCDSVariable(%s) { description: '%s', shape: %s, dims: %s, }\n  --> Variable Attributes: %s".format(name, description, shape.mkString("[", " ", "]"), dims.mkString("[", ",", "]"), attributes.mkString("\n\t\t", "\n\t\t", "\n"))
   def normalize(sval: String): String = sval.stripPrefix("\"").stripSuffix("\"").toLowerCase
   def getAttributeValue( name: String ): String =  attributes.getOrElse(name, new nc2.Attribute(new unidata.util.Parameter("",""))).getValue(0).toString
   def toXml: xml.Node =
     <variable name={name} fullname={fullname} description={description} shape={shape.mkString("[", " ", "]")} units={units}>
-      { for( dim: nc2.Dimension <- dims; name=dim.getFullName; dlen=dim.getLength ) yield getCoordinateAxis( name ) match {
+      { for( dim: nc2.Dimension <- collection.grid.dimensions; name=dim.getFullName; dlen=dim.getLength ) yield getCoordinateAxis( name ) match {
           case None=> <dimension name={name} length={dlen.toString}/>
           case Some(axis)=>
               val units = axis.getAxisType match { case AxisType.Time =>{cdsutils.baseTimeUnits} case x => axis.getUnitsString }
@@ -57,14 +56,14 @@ class CDSVariable( val name: String, val dataset: CDSDataset, val ncVariable: nc
     </variable>
 
 
-  def read( section: ma2.Section ) = ncVariable.read(section)
+//  def read( section: ma2.Section ) = ncVariable.read(section)
   def getTargetGrid( fragSpec: DataFragmentSpec ): TargetGrid = fragSpec.targetGridOpt match { case Some(targetGrid) => targetGrid;  case None => new TargetGrid( this, Some(fragSpec.getAxes) ) }
   def getCoordinateAxes: List[ CoordinateAxis1D ] = {
-    ncVariable.getDimensions.flatMap( dim => Option(dataset.ncDataset.findCoordinateAxis( dim.getFullName )).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) ) ).toList
+    dims.flatMap( dim => collection.grid.findCoordinateAxis( dim ).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) ) ).toList
   }
-  def getCoordinateAxis( axisType: nc2.constants.AxisType ): Option[CoordinateAxis1D] = Option(dataset.ncDataset.findCoordinateAxis(axisType)).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
-  def getCoordinateAxis( fullName: String ): Option[CoordinateAxis1D] = Option(dataset.ncDataset.findCoordinateAxis(fullName)).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
-  def getCoordinateAxesList = dataset.getCoordinateAxes
+  def getCoordinateAxis( axisType: nc2.constants.AxisType ): Option[CoordinateAxis1D] = collection.grid.findCoordinateAxis(axisType).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
+  def getCoordinateAxis( name: String ): Option[CoordinateAxis1D] = collection.grid.findCoordinateAxis(name).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
+  def getCoordinateAxesList = collection.grid.getCoordinateAxes
 }
 
 trait OperationInput {

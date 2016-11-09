@@ -458,6 +458,10 @@ abstract class SingularRDDKernel extends Kernel {
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
     val inputId = context.operation.inputs.headOption.getOrElse("NULL")
+    if( inputs.iPart == 0 ) {
+      val shape = inputs.elements.head._2.shape
+      logger.info(" ##### KERNEL [%s]: Map Op: combine, part = 0, input shape = %s".format( name, shape.mkString(",") ) )
+    }
     val elem = inputs.element(inputId) match {
       case Some( input_array ) =>
         mapCombineOpt match {

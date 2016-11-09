@@ -1,9 +1,9 @@
 <collections>
-    <collection id="ecmwf/mon/atmos" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/ECMWF/mon/atmos"> va,ta,clt,ua,psl,hus </collection>
-    <collection id="cfsr/6hr/atmos" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/CFSR/6hr/atmos"> va,ta,clt,ua,psl,hus </collection>
-    <collection id="merra2/mon/atmos" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA2/mon/atmos"> va,ta,clt,ua,psl,hus </collection>
-    <collection id="merra/6hr/atmos" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/6hr/atmos"> va,ta,clt,ua,psl,hus </collection>
-    <collection id="ecmwf/6hr/atmos" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/ECMWF/6hr/atmos"> va,ta,clt,ua,psl,hus </collection>
-    <collection id="merra/mon/atmos" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/mon/atmos"> va,ta,tas,clt,ua,psl,hus </collection>
-    <collection id="cfsr/mon/atmos" url="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/CFSR/mon/atmos"> va,ta,clt,ua,psl,hus </collection>
+    <collection id="ecmwf/mon/atmos" path="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/ECMWF/mon/atmos"> va,ta,clt,ua,psl,hus </collection>
+    <collection id="cfsr/6hr/atmos" path="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/CFSR/6hr/atmos"> va,ta,clt,ua,psl,hus </collection>
+    <collection id="merra2/mon/atmos" path="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA2/mon/atmos"> va,ta,clt,ua,psl,hus </collection>
+    <collection id="merra/6hr/atmos" path="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/6hr/atmos"> va,ta,clt,ua,psl,hus </collection>
+    <collection id="ecmwf/6hr/atmos" path="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/ECMWF/6hr/atmos"> va,ta,clt,ua,psl,hus </collection>
+    <collection id="merra/mon/atmos" path="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/MERRA/mon/atmos"> va,ta,tas,clt,ua,psl,hus </collection>
+    <collection id="cfsr/mon/atmos" path="http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/CFSR/mon/atmos"> va,ta,clt,ua,psl,hus </collection>
 </collections>

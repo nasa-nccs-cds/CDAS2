@@ -7,13 +7,15 @@ import ucar.{ma2, nc2}
 import java.nio.file.{Files, Paths}
 import java.io.{FileWriter, _}
 import java.nio._
+import java.util.Formatter
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.XmlResource
-import nasa.nccs.cds2.utilities.{appParameters}
+import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.constants.AxisType
-import ucar.nc2.dataset.{CoordinateAxis, CoordinateSystem, NetcdfDataset, VariableDS}
+import ucar.nc2.dataset._
 import ucar.nc2.ncml.NcMLReader
 import ucar.nc2.util.DebugFlagsImpl
 
@@ -25,8 +27,12 @@ import scala.reflect.ClassTag
 import scala.xml.XML
 import org.apache.commons.io.IOUtils
 import nasa.nccs.cds2.loaders.Collections
+import nasa.nccs.esgf.process.DataSource
+import ucar.nc2.{Dimension, Group, NetcdfFileWriter, Variable}
 
-object Collection {
+import scala.concurrent.Future
+
+object Collection extends Loggable {
   def apply( id: String,  dataPath: String, fileFilter: String = "", scope: String="", title: String= "", vars: List[String] = List() ) = {
     val ctype = dataPath match {
       case url if(url.startsWith("http:")) => "opendap"
@@ -37,14 +43,171 @@ object Collection {
     }
     new Collection( ctype, id, dataPath, fileFilter, scope, title, vars )
   }
+
+  def aggregate( dsource: DataSource ): xml.Elem = {
+    val col = dsource.collection
+    logger.info( "Creating collection '" + col.id + "' path: " + col.dataPath )
+//    val url = if ( col.dataPath.startsWith("http:") ) {
+//      col.dataPath
+//    } else {
+//      col.createNCML()
+//    }
+    col.generateAggregation()
+  }
+
+  def aggregate( colId: String, path: File ): xml.Elem = {
+    val col = Collection(colId, path.getAbsolutePath)
+    col.generateAggregation()
+  }
 }
+
+object CDGrid extends Loggable {
+  def apply( name: String, ncmlFile: File ): CDGrid = {
+    val gridFile: File = NCMLWriter.getCachePath("NCML").resolve( Collections.idToFile( name,".nc" ) ).toFile
+    ensureGridFile( gridFile, ncmlFile )
+    val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
+    try {
+      val coordSystems: List[CoordinateSystem] = gridDS.getCoordinateSystems.toList
+      val dset_attributes: List[nc2.Attribute] = gridDS.getGlobalAttributes.map(a => { new nc2.Attribute( name + "--" + a.getFullName, a ) }).toList
+
+      for (variable <- gridDS.getVariables; if variable.isCoordinateVariable ) { variable match { case cvar: VariableDS => gridDS.addCoordinateAxis(variable.asInstanceOf[VariableDS]) } }
+      val coordAxes: List[CoordinateAxis] = gridDS.getCoordinateAxes.toList
+      val dimensions = gridDS.getDimensions.toList
+      new CDGrid( name, gridFile, coordAxes, coordSystems, dimensions, dset_attributes )
+    } finally {
+      gridDS.close()
+    }
+  }
+  
+  def ensureGridFile( gridFile: File, ncmlFile: File  ) =  if( !gridFile.exists() ) {
+    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( ncmlFile.toString, null )
+    logger.info( "Creating Grid File at: " + gridFile )
+    val gridWriter = NetcdfFileWriter.createNew( NetcdfFileWriter.Version.netcdf4, gridFile.toString, null )
+    val dimMap = Map( ncDataset.getDimensions.map( d => d.getShortName -> gridWriter.addDimension( null, d.getShortName, d.getLength ) ): _* )
+    val varTups = for( cvar <- ncDataset.getVariables ) yield {
+      val newVar = gridWriter.addVariable( null, cvar.getShortName, cvar.getDataType, cvar.getDimensionsString )
+      cvar.getAttributes.map( attr => gridWriter.addVariableAttribute( newVar, attr ) )
+      cvar -> newVar
+    }
+    ncDataset.getGlobalAttributes.map( attr => gridWriter.addGroupAttribute( null, attr ) )
+    gridWriter.create()
+    for( ( cvar, newVar ) <- varTups; if cvar.isCoordinateVariable ) gridWriter.write( newVar, cvar.read() )
+    gridWriter.close()
+  }
+}
+
+class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis], val coordSystems: List[CoordinateSystem], val dimensions: List[Dimension], val attributes: List[nc2.Attribute] ) extends Loggable {
+
+  def deleteAggregation = if( gridFile.exists() ) { gridFile.delete() }
+  override def toString = gridFile.toString
+
+  def getCoordinateAxes: List[CoordinateAxis] = coordAxes
+
+  def createGridFile( ncmlFile: File ) = CDGrid.ensureGridFile( gridFile, ncmlFile )
+
+  def findCoordinateAxis(name: String): Option[CoordinateAxis] = {
+    val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
+    try {
+      Option( gridDS.findCoordinateAxis( name ) ).map( axis => { axis.setCaching(true); axis.read(); axis } )
+    } catch {
+      case err: Exception => logger.error("Can't find Coordinate Axis " + name); None
+    } finally { gridDS.close() }
+  }
+
+  def getTimeCoordinateAxis: Option[CoordinateAxis1DTime] = {
+    val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
+    try {
+      Option( gridDS.findCoordinateAxis( AxisType.Time ) ) map { coordAxis =>
+        coordAxis.setCaching(true);
+        coordAxis.read();
+        CoordinateAxis1DTime.factory( gridDS, coordAxis, new Formatter() )
+      }
+    } catch {
+      case err: Exception => logger.error("Can't create time Coordinate Axis for collection " + name); None
+    } finally { gridDS.close() }
+  }
+
+
+  def findCoordinateAxis( atype: AxisType ): Option[CoordinateAxis] = {
+    val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
+    try {
+      Option( gridDS.findCoordinateAxis( atype ) ).map( axis => { axis.setCaching(true); axis.read(); axis } )
+    } catch {
+      case err: Exception => logger.error("Can't find Coordinate Axis with type: " + atype.toString ); None
+    } finally { gridDS.close() }
+  }
+
+
+
+  def getVariableMetadata( varName: String ): List[nc2.Attribute] = {
+    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( gridFile.toString, null )
+    try {
+      Option(ncDataset.findVariable(varName)) match {
+        case Some( ncVariable ) =>
+          var attributes = ncVariable.getAttributes.toList
+          val newAttr = List( new nc2.Attribute( "description", ncVariable.getDescription ), new nc2.Attribute( "units", ncVariable.getUnitsString), new nc2.Attribute( "dtype", ncVariable.getDataType.toString ),
+            new nc2.Attribute( "dims", ncVariable.getDimensionsString), new nc2.Attribute( "shape", ncVariable.getShape.mkString(",") ), new nc2.Attribute( "fullname", ncVariable.getFullName)  )
+          attributes ++ newAttr
+        case None => throw new Exception("Can't find variable %s in collection %s".format(varName,name) )
+      }
+    } catch {
+      case err: Exception => logger.error("Can't get Variable metadata for var: " + varName); throw err;
+    } finally { ncDataset.close() }
+  }
+}
+
 class Collection( val ctype: String, val id: String,  val dataPath: String, val fileFilter: String = "", val scope: String="local", val title: String= "", val vars: List[String] = List() ) extends Serializable with Loggable {
   val collId = Collections.idToFile(id)
-  val ncmlFile: File = NCMLWriter.getCachePath("NCML").resolve(collId).toFile
+  private val ncmlFile: File = initNCML
+  val grid = CDGrid( id, ncmlFile )
+  val variables = new ConcurrentLinkedHashMap.Builder[String, CDSVariable].initialCapacity(10).maximumWeightedCapacity(500).build()
   override def toString = "Collection( id=%s, ctype=%s, path=%s, title=%s, fileFilter=%s )".format( id, ctype, dataPath, title, fileFilter )
   def isEmpty = dataPath.isEmpty
   lazy val varNames = vars.map( varStr => varStr.split( Array(':','|') ).head )
-//  println( s"====> Collection($id), vars = %s".format( vars.mkString(",")))
+
+  def getDatasetMetadata(): List[nc2.Attribute] = {
+    val inner_attributes: List[nc2.Attribute] = List(
+      new nc2.Attribute("variables", varNames),
+      new nc2.Attribute("path", dataPath),
+      new nc2.Attribute("ctype", ctype)
+    )
+    grid.attributes ++ inner_attributes
+  }
+
+  def getVariable( varName: String ): CDSVariable = variables.getOrElseUpdate( varName, new CDSVariable( varName, this ) )
+  def getVariableMetadata( varName: String ): List[nc2.Attribute] = grid.getVariableMetadata( varName )
+
+  def deleteAggregation = {
+    if( ncmlFile.exists() ) { ncmlFile.delete() }
+    grid.deleteAggregation
+  }
+
+  def generateAggregation(): xml.Elem = {
+    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( ncmlFile.toString, null )
+    try {
+      _aggCollection( ncDataset )
+    } catch {
+      case err: Exception => logger.error("Can't aggregate collection for dataset " + ncDataset.toString ); throw err
+    } finally { ncDataset.close() }
+  }
+
+  def readVariableData( varName: String, section: ma2.Section ): ma2.Array = {
+    val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( ncmlFile.toString )
+    try {
+      val variable = ncDataset.findVariable( null, varName )
+      variable.read( section )
+    } catch {
+      case err: Exception => logger.error("Can't read data for variable %s in dataset %s ".format( varName, ncDataset.toString ) ); throw err
+    } finally { ncDataset.close() }
+  }
+
+  private def _aggCollection( dataset: NetcdfDataset ): xml.Elem = {
+    val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => Collections.getVariableString(v) ).toList
+    val title: String = Collections.findAttribute( dataset, List( "Title", "LongName" ) )
+    val newCollection = new Collection( ctype, id, dataPath, fileFilter, scope, title, vars)
+    Collections.updateCollection(newCollection)
+    newCollection.toXml
+  }
 
   def url(varName:String="") = ctype match {
     case "http" => dataPath
@@ -52,22 +215,12 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
     case  _     =>  "file:/" + ncmlFile
   }
 
-  def getDatasetMetadata(): List[nc2.Attribute] = {
-    val dataset = collectionDataCache.getDataset( this, vars.head )
-    val inner_attributes: List[nc2.Attribute] = List (
-      new nc2.Attribute( "variables", varNames ),
-      new nc2.Attribute( "path", dataPath ),
-      new nc2.Attribute( "ctype", ctype )
-    )
-    inner_attributes ++ dataset.attributes
-  }
-
   def toXml: xml.Elem = {
     val varData = vars.mkString(";")
     if (fileFilter.isEmpty) {
-      <collection id={id} ctype={ctype} ncml={ncmlFile.toString} path={dataPath} title={title}> {varData} </collection>
+      <collection id={id} ctype={ctype} ncml={ncmlFile.toString} grid={grid.toString} path={dataPath} title={title}> {varData} </collection>
     } else {
-      <collection id={id} ctype={ctype} ncml={ncmlFile.toString} path={dataPath}  fileFilter={fileFilter} title={title}> {varData} </collection>
+      <collection id={id} ctype={ctype} ncml={ncmlFile.toString} grid={grid.toString} path={dataPath}  fileFilter={fileFilter} title={title}> {varData} </collection>
     }
   }
 
@@ -76,17 +229,19 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
     else path
   }
 
-  def createNCML(): Boolean = {
+  def initNCML: File = {
+    val _ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collId).toFile
     val recreate =  appParameters.bool("ncml.recreate",false)
-    if( !ncmlFile.exists || recreate ) {
+    if( !_ncmlFile.exists || recreate ) {
       assert( !dataPath.isEmpty, "Attempt to create NCML from empty data path: " + dataPath )
       val pathFile = new File(toFilePath(dataPath))
-      ncmlFile.getParentFile.mkdirs
+      _ncmlFile.getParentFile.mkdirs
       val ncmlWriter = NCMLWriter(pathFile)
-      ncmlWriter.writeNCML(ncmlFile)
-      true
-    } else { false }
+      ncmlWriter.writeNCML(_ncmlFile)
+    }
+    _ncmlFile
   }
+
 }
 
 object DiskCacheFileMgr extends XmlResource {
@@ -192,53 +347,45 @@ trait DiskCachable extends XmlResource {
 
 }
 
-object CDSDataset extends DiskCachable  {
-  val cacheType = "dataset"
-  def getCacheType: String = CDSDataset.cacheType
-
-
-  def load( collection: Collection, varName: String ): CDSDataset = {
-    collection.createNCML()
-    load( collection.dataPath, collection, varName )
-  }
-
-  def restore( cache_rec_id: String ): CDSDataset = {
-    val rec: CDSDatasetRec = objectFromDisk[CDSDatasetRec](cache_rec_id)
-    load( rec.dsetName, rec.collection, rec.varName )
-  }
-  def persist( dset: CDSDataset ): String = objectToDisk( dset.getSerializable )
-
-  def load( dsetName: String, collection: Collection, varName: String ): CDSDataset = {
-    val t0 = System.nanoTime
-    val uri = collection.url(varName)
-    val ncDataset: NetcdfDataset = loadNetCDFDataSet( uri )
-    val rv = new CDSDataset( dsetName, collection, ncDataset, varName, ncDataset.getCoordinateSystems.toList )
-    val t1 = System.nanoTime
-    logger.info( "loadDataset(%s)T> %.4f,  ".format( uri, (t1-t0)/1.0E9 ) )
-    rv
-  }
-
-  def toFilePath( path: String ): String = {
-    if( path.startsWith( "file:/") ) path.substring(6)
-    else path
-  }
-
-  private def loadNetCDFDataSet(dataPath: String): NetcdfDataset = {
-    NetcdfDataset.setUseNaNs(false)
-//    NcMLReader.setDebugFlags( new DebugFlagsImpl( "NcML/debugURL NcML/debugXML NcML/showParsedXML NcML/debugCmd NcML/debugOpen NcML/debugConstruct NcML/debugAggDetail" ) )
-    try {
-      logger.info("Opening NetCDF dataset(2) %s".format(dataPath))
-      NetcdfDataset.openDataset( toFilePath(dataPath), true, null )
-    } catch {
-      case e: java.io.IOException =>
-        logger.error("Couldn't open dataset %s".format(dataPath))
-        throw e
-      case ex: Exception =>
-        logger.error("Something went wrong while reading %s".format(dataPath))
-        throw ex
-    }
-  }
-}
+//object CDSDataset extends DiskCachable  {
+//  val cacheType = "dataset"
+//  def getCacheType: String = CDSDataset.cacheType
+//
+////  def load( collection: Collection, varName: String ): CDSDataset = {
+////    collection.generateAggregation()
+////    load( collection.dataPath, collection, varName )
+////  }
+//
+////  def load( dsetName: String, collection: Collection, varName: String ): CDSDataset = {
+////    val t0 = System.nanoTime
+////    val uri = collection.url(varName)
+////    val rv = new CDSDataset( dsetName, collection, varName  )
+////    val t1 = System.nanoTime
+////    logger.info( "loadDataset(%s)T> %.4f,  ".format( uri, (t1-t0)/1.0E9 ) )
+////    rv
+////  }
+//
+//  def toFilePath( path: String ): String = {
+//    if( path.startsWith( "file:/") ) path.substring(6)
+//    else path
+//  }
+//
+////  private def loadNetCDFDataSet(dataPath: String): NetcdfDataset = {
+////    NetcdfDataset.setUseNaNs(false)
+//////    NcMLReader.setDebugFlags( new DebugFlagsImpl( "NcML/debugURL NcML/debugXML NcML/showParsedXML NcML/debugCmd NcML/debugOpen NcML/debugConstruct NcML/debugAggDetail" ) )
+////    try {
+////      logger.info("Opening NetCDF dataset(2) %s".format(dataPath))
+////      NetcdfDataset.openDataset( toFilePath(dataPath), true, null )
+////    } catch {
+////      case e: java.io.IOException =>
+////        logger.error("Couldn't open dataset %s".format(dataPath))
+////        throw e
+////      case ex: Exception =>
+////        logger.error("Something went wrong while reading %s".format(dataPath))
+////        throw ex
+////    }
+////  }
+//}
 //public class NcMLReader {
 //  static private final Namespace ncNS = thredds.client.catalog.Catalog.ncmlNS;
 //  static private org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(NcMLReader.class);
@@ -257,80 +404,53 @@ object CDSDataset extends DiskCachable  {
 //    debugAggDetail = debugFlag.isSet("NcML/debugAggDetail");
 //  }
 
-class CDSDatasetRec( val dsetName: String, val collection: Collection, val varName: String ) extends Serializable {
-  def getUri: String = collection.url(varName)
-}
-
-class CDSDataset( val name: String, val collection: Collection, val ncDataset: NetcdfDataset, val varName: String, coordSystems: List[CoordinateSystem] ) extends Serializable {
-  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
-  val attributes: List[nc2.Attribute] = ncDataset.getGlobalAttributes.map( a => { new nc2.Attribute( name + "--" + a.getFullName, a ) } ).toList
-  val coordAxes: List[CoordinateAxis] = initCoordAxes
-  val fileHeaders: Option[DatasetFileHeaders] = getDatasetFileHeaders
-
-  def initCoordAxes(): List[CoordinateAxis] = {
-    for( variable <- ncDataset.getVariables; if( variable.isCoordinateVariable ) ) {
-      variable match {
-        case cvar: VariableDS => ncDataset.addCoordinateAxis( variable.asInstanceOf[VariableDS] )
-        case xvar => logger.warn( "Coordinate variable of improper type: " + xvar.getClass.getName )
-      }
-    }
-    ncDataset.getCoordinateAxes.toList
-  }
-
-  def getCoordinateAxes: List[CoordinateAxis] = ncDataset.getCoordinateAxes.toList
-  def getFilePath = collection.dataPath
-  def getSerializable = new CDSDatasetRec( name, collection, varName )
-
-  def getDatasetFileHeaders: Option[DatasetFileHeaders] = {
-    if( collection.dataPath.startsWith("http:" ) ) { None }
-    else if( collection.dataPath.endsWith(".ncml" ) ) {
-      val aggregation = XML.loadFile(getFilePath) \ "aggregation"
-      val aggDim = (aggregation \ "@dimName").text
-      val fileNodes = ( aggregation \ "netcdf" ).map( node => new FileHeader(  (node \ "@location").text,  (node \ "@coordValue").text.split(",").map( _.trim.toDouble ), false  ) )
-      Some( new DatasetFileHeaders( aggDim, fileNodes ) )
-    } else {
-      None
-    }
-  }
-
-  def loadVariable( varName: String ): CDSVariable = {
-    val t0 = System.nanoTime
-    val ncVariable = ncDataset.findVariable(varName)
-    if (ncVariable == null) throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
-    val rv = new CDSVariable( varName, this, ncVariable )
-    val t1 = System.nanoTime
-    logger.info( "loadVariable(%s)T> %.4f,  ".format( varName, (t1-t0)/1.0E9 ) )
-    rv
-  }
-
-  def findCoordinateAxis( fullName: String ): Option[CoordinateAxis] = ncDataset.findCoordinateAxis( fullName ) match { case null => None; case x => Some( x ) }
-
-//  def getCoordinateAxis( axisType: DomainAxis.Type.Value ): Option[CoordinateAxis] = {
-//    axisType match {
-//      case DomainAxis.Type.X => Option( coordSystem.getXaxis )
-//      case DomainAxis.Type.Y => Option( coordSystem.getYaxis )
-//      case DomainAxis.Type.Z => Option( coordSystem.getHeightAxis )
-//      case DomainAxis.Type.Lon => Option( coordSystem.getLonAxis )
-//      case DomainAxis.Type.Lat => Option( coordSystem.getLatAxis )
-//      case DomainAxis.Type.Lev => Option( coordSystem.getPressureAxis )
-//      case DomainAxis.Type.T => Option( coordSystem.getTaxis )
+//class CDSDataset( val name: String, val collection: Collection ) extends Serializable {
+//  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
+//  val fileHeaders: Option[DatasetFileHeaders] = getDatasetFileHeaders
+//  def getFilePath = collection.dataPath
+//
+//  def getDatasetFileHeaders: Option[DatasetFileHeaders] = {
+//    if( collection.dataPath.startsWith("http:" ) ) { None }
+//    else if( collection.dataPath.endsWith(".ncml" ) ) {
+//      val aggregation = XML.loadFile(getFilePath) \ "aggregation"
+//      val aggDim = (aggregation \ "@dimName").text
+//      val fileNodes = ( aggregation \ "netcdf" ).map( node => new FileHeader(  (node \ "@location").text,  (node \ "@coordValue").text.split(",").map( _.trim.toDouble ), false  ) )
+//      Some( new DatasetFileHeaders( aggDim, fileNodes ) )
+//    } else {
+//      None
 //    }
 //  }
 //
-//  def getCoordinateAxis(axisType: Char): CoordinateAxis = {
-//    axisType.toLower match {
-//      case 'x' => if (coordSystem.isGeoXY) coordSystem.getXaxis else coordSystem.getLonAxis
-//      case 'y' => if (coordSystem.isGeoXY) coordSystem.getYaxis else coordSystem.getLatAxis
-//      case 'z' =>
-//        if (coordSystem.containsAxisType(AxisType.Pressure)) coordSystem.getPressureAxis
-//        else if (coordSystem.containsAxisType(AxisType.Height)) coordSystem.getHeightAxis else coordSystem.getZaxis
-//      case 't' => coordSystem.getTaxis
-//      case x => throw new Exception("Can't recognize axis type '%c'".format(x))
-//    }
-//  }
-}
-
-// var.findDimensionIndex(java.lang.String name)
+//
+//
+//  def findCoordinateAxis( fullName: String ): Option[CoordinateAxis] = collection.grid.findCoordinateAxis( fullName )
+//
+////  def getCoordinateAxis( axisType: DomainAxis.Type.Value ): Option[CoordinateAxis] = {
+////    axisType match {
+////      case DomainAxis.Type.X => Option( coordSystem.getXaxis )
+////      case DomainAxis.Type.Y => Option( coordSystem.getYaxis )
+////      case DomainAxis.Type.Z => Option( coordSystem.getHeightAxis )
+////      case DomainAxis.Type.Lon => Option( coordSystem.getLonAxis )
+////      case DomainAxis.Type.Lat => Option( coordSystem.getLatAxis )
+////      case DomainAxis.Type.Lev => Option( coordSystem.getPressureAxis )
+////      case DomainAxis.Type.T => Option( coordSystem.getTaxis )
+////    }
+////  }
+////
+////  def getCoordinateAxis(axisType: Char): CoordinateAxis = {
+////    axisType.toLower match {
+////      case 'x' => if (coordSystem.isGeoXY) coordSystem.getXaxis else coordSystem.getLonAxis
+////      case 'y' => if (coordSystem.isGeoXY) coordSystem.getYaxis else coordSystem.getLatAxis
+////      case 'z' =>
+////        if (coordSystem.containsAxisType(AxisType.Pressure)) coordSystem.getPressureAxis
+////        else if (coordSystem.containsAxisType(AxisType.Height)) coordSystem.getHeightAxis else coordSystem.getZaxis
+////      case 't' => coordSystem.getTaxis
+////      case x => throw new Exception("Can't recognize axis type '%c'".format(x))
+////    }
+////  }
+//}
+//
+//// var.findDimensionIndex(java.lang.String name)
 
 object TestType {
   val Buffer = 0
