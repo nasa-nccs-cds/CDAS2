@@ -81,6 +81,17 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     logger.info( "Cache Result: " + printer.format(cache_result_node) )
   }
 
+  test("subsetTest") {
+    val nco_verified_result = Array( 299.5042, 299.9792, 300.235, 300.5552, 300.6414, 300.1614, 298.6281, 298.741, 299.2321, 299.3756, 299.8385, 299.3897, 298.8834, 299.3137, 300.0229, 300.722, 301.2782, 300.4793, 299.274, 298.104, 298.394, 298.7637, 298.6111, 299.7796, 299.2917, 299.6311, 300.4805, 300.7048, 300.5353, 299.8618, 299.4969 )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":0,"system":"values"},"lon":{"start":0,"end":0,"system":"values"}}],variable=[{"uri":"collection:/giss_r1i1p2","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
+    val result_node = executeTest(datainputs)
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_value = data_nodes.head.text.toFloat
+ //   assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
+
+  }
+
   test("Aggregate&Cache") {
     val index = 6
     val collection = s"GISS_r${index}i1p1"

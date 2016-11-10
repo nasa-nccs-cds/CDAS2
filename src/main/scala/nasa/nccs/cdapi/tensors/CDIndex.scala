@@ -81,10 +81,14 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
   def getCoordMap: Map[Int,CDCoordMap] = _coordMaps
 
   def append( other: CDIndexMap ): CDIndexMap = {
-    for( i <- (1 until rank) ) if(shape(i) != other.shape(i) ) throw new Exception( "Can't merge arrays with non-commensurate shapes: %s vs %s".format(shape.mkString(","),other.shape.mkString(",")))
-    assert( (_offset==0) || (other._offset==0), "Can't merge subsetted arrays, should extract section first." )
-    val newShape: IndexedSeq[Int] = for( i <- (0 until rank) ) yield if( i==0 ) shape(i) + other.shape(i) else shape(i)
-    new CDIndexMap( newShape.toArray, _stride, _offset, _coordMaps )
+    if( shape.contains(0) ) { other }
+    else if( other.shape.contains(0) ) { this }
+    else {
+      for (i <- (1 until rank)) if (shape(i) != other.shape(i)) throw new Exception("Can't merge arrays with non-commensurate shapes: %s vs %s".format(shape.mkString(","), other.shape.mkString(",")))
+      assert((_offset == 0) || (other._offset == 0), "Can't merge subsetted arrays, should extract section first.")
+      val newShape: IndexedSeq[Int] = for (i <- (0 until rank)) yield if (i == 0) shape(i) + other.shape(i) else shape(i)
+      new CDIndexMap(newShape.toArray, _stride, _offset, _coordMaps)
+    }
   }
   def isStorageCongruent(storageSize: Int): Boolean = ( getSize == storageSize ) && !broadcasted &&  _coordMaps.isEmpty   // isStorageCongruent(getStorageSize)
   def getRank: Int = rank

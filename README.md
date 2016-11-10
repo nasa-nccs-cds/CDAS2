@@ -29,6 +29,16 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
 
         Designed to be deployed with the CDWPS framework (https://github.com/nasa-nccs-cds/CDWPS)
 
+####  Python/NetCDF support through Conda::
+
+    1) Install Anaconda: https://github.com/UV-CDAT/uvcdat/wiki/Install-using-Anaconda
+    
+    2) Install packages using conda:
+        
+        >> conda create -n uvcdat-2.x.y -c uvcdat -c conda-forge uvcdat
+        >> conda install -c conda-forge nco
+        >> source activate uvcdat-2..x.y
+
 
 ####  Code development:
 
