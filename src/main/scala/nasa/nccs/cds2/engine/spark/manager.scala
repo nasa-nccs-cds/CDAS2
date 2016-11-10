@@ -50,12 +50,12 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
     val opInputs: Map[String,OperationInput] = getOperationInputs( context )
     val kernelContext = context.toKernelContext
     logger.info( "\n\n ----------------------- BEGIN map Operation -------\n")
-    val inputRDD: RDD[ RDDPartition ] = cdsContext.domainRDDPartition( opInputs, context )
-    val mapresult: RDD[RDDPartition] = inputRDD.map( rdd_part => kernel.map( rdd_part, kernelContext ) )
+    val inputRDD: RDD[(Int,RDDPartition)] = cdsContext.domainRDDPartition( opInputs, context ).sortByKey(true)
+    val mapresult: RDD[(Int,RDDPartition)] = inputRDD.map( rdd_part => kernel.map( rdd_part, kernelContext ) )
     logger.info( "\n\n ----------------------- BEGIN reduce Operation ----------------------- \n" )
-    val resultTuple = reduce( mapresult, kernelContext, kernel )
+    val result = reduce( mapresult, kernelContext, kernel )
     logger.info( "\n\n ----------------------- FINISHED reduce Operation ----------------------- "  )
-    resultTuple._2
+    result
   }
 
   def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): WPSExecuteResponse = {
@@ -68,7 +68,14 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
     createResponse( kernel, result, context )
   }
 
-  def reduce( mapresult: RDD[RDDPartition], context: KernelContext, kernel: Kernel ): ( Int, RDDPartition ) = mapresult.keyBy( _.iPart ).sortByKey(true).reduce( kernel.reduceRDDOp(context) _ )
+  def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {
+    if( kernel.reduceCombineOpt.isDefined && context.getAxes.includes(0) ) {
+      mapresult.reduce( kernel.reduceRDDOp(context) _ )._2
+    } else {
+      val results: Seq[(Int, RDDPartition)] =  mapresult.collect().toSeq.sortWith(_._1 < _._1)
+      results.tail.foldLeft( results.head._2 )( { case (r0,(index,r1)) => kernel.mergeRDD(r0,r1) } )
+    }
+  }
 
   def createResponse( kernel: Kernel, result: RDDPartition, context: CDASExecutionContext ): WPSExecuteResponse = {
     val resultId = cacheResult( result, context )
