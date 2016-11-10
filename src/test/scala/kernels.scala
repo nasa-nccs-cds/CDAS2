@@ -12,20 +12,26 @@ import org.apache.log4j.{Level, LogManager, Logger}
 
 class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
-//  test("OpenDAP") {
-//    import ucar.nc2.dataset.NetcdfDataset
-//    val origin = Array(1404,0,0)
-//    val shape = Array(234,90,144)
-//    val section: ma2.Section = new ma2.Section(origin,shape)
-//    val varName = "tas"
-//    val dap_uri = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
-//    println( s"Opening dataset " + dap_uri )
-//    val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( dap_uri )
-//    val ncVariable = ncDataset.findVariable(varName)
-//    println( s"Read variable $varName, shape = " + ncVariable.getShape.mkString(",") )
-//    //  val data = ncVariable.read(section)
-//    //  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
-//  }
+  test("Aggregate") {
+    ( 1 to 5 ) map { index =>
+      val collection = s"GISS_r${index}i1p1"
+      val url = getClass.getResource(s"/collections/GISS/$collection.csv")
+      val GISS_path = url.getFile
+      val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$GISS_path"}]]"""
+      val agg_result_node = executeTest(datainputs, false, "util.agg")
+      logger.info(s"Agg collection $collection Result: " + printer.format(agg_result_node))
+    }
+  }
+
+  test("Cache") {
+    ( 1 to 5 ) map { index =>
+      val collection = s"GISS_r${index}i1p1"
+      val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
+      val cache_result_node = executeTest(datainputs, false, "util.cache")
+      logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
+    }
+  }
+
   test("subsetTestXY") {
     val nco_verified_result: CDFloatArray = CDFloatArray( Array( 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 245.2, 244.904, 244.6914, 244.5297, 244.2834, 244.0234, 245.4426, 245.1731, 244.9478, 244.6251, 244.2375, 244.0953, 248.4837, 247.4268, 246.4957, 245.586, 245.4244, 244.8213, 249.7772, 248.7458, 247.5331, 246.8871, 246.0183, 245.8848, 248.257, 247.3562, 246.3798, 245.3962, 244.6091, 243.6039 ).map(_.toFloat), Float.MaxValue )
     val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":5,"system":"indices"},"lon":{"start":0,"end":5,"system":"indices"},"time":{"start":0,"end":0,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
