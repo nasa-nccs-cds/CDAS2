@@ -47,14 +47,26 @@ object collectionRDDDataCache extends CollectionDataCacheMgr()
 class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext() ) extends CDS2ExecutionManager {
 
   def mapReduce(context: CDASExecutionContext, kernel: Kernel ): RDDPartition = {
-    val opInputs: Map[String,OperationInput] = getOperationInputs( context )
     val kernelContext = context.toKernelContext
+    val inputs = prepareInputs( context )
+    val mapresult = map( inputs, kernelContext, kernel )
+    reduce( mapresult, kernelContext, kernel )
+  }
+
+  def prepareInputs( context: CDASExecutionContext ): RDD[(Int,RDDPartition)] = {
+    logger.info( "\n\n ----------------------- BEGIN prepare Inputs -------\n")
+    val t0 = System.nanoTime()
+    val opInputs: Map[String,OperationInput] = getOperationInputs( context )
+    val inputs: RDD[(Int,RDDPartition)] = cdsContext.domainRDDPartition( opInputs, context ).sortByKey(true)
+    logger.info( "\n\n ----------------------- FINISHED prepare Inputs, time = %.3f sec ----------------------- ".format((System.nanoTime() - t0) / 1.0E9))
+    inputs
+  }
+
+  def map( input: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDD[(Int,RDDPartition)] = {
     logger.info( "\n\n ----------------------- BEGIN map Operation -------\n")
-    val inputRDD: RDD[(Int,RDDPartition)] = cdsContext.domainRDDPartition( opInputs, context ).sortByKey(true)
-    val mapresult: RDD[(Int,RDDPartition)] = inputRDD.map( rdd_part => kernel.map( rdd_part, kernelContext ) )
-    logger.info( "\n\n ----------------------- BEGIN reduce Operation ----------------------- \n" )
-    val result = reduce( mapresult, kernelContext, kernel )
-    logger.info( "\n\n ----------------------- FINISHED reduce Operation ----------------------- "  )
+    val t0 = System.nanoTime()
+    val result = input.map( rdd_part => kernel.map( rdd_part, context ) )
+    logger.info( "\n\n ----------------------- FINISHED map Operation, time = %.3f sec ----------------------- ".format((System.nanoTime() - t0) / 1.0E9))
     result
   }
 
@@ -69,12 +81,16 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
   }
 
   def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {
-    if( kernel.reduceCombineOpt.isDefined && context.getAxes.includes(0) ) {
+    logger.info( "\n\n ----------------------- BEGIN reduce Operation ----------------------- \n" )
+    val t0 = System.nanoTime()
+    val result = if( kernel.reduceCombineOpt.isDefined && context.getAxes.includes(0) ) {
       mapresult.reduce( kernel.reduceRDDOp(context) _ )._2
     } else {
       val results: Seq[(Int, RDDPartition)] =  mapresult.collect().toSeq.sortWith(_._1 < _._1)
       results.tail.foldLeft( results.head._2 )( { case (r0,(index,r1)) => kernel.mergeRDD(r0,r1) } )
     }
+    logger.info( "\n\n ----------------------- FINISHED reduce Operation, time = %.3f sec ----------------------- ".format((System.nanoTime() - t0) / 1.0E9)) 
+    result
   }
 
   def createResponse( kernel: Kernel, result: RDDPartition, context: CDASExecutionContext ): WPSExecuteResponse = {
