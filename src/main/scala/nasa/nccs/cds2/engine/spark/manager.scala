@@ -86,9 +86,9 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
     val result = if( kernel.reduceCombineOpt.isDefined && context.getAxes.includes(0) ) {
       mapresult.reduce( kernel.reduceRDDOp(context) _ )._2
     } else {
-      mapresult.map{ case (index,part) => (index/2,part) }.reduceByKey( (r0,r1) =>  kernel.mergeRDD(r0,r1) )
+      var reduced_mapresult = mapresult.map{ case (index,part) => (index/2,part) }.reduceByKey( (r0,r1) =>  kernel.mergeRDD(r0,r1) )
       val t1 = System.nanoTime()
-      val results: Seq[(Int, RDDPartition)] =  mapresult.collect().toSeq.sortWith(_._1 < _._1)
+      val results: Seq[(Int, RDDPartition)] =  reduced_mapresult.collect().toSeq.sortWith(_._1 < _._1)
       val t2 = System.nanoTime()
       logger.info( "REDUCE STAGES >>>===> ReduceByKey: %.3f sec, Collect: %.3f sec".format( (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9 ))
       results.tail.foldLeft( results.head._2 )( { case (r0,(index,r1)) => kernel.mergeRDD(r0,r1) } )
