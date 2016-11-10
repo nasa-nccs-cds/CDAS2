@@ -19,7 +19,7 @@ import scala.collection.JavaConverters._
 
 object CDSparkContext extends Loggable {
   val kyro_buffer_mb = 24
-  val kyro_buffer_max_mb = 64
+  val kyro_buffer_max_mb = 300
   val default_master = "local[%d]".format(CDASPartitioner.nProcessors)
 
   def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = false ) : CDSparkContext = {
