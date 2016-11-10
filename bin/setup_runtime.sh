@@ -17,7 +17,7 @@ alias cdwps='$WPS_CMD'
 alias cdwpsb='nohup $WPS_CMD &'
 alias pcdas='cd $CDAS_HOME_DIR; git fetch; git pull; sbt publish'
 alias cdshell='cd $CDSHELL_HOME_DIR; sbt run'
-alias cdshelll='export CDAS_SERVER_ADDRESS=localhost; cd $CDSHELL_HOME_DIR; sbt run'
+alias cdshelll='CDAS_SERVER_ADDRESS=localhost; cd $CDSHELL_HOME_DIR; sbt run'
 alias cdshellr='export CDAS_SERVER_ADDRESS=localhost; export CDAS_SERVER_PORT=9001; cd $CDSHELL_HOME_DIR; sbt run'
 alias cdup='cd $CDAS_HOME_DIR; git fetch; git pull; sbt publish'
 
