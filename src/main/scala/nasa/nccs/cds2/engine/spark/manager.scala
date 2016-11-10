@@ -54,7 +54,7 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
   }
 
   def prepareInputs( context: CDASExecutionContext ): RDD[(Int,RDDPartition)] = {
-    logger.info( "\n\n ----------------------- BEGIN prepare Inputs -------\n")
+    logger.info( "\n\n ----------------------- BEGIN prepare Inputs -------\n" )
     val t0 = System.nanoTime()
     val opInputs: Map[String,OperationInput] = getOperationInputs( context )
     val inputs: RDD[(Int,RDDPartition)] = cdsContext.domainRDDPartition( opInputs, context ).sortByKey(true)
@@ -74,8 +74,10 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
     val t0 = System.nanoTime()
     var pre_result: RDDPartition = mapReduce( context, kernel )
     val kernelContext = context.toKernelContext
+    val t1 = System.nanoTime()
     val result = kernel.postRDDOp( pre_result, kernelContext  )
-    logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec  ********** \n".format(kernel.name,kernel.id,context.operation.toString, (System.nanoTime() - t0) / 1.0E9))
+    val t2 = System.nanoTime()
+    logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec, postOp time = %.3f sec   ********** \n".format(kernel.name,kernel.id,context.operation.toString, (t2 - t0) / 1.0E9, (t2 - t1) / 1.0E9))
 //    logger.info( "\n\nResult partition elements= %s \n\n".format( result.elements.values.map( cdsutils.toString(_) ) ) )
     createResponse( kernel, result, context )
   }
@@ -86,13 +88,9 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
     val result = if( kernel.reduceCombineOpt.isDefined && context.getAxes.includes(0) ) {
       mapresult.reduce( kernel.reduceRDDOp(context) _ )._2
     } else {
-      var reduced_mapresult0 = mapresult.map{ case (index,part) => (index/2,part) }.reduceByKey( (r0,r1) =>  kernel.mergeRDD(r0,r1) )
-      var reduced_mapresult1 = reduced_mapresult0.map{ case (index,part) => (index/2,part) }.reduceByKey( (r0,r1) =>  kernel.mergeRDD(r0,r1) )
-      var reduced_mapresult2 = reduced_mapresult1.map{ case (index,part) => (index/2,part) }.reduceByKey( (r0,r1) =>  kernel.mergeRDD(r0,r1) )
+      val results: Seq[(Int, RDDPartition)] =  mapresult.collect().toSeq.sortWith(_._1 < _._1)
       val t1 = System.nanoTime()
-      val results: Seq[(Int, RDDPartition)] =  reduced_mapresult2.collect().toSeq.sortWith(_._1 < _._1)
-      val t2 = System.nanoTime()
-      logger.info( "REDUCE STAGES >>>===> ReduceByKey: %.3f sec, Collect: %.3f sec".format( (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9 ))
+      logger.info( "REDUCE STAGES >>>===> Collect: %.3f sec".format( (t1 - t0) / 1.0E9 ))
       results.tail.foldLeft( results.head._2 )( { case (r0,(index,r1)) => kernel.mergeRDD(r0,r1) } )
     }
     logger.info( "\n\n ----------------------- FINISHED reduce Operation, time = %.3f sec ----------------------- ".format((System.nanoTime() - t0) / 1.0E9))
