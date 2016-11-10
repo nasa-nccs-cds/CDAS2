@@ -199,7 +199,7 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
       }
       partFragSpec.cutIntersection( sub_section ) match {
         case Some( cut_spec: DataFragmentSpec ) =>
-          val array_section = cut_spec.roi.shiftOrigin( frag_section )
+          val array_section = cut_spec.roi // .shiftOrigin( frag_section )
           Some( ( cut_spec, array_section ) )
         case None =>None
       }

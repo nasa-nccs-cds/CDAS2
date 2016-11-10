@@ -199,6 +199,8 @@ object CDFloatArray extends Loggable with Serializable {
   val divideOp: ReduceOpFlt = (x:Float, y:Float) => ( x / y )
   val maxOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x > y ) x else y )
   val minOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x < y ) x else y )
+  val maxMagOp: ReduceOpFlt = (x:Float, y:Float) => { val xm = Math.abs(x); val ym = Math.abs(y); if( xm > ym ) xm else ym }
+  val minMagOp: ReduceOpFlt = (x:Float, y:Float) => { val xm = Math.abs(x); val ym = Math.abs(y); if( xm < ym ) xm else ym }
   val eqOp: ReduceOpFlt = (x:Float, y:Float) => ( y )
   def getOp( opName: String ): ReduceOpFlt = opName match {
     case x if x.startsWith("sum") => addOp
@@ -212,6 +214,7 @@ object CDFloatArray extends Loggable with Serializable {
 
   def apply( cdIndexMap: CDIndexMap, floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( cdIndexMap, FloatBuffer.wrap(floatData),  invalid )
   def apply( shape: Array[Int], floatData: Array[Float], invalid: Float, indexMaps: List[CDCoordMap] = List.empty ): CDFloatArray  = new CDFloatArray( CDIndexMap(shape,indexMaps), FloatBuffer.wrap(floatData),  invalid )
+  def apply( floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( CDIndexMap(Array(floatData.length),List.empty), FloatBuffer.wrap(floatData),  invalid )
   def apply( target: CDArray[Float] ): CDFloatArray  = CDFloatArray.cdArrayConverter( target )
   def const( shape: Array[Int], value: Float ): CDFloatArray = apply( CDIndexMap.const(shape), Array(value), Float.MaxValue )
 
@@ -362,9 +365,11 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def *(value: Float) = CDFloatArray.combine( multiplyOp, this, value )
   def :=(value: Float) = CDFloatArray.combine( eqOp, this, value )
 
-  def max(reduceDims: Array[Int]): CDFloatArray = reduce( maxOp, reduceDims, -Float.MaxValue )
-  def min(reduceDims: Array[Int]): CDFloatArray = reduce( minOp, reduceDims, Float.MaxValue )
-  def sum(reduceDims: Array[Int]): CDFloatArray = reduce( addOp, reduceDims, 0f )
+  def max(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( maxOp, reduceDims, -Float.MaxValue )
+  def min(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( minOp, reduceDims, Float.MaxValue )
+  def maxMag(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( maxMagOp, reduceDims, 0f )
+  def minMag(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( minMagOp, reduceDims, Float.MaxValue )
+  def sum(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( addOp, reduceDims, 0f )
 
   def augmentFlat( flat_index: FlatIndex, value: Float, opName: String = "add"  ): Unit = {
     val storageIndex: StorageIndex = getIterator.flatToStorage( flat_index )

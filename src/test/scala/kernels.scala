@@ -26,6 +26,28 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 //    //  val data = ncVariable.read(section)
 //    //  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
 //  }
+  test("subsetTestXY") {
+    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 245.2, 244.904, 244.6914, 244.5297, 244.2834, 244.0234, 245.4426, 245.1731, 244.9478, 244.6251, 244.2375, 244.0953, 248.4837, 247.4268, 246.4957, 245.586, 245.4244, 244.8213, 249.7772, 248.7458, 247.5331, 246.8871, 246.0183, 245.8848, 248.257, 247.3562, 246.3798, 245.3962, 244.6091, 243.6039 ).map(_.toFloat), Float.MaxValue )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":5,"system":"indices"},"lon":{"start":0,"end":5,"system":"indices"},"time":{"start":0,"end":0,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
+    val result_node = executeTest(datainputs)
+    logger.info( "nco_verified_result: " + nco_verified_result.toDataString )
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_data: CDFloatArray = CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue )
+    val diff = ( result_data - nco_verified_result ) / ( nco_verified_result.sum( Array(0) ) / nco_verified_result.getSize )
+    assert( diff.maxMag().getArrayData()(0) < eps, s" Incorrect value computed for Sum")
+  }
+  test("subsetTestT") {
+    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 295.6538, 295.7205, 295.9552, 295.3324, 293.0879, 291.5541, 289.6255, 288.7875, 289.7614, 290.5001, 292.3553, 293.8378, 296.7862, 296.6005, 295.6378, 294.9304, 293.6324, 292.1851, 290.8981, 290.5262 ).map(_.toFloat), Float.MaxValue )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":30,"end":30,"system":"indices"},"lon":{"start":30,"end":30,"system":"indices"},"time":{"start":0,"end":19,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
+    val result_node = executeTest(datainputs)
+    logger.info( "nco_verified_result: " + nco_verified_result.toDataString )
+    logger.info( "Test Result: " + printer.format(result_node) )
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val result_data: CDFloatArray = CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue )
+    val diff = ( result_data - nco_verified_result ) / ( nco_verified_result.sum( Array(0) ) / nco_verified_result.getSize )
+    assert( diff.maxMag().getArrayData()(0) < eps, s" Incorrect value computed for Sum")
+  }
 
   test("EnsembleAve") {
     val variables = ( 1 to 5 ) map { index => s"""{"uri":"collection:/GISS_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
@@ -81,16 +103,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     logger.info( "Cache Result: " + printer.format(cache_result_node) )
   }
 
-  test("subsetTest") {
-    val nco_verified_result = Array( 299.5042, 299.9792, 300.235, 300.5552, 300.6414, 300.1614, 298.6281, 298.741, 299.2321, 299.3756, 299.8385, 299.3897, 298.8834, 299.3137, 300.0229, 300.722, 301.2782, 300.4793, 299.274, 298.104, 298.394, 298.7637, 298.6111, 299.7796, 299.2917, 299.6311, 300.4805, 300.7048, 300.5353, 299.8618, 299.4969 )
-    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":0,"system":"values"},"lon":{"start":0,"end":0,"system":"values"}}],variable=[{"uri":"collection:/giss_r1i1p2","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
-    val result_node = executeTest(datainputs)
-    logger.info( "Test Result: " + printer.format(result_node) )
-    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
-    val result_value = data_nodes.head.text.toFloat
- //   assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
 
-  }
 
   test("Aggregate&Cache") {
     val index = 6
