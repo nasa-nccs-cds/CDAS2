@@ -135,7 +135,13 @@ class Partition(val index: Int,
     new ma2.Section(relative_ranges)
   }
   def dataSection(section: CDSection, missing_value: Float): CDFloatArray =
-    data(missing_value).section(section.toSection)
+    try {
+      data(missing_value).section(section.toSection)
+    } catch {
+      case ex: AssertionError =>
+        logger.error(" Error in dataSection, section origin = %s, shape = %s".format( section.getOrigin.mkString(","), section.getShape.mkString(",")) )
+        throw ex
+    }
 }
 
 //class CacheFileReader( val datasetFile: String, val varName: String, val sectionOpt: Option[ma2.Section] = None, val cacheType: String = "fragment" ) extends XmlResource {

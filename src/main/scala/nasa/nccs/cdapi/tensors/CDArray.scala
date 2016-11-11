@@ -370,6 +370,8 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def maxMag(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( maxMagOp, reduceDims, 0f )
   def minMag(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( minMagOp, reduceDims, Float.MaxValue )
   def sum(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( addOp, reduceDims, 0f )
+  def mean = sum()/this.getSize
+  def maxScaledDiff( other: CDFloatArray ): Float = ( ( this - other ) / this.mean ).maxMag().getArrayData()(0)
 
   def augmentFlat( flat_index: FlatIndex, value: Float, opName: String = "add"  ): Unit = {
     val storageIndex: StorageIndex = getIterator.flatToStorage( flat_index )

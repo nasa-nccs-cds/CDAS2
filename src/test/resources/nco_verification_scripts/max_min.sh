@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
 
-# datafile="../data/MERRA_TEST_DATA_ta.nc"
-datafile="../data/ConstantTestData.ta.nc"
+datafile="http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
+mkdir -p out
 
-ncwa -O -d time,"1979-01-16T12:00:00Z","1979-01-16T12:00:00Z" -a lat,lon -y max ${datafile} out/maxval.nc
-ncwa -O -d time,"1979-01-16T12:00:00Z","1979-01-16T12:00:00Z" -a lat,lon -y min ${datafile} out/minval.nc
-ncwa -O -d time,"1979-01-16T12:00:00Z","1979-01-16T12:00:00Z" -a lat,lon -y sum ${datafile} out/sumval.nc
+# ncks -O -v tas -d lat,0,5 -d lon,0,5 -d time,0,0 ${datafile} ~/test/out/subset_xi05_yi05_ti0_GISS_r1i1p1_185001-190012.nc
+
+# ncks -O -v tas -d lat,0.,0. -d lon,0.,0. ${datafile} out/subset_xy00_GISS_r1i1p1_185001-190012.nc
+
+
+# ncwa -O -v tas -d time,10,10 -a lat,lon -y max ${datafile} ~/test/out/maxval.nc
+# ncwa -O -v tas -d time,10,10 -a lat,lon -y min ${datafile} ~/test/out/minval.nc
+
+# ncwa -O -v tas -d time,10,10 -a lat,lon -y sum ${datafile} ~/test/out/sumval.nc
+
+# ncwa -O -v tas -d lat,5,8 -d lon,5,8 -d time,0,100 -a time -y min ${datafile} ~/test/out/minval.nc
+
+ncwa -O -v tas -d lat,30,40 -d time,10,10 -a lon -y sum ${datafile} ~/test/out/aveval.nc

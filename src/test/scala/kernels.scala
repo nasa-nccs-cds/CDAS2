@@ -12,54 +12,67 @@ import org.apache.log4j.{Level, LogManager, Logger}
 
 class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
-//  test("OpenDAP") {
-//    import ucar.nc2.dataset.NetcdfDataset
-//    val origin = Array(1404,0,0)
-//    val shape = Array(234,90,144)
-//    val section: ma2.Section = new ma2.Section(origin,shape)
-//    val varName = "tas"
-//    val dap_uri = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
-//    println( s"Opening dataset " + dap_uri )
-//    val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( dap_uri )
-//    val ncVariable = ncDataset.findVariable(varName)
-//    println( s"Read variable $varName, shape = " + ncVariable.getShape.mkString(",") )
-//    //  val data = ncVariable.read(section)
-//    //  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
-//  }
+  test("Aggregate") {
+    ( 1 to 5 ) map { index =>
+      val collection = s"GISS_r${index}i1p1"
+      val url = getClass.getResource(s"/collections/GISS/$collection.csv")
+      val GISS_path = url.getFile
+      val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$GISS_path"}]]"""
+      val agg_result_node = executeTest(datainputs, false, "util.agg")
+      logger.info(s"Agg collection $collection Result: " + printer.format(agg_result_node))
+    }
+  }
+
+  test("Cache") {
+    ( 1 to 5 ) map { index =>
+      val collection = s"GISS_r${index}i1p1"
+      val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":100,"system":"indices"}}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
+      val cache_result_node = executeTest(datainputs, false, "util.cache")
+      logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
+    }
+  }
+
   test("subsetTestXY") {
     val nco_verified_result: CDFloatArray = CDFloatArray( Array( 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 245.2, 244.904, 244.6914, 244.5297, 244.2834, 244.0234, 245.4426, 245.1731, 244.9478, 244.6251, 244.2375, 244.0953, 248.4837, 247.4268, 246.4957, 245.586, 245.4244, 244.8213, 249.7772, 248.7458, 247.5331, 246.8871, 246.0183, 245.8848, 248.257, 247.3562, 246.3798, 245.3962, 244.6091, 243.6039 ).map(_.toFloat), Float.MaxValue )
     val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":5,"system":"indices"},"lon":{"start":0,"end":5,"system":"indices"},"time":{"start":0,"end":0,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
     val result_node = executeTest(datainputs)
-    logger.info( "nco_verified_result: " + nco_verified_result.toDataString )
-    logger.info( "Test Result: " + printer.format(result_node) )
-    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
-    val result_data: CDFloatArray = CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue )
-    val diff = ( result_data - nco_verified_result ) / ( nco_verified_result.sum( Array(0) ) / nco_verified_result.getSize )
-    assert( diff.maxMag().getArrayData()(0) < eps, s" Incorrect value computed for Sum")
+    assert( getResultData( result_node ).maxScaledDiff( nco_verified_result ) < eps, s" Incorrect value computed for Sum")
   }
   test("subsetTestT") {
-    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 295.6538, 295.7205, 295.9552, 295.3324, 293.0879, 291.5541, 289.6255, 288.7875, 289.7614, 290.5001, 292.3553, 293.8378, 296.7862, 296.6005, 295.6378, 294.9304, 293.6324, 292.1851, 290.8981, 290.5262 ).map(_.toFloat), Float.MaxValue )
-    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":30,"end":30,"system":"indices"},"lon":{"start":30,"end":30,"system":"indices"},"time":{"start":0,"end":19,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
+    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 295.6538,295.7205,295.9552,295.3324,293.0879,291.5541,289.6255,288.7875,289.7614,290.5001,292.3553,293.8378,296.7862,296.6005,295.6378,294.9304,293.6324,292.1851,290.8981,290.5262,290.5347,291.6595,292.8715,294.0839,295.4386,296.1736,296.4382,294.7264,293.0489,291.6237,290.5149,290.1141,289.8373,290.8802,292.615,294.0024,295.5854,296.5497,296.4013,295.1263,293.2203,292.2885,291.0839,290.281,290.1516,290.7351,292.7598,294.1442,295.8959,295.8112,296.1058,294.8028,292.7733,291.7613,290.7009,290.7226,290.1038,290.6277,292.1299,294.4099,296.1226,296.5852,296.4395,294.7828,293.7856,291.9353,290.2696,289.8393,290.3558,290.162,292.2701,294.3617,294.6855,295.9736,295.9881,294.853,293.4628,292.2583,291.2488,290.84,289.9593,290.8045,291.5576,293.0114,294.7605,296.3679,295.6986,293.4995,292.2574,290.9722,289.9694,290.1006,290.2442,290.7669,292.0513,294.2266,295.9346,295.6064,295.4227,294.3889,292.8391 ).map(_.toFloat), Float.MaxValue )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":30,"end":30,"system":"indices"},"lon":{"start":30,"end":30,"system":"indices"},"time":{"start":0,"end":100,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
     val result_node = executeTest(datainputs)
-    logger.info( "nco_verified_result: " + nco_verified_result.toDataString )
-    logger.info( "Test Result: " + printer.format(result_node) )
-    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
-    val result_data: CDFloatArray = CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue )
-    val diff = ( result_data - nco_verified_result ) / ( nco_verified_result.sum( Array(0) ) / nco_verified_result.getSize )
-    assert( diff.maxMag().getArrayData()(0) < eps, s" Incorrect value computed for Sum")
+    assert( getResultData( result_node ).maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Subset")
   }
 
   test("EnsembleAve") {
     val variables = ( 1 to 5 ) map { index => s"""{"uri":"collection:/GISS_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
     val vids = ( 1 to 5 ) map { index => s"v$index" }
-    val datainputs = """[domain=[{"name":"d0"}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format( variables.mkString(","), vids.mkString(",") )
-    logger.info( "Request datainputs: " + datainputs )
+    val datainputs = """[domain=[{"name":"d0","time":{"start":0,"end":5,"system":"indices"}}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format( variables.mkString(","), vids.mkString(",") )
     val result_node = executeTest(datainputs)
-    logger.info( "Test Result: " + printer.format(result_node) )
-    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
-    val result_value = data_nodes.head.text.toFloat
-    logger.info( "Sum1 Result: " + result_value.toString )
   }
+
+  test("Maximum") {
+    val nco_verified_result = 309.7112
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
+    val result_node = executeTest(datainputs)
+    assert(Math.abs( getResultValue(result_node) - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
+  }
+
+  test("Minimum") {
+    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 211.1611, 209.252, 205.9775, 208.0006, 206.4181, 202.4724, 202.9022, 203.1199, 217.8426, 215.4173, 216.0199, 217.2311, 231.4988, 231.5838, 232.7329, 232.5641 ).map(_.toFloat), Float.MaxValue )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":5,"end":8,"system":"indices"},"lon":{"start":5,"end":8,"system":"indices"},"time":{"start":0,"end":100,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.min","input":"v1","domain":"d0","axes":"t"}]]"""
+    val result_node = executeTest(datainputs)
+    assert( getResultData( result_node ).maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Min")
+  }
+
+  test("Sum") {
+    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 42297.59, 42432.7, 42578.24, 42712.27, 42820.25, 42877.53, 42949.36, 43001.19, 43058.9, 43111.22, 43136.12 ).map(_.toFloat), Float.MaxValue )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":30,"end":40,"system":"indices"},"time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"x"}]]"""
+    val result_node = executeTest(datainputs)
+    assert( getResultData( result_node ).maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Min")
+  }
+
 }
 
 class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
@@ -225,7 +238,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
     val result_values = data_nodes.head.text.split(",").map( _.toFloat )
     val result_array = CDFloatArray( Array( result_values.length ), result_values, Float.MaxValue )
-    val max_scaled_diff = maxScaledDiff(result_array, direct_result_array)
+    val max_scaled_diff = result_array.maxScaledDiff( direct_result_array )
     printf( " \n\n        result, shape: " + result_array.getShape.mkString(",") + ", values: " + result_array.mkDataString(",") )
     printf( " \n\n direct result, shape: " + direct_result_array.getShape.mkString(",") + ", values: " + direct_result_array.mkDataString(",") )
     printf( "\n\n *** max_scaled_diff = " + max_scaled_diff )
@@ -244,7 +257,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val result_values: Array[Float] = data_nodes.head.text.trim.split(' ').head.split(',').map( _.toFloat )
     val result_array = CDFloatArray( Array( result_values.length ), result_values, Float.MaxValue )
     val computed_result = computeCycle( direct_result_array, 12 )
-    val max_scaled_diff = maxScaledDiff(result_array, computed_result)
+    val max_scaled_diff = result_array.maxScaledDiff( computed_result)
     printf( "    cdas result: " + result_array.mkDataString(",") + "\n" )
     printf( "computed result: " + computed_result.mkDataString(",") + "\n *** max_scaled_diff = " + max_scaled_diff )
     assert(max_scaled_diff < eps, s" Incorrect series computed for Yearly Cycle")
@@ -262,7 +275,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val result_values: Array[Float] = data_nodes.head.text.trim.split(' ').head.split(',').map( _.toFloat )
     val result_array = CDFloatArray( Array( result_values.length ), result_values, Float.MaxValue )
     val computed_result = computeCycle( direct_result_array, 12 )
-    val max_scaled_diff = maxScaledDiff(result_array, computed_result)
+    val max_scaled_diff = result_array.maxScaledDiff( computed_result )
     printf( "    cdas result: " + result_array.mkDataString(",") + "\n" )
     printf( "computed result: " + computed_result.mkDataString(",") + "\n *** max_scaled_diff = " + max_scaled_diff )
     assert(max_scaled_diff < eps, s" Incorrect series computed for Yearly Cycle")

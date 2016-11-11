@@ -57,33 +57,14 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     values / counts
   }
 
-  def maxScaledDiff(array0: CDFloatArray, array1: CDFloatArray): Float = {
-    var max_diff = 0f
-    var magsum = 0.0
-    var count = 0
-    val length = Math.min(array0.getSize, array1.getSize)
-    val a0 = array0.getArrayData()
-    val a1 = array1.getArrayData()
-    for (index <- (0 until length); val0 = a0(index); if val0 != array0.getInvalid; val1 = a1(index); if val1 != array1.getInvalid; diff = Math.abs(val0 - val1)) {
-      if (diff > max_diff) {
-        max_diff = diff
-      }
-      magsum = magsum + Math.abs(val0)
-      count = count + 1
-    }
-    val mag = magsum / count
-    max_diff / mag.toFloat
+  def getResultData( result_node: xml.Elem ): CDFloatArray = {
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue )
   }
 
-  def maxDiff(array0: CDFloatArray, array1: CDFloatArray): Float = {
-    var max_diff = 0f
-    val length = Math.min(array0.getSize, array1.getSize)
-    val a0 = array0.getArrayData()
-    val a1 = array1.getArrayData()
-    for (index <- (0 until length); val0 = a0(index); if val0 != array0.getInvalid; val1 = a1(index); if val1 != array1.getInvalid; diff = Math.abs(val0 - val1)) {
-      if (diff > max_diff) { max_diff = diff }
-    }
-    max_diff
+  def getResultValue( result_node: xml.Elem ): Float = {
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    data_nodes.head.text.toFloat
   }
 
   def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
@@ -110,33 +91,6 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     webProcessManager.logger.info( printer.format(response) )
     response
   }
-
-  def getSpatialDataInputs(test_dataset: String, op_args: (String,String)* )  = Map(
-    "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
-    "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
-    "operation" -> List(Map( ( ("input"->"v0") :: op_args.toList ) :_* )))
-
-  def getSubsetDataInputs(test_dataset: String, op_args: (String,String)* )  = Map(
-    "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "lat" -> Map("start" -> -30.0, "end" -> 30.0, "system" -> "value"), "lon" -> Map("start" -> 0.0, "end" -> 60.0, "system" -> "values"))),
-    "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
-    "operation" -> List(Map( ( ("input"->"v0") :: op_args.toList ) :_* )))
-
-  def getMaskedSpatialDataInputs(test_dataset: String, op_args: (String,String)* ) = Map(
-    "domain" -> List(Map("name" -> "d0", "mask" -> "#ocean50m", "lev" -> Map("start" -> level_index, "end" -> level_index, "system" -> "indices"), "time" -> Map("start" -> time_index, "end" -> time_index, "system" -> "indices"))),
-    "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
-    "operation" ->  List(Map( ( ("input"->"v0") :: op_args.toList ) :_* )))
-
-  def getTemporalDataInputs(test_dataset: String, d1_time_index: Int, op_args: (String,String)*  ) = Map(
-    "domain" -> List(Map("name" -> "d1", "time" -> Map("start" -> d1_time_index, "end" -> d1_time_index, "system" -> "indices")
-    ), Map("name" -> "d0", "lat" -> Map("start" -> lat_value, "end" -> lat_value, "system" -> "value"), "lon" -> Map("start" -> lon_value, "end" -> lon_value, "system" -> "values"))),
-    "variable" -> List(Map("uri" -> test_dataset, "name" -> "ta:v0", "domain" -> "d0")),
-    "operation" ->  List(Map( ( ("input"->"v0") :: op_args.toList ) :_* )))
-
-  def getMetaDataInputs(test_dataset: String, varName: String) = Map(
-    "variable" -> List(Map("uri" -> test_dataset, "name" -> varName )),
-    "operation" ->  List(Map( ("input"->varName), ("name"->"CDSpark.metadata" ) )) )
-
-
 }
 
 
