@@ -23,6 +23,7 @@ trait ServiceProvider extends Loggable {
 
   def getResultFilePath( resultId: String ): Option[String]
   def getResult( resultId: String ): xml.Node
+  def getResultStatus( resultId: String ): xml.Node
 
   def fatal( e: Throwable ): WPSExceptionReport = {
     val err = getCause( e )
