@@ -33,7 +33,7 @@ abstract class WPSExecuteResponse( val serviceInstance: String, val processes: L
 }
 
 abstract class WPSReferenceExecuteResponse( serviceInstance: String, val process: WPSProcess, val optResultId: Option[String] )  extends WPSExecuteResponse( serviceInstance, process )  {
-  val statusHref: String = optResultId match { case Some( rid ) => proxyAddress + s"/wps/results?id=$rid"; case None => "" }
+  val statusHref: String = optResultId match { case Some( rid ) => proxyAddress + s"/wps/status?id=$rid"; case None => "" }
   val resultHref: String = optResultId match { case Some( rid ) => proxyAddress + s"/wps/file?id=$rid"; case None => "" }
   def getStatusReference: xml.Elem = <wps:Reference encoding="UTF-8" mimeType="text/xml" href={statusHref}/>
   def getResultReference: xml.Elem = <wps:Reference encoding="UTF-8" mimeType=" application/x-netcdf" href={resultHref}/>
