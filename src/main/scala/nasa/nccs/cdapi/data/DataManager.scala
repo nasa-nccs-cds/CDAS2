@@ -86,6 +86,7 @@ object HeapFltArray {
   def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray =
     new HeapFltArray( cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), metadata, optWeights.map( _.getArrayData()), cdarray.getCoordMaps )
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], metadata: Map[String,String], missing: Float ): HeapFltArray = HeapFltArray( CDArray(ucarray,missing), origin, metadata, None )
+  def empty(rank:Int) = HeapFltArray( CDFloatArray.empty, Array.fill(rank)(0), Map.empty[String,String], None )
 }
 
 class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, val _data_ : Array[Double]=Array.emptyDoubleArray, missing: Option[Double]=None, metadata: Map[String,String]=Map.empty ) extends ArrayBase[Double](shape,origin,missing,metadata) {
@@ -108,6 +109,7 @@ class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase[Float]] ,
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
   }
   def element( id: String ): Option[ArrayBase[Float]] = elements.get( id )
+  def empty( id: String ) = { element(id) == None }
   def head: ( String, ArrayBase[Float] ) = elements.head
   def toXml: xml.Elem = {
     val values: Iterable[xml.Node] = elements.values.map(_.toXml)
@@ -129,10 +131,12 @@ object RDDPartSpec {
 class RDDPartSpec( val partition: Partition, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
   logger.info( "RDDPartSpec: partition = " + partition.toString + ", varSpecs = " + varSpecs.map(_.toString ).mkString(",") )
   def getRDDPartition: RDDPartition = {
-    val elements =  Map( varSpecs.map( vSpec => (vSpec.uid, vSpec.toHeapArray(partition)) ): _* )
-    val floatArray = elements.head._2.toCDFloatArray
-//    if( floatArray.getSize > 1 ) {  println("\n   RDDPartSpec[%d](%s): value[0,30,30] = %s".format(partition.index, floatArray.getShape.mkString(","), CDFloatArray(floatArray.section(Array(0, 30, 30), Array(1, 1, 1))).toDataString)) }
+    val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition)) ): _* )
     RDDPartition( partition.index, elements, Map.empty )
+  }
+  def empty( uid: String ): Boolean = varSpecs.find( _.uid == uid ) match {
+    case Some( varSpec ) => varSpec.empty
+    case None => true
   }
 
 }
@@ -140,10 +144,9 @@ class RDDPartSpec( val partition: Partition, val varSpecs: List[ RDDVariableSpec
 class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val missing: Float, val section: CDSection  ) extends Serializable with Loggable {
   override def toString = s"RDDVariableSpec($uid)[" + section.toString + "]"
   def toHeapArray( partition: Partition ) = {
-    if (partition.index == 0) {
-      print( "XX")
-    }
     HeapFltArray(partition.dataSection(section, missing), section.getOrigin, metadata, None)
   }
+  def empty = section.getShape.contains(0)
+  def rank = section.getShape.length
 }
 

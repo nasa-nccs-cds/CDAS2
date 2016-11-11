@@ -76,8 +76,9 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
   }
 
   def getRDD( uid: String, pFrag: PartitionedFragment, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(Int,RDDPartition)] = {
-    val rddSpecs: Array[RDDPartSpec] = partitions.parts.map(partition => RDDPartSpec(partition, List(pFrag.getRDDVariableSpec(uid, partition, opSection))))
-//    log( " Create RDD, rddParts = " + rddSpecs.map(_.toXml.toString()).mkString(",") )
+    val rddSpecs: Array[RDDPartSpec] = partitions.parts.map( partition =>
+      RDDPartSpec( partition, List(pFrag.getRDDVariableSpec(uid, partition, opSection) ) )
+    ) filterNot( _.empty(uid) )
     sparkContext.parallelize(rddSpecs).map(_.getRDDPartition).keyBy( _.iPart )
   }
   def getRDD( uid: String, tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(Int,RDDPartition)] = {

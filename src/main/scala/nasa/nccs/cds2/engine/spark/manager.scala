@@ -57,7 +57,7 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
     logger.info( "\n\n ----------------------- BEGIN prepare Inputs -------\n" )
     val t0 = System.nanoTime()
     val opInputs: Map[String,OperationInput] = getOperationInputs( context )
-    val inputs: RDD[(Int,RDDPartition)] = cdsContext.domainRDDPartition( opInputs, context ).sortByKey(true)
+    val inputs: RDD[(Int,RDDPartition)] = cdsContext.domainRDDPartition( opInputs, context )
     logger.info( "\n\n ----------------------- FINISHED prepare Inputs, time = %.3f sec ----------------------- ".format((System.nanoTime() - t0) / 1.0E9))
     inputs
   }
