@@ -15,30 +15,34 @@ trait WPSResponse {
 }
 
 abstract class WPSExecuteResponse( val serviceInstance: String, val processes: List[WPSProcess] ) extends WPSResponse {
-  val statusLocation =  appParameters("wps.server.status.href","")
+  val proxyAddress =  appParameters("wps.server.proxy.href","")
   def this( serviceInstance: String, process: WPSProcess ) = this( serviceInstance, List(process) )
-  def getReference: xml.Elem
+  def getStatusReference: xml.Elem
+  def getResultReference: xml.Elem
 
   def toXml: xml.Elem =
-    <wps:ExecuteResponse xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsExecute_response.xsd" service="WPS" version="1.0.0" xml:lang="en-CA" serviceInstance={serviceInstance} statusLocation={statusLocation}>
+    <wps:ExecuteResponse xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsExecute_response.xsd" service="WPS" version="1.0.0" xml:lang="en-CA" serviceInstance={serviceInstance} statusLocation={proxyAddress}>
       { processes.map( _.ExecuteHeader ) }
       <wps:Status> <wps:ProcessSucceeded> CDAS Process successfully executed </wps:ProcessSucceeded> </wps:Status>
       <wps:ProcessOutputs> { getOutputs } </wps:ProcessOutputs>
     </wps:ExecuteResponse>
 
-  def getOutputs: List[xml.Elem] = processes.flatMap( p => p.outputs.map( output => <wps:Output> { output.getHeader } { getReference } { getProcessOutputs( p.identifier, output.identifier) } </wps:Output> ) )
+  def getOutputs: List[xml.Elem] = processes.flatMap( p => p.outputs.map( output => <wps:Output> { output.getHeader } { getStatusReference }  { getResultReference } { getProcessOutputs( p.identifier, output.identifier) } </wps:Output> ) )
   def getProcessOutputs( process_id: String, output_id: String ): Iterable[xml.Elem]
   def getData( id: String, array: CDFloatArray, units: String ): xml.Elem = <wps:Data id={id}> <wps:LiteralData uom={units} shape={array.getShape.mkString(",")}>{ array.mkDataString(",") }</wps:LiteralData> </wps:Data>
 }
 
 abstract class WPSReferenceExecuteResponse( serviceInstance: String, val process: WPSProcess, val optResultId: Option[String] )  extends WPSExecuteResponse( serviceInstance, process )  {
-  val href: String = optResultId match { case Some( rid ) => statusLocation + s"/results?id=$rid"; case None => "" }
-  def getReference: xml.Elem = <wps:Reference encoding="UTF-8" mimeType="text/xml" href={href}/>
+  val statusHref: String = optResultId match { case Some( rid ) => proxyAddress + s"/wps/status?id=$rid"; case None => "" }
+  val resultHref: String = optResultId match { case Some( rid ) => proxyAddress + s"/wps/file?id=$rid"; case None => "" }
+  def getStatusReference: xml.Elem = <wps:Reference encoding="UTF-8" mimeType="text/xml" href={statusHref}/>
+  def getResultReference: xml.Elem = <wps:Reference encoding="UTF-8" mimeType=" application/x-netcdf" href={resultHref}/>
 }
 
 class MergedWPSExecuteResponse( serviceInstance: String, responses: List[WPSExecuteResponse] ) extends WPSExecuteResponse( serviceInstance, responses.flatMap(_.processes) ) {
   val process_ids: List[String] = responses.flatMap( response => response.processes.map( process => process.identifier ) )
-  def getReference: xml.Elem = responses.head.getReference
+  def getStatusReference: xml.Elem = responses.head.getStatusReference
+  def getResultReference: xml.Elem = responses.head.getResultReference
   assert( process_ids.distinct.size == process_ids.size, "Error, non unique process IDs in process list: " + processes.mkString(", ") )
   val responseMap: Map[String,WPSExecuteResponse] = Map( responses.flatMap( response => response.processes.map( process => ( process.identifier -> response ) ) ): _* )
   def getProcessOutputs( process_id: String, response_id: String ): Iterable[xml.Elem] = responseMap.get( process_id ) match {

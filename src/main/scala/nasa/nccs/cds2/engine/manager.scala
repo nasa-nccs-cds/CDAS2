@@ -355,6 +355,21 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
     }
   }
 
+  def getResultStatus( resId: String ): xml.Node = {
+    logger.info( "Locating result: " + resId )
+    collectionDataCache.getExistingResult( resId ) match {
+      case None =>
+        <wps:ExecuteResponse xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsExecute_response.xsd" service="WPS" version="1.0.0" xml:lang="en-CA">
+          <wps:Status> <wps:ProcessStarted> CDAS Process has not yet completed </wps:ProcessStarted> </wps:Status>
+        </wps:ExecuteResponse>      case Some( tvar: RDDTransientVariable ) =>
+        <wps:ExecuteResponse xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsExecute_response.xsd" service="WPS" version="1.0.0" xml:lang="en-CA">
+          <wps:Status> <wps:ProcessSucceeded> CDAS Process successfully completed </wps:ProcessSucceeded> </wps:Status>
+        </wps:ExecuteResponse>
+    }
+  }
+
+
+
   def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): WPSReferenceExecuteResponse = {
     logger.info("Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
     runtime.printMemoryUsage(logger)

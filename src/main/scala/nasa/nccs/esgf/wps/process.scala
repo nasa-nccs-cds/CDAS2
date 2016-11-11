@@ -42,5 +42,11 @@ class ProcessManager( serverConfiguration: Map[String,String] ) extends Loggable
     val serviceProvider = apiManager.getServiceProvider(service)
     serviceProvider.getResult(resultId)
   }
+
+  def getResultStatus( service: String, resultId: String ): xml.Node = {
+    logger.info( "CDAS ProcessManager-> getResult: " + resultId)
+    val serviceProvider = apiManager.getServiceProvider(service)
+    serviceProvider.getResultStatus(resultId)
+  }
 }
 
