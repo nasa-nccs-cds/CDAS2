@@ -28,6 +28,7 @@ object Library {
   val udunits        = "edu.ucar"           %  "udunits"        % "4.6.0"
   val joda           = "joda-time"          % "joda-time"       % "2.8.1"
   val natty          = "com.joestelmach"    % "natty"           % "0.12"
+  val py4j           = "net.sf.py4j"        % "py4j"            % "0.10.4"
   val geotools       = "org.geotools"      %  "gt-shapefile"    % "13.2"
   val breeze         = "org.scalanlp"      %% "breeze"          % "0.12"
   val sprayCache     = "io.spray"       % "spray-caching_2.11" % "1.3.3"
