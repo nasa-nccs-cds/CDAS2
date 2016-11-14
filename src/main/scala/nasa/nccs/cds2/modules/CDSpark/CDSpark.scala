@@ -129,6 +129,28 @@ class multiAverage extends MultiRDDKernel {
   override val mapCombineNOp: Option[ReduceNOpFlt] = Some(aveOpN)
 }
 
+//class regrid extends SingularRDDKernel {
+//  val inputs = List(WPSDataInput("input variable", 1, 1))
+//  val outputs = List(WPSProcessOutput("operation result"))
+//  val title = "Regrid"
+//  val description = "Regrids input variable to specified crs "
+//
+//  override def map(inputTups: (Int, RDDPartition), context: KernelContext): (Int, RDDPartition) = {
+//    val inputs = inputTups._2
+//    val key = inputTups._1
+//    val crs = context.config("crs", "" ).toInt
+//    val t0 = System.nanoTime
+//    val elems = context.operation.inputs.map( inputId => inputs.element(inputId) match {
+//      case Some( input_data ) =>
+//        val input_array = input_data.toCDFloatArray
+//
+//      case None => throw new Exception( "Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
+//    })
+//    logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
+//    key -> RDDPartition( inputs.iPart, Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+//  }
+//}
+
 class average extends SingularRDDKernel {
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )

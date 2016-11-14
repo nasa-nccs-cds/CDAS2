@@ -42,7 +42,7 @@ object Library {
 object Dependencies {
   import Library._
 
-  val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest )
+  val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, py4j )
 
   val spark = Seq( sparkCore )
 
