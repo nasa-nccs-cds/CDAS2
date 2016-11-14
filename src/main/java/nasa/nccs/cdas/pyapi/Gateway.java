@@ -21,7 +21,7 @@ public class Gateway {
     public Gateway( int partIndex ) {
         int python_port = (partIndex >= 0) ? base_port + 2 * partIndex : GatewayServer.DEFAULT_PYTHON_PORT;
         int java_port = (partIndex >= 0) ? base_port + 2 * partIndex + 1 : GatewayServer.DEFAULT_PORT;
-        ClientServerBuilder builder = new ClientServerBuilder();
+        builder = new ClientServerBuilder();
         builder.javaPort(java_port);
         builder.pythonPort(python_port);
         startupPythonWorker(java_port, python_port);
