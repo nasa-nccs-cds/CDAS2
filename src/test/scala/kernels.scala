@@ -38,6 +38,12 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val result_node = executeTest(datainputs)
     assert( getResultData( result_node ).maxScaledDiff( nco_verified_result ) < eps, s" Incorrect value computed for Sum")
   }
+
+  test("regridTest") {
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":0,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.regrid","input":"v1","domain":"d0","crs":"gaussian"}]]"""
+    val result_node = executeTest(datainputs)
+  }
+
   test("subsetTestT") {
     val nco_verified_result: CDFloatArray = CDFloatArray( Array( 295.6538,295.7205,295.9552,295.3324,293.0879,291.5541,289.6255,288.7875,289.7614,290.5001,292.3553,293.8378,296.7862,296.6005,295.6378,294.9304,293.6324,292.1851,290.8981,290.5262,290.5347,291.6595,292.8715,294.0839,295.4386,296.1736,296.4382,294.7264,293.0489,291.6237,290.5149,290.1141,289.8373,290.8802,292.615,294.0024,295.5854,296.5497,296.4013,295.1263,293.2203,292.2885,291.0839,290.281,290.1516,290.7351,292.7598,294.1442,295.8959,295.8112,296.1058,294.8028,292.7733,291.7613,290.7009,290.7226,290.1038,290.6277,292.1299,294.4099,296.1226,296.5852,296.4395,294.7828,293.7856,291.9353,290.2696,289.8393,290.3558,290.162,292.2701,294.3617,294.6855,295.9736,295.9881,294.853,293.4628,292.2583,291.2488,290.84,289.9593,290.8045,291.5576,293.0114,294.7605,296.3679,295.6986,293.4995,292.2574,290.9722,289.9694,290.1006,290.2442,290.7669,292.0513,294.2266,295.9346,295.6064,295.4227,294.3889,292.8391 ).map(_.toFloat), Float.MaxValue )
     val datainputs = s"""[domain=[{"name":"d0","lat":{"start":30,"end":30,"system":"indices"},"lon":{"start":30,"end":30,"system":"indices"},"time":{"start":0,"end":100,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""

@@ -2,16 +2,19 @@ package nasa.nccs.cdas.pyapi;
 import py4j.ClientServer;
 import py4j.ClientServer.ClientServerBuilder;
 import py4j.GatewayServer;
-import nasa.nccs.cdas.pyapi.TransData;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class Gateway {
     private int base_port = 8200;
+    private int iPartition;
     private ClientServer _clientServer = null;
     private ClientServerBuilder builder = null;
     private Process python_process = null;
@@ -19,13 +22,28 @@ public class Gateway {
 
 
     public Gateway( int partIndex ) {
+        iPartition = partIndex;
         int python_port = (partIndex >= 0) ? base_port + 2 * partIndex : GatewayServer.DEFAULT_PYTHON_PORT;
         int java_port = (partIndex >= 0) ? base_port + 2 * partIndex + 1 : GatewayServer.DEFAULT_PORT;
         builder = new ClientServerBuilder();
-        builder.javaPort(java_port);
-        builder.pythonPort(python_port);
+        builder.javaPort(java_port).pythonPort(python_port).connectTimeout(100);
         startupPythonWorker(java_port, python_port);
-        builder.connectTimeout(100);
+    }
+
+    private void printPythonLog() {
+        try {
+            Path path = FileSystems.getDefault().getPath(System.getProperty("user.home"), ".cdas", String.format("pycdas-%d.log", iPartition));
+            BufferedReader br = new BufferedReader(new FileReader(path.toString()));
+            System.out.println( "PYTHON LOG: PARTITION-" + String.valueOf(iPartition) );
+            String line = br.readLine();
+            while (line != null) {
+                System.out.println( line );
+                line = br.readLine();
+            }
+            br.close();
+        } catch ( IOException ex ) {
+            System.out.println( "Error reading log file : " + ex.toString() );
+        }
     }
 
     public ICDAS getInterface() {
@@ -38,8 +56,9 @@ public class Gateway {
         try {
             String cdas_home = System.getenv("CDAS_HOME_DIR");
             Path path = FileSystems.getDefault().getPath(cdas_home, "python", "pycdas", "icdas.py" );
-            python_process = new ProcessBuilder( "python", path.toString(), String.valueOf(java_port), String.valueOf(python_port) ).start();
-            Thread.sleep(100);
+            python_process = new ProcessBuilder( "python", path.toString(), String.valueOf(iPartition), String.valueOf(java_port), String.valueOf(python_port) ).start();
+            System.out.println( "Starting Python Worker on port: " + String.valueOf(python_port) );
+            Thread.sleep(1000);
         } catch ( IOException ex ) {
             System.out.println( "Error starting Python Worker : " + ex.toString() );
         } catch ( InterruptedException ex ) {
@@ -50,26 +69,25 @@ public class Gateway {
     public void shutdown( ) {
         if( _clientServer != null ) { _clientServer.shutdown(); _clientServer = null; }
         if( python_process != null ) { python_process.destroy(); python_process = null; }
+        printPythonLog();
     }
 
     public static void main(String[] args) {
-        List<Gateway>  gateways = new ArrayList<Gateway>();
-        try {
-            for(int index=0; index<3; index++) {
-                Gateway gateway = new Gateway(index);
+        for(int index=0; index<2; index++) {
+            Gateway gateway = new Gateway(index);
+            try {
                 ICDAS icdas = gateway.getInterface();
                 System.out.println(icdas.sayHello(2, "Hello World"));
                 int[] shape = { index+1, index+2 };
+                int[] origin = { 0, 0 };
                 float[] data = { index*2f, index*3f };
-                TransData trans_data = new TransData( shape, data );
-                System.out.println( icdas.sendData(trans_data) );
-                gateways.add( gateway );
-            }
-        } catch ( Exception ex ) {
-            System.out.println( "Gateway error: " + ex.toString() );
-            if( ex.getCause() != null ) { System.out.println( "Cause: " + ex.getCause().toString() ); }
-            ex.printStackTrace();
+                TransArray trans_data = new TransArray( "", shape, origin, data, Float.MAX_VALUE );
+                System.out.println( icdas.sendData( Arrays.asList(trans_data) ) );
+            } catch ( Exception ex ) {
+                System.out.println( "Gateway error: " + ex.toString() );
+                if( ex.getCause() != null ) { System.out.println( "Cause: " + ex.getCause().toString() ); }
+                ex.printStackTrace();
+            } finally { gateway.shutdown(); }
         }
-        for (int i = 0; i < gateways.size(); i++) { gateways.get(i).shutdown(); }
     }
 }

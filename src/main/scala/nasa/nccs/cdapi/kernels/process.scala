@@ -11,6 +11,7 @@ import java.io.{File, IOException, PrintWriter, StringWriter}
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.caching.collectionDataCache
 import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
+import nasa.nccs.cdas.pyapi.{Gateway, ICDAS, TransArray}
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.wps.WPSProcess
@@ -44,6 +45,7 @@ class Port( val name: String, val cardinality: String, val description: String, 
 class KernelContext( val operation: OperationContext, val grid: GridContext, val sectionMap: Map[String,Option[CDSection]], private val configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
   def getConfiguration = configuration ++ operation.getConfiguration
   def getAxes: AxisIndices = grid.getAxisIndices( config("axes", "") )
+  def getContextStr = getConfiguration map { case ( key, value ) => key + ":" + value } mkString (";")
 }
 
 class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) extends Loggable  {
@@ -538,6 +540,31 @@ abstract class MultiRDDKernel extends Kernel {
     key -> RDDPartition( inputs.iPart, Map( context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
   }
 }
+
+abstract class PythonRDDKernel extends Kernel {
+  override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
+    val inputs = inputTups._2
+    val key = inputTups._1
+    val t0 = System.nanoTime
+    val gateway: Gateway  = new Gateway(key)
+    val icdas: ICDAS = gateway.getInterface()
+    try {
+      logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
+      val input_arrays = context.operation.inputs.flatMap(inputs.element)
+      assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
+      val transArrays = input_arrays.map(_.toTransArray)
+      val op_metadata = context.getContextStr
+      val result_metadata = MetadataOps.mergeMetadata(name, input_arrays.map(_.metadata))
+      val result = icdas.execute(context.operation.identifier, op_metadata, transArrays)
+      logger.info("&MAP: Finished Kernel %s[%d], result = %s, time = %.4f s".format(name, inputs.iPart, result, (System.nanoTime - t0) / 1.0E9))
+      val final_result = CDFloatArray.empty
+      key -> RDDPartition(inputs.iPart, Map(context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None)), inputs.metadata)
+    } finally {
+      gateway.shutdown()
+    }
+  }
+}
+
 
 class TransientFragment( val dataFrag: DataFragment, val request: RequestContext, val varMetadata: Map[String,nc2.Attribute] ) extends OperationDataInput( dataFrag.spec, varMetadata ) {
   def toXml(id: String): xml.Elem = {

@@ -1,12 +1,14 @@
 package nasa.nccs.cdas.pyapi;
-import nasa.nccs.cdas.pyapi.TransData;
+import nasa.nccs.cdas.pyapi.TransArray;
+
+import java.util.List;
 
 
 public interface ICDAS {
 
     public String sayHello(int i, String s);
 
-    public String sendData( TransData data );
+    public String sendData( List<TransArray> data );
 
-    public String compute( String op, String context, String dataGrid, float[] data, int[] shape );
+    public String execute( String op, String context, List<TransArray> data );
 }

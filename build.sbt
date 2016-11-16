@@ -48,11 +48,7 @@ fork in test:= true
 logBuffered in Test := false
 
 javaOptions in run ++= Seq( "-Xmx64000M", "-Xms512M")
-
-dependencyOverrides ++= Set(
-  "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4"
-)
-
+dependencyOverrides ++= Set( "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4" )
 ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 
 import java.util.Properties

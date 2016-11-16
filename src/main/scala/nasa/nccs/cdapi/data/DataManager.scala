@@ -2,6 +2,7 @@ package nasa.nccs.cdapi.data
 
 import nasa.nccs.caching.Partition
 import nasa.nccs.cdapi.tensors._
+import nasa.nccs.cdas.pyapi.TransArray
 import nasa.nccs.esgf.process.CDSection
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.spark.rdd.RDD
@@ -59,10 +60,12 @@ trait RDDataManager {
 abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray, val origin: Array[Int]=Array.emptyIntArray, val missing: Option[T]=None, metadata: Map[String,String]=Map.empty, val indexMaps: List[CDCoordMap] = List.empty ) extends MetadataCarrier(metadata) with Serializable {
   def data:  Array[T]
   def toCDFloatArray: CDFloatArray
+  def toTransArray: TransArray
   def toCDDoubleArray: CDDoubleArray
   def toUcarFloatArray: ucar.ma2.Array = toCDFloatArray
   def toUcarDoubleArray: ucar.ma2.Array = toCDDoubleArray
   def toCDWeightsArray: Option[CDFloatArray] = None
+  def getMetadataStr = metadata map { case ( key, value ) => key + ":" + value } mkString (";")
   def merge( other: ArrayBase[T] ): ArrayBase[T]
   def combine( combineOp: CDArray.ReduceOp[T], other: ArrayBase[T] ): ArrayBase[T]
   override def toString = "<array shape=(%s), %s> %s </array>".format( shape.mkString(","), metadata.mkString(","), cdsutils.toString(data.mkString(",")) )
@@ -73,9 +76,10 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def data: Array[Float] = _data
   def weights: Option[Array[Float]] = _optWeights
   override def toCDWeightsArray: Option[CDFloatArray] = _optWeights.map( CDFloatArray( shape, _, missing() ) )
-  def missing( default: Float = Float.MaxValue ): Float = _missing.getOrElse(default).asInstanceOf[Float]
+  def missing( default: Float = Float.MaxValue ): Float = _missing.getOrElse(default)
 
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, missing(), indexMaps )
+  def toTransArray: TransArray = new TransArray( getMetadataStr, shape, origin, _data, missing() )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), missing() )
 
   def merge( other: ArrayBase[Float] ): ArrayBase[Float] = HeapFltArray( toCDFloatArray.merge( other.toCDFloatArray ), origin, mergeMetadata("merge",other), toCDWeightsArray.map( _.merge( other.toCDWeightsArray.get ) ) )
@@ -89,14 +93,16 @@ object HeapFltArray {
   def empty(rank:Int) = HeapFltArray( CDFloatArray.empty, Array.fill(rank)(0), Map.empty[String,String], None )
 }
 
-class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, val _data_ : Array[Double]=Array.emptyDoubleArray, missing: Option[Double]=None, metadata: Map[String,String]=Map.empty ) extends ArrayBase[Double](shape,origin,missing,metadata) {
+class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, val _data_ : Array[Double]=Array.emptyDoubleArray, _missing: Option[Double]=None, metadata: Map[String,String]=Map.empty ) extends ArrayBase[Double](shape,origin,_missing,metadata) {
   def data: Array[Double] = _data_
-  def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), missing.getOrElse(Float.MaxValue).asInstanceOf[Float] )
-  def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data, missing.getOrElse(Double.MaxValue).asInstanceOf[Double] )
+  def missing( default: Double = Double.MaxValue ): Double = _missing.getOrElse(default)
+  def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), missing().toFloat )
+  def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data, missing() )
+  def toTransArray: TransArray = new TransArray( getMetadataStr, shape, origin, data.map(_.toFloat), missing().toFloat )
 
   def merge( other: ArrayBase[Double] ): ArrayBase[Double] = HeapDblArray( toCDDoubleArray.merge( other.toCDDoubleArray ), origin, mergeMetadata("merge",other) )
   def combine( combineOp: CDArray.ReduceOp[Double], other: ArrayBase[Double] ): ArrayBase[Double] = HeapDblArray( CDDoubleArray.combine( combineOp, toCDDoubleArray, other.toCDDoubleArray ), origin, mergeMetadata("merge",other) )
-  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={missing.toString} > {_data_.mkString(",")} </array> % metadata
+  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={missing().toString} > {_data_.mkString(",")} </array> % metadata
 }
 object HeapDblArray {
   def apply( cdarray: CDDoubleArray, origin: Array[Int], metadata: Map[String,String] ): HeapDblArray = new HeapDblArray( cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), metadata )
