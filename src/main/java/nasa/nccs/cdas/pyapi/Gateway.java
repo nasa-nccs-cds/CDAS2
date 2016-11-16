@@ -34,7 +34,7 @@ public class Gateway {
         try {
             Path path = FileSystems.getDefault().getPath(System.getProperty("user.home"), ".cdas", String.format("pycdas-%d.log", iPartition));
             BufferedReader br = new BufferedReader(new FileReader(path.toString()));
-            System.out.println( "PYTHON LOG: PARTITION-" + String.valueOf(iPartition) );
+            System.out.println( "\tPYTHON LOG: PARTITION-" + String.valueOf(iPartition) );
             String line = br.readLine();
             while (line != null) {
                 System.out.println( line );
@@ -58,7 +58,7 @@ public class Gateway {
             Path path = FileSystems.getDefault().getPath(cdas_home, "python", "pycdas", "icdas.py" );
             python_process = new ProcessBuilder( "python", path.toString(), String.valueOf(iPartition), String.valueOf(java_port), String.valueOf(python_port) ).start();
             System.out.println( "Starting Python Worker on port: " + String.valueOf(python_port) );
-            Thread.sleep(1000);
+            Thread.sleep(500);
         } catch ( IOException ex ) {
             System.out.println( "Error starting Python Worker : " + ex.toString() );
         } catch ( InterruptedException ex ) {
@@ -78,9 +78,9 @@ public class Gateway {
             try {
                 ICDAS icdas = gateway.getInterface();
                 System.out.println(icdas.sayHello(2, "Hello World"));
-                int[] shape = { index+1, index+2 };
+                int[] shape = { 1, 2 };
                 int[] origin = { 0, 0 };
-                float[] data = { index*2f, index*3f };
+                float[] data = { 0f, 1f };
                 TransArray trans_data = new TransArray( "", shape, origin, data, Float.MAX_VALUE );
                 System.out.println( icdas.sendData( Arrays.asList(trans_data) ) );
             } catch ( Exception ex ) {

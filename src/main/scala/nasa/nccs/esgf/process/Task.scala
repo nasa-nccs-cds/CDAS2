@@ -343,7 +343,7 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
   }
   def readData( section: ma2.Section ) = collection.readVariableData( varname, section )
   def getVariableMetadata: Map[String,nc2.Attribute] = nc2.Attribute.makeMap( collection.getVariableMetadata(varname) ).toMap
-  def getMetadata: Map[String,String] = Map( "name" -> varname, "collection" -> collection.id, "fragment" -> fragIdOpt.getOrElse(""), "dimensions" -> dimensions, "units" -> units, "longname" -> longname, "uid" -> uid, "roi" -> roi.toString )
+  def getMetadata: Map[String,String] = Map( "name" -> varname, "collection" -> collection.id, "gridFile" -> collection.getGridFilePath, "fragment" -> fragIdOpt.getOrElse(""), "dimensions" -> dimensions, "units" -> units, "longname" -> longname, "uid" -> uid, "roi" -> roi.toString )
   def getVariable: CDSVariable = collection.getVariable( varname )
 
   def combine( other: DataFragmentSpec, sectionMerge: Boolean = true ): ( DataFragmentSpec, SectionMerge.Status ) = {

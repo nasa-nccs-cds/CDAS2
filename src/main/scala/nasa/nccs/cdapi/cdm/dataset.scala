@@ -164,6 +164,7 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
   override def toString = "Collection( id=%s, ctype=%s, path=%s, title=%s, fileFilter=%s )".format( id, ctype, dataPath, title, fileFilter )
   def isEmpty = dataPath.isEmpty
   lazy val varNames = vars.map( varStr => varStr.split( Array(':','|') ).head )
+  def getGridFilePath = grid.gridFile.toString
 
   def getDatasetMetadata(): List[nc2.Attribute] = {
     val inner_attributes: List[nc2.Attribute] = List(
