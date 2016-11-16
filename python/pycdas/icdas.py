@@ -1,10 +1,10 @@
 from py4j.clientserver import ClientServer, JavaParameters, PythonParameters
 from py4j.java_gateway import  DEFAULT_ADDRESS
-import logging, os, sys
+import logging, os, sys, traceback, array
 import cdms2
 import numpy as np
 
-def getIntArg( index, default ): return sys.argv[index] if index < len( sys.argv ) else default
+def getIntArg( index, default ): return int(sys.argv[index]) if index < len( sys.argv ) else default
 
 
 class ICDAS(object):
@@ -25,11 +25,11 @@ class ICDAS(object):
                 self.logger.info( " >> Array Shape: [{0}]".format( ', '.join( map(str, trans_array.shape) ) ) )
                 self.logger.info( " >> Array Origin: [{0}]".format( ', '.join( map(str, trans_array.origin) ) ) )
                 variable = self.getVariable( trans_array )
-                self.logger.info( " >> Created Variable: {0}".format( variable.id ) )
+                self.logger.info( " >> Created Variable" )
 
-            return " -- Got exec request part {0} -- ".format( self.partitionIndex )
+            return "\n-------------------------------\n Got exec request part {0} \n-------------------------------\n ".format( self.partitionIndex )
         except Exception as err:
-            return "Python Execution error: {0}".format(err)
+            return "\n-------------------------------\nPython Execution error: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc())
 
     def execute(self, opId, context, trans_arrays ):
         try:
@@ -43,13 +43,13 @@ class ICDAS(object):
                 variable = self.getVariable( trans_array )
                 self.logger.info( " >> Created Variable: {0}".format( variable.id ) )
 
-            return " -- Got exec request part {0} -- ".format( self.partitionIndex )
+            return "\n-------------------------------\n Got exec request part {0} \n-------------------------------\n ".format( self.partitionIndex )
         except Exception as err:
-            return "Python Execution error: {0}".format(err)
+            return "\n-------------------------------\nPython Execution error: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc())
 
     def getVariable( self, trans_array ):
-        array = np.ndarray( trans_array.shape, dtype=float, order='C', buffer=trans_array.data )
-        return cdms2.createVariable( array, typecode=None, copy=0, savespace=0, mask=None, fill_value=trans_array.invalid, grid=None, axes=None,attributes=None, id=None)
+        nparray = np.ndarray( trans_array.shape, dtype=float, order='C', buffer=array.array('f',trans_array.data) )
+        return cdms2.createVariable( np.getbuffer(nparray), typecode=None, copy=0, savespace=0, mask=None, fill_value=trans_array.invalid, grid=None, axes=None,attributes=None, id=None)
 
     def getLogger( self, index ):
         logger = logging.getLogger('ICDAS')

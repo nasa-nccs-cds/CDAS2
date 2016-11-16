@@ -73,7 +73,7 @@ public class Gateway {
     }
 
     public static void main(String[] args) {
-        for(int index=0; index<2; index++) {
+        for(int index=0; index<1; index++) {
             Gateway gateway = new Gateway(index);
             try {
                 ICDAS icdas = gateway.getInterface();
