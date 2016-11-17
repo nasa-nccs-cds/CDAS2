@@ -8,7 +8,5 @@ public interface ICDAS {
 
     public String sayHello(int i, String s);
 
-    public String sendData( List<TransArray> data );
-
     public String execute( String op, String context, List<TransArray> data );
 }

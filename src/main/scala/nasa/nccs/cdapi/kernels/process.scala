@@ -6,7 +6,8 @@ import nasa.nccs.cdapi.cdm._
 import nasa.nccs.esgf.process._
 import org.apache.spark.rdd.RDD
 import org.slf4j.LoggerFactory
-import java.io.{File, IOException, PrintWriter, StringWriter}
+import java.io._
+import java.nio.FloatBuffer
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.caching.collectionDataCache
@@ -15,6 +16,7 @@ import nasa.nccs.cdas.pyapi.{Gateway, ICDAS, TransArray}
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.wps.WPSProcess
+import org.apache.commons.io.{FileUtils, IOUtils}
 import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
@@ -24,6 +26,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
+import scala.util.control.NonFatal
 
 object Port {
   def apply( name: String, cardinality: String, description: String="", datatype: String="", identifier: String="" ) = {
@@ -542,6 +545,8 @@ abstract class MultiRDDKernel extends Kernel {
 }
 
 abstract class PythonRDDKernel extends Kernel {
+
+
   override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
     val inputs = inputTups._2
     val key = inputTups._1
@@ -553,9 +558,29 @@ abstract class PythonRDDKernel extends Kernel {
       val input_arrays = context.operation.inputs.flatMap(inputs.element)
       assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
       val transArrays = input_arrays.map(_.toTransArray)
+//      val transArray = transArrays.head
+//      val buffer =   FloatBuffer.wrap( transArray.data )
+//      val outStr: BufferedOutputStream = new BufferedOutputStream()
+//      IOUtils.write( buffer.array(), outStr)
+      // val dataBuffer = data.getDataAsByteBuffer
+      //
       val op_metadata = context.getContextStr
       val result_metadata = MetadataOps.mergeMetadata(name, input_arrays.map(_.metadata))
-      val result = icdas.execute(context.operation.identifier, op_metadata, transArrays)
+
+      new Thread("SendDataThread") {
+        setDaemon(true)
+        override def run() {
+          for( input_array <- input_arrays ) {
+            val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array()
+            logger.info("Gateway-%d: Sending data on port %d, nbytes=%d".format( inputs.iPart, gateway.getDataPort(), byte_data.length ))
+            gateway.sendData( byte_data )
+          }
+        }
+      }.start()
+
+      logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
+      val result = icdas.execute( context.operation.identifier, op_metadata, transArrays )
+
       logger.info("&MAP: Finished Kernel %s[%d], result = %s, time = %.4f s".format(name, inputs.iPart, result, (System.nanoTime - t0) / 1.0E9))
       val final_result = CDFloatArray.empty
       key -> RDDPartition(inputs.iPart, Map(context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None)), inputs.metadata)

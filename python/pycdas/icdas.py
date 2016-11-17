@@ -1,6 +1,6 @@
 from py4j.clientserver import ClientServer, JavaParameters, PythonParameters
 from py4j.java_gateway import  DEFAULT_ADDRESS
-import logging, os, sys, traceback, array, time
+import logging, os, sys, traceback, array, time, socket
 import cdms2
 import numpy as np
 
@@ -24,31 +24,31 @@ def subsetAxes( axes, origin, shape ):
 
 class ICDAS(object):
 
-    def __init__(self, part_index ):
+    def __init__(self, part_index, data_port ):
         self.logger = self.getLogger(part_index)
         self.partitionIndex = part_index;
+        self.data_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.data_socket.connect( ('127.0.0.1', data_port) )
+        self.logger.info( "Connected data socket on port: {0}".format( data_port ) )
+
+    def __del__(self):
+        self.data_socket.close()
 
     def sayHello(self, int_value, string_value ):
         print(int_value, string_value)
         return "Said hello to {0}".format(string_value)
 
-    def sendData( self, trans_arrays ):
-        try:
-            self.logger.info( "Inputs: " )
-            for trans_array in trans_arrays:
-                self.logger.info( " >> Array Metadata: {0}".format( trans_array.metadata ) )
-                self.logger.info( " >> Array Shape: [{0}]".format( ', '.join( map(str, trans_array.shape) ) ) )
-                self.logger.info( " >> Array Origin: [{0}]".format( ', '.join( map(str, trans_array.origin) ) ) )
-
-            return "\n-------------------------------\n Got exec request part {0} \n-------------------------------\n ".format( self.partitionIndex )
-        except Exception as err:
-            return "\n-------------------------------\nPython Execution error: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc())
-
     def execute(self, opId, contextStr, trans_arrays ):
         try:
             t0 = time.time()
             self.logger.info( "Executing Operation: {0}, context: {1}".format( opId, contextStr ) )
-            inputs = [ self.getVariable( trans_array ) for trans_array in trans_arrays ]
+            inputs = []
+            for trans_array in trans_arrays:
+                self.logger.info( "Receiving {0} bytes of data for trans_array: {1}".format( trans_array.nbytes, trans_array.metadata ) )
+                byte_data = self.data_socket.recv( trans_array.nbytes )
+                array_data = np.frombuffer( byte_data, dtype='f' ).reshape( trans_array.shape )
+                input = self.getVariable( trans_array, array_data )
+                inputs.append( input )
             results = self.execOp( opId, getDict(contextStr), inputs )
             self.logger.info( "Completed Operation: {0} in time {1}".format( opId, (time.time()-t0) ) )
 
@@ -73,15 +73,8 @@ class ICDAS(object):
                 rv = [ input.regrid( t42 , regridTool=regridder ) for input in inputs ]
                 self.logger.info( " >> Regridded variables in time {0}".format( (time.time()-t0) ) )
 
-    def getVariable( self, trans_array ):
+    def getVariable( self, trans_array, nparray ):
         t0 = time.time()
-        data = trans_array.data[:]
-        origin  = trans_array.origin[:]
-        shape  = trans_array.shape[:]
-        t1 = time.time()
-        nparray_flat = np.asarray( array.array( 'f', data) )
-        t2 = time.time()
-        nparray = nparray_flat.reshape( trans_array.shape )
         metadata = getDict( trans_array.metadata )
         gridFilePath = metadata["gridFile"]
         gridfile = cdms2.open( gridFilePath )
@@ -89,15 +82,16 @@ class ICDAS(object):
         collection = metadata["collection"]
         dimensions = metadata["dimensions"].split(",")
         axes = [ gridfile.axes.get(dim) for dim in dimensions ]
-        partition_axes = subsetAxes( axes, origin, shape )
+        partition_axes = subsetAxes( axes, trans_array.origin, trans_array.shape )
         grid = gridfile.grids.values()[0]
         variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=trans_array.invalid, grid=grid, axes=partition_axes, attributes=metadata, id=collection+":"+name)
-        t3 = time.time()
-        self.logger.info( " >> Created Variable: {0} in times {1} {2} {3}".format( variable.id, (t1-t0), (t2-t1), (t3-t2) ) )
+        t1 = time.time()
+        self.logger.info( " >> Created Variable: {0} in time {1}".format( variable.id, (t1-t0) ) )
         self.logger.info( " >> Array Metadata: {0}".format( trans_array.metadata ) )
         self.logger.info( " >> Array Shape: [{0}]".format( ', '.join( map(str, trans_array.shape) ) ) )
         self.logger.info( " >> Array Origin: [{0}]".format( ', '.join( map(str, trans_array.origin) ) ) )
         self.logger.info( " >> Partition Axes: {0}".format(', '.join( [ axis.id for axis in partition_axes ] ) ) )
+#        self.logger.info( " >> Data Stream Result: {0}".format( result.__class__.__name__ ) )
         return variable
 
     def getLogger( self, index ):
@@ -119,15 +113,17 @@ class ICDAS(object):
         implements = ["nasa.nccs.cdas.pyapi.ICDAS"]
 
 part_index = getIntArg(1,0)
-java_port = getIntArg(2,8201)
+java_port = getIntArg(2,8201 )
 python_port = getIntArg(3,8200)
+data_port = getIntArg(4,8202)
 java_parms = JavaParameters(DEFAULT_ADDRESS,java_port,True,True,True)
 python_parms = PythonParameters(DEFAULT_ADDRESS,python_port)
-icdas = ICDAS(part_index)
+icdas = ICDAS( part_index, data_port )
 
 icdas.logger.info( " Running ICDAS-{0} on ports: {1} {2}".format( part_index, java_port, python_port ) )
 try:
     gateway = ClientServer( java_parameters=java_parms, python_parameters=python_parms, python_server_entry_point=icdas)
+
 
 except Exception as err:
     icdas.logger.info("\n-------------------------------\nClientServer startup error: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc()))

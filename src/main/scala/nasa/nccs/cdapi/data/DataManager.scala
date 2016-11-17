@@ -79,7 +79,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def missing( default: Float = Float.MaxValue ): Float = _missing.getOrElse(default)
 
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, missing(), indexMaps )
-  def toTransArray: TransArray = new TransArray( getMetadataStr, shape, origin, _data, missing() )
+  def toTransArray: TransArray = new TransArray( getMetadataStr, shape, origin, missing() )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), missing() )
 
   def merge( other: ArrayBase[Float] ): ArrayBase[Float] = HeapFltArray( toCDFloatArray.merge( other.toCDFloatArray ), origin, mergeMetadata("merge",other), toCDWeightsArray.map( _.merge( other.toCDWeightsArray.get ) ) )
@@ -98,7 +98,7 @@ class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def missing( default: Double = Double.MaxValue ): Double = _missing.getOrElse(default)
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), missing().toFloat )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data, missing() )
-  def toTransArray: TransArray = new TransArray( getMetadataStr, shape, origin, data.map(_.toFloat), missing().toFloat )
+  def toTransArray: TransArray = new TransArray( getMetadataStr, shape, origin, missing().toFloat )
 
   def merge( other: ArrayBase[Double] ): ArrayBase[Double] = HeapDblArray( toCDDoubleArray.merge( other.toCDDoubleArray ), origin, mergeMetadata("merge",other) )
   def combine( combineOp: CDArray.ReduceOp[Double], other: ArrayBase[Double] ): ArrayBase[Double] = HeapDblArray( CDDoubleArray.combine( combineOp, toCDDoubleArray, other.toCDDoubleArray ), origin, mergeMetadata("merge",other) )
