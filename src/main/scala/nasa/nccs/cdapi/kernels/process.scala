@@ -558,12 +558,6 @@ abstract class PythonRDDKernel extends Kernel {
       val input_arrays = context.operation.inputs.flatMap(inputs.element)
       assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
       val transArrays = input_arrays.map(_.toTransArray)
-//      val transArray = transArrays.head
-//      val buffer =   FloatBuffer.wrap( transArray.data )
-//      val outStr: BufferedOutputStream = new BufferedOutputStream()
-//      IOUtils.write( buffer.array(), outStr)
-      // val dataBuffer = data.getDataAsByteBuffer
-      //
       val op_metadata = context.getContextStr
       val result_metadata = MetadataOps.mergeMetadata(name, input_arrays.map(_.metadata))
 
@@ -581,7 +575,8 @@ abstract class PythonRDDKernel extends Kernel {
       logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
       val result = icdas.execute( context.operation.identifier, op_metadata, transArrays )
 
-      logger.info("&MAP: Finished Kernel %s[%d], result = %s, time = %.4f s".format(name, inputs.iPart, result, (System.nanoTime - t0) / 1.0E9))
+      logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
+      logger.info( "\n\n-----------------------------------------------------------\n RESPONSE = %s\n-----------------------------------------------------------\n".format( result ) )
       val final_result = CDFloatArray.empty
       key -> RDDPartition(inputs.iPart, Map(context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None)), inputs.metadata)
     } finally {

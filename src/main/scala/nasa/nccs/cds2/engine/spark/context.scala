@@ -13,7 +13,8 @@ import nasa.nccs.utilities.Loggable
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import ucar.ma2
-import org.apache.log4j.{ Logger, LogManager, Level }
+import org.apache.log4j.{Level, LogManager, Logger}
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
@@ -79,11 +80,13 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     val rddSpecs: Array[RDDPartSpec] = partitions.parts.map( partition =>
       RDDPartSpec( partition, List(pFrag.getRDDVariableSpec(uid, partition, opSection) ) )
     ) filterNot( _.empty(uid) )
+    logger.info( "Discarded empty partitions:: Creating RDD with <<%d>> paritions".format( rddSpecs.length ) )
     sparkContext.parallelize(rddSpecs).map(_.getRDDPartition).keyBy( _.iPart )
   }
   def getRDD( uid: String, tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(Int,RDDPartition)] = {
     val rddParts: IndexedSeq[(Int,RDDPartition)] = partitions.parts.indices.map( index => index -> RDDPartition( index, tVar.variable.result ) )
 //    log( " Create RDD, rddParts = " + rddParts.map(_.toXml.toString()).mkString(",") )
+    logger.info( "Creating Transient RDD with <<%d>> paritions".format( rddParts.length ) )
     sparkContext.parallelize(rddParts)
   }
 

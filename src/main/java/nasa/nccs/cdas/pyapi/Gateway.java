@@ -52,6 +52,21 @@ public class Gateway {
         }
     }
 
+    public byte[] recvData( int nbytes ) {
+        byte[] dataBuffer = null;
+        try {
+            DataInputStream in = new DataInputStream(new BufferedInputStream(dataSocket.getInputStream()));
+            System.out.println( "Gateway-" + iPartition + " reading data, nbytes = " + nbytes );
+            dataBuffer = new byte[nbytes];
+            in.readFully( dataBuffer );
+            System.out.println( "Gateway-" + iPartition + " finished reading data! " );
+            in.close();
+        } catch ( Exception ex ) {
+            System.out.println( "Error sending data : " + ex.toString() );
+        }
+        return dataBuffer;
+    }
+
     private void printPythonLog() {
         try {
             Path path = FileSystems.getDefault().getPath(System.getProperty("user.home"), ".cdas", String.format("pycdas-%d.log", iPartition));

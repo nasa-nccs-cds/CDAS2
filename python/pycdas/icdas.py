@@ -30,6 +30,7 @@ class ICDAS(object):
         self.data_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.data_socket.connect( ('127.0.0.1', data_port) )
         self.logger.info( "Connected data socket on port: {0}".format( data_port ) )
+        self.cached_results = {}
 
     def __del__(self):
         self.data_socket.close()
@@ -50,11 +51,34 @@ class ICDAS(object):
                 input = self.getVariable( trans_array, array_data )
                 inputs.append( input )
             results = self.execOp( opId, getDict(contextStr), inputs )
+            response = self.saveResults( opId, inputs, results  )
             self.logger.info( "Completed Operation: {0} in time {1}".format( opId, (time.time()-t0) ) )
-
-            return "\n-------------------------------\n Got exec request part {0} \n-------------------------------\n ".format( self.partitionIndex )
+            return response
         except Exception as err:
             return "\n-------------------------------\nPython Execution error: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc())
+
+    def saveResults(self, opId, inputs, results ):
+        responses = []
+        for i in range( len(results) ):
+            result = results[i]
+            input = inputs[i]
+            resultId = "-".join( [ input.id, opId ] )
+            mdatafile = self.saveMetadata( resultId, result )
+            self.cached_results[resultId] = result
+            responses.append( ",".join( [resultId,mdatafile] ) )
+        return ';'.join( responses )
+
+    def saveMetadata( self, resultId, variable  ):
+        axes = variable.getAxisList()
+        grid = variable.getGrid()
+        outdir = os.path.dirname( variable.gridfile )
+        outpath = os.path.join(outdir, resultId + ".nc" )
+        newDataset = cdms2.createDataset( outpath )
+        for axis in axes: newDataset.copyAxis(axis)
+        newDataset.copyGrid(grid)
+        newDataset.close()
+        self.logger.info( "Saved metadata file: {0}".format( outpath ) )
+        return outpath
 
     def execOp( self, op, context, inputs ):
         t0 = time.time()
@@ -70,8 +94,11 @@ class ICDAS(object):
         if opName.lower() == "regrid":
             if crs == "gaussian":
                 t42 = cdms2.createGaussianGrid( resolution )
-                rv = [ input.regrid( t42 , regridTool=regridder ) for input in inputs ]
-                self.logger.info( " >> Regridded variables in time {0}".format( (time.time()-t0) ) )
+                results = [ input.regrid( t42 , regridTool=regridder ) for input in inputs ]
+                self.logger.info( " >> Regridded variables in time {0}, nresults = {1}".format( (time.time()-t0), len(results) ) )
+                return results
+        return []
+
 
     def getVariable( self, trans_array, nparray ):
         t0 = time.time()
@@ -84,7 +111,8 @@ class ICDAS(object):
         axes = [ gridfile.axes.get(dim) for dim in dimensions ]
         partition_axes = subsetAxes( axes, trans_array.origin, trans_array.shape )
         grid = gridfile.grids.values()[0]
-        variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=trans_array.invalid, grid=grid, axes=partition_axes, attributes=metadata, id=collection+":"+name)
+        variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=trans_array.invalid, grid=grid, axes=partition_axes, attributes=metadata, id=collection+"-"+name)
+        variable.createattribute( "gridfile", gridFilePath )
         t1 = time.time()
         self.logger.info( " >> Created Variable: {0} in time {1}".format( variable.id, (t1-t0) ) )
         self.logger.info( " >> Array Metadata: {0}".format( trans_array.metadata ) )
