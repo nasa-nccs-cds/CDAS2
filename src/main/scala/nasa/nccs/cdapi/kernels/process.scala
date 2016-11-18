@@ -573,7 +573,26 @@ abstract class PythonRDDKernel extends Kernel {
       }.start()
 
       logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
-      val result = icdas.execute( context.operation.identifier, op_metadata, transArrays )
+      val results = icdas.execute( context.operation.identifier, op_metadata, transArrays ).split(";")
+      val result = results.head
+      logger.info( "Gateway-%d: Received result string: %s".format( inputs.iPart, result ) )
+
+      val resultToks = result.split(",")
+      val resultId = resultToks(0)
+      val gridFilePath = resultToks(1)
+      val nbytes = resultToks(2).toInt
+      val grid = CDGrid.create( resultId, new File( gridFilePath ) )
+//      val variable = grid.getVariable( resultId )
+
+      new Thread("ReceiveDataThread") {
+        setDaemon(true)
+        override def run() {
+          val result_data = gateway.recvData( nbytes )
+          logger.info("Gateway-%d: Received result data on port %d, nbytes=%d".format( inputs.iPart, gateway.getDataPort(), nbytes ) )
+        }
+      }.start()
+
+      icdas.getData( resultId )
 
       logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
       logger.info( "\n\n-----------------------------------------------------------\n RESPONSE = %s\n-----------------------------------------------------------\n".format( result ) )

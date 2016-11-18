@@ -65,8 +65,12 @@ class ICDAS(object):
             resultId = "-".join( [ input.id, opId ] )
             mdatafile = self.saveMetadata( resultId, result )
             self.cached_results[resultId] = result
-            responses.append( ",".join( [resultId,mdatafile] ) )
+            responses.append( ",".join( [resultId,mdatafile,str(result.size*4)] ) )
         return ';'.join( responses )
+
+    def getData( self, resultId ):
+        result_data = self.cached_results[resultId]
+        self.data_socket.sendall( result_data )
 
     def saveMetadata( self, resultId, variable  ):
         axes = variable.getAxisList()

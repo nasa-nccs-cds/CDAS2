@@ -65,7 +65,11 @@ object CDGrid extends Loggable {
   def apply( name: String, ncmlFile: File ): CDGrid = {
     val gridFile: File = NCMLWriter.getCachePath("NCML").resolve( Collections.idToFile( name,".nc" ) ).toFile
     ensureGridFile( gridFile, ncmlFile )
-    val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
+    CDGrid.create( name, gridFile )
+  }
+
+  def create( name: String, gridFile: File ): CDGrid = {
+    val gridDS = NetcdfDataset.acquireDataset( gridFile.toString, null)
     try {
       val coordSystems: List[CoordinateSystem] = gridDS.getCoordinateSystems.toList
       val dset_attributes: List[nc2.Attribute] = gridDS.getGlobalAttributes.map(a => { new nc2.Attribute( name + "--" + a.getFullName, a ) }).toList
@@ -137,7 +141,14 @@ class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis]
     } finally { gridDS.close() }
   }
 
-
+  def getVariable( varName: String ): Option[nc2.Variable] = {
+    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( gridFile.toString, null )
+    try {
+      Option( ncDataset.findVariable(varName) )
+    } catch {
+      case err: Exception => logger.error("Can't get Variable from grid dataset: " + varName); throw err;
+    } finally { ncDataset.close() }
+  }
 
   def getVariableMetadata( varName: String ): List[nc2.Attribute] = {
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( gridFile.toString, null )
