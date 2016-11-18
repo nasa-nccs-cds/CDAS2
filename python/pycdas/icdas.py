@@ -1,8 +1,9 @@
 from py4j.clientserver import ClientServer, JavaParameters, PythonParameters
 from py4j.java_gateway import  DEFAULT_ADDRESS
-import logging, os, sys, traceback, array, time, socket
+import logging, os, sys, traceback, time, socket
 import cdms2
 import numpy as np
+import zmq
 
 def getIntArg( index, default ): return int(sys.argv[index]) if index < len( sys.argv ) else default
 
@@ -27,13 +28,20 @@ class ICDAS(object):
     def __init__(self, part_index, data_port ):
         self.logger = self.getLogger(part_index)
         self.partitionIndex = part_index;
-        self.data_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.data_socket.connect( ('127.0.0.1', data_port) )
+
+#        self.data_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#        self.data_socket.connect( ('127.0.0.1', data_port) )
+
+        self.contextZMQ = zmq.Context()
+        self.socketZMQ = self.contextZMQ.socket(zmq.REP)
+        self.socketZMQ.bind( "tcp://*:{0}".format(data_port) )
+
         self.logger.info( "Connected data socket on port: {0}".format( data_port ) )
         self.cached_results = {}
 
     def __del__(self):
-        self.data_socket.close()
+#        self.data_socket.close()
+        self.socketZMQ.close()
 
     def sayHello(self, int_value, string_value ):
         print(int_value, string_value)
@@ -46,7 +54,8 @@ class ICDAS(object):
             inputs = []
             for trans_array in trans_arrays:
                 self.logger.info( "Receiving {0} bytes of data for trans_array: {1}".format( trans_array.nbytes, trans_array.metadata ) )
-                byte_data = self.data_socket.recv( trans_array.nbytes )
+#                byte_data = self.data_socket.recv( trans_array.nbytes )
+                byte_data = self.socketZMQ.recv()
                 array_data = np.frombuffer( byte_data, dtype='f' ).reshape( trans_array.shape )
                 input = self.getVariable( trans_array, array_data )
                 inputs.append( input )

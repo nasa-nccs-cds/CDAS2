@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.zeromq.ZMQ;
 
 public class Gateway {
     private int iPartition;
@@ -19,28 +20,36 @@ public class Gateway {
     private ClientServerBuilder builder = null;
     private Process python_process = null;
     private ICDAS icdas = null;
+    private int data_port = -1;
+    private int java_port = -1;
+    private int python_port = -1;
     private ServerSocket dataServer = null;
     private Socket dataSocket = null;
+    ZMQ.Context zmqContext = null;
+    ZMQ.Socket zmqDataSocket = null;
 
 
     public Gateway( int partIndex ) {
         iPartition = partIndex;
-        int java_port =   GatewayServer.DEFAULT_PORT + 3 * partIndex;
-        int python_port = GatewayServer.DEFAULT_PORT + 3 * partIndex + 1;
+        java_port =   GatewayServer.DEFAULT_PORT + 3 * partIndex;
+        python_port = GatewayServer.DEFAULT_PORT + 3 * partIndex + 1;
+        data_port = GatewayServer.DEFAULT_PORT + 3 * partIndex + 2;
+        zmqContext = ZMQ.context(1);
         builder = new ClientServerBuilder();
         builder.javaPort(java_port).pythonPort(python_port).connectTimeout(100);
         try {
-            dataServer = startupPythonWorker( java_port, python_port );
-            dataSocket = dataServer.accept();
-            System.out.println( "Gateway-" + partIndex + " dataSocket connectd on port " + dataSocket.getPort() );
+            python_process =  startupPythonWorker( java_port, python_port, data_port );
+            zmqDataSocket = zmqContext.socket(ZMQ.REQ);
+            zmqDataSocket.bind( String.format( "tcp://localhost:%d", data_port ) );
+            System.out.println( String.format("Gateway-%d dataSocket connected on port %d", partIndex, data_port ) );
         } catch ( Exception ex ) {
             System.out.println( "Error starting data socket : " + ex.toString() );
         }
     }
 
-    public int getDataPort( ) { return dataSocket.getPort(); }
+    public int getDataPort( ) { return data_port; }
 
-    public void sendData( byte[] data ) {
+    public void sendDataViaSocket( byte[] data ) {
         try {
             DataOutputStream out = new DataOutputStream(new BufferedOutputStream(dataSocket.getOutputStream()));
             System.out.println( "Gateway-" + iPartition + " sending data, nbytes = " + data.length );
@@ -52,7 +61,17 @@ public class Gateway {
         }
     }
 
-    public byte[] recvData( int nbytes ) {
+    public void sendDataZMQ( byte[] data ) {
+        try {
+            System.out.println( "Gateway-" + iPartition + " sending data, nbytes = " + data.length );
+            zmqDataSocket.send( data, 0 );
+            System.out.println( "Gateway-" + iPartition + " finished sending data! " );
+        } catch ( Exception ex ) {
+            System.out.println( "Error sending data : " + ex.toString() );
+        }
+    }
+
+    public byte[] recvDataViaSocket( int nbytes ) {
         byte[] dataBuffer = null;
         try {
             DataInputStream in = new DataInputStream(new BufferedInputStream(dataSocket.getInputStream()));
@@ -65,6 +84,19 @@ public class Gateway {
             System.out.println( "Error sending data : " + ex.toString() );
         }
         return dataBuffer;
+    }
+
+    public byte[] recvDataZMQ( int nbytes ) {
+        byte[] response = null;
+        try {
+            System.out.println( "Gateway-" + iPartition + " reading data, nbytes = " + nbytes );
+            response = zmqDataSocket.recv();
+            System.out.println( "Gateway-" + iPartition + " finished reading data! " );
+
+        } catch ( Exception ex ) {
+            System.out.println( "Error sending data : " + ex.toString() );
+        }
+        return response;
     }
 
     private void printPythonLog() {
@@ -89,7 +121,7 @@ public class Gateway {
         return icdas;
     }
 
-    public ServerSocket startupPythonWorker( int java_port, int python_port ) {
+    public ServerSocket startupPythonWorkerWithServerSocket( int java_port, int python_port ) {
         try {
             String cdas_home = System.getenv("CDAS_HOME_DIR");
             Path path = FileSystems.getDefault().getPath(cdas_home, "python", "pycdas", "icdas.py" );
@@ -106,10 +138,25 @@ public class Gateway {
         }
     }
 
+    public Process startupPythonWorker( int java_port, int python_port, int data_port ) {
+        try {
+            String cdas_home = System.getenv("CDAS_HOME_DIR");
+            Path path = FileSystems.getDefault().getPath(cdas_home, "python", "pycdas", "icdas.py" );
+            Process process = new ProcessBuilder( "python", path.toString(), String.valueOf(iPartition), String.valueOf(java_port), String.valueOf(python_port), String.valueOf( data_port ) ).start();
+            System.out.println( "Starting Python Worker on port: " + String.valueOf(python_port) );
+            return process;
+        } catch ( IOException ex ) {
+            System.out.println( "Error starting Python Worker : " + ex.toString() );
+            return null;
+        }
+    }
+
     public void shutdown( ) {
         if( _clientServer != null ) { _clientServer.shutdown(); _clientServer = null; }
         if( python_process != null ) { python_process.destroy(); python_process = null; }
         try { dataServer.close(); }  catch ( Exception ex ) { System.out.println( "Error closing data socket: " + ex.toString() ); }
+        try { zmqDataSocket.close(); }  catch ( Exception ex ) { System.out.println( "Error closing zmqDataSocket: " + ex.toString() ); }
+        try { zmqContext.term(); }  catch ( Exception ex ) { System.out.println( "Error terminating zmqContext: " + ex.toString() ); }
         printPythonLog();
     }
 

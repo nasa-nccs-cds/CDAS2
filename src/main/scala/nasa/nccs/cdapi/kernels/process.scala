@@ -567,7 +567,7 @@ abstract class PythonRDDKernel extends Kernel {
           for( input_array <- input_arrays ) {
             val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array()
             logger.info("Gateway-%d: Sending data on port %d, nbytes=%d".format( inputs.iPart, gateway.getDataPort(), byte_data.length ))
-            gateway.sendData( byte_data )
+            gateway.sendDataZMQ( byte_data )
           }
         }
       }.start()
