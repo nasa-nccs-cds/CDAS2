@@ -64,8 +64,9 @@ class ICDAS(object):
             input = inputs[i]
             resultId = "-".join( [ input.id, opId ] )
             mdatafile = self.saveMetadata( resultId, result )
+            shape_str = '-'.join( map(str, result.shape) )
             self.cached_results[resultId] = result
-            responses.append( ",".join( [resultId,mdatafile,str(result.size*4)] ) )
+            responses.append( ",".join( [resultId,mdatafile,str(result.size*4),shape_str] ) )
         return ';'.join( responses )
 
     def getData( self, resultId ):
