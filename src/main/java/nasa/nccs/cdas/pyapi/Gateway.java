@@ -109,7 +109,10 @@ public class Gateway {
     public void shutdown( ) {
         if( _clientServer != null ) { _clientServer.shutdown(); _clientServer = null; }
         if( python_process != null ) { python_process.destroy(); python_process = null; }
-        try { dataServer.close(); }  catch ( Exception ex ) { System.out.println( "Error closing data socket: " + ex.toString() ); }
+        try {
+            System.out.println( " ############################## SHUT DOWN DATA SOCKET ##############################" );
+            dataServer.close();
+        }  catch ( Exception ex ) { System.out.println( "Error closing data socket: " + ex.toString() ); }
         printPythonLog();
     }
 

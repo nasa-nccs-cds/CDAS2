@@ -583,26 +583,22 @@ abstract class PythonRDDKernel extends Kernel {
       val nbytes = resultToks(2).toInt
       val shape = resultToks(3).split('-').map( _.toInt )
       val grid = CDGrid.create( resultId, new File( gridFilePath ) )
-//      val variable = grid.getVariable( resultId )
+      val variable = grid.getVariable( resultId )
 
-//      val receive_thread: Thread = new Thread("ReceiveDataThread") {
-//        setDaemon(true)
-//        override def run() {
-//          val result_data: Array[Byte] = gateway.recvData( nbytes )
-//          val array_data = ma2.Array.factory( ma2.DataType.FLOAT, shape, ByteBuffer.wrap(result_data) )
-//          val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter( CDArray[Float]( array_data, transArrays.head.invalid ) )
-//          logger.info("Gateway-%d: Received result data on port %d, nbytes=%d, shape=[%s]".format( inputs.iPart, gateway.getDataPort(), nbytes, floatArray.getShape.mkString(",") ) )
-//        }
-//      }
-//      receive_thread.start()
-
+      val receive_thread: Thread = new Thread("ReceiveDataThread") {
+        setDaemon(true)
+        override def run() {
+            val result_data: Array[Byte] = gateway.recvData(nbytes)
+            if(result_data != null) {
+              val array_data = ma2.Array.factory(ma2.DataType.FLOAT, shape, ByteBuffer.wrap(result_data))
+              val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter(CDArray[Float](array_data, transArrays.head.invalid))
+              logger.info("Gateway-%d: Received result data on port %d, nbytes=%d, shape=[%s]".format(inputs.iPart, gateway.getDataPort(), nbytes, floatArray.getShape.mkString(",")))
+            }
+        }
+      }
+      receive_thread.start()
       icdas.getData( resultId )
-      val result_data: Array[Byte] = gateway.recvData( nbytes )
-      val array_data = ma2.Array.factory( ma2.DataType.FLOAT, shape, ByteBuffer.wrap(result_data) )
-      val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter( CDArray[Float]( array_data, transArrays.head.invalid ) )
-      logger.info("Gateway-%d: Received result data on port %d, nbytes=%d, shape=[%s]".format( inputs.iPart, gateway.getDataPort(), nbytes, floatArray.getShape.mkString(",") ) )
-
-//      receive_thread.join()
+      receive_thread.join()
 
       logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
       logger.info( "\n\n-----------------------------------------------------------\n RESPONSE = %s\n-----------------------------------------------------------\n".format( result ) )

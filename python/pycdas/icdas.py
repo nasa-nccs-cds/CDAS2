@@ -33,6 +33,7 @@ class ICDAS(object):
         self.cached_results = {}
 
     def __del__(self):
+        self.logger.info(  " ############################## SHUT DOWN DATA SOCKET ##############################"  )
         self.data_socket.close()
 
     def sayHello(self, int_value, string_value ):
@@ -70,8 +71,13 @@ class ICDAS(object):
         return ';'.join( responses )
 
     def getData( self, resultId ):
-        result_data = self.cached_results[resultId]
-        self.data_socket.sendall( result_data )
+        try:
+            result_variable = self.cached_results[resultId]
+            result_data = result_variable.data.tobytes()
+            self.logger.info( "Sending Result data,  nbytes: {0}".format( str(len(result_data) ) ) )
+            self.data_socket.sendall( result_data )
+        except KeyError:
+            self.logger.info( "Can't find data element {0}, existing elements: [{1}]".format( resultId, ", ".join( result_data.keys() ) )  )
 
     def saveMetadata( self, resultId, variable  ):
         axes = variable.getAxisList()
