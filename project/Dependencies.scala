@@ -16,7 +16,7 @@ object Library {
   val scalaxml       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
   val scalaparser    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
   val commonsIO      = "commons-io"         % "commons-io"      % "2.5"
-
+  val zeromq         = "org.zeromq"         % "jeromq"          % "0.3.5"
   val cdm            = "edu.ucar"           % "cdm"             % "4.6.6"
   val clcommon       = "edu.ucar"           % "clcommon"        % "4.6.6"
   val netcdf4        = "edu.ucar"           % "netcdf4"         % "4.6.6"
@@ -42,7 +42,7 @@ object Library {
 object Dependencies {
   import Library._
 
-  val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, py4j )
+  val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, zeromq )
 
   val spark = Seq( sparkCore )
 

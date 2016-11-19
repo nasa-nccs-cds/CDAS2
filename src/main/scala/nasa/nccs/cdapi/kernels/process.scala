@@ -7,12 +7,12 @@ import nasa.nccs.esgf.process._
 import org.apache.spark.rdd.RDD
 import org.slf4j.LoggerFactory
 import java.io._
-import java.nio.{ FloatBuffer, ByteBuffer }
+import java.nio.{ByteBuffer, FloatBuffer}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.caching.collectionDataCache
 import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
-import nasa.nccs.cdas.pyapi.{Gateway, ICDAS, TransArray}
+import nasa.nccs.cdas.pyapi.{PythonWorker, PythonWorkerManager}
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.wps.WPSProcess
@@ -546,66 +546,60 @@ abstract class MultiRDDKernel extends Kernel {
 
 abstract class PythonRDDKernel extends Kernel {
 
-
   override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
     val inputs = inputTups._2
     val key = inputTups._1
     val t0 = System.nanoTime
-    val gateway: Gateway  = new Gateway(key)
-    val icdas: ICDAS = gateway.getInterface()
+    val workerManager: PythonWorkerManager  = PythonWorkerManager.getInstance();
+    val worker: PythonWorker = workerManager.getWorker();
     try {
       logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
       val input_arrays = context.operation.inputs.flatMap(inputs.element)
       assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
-      val transArrays = input_arrays.map(_.toTransArray)
       val op_metadata = context.getContextStr
       val result_metadata = MetadataOps.mergeMetadata(name, input_arrays.map(_.metadata))
 
-      new Thread("SendDataThread") {
-        setDaemon(true)
-        override def run() {
-          for( input_array <- input_arrays ) {
-            val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array()
-            logger.info("Gateway-%d: Sending data on port %d, nbytes=%d".format( inputs.iPart, gateway.getDataPort(), byte_data.length ))
-            gateway.sendData( byte_data )
-          }
-        }
-      }.start()
-
-      logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
-      val results = icdas.execute( context.operation.identifier, op_metadata, transArrays ).split(";")
-      val result = results.head
-      logger.info( "Gateway-%d: Received result string: %s".format( inputs.iPart, result ) )
-
-      val resultToks = result.split(",")
-      val resultId = resultToks(0)
-      val gridFilePath = resultToks(1)
-      val nbytes = resultToks(2).toInt
-      val shape = resultToks(3).split('-').map( _.toInt )
-      val grid = CDGrid.create( resultId, new File( gridFilePath ) )
-      val variable = grid.getVariable( resultId )
-
-      val receive_thread: Thread = new Thread("ReceiveDataThread") {
-        setDaemon(true)
-        override def run() {
-            val result_data: Array[Byte] = gateway.recvData(nbytes)
-            if(result_data != null) {
-              val array_data = ma2.Array.factory(ma2.DataType.FLOAT, shape, ByteBuffer.wrap(result_data))
-              val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter(CDArray[Float](array_data, transArrays.head.invalid))
-              logger.info("Gateway-%d: Received result data on port %d, nbytes=%d, shape=[%s]".format(inputs.iPart, gateway.getDataPort(), nbytes, floatArray.getShape.mkString(",")))
-            }
-        }
+      for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
+        case Some( input_array ) =>
+          val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array()
+          logger.info("Kernel part-%d: Sending data to worker for input %s, nbytes=%d".format( inputs.iPart, input_id, byte_data.length ))
+          worker.sendArrayData( "id", input_array.origin, input_array.shape, byte_data, input_array.metadata )
+        case None =>
+          logger.error( "Unidentified kernel input: " + input_id )
       }
-      receive_thread.start()
-      icdas.getData( resultId )
-      receive_thread.join()
+
+
+//      logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
+//      val results = icdas.execute( context.operation.identifier, op_metadata, transArrays ).split(";")
+//      val result = results.head
+//      logger.info( "Gateway-%d: Received result string: %s".format( inputs.iPart, result ) )
+//
+//      val resultToks = result.split(",")
+//      val resultId = resultToks(0)
+//      val gridFilePath = resultToks(1)
+//      val nbytes = resultToks(2).toInt
+//      val shape = resultToks(3).split('-').map( _.toInt )
+//      val grid = CDGrid.create( resultId, new File( gridFilePath ) )
+//      val variable = grid.getVariable( resultId )
+//
+//      val receive_thread: Thread = new Thread("ReceiveDataThread") {
+//        setDaemon(true)
+//        override def run() {
+//            val result_data: Array[Byte] = gateway.recvData(nbytes)
+//            if(result_data != null) {
+//              val array_data = ma2.Array.factory(ma2.DataType.FLOAT, shape, ByteBuffer.wrap(result_data))
+//              val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter(CDArray[Float](array_data, transArrays.head.invalid))
+//              logger.info("Gateway-%d: Received result data on port %d, nbytes=%d, shape=[%s]".format(inputs.iPart, gateway.getDataPort(), nbytes, floatArray.getShape.mkString(",")))
+//            }
+//        }
+//      }
 
       logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
-      logger.info( "\n\n-----------------------------------------------------------\n RESPONSE = %s\n-----------------------------------------------------------\n".format( result ) )
+//      logger.info( "\n\n-----------------------------------------------------------\n RESPONSE = %s\n-----------------------------------------------------------\n".format( result ) )
       val final_result = CDFloatArray.empty
       key -> RDDPartition(inputs.iPart, Map(context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None)), inputs.metadata)
     } finally {
-      gateway.shutdown()
+      workerManager.releaseWorker( worker )
     }
   }
 }
