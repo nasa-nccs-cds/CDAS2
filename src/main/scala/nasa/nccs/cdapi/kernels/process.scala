@@ -556,20 +556,20 @@ abstract class PythonRDDKernel extends Kernel {
       logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
       val input_arrays = context.operation.inputs.flatMap(inputs.element)
       assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
-      val op_metadata = context.getContextStr
       val result_metadata = MetadataOps.mergeMetadata(name, input_arrays.map(_.metadata))
 
       for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
         case Some( input_array ) =>
           val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array()
           logger.info("Kernel part-%d: Sending data to worker for input %s, nbytes=%d".format( inputs.iPart, input_id, byte_data.length ))
-          worker.sendArrayData( "id", input_array.origin, input_array.shape, byte_data, input_array.metadata )
+          worker.sendArrayData( input_array.uid, input_array.origin, input_array.shape, byte_data, input_array.metadata )
+          logger.info( "Kernel part-%d: Finished Sending data to worker" )
         case None =>
           logger.error( "Unidentified kernel input: " + input_id )
       }
-
-
 //      logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
+//      worker.sendRequest(context.operation.identifier, context.operation.inputs.toArray, context.getConfiguration )
+
 //      val results = icdas.execute( context.operation.identifier, op_metadata, transArrays ).split(";")
 //      val result = results.head
 //      logger.info( "Gateway-%d: Received result string: %s".format( inputs.iPart, result ) )

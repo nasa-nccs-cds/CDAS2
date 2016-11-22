@@ -32,7 +32,8 @@ public class PythonWorkerManager {
     public PythonWorker getWorker() {
         PythonWorker worker = availableWorkers.poll();
         if( worker == null ) {
-            worker = new PythonWorker( worker_index += 1, zmqContext );
+            worker = new PythonWorker( worker_index, zmqContext );
+            worker_index += 1;
         }
         busyWorkers.add( worker );
         return worker;
