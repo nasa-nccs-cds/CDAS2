@@ -69,7 +69,7 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
 
   def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
     val t0 = System.nanoTime()
-    val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString )
+    val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString, "unitTest" -> "true" )
     val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
     val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
     webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))

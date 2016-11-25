@@ -18,7 +18,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 object collectionRDDDataCache extends CollectionDataCacheMgr()
 
@@ -79,7 +79,9 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
     val t2 = System.nanoTime()
     logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec, postOp time = %.3f sec   ********** \n".format(kernel.name,kernel.id,context.operation.toString, (t2 - t0) / 1.0E9, (t2 - t1) / 1.0E9))
 //    logger.info( "\n\nResult partition elements= %s \n\n".format( result.elements.values.map( cdsutils.toString(_) ) ) )
-    createResponse( kernel, result, context )
+    val response = createResponse( kernel, result, context )
+    if( Try( context.request.config("unitTest","false").toBoolean ).getOrElse(false)  ) { kernel.cleanUp(); }
+    response
   }
 
   def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {

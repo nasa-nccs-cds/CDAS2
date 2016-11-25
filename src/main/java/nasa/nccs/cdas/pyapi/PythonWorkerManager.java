@@ -45,6 +45,7 @@ public class PythonWorkerManager {
     }
 
     public void shutdown() {
+        System.out.println( "\t   *** PythonWorkerManager SHUTDOWN *** " );
         while( !availableWorkers.isEmpty() ) { availableWorkers.poll().shutdown(); }
         while( !busyWorkers.isEmpty() ) { busyWorkers.poll().shutdown(); }
         zmqContext.term();

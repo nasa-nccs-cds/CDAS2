@@ -96,12 +96,12 @@ public class PythonWorker {
     }
 
     public String ia2s( int[] array ) { return Arrays.toString(array).replaceAll("\\[|\\]|\\s", ""); }
-    public String sa2s( String[] array ) { return Arrays.toString(array).replaceAll("\\[|\\]|\\s", ""); }
+    public String sa2s( String[] array ) { return String.join(",",array); }
     public String m2s( Map<String, String> metadata ) {
         ArrayList<String> items = new ArrayList<String>();
         for (Map.Entry<String,String> entry : metadata.entrySet() ) {
             items.add( entry.getKey() + ":" + entry.getValue() );
         }
-        return Arrays.toString( items.toArray() ).replaceAll("\\[|\\]|\\s", "");
+        return String.join( ";", items );
     }
 }

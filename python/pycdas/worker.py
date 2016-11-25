@@ -8,7 +8,7 @@ class MessageParser:
 
     def s2m( self, mdataStr ):
         metadata = {}
-        for item in mdataStr.split(","):
+        for item in mdataStr.split(";"):
             toks = item.split(":")
             if len(toks) == 2:
                 metadata[ toks[0] ] = toks[1]
@@ -57,7 +57,7 @@ class Worker(object):
             try:
                 header = self.request_socket.recv()
                 type = self.getMessageField(header,0)
-                self.logger.info(  " Worker got message, type = : " + type )
+                self.logger.info(  " Worker got message, type = " + type )
                 if type == "array":
                     data = self.request_socket.recv()
                     self.loadVariable(header,data)
@@ -100,27 +100,31 @@ class Worker(object):
             gridFilePath = metadata["gridFile"]
             gridfile = cdms2.open( gridFilePath )
             name = metadata["name"]
-            var = gridfile(name)
+            var = gridfile[name]
             collection = metadata["collection"]
             dimensions = metadata["dimensions"].split(",")
             axes = [ gridfile.axes.get(dim) for dim in dimensions ]
-            partition_axes = self.subsetAxes( axes, origin, shape )
             grid = gridfile.grids.values()[0]
             nparray = np.frombuffer( data, dtype='f' ).reshape( shape )
+
+            self.logger.info( " >> Array Metadata: {0}".format( metadata ) )
+            self.logger.info( " >> Array Shape: [{0}]".format( ', '.join( map(str, shape) ) ) )
+            self.logger.info( " >> Array Dimensions: [{0}]".format( ', '.join( map(str, dimensions) ) ) )
+            self.logger.info( " >> Array Origin: [{0}]".format( ', '.join( map(str, origin) ) ) )
+
+            partition_axes = self.subsetAxes( axes, origin, shape )
+            self.logger.info( " >> Partition Axes: {0}".format(', '.join( [ axis.id for axis in partition_axes ] ) ) )
             variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.missing, grid=grid, axes=partition_axes, attributes=metadata, id=collection+"-"+name)
             variable.createattribute( "gridfile", gridFilePath )
             t1 = time.time()
             self.logger.info( " >> Created Variable: {0} ({1} in time {2}".format( variable.id, name,  (t1-t0) ) )
-            self.logger.info( " >> Array Metadata: {0}".format( metadata ) )
-            self.logger.info( " >> Array Shape: [{0}]".format( ', '.join( map(str, shape) ) ) )
-            self.logger.info( " >> Array Origin: [{0}]".format( ', '.join( map(str, origin) ) ) )
-            self.logger.info( " >> Partition Axes: {0}".format(', '.join( [ axis.id for axis in partition_axes ] ) ) )
             self.cached_inputs[vid] = variable
         except Exception as err:
             self.logger.error( "\n-------------------------------\nError creating variable: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
 
     def subsetAxes( self, axes, origin, shape ):
         subAxes = []
+        self.logger.info( " >> subsetAxes: Shape: [{0}], naxes: {1}".format( ', '.join( map(str, shape) ), len(axes) ) )
         for index in range( len(shape) ):
             start = origin[index]
             length = shape[index]

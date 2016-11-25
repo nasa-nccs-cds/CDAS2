@@ -160,6 +160,7 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   val mapCombineWNOp: Option[ReduceWNOpFlt] = None
   val reduceCombineOpt: Option[ReduceOpFlt] = None
   val initValue: Float = 0f
+  def cleanUp() = {}
 
   def getOpName(context: KernelContext): String = "%s(%s)".format(name, context.operation.inputs.mkString(","))
 
@@ -545,6 +546,8 @@ abstract class MultiRDDKernel extends Kernel {
 }
 
 abstract class PythonRDDKernel extends Kernel {
+
+  override def cleanUp() = PythonWorkerManager.getInstance().shutdown()
 
   override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
     val inputs = inputTups._2
