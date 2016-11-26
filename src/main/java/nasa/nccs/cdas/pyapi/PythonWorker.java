@@ -11,10 +11,14 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class PythonWorker {
     int BASE_PORT = 2336;
     ZMQ.Socket request_socket = null;
-    ConcurrentLinkedQueue<String> results = null;
+    ConcurrentLinkedQueue<TransVar> results = null;
     Process process = null;
     ResultThread resultThread = null;
     int index;
+
+    private void addResult( String result_header, byte[] data ) {
+        results.add( new TransVar( result_header, data ) );
+    }
 
     public class ResultThread extends Thread {
         ZMQ.Socket result_socket = null;
@@ -25,8 +29,16 @@ public class PythonWorker {
         }
         public void run() {
             while( active ) try {
-                String result_header = new String( result_socket.recv(0) ).trim();
-                results.add( result_header );
+                String result_header = new String(result_socket.recv(0)).trim();
+                String rtype = result_header.split("|")[0];
+                if( rtype == "array" ) {
+                    byte[] data = result_socket.recv(0);
+                    addResult( result_header, data );
+
+                }
+            } catch ( java.nio.channels.ClosedSelectorException ex ) {
+                System.out.println( "Result Socket closed." );
+                active = false;
             } catch ( Exception ex ) {
                 System.out.println( "Error in ResultThread: " + ex.toString() );
                 ex.printStackTrace();
@@ -89,6 +101,8 @@ public class PythonWorker {
             Path process_root = FileSystems.getDefault().getPath( cdas_home, "python" );
             Path log_path = FileSystems.getDefault().getPath( System.getProperty("user.home"), ".cdas", String.format("python-worker-%d.log",index) );
             ProcessBuilder pb = new ProcessBuilder( "python", path.toString(), String.valueOf(index), String.valueOf(request_port), String.valueOf(result_port) );
+            Map<String, String> env = pb.environment();
+            env.put("PYTHONPATH", env.get("PYTHONPATH") + ":" + process_root.toString() );
             pb.directory( process_root.toFile() );
             pb.redirectErrorStream( true );
             pb.redirectOutput( ProcessBuilder.Redirect.appendTo( log_path.toFile() ));
@@ -102,9 +116,8 @@ public class PythonWorker {
 
     public void shutdown( ) {
         sendShutdown();
-//        try { resultThread.term();  }  catch ( Exception ex ) { ; }
-//        try { request_socket.close(); }  catch ( Exception ex ) { ; }
-//        try { process.destroy(); } catch ( Exception ex ) { ; }
+        try { resultThread.term();  }  catch ( Exception ex ) { ; }
+        try { request_socket.close(); }  catch ( Exception ex ) { ; }
     }
 
     public String ia2s( int[] array ) { return Arrays.toString(array).replaceAll("\\[|\\]|\\s", ""); }

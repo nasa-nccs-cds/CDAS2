@@ -1,25 +1,14 @@
 import sys, os, logging, traceback
 import time, numpy as np
 import zmq, cdms2
+from pycdas.messageParser import mParse
 
-class MessageParser:
-
-    def getIntArg( self, index, default ): return int(sys.argv[index]) if index < len( sys.argv ) else default
-
-    def s2m( self, mdataStr ):
-        metadata = {}
-        for item in mdataStr.split(";"):
-            toks = item.split(":")
-            if len(toks) == 2:
-                metadata[ toks[0] ] = toks[1]
-        return metadata
-
-    def s2ia(self, mdataStr ):
-        return np.asarray( [ int(item) for item in mdataStr.split(',') ] )
-
-
-
-mParse = MessageParser()
+def sa2s( strArray ): ','.join( strArray )
+def ia2s( intArray ): ','.join( str(e) for e in intArray )
+def m2s( map  ): ';'.join( key+":"+value for (key,value) in map.iteritems() )
+def s2b( s ):
+    if s.lower() == "t": return True
+    else: return False
 
 class Worker(object):
 
@@ -65,8 +54,10 @@ class Worker(object):
 
                 elif type == "task":
                     self.logger.info(  " Got task request, header = " + header + ", cached inputs = " + ', '.join( self.cached_inputs.keys() ) )
-                    result = self.processTask( header )
-                    self.result_socket.send(result)
+                    resultVars = self.processTask( header )
+                    for resultVar in resultVars:
+                        self.sendVariableData( resultVar )
+
 
                 elif type == "quit":
                     self.logger.info(  " Quitting main thread. " )
@@ -74,6 +65,14 @@ class Worker(object):
 
             except Exception as err:
                 self.logger.error( "\n-------------------------------\nError getting messsage: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
+
+    def sendVariableData( self, resultVar ):
+        header = [ "array", resultVar.id, resultVar.origin, ia2s(resultVar.shape), m2s(resultVar.attributes) ].join("|")
+        self.logger.info( "Sending Result, header: {0}".format( header ) )
+        self.result_socket.send( header )
+        result_data = resultVar.data.tobytes()
+        self.logger.info( "Sending Result data,  nbytes: {0}".format( str(len(result_data) ) ) )
+        self.result_socket.send(result_data)
 
     def getLogger( self, index ):
         logger = logging.getLogger('ICDAS')
@@ -100,6 +99,7 @@ class Worker(object):
         rId = taskToks[1]
         inpitIds = header_toks[2].split(',')
         metadata = mParse.s2m( header_toks[3] )
+        cacheReturn = [ s2b(s) for s in metadata.get( "cacheReturn", "ft" ) ]
         inputs = [ self.cached_inputs.get( inputId ) for inputId in inpitIds ]
 
         if( op == "regrid" ):
@@ -108,12 +108,15 @@ class Worker(object):
             crs = crsToks[0]
             resolution = int(crsToks[1]) if len(crsToks) > 1 else 128
             if crs == "gaussian":
+                results = []
                 t42 = cdms2.createGaussianGrid( resolution )
-                results = [ input.regrid( t42 , regridTool=regridder ) for input in inputs ]
+                for input in inputs:
+                    result = input.regrid( t42 , regridTool=regridder )
+                    result.id = result.id  + "-" + rId
+                    if cacheReturn[0]: self.cached_results[ result.id ] = result
+                    if cacheReturn[1]: results.append( result )
                 self.logger.info( " >> Regridded variables in time {0}, nresults = {1}".format( (time.time()-t0), len(results) ) )
                 return results
-
-
 
     def loadVariable( self, header, data ):
         try:
@@ -142,6 +145,7 @@ class Worker(object):
             partition_axes = self.subsetAxes( axes, origin, shape )
             variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.getMissing(), grid=grid, axes=partition_axes, attributes=metadata, id=collection+"-"+name)
             variable.createattribute( "gridfile", gridFilePath )
+            variable.createattribute( "origin", ia2s(origin) )
             t1 = time.time()
             self.logger.info( " >> Created Variable: {0} ({1} in time {2}".format( variable.id, name,  (t1-t0) ) )
             self.cached_inputs[vid] = variable

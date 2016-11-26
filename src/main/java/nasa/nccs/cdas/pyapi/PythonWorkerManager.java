@@ -47,7 +47,7 @@ public class PythonWorkerManager {
         System.out.println( "\t   *** PythonWorkerManager SHUTDOWN *** " );
         while( !availableWorkers.isEmpty() ) { availableWorkers.poll().shutdown(); }
         while( !busyWorkers.isEmpty() ) { busyWorkers.poll().shutdown(); }
-        try { Thread.sleep(3000); } catch ( Exception ex ) {;}
+        try { Thread.sleep(2000); } catch ( Exception ex ) {;}
         printPythonLog(0);
     }
 
