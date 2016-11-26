@@ -29,12 +29,13 @@ public class PythonWorker {
                 results.add( result_header );
             } catch ( Exception ex ) {
                 System.out.println( "Error in ResultThread: " + ex.toString() );
+                ex.printStackTrace();
                 term();
             }
         }
         public void term() {
             active = false;
-            try { result_socket.close();  result_socket = null; }  catch ( Exception ex ) { System.out.println( "Error closing result_socket: " + ex.toString() ); }
+            try { result_socket.close(); }  catch ( Exception ex ) { ; }
         }
     }
 
@@ -42,6 +43,7 @@ public class PythonWorker {
         index = worker_index;
         int request_port = BASE_PORT + worker_index * 2;
         int result_port = request_port + 1;
+        results = new ConcurrentLinkedQueue();
         request_socket = context.socket(ZMQ.PUSH);
         request_socket.bind("tcp://*:" + String.valueOf(request_port) );
         process = startup( request_port, result_port );
@@ -67,7 +69,16 @@ public class PythonWorker {
     }
 
     public void sendRequest( String operation, String[] inputs, Map<String, String> metadata ) {
-        String header = "|".join( "task", operation, sa2s(inputs), m2s(metadata) );
+        List<String> slist = Arrays.asList(  "task", operation, sa2s(inputs), m2s(metadata)  );
+        String header = String.join("|", slist);
+        System.out.println( "Sending Task Request: " + header );
+        request_socket.send(header);
+    }
+
+    public void sendShutdown( ) {
+        List<String> slist = Arrays.asList(  "quit", "0"  );
+        String header = String.join("|", slist);
+        System.out.println( "Sending Quit Request: " + header );
         request_socket.send(header);
     }
 
@@ -90,9 +101,10 @@ public class PythonWorker {
     }
 
     public void shutdown( ) {
-        try { request_socket.close(); request_socket = null; }  catch ( Exception ex ) { System.out.println( "Error closing request_socket: " + ex.toString() ); }
-        try { resultThread.term();  }  catch ( Exception ex ) { System.out.println( "Error closing result_socket: " + ex.toString() ); }
-        try { process.destroy(); process = null; } catch ( Exception ex ) { System.out.println( "Error killing worker process: " + ex.toString() ); }
+        sendShutdown();
+//        try { resultThread.term();  }  catch ( Exception ex ) { ; }
+//        try { request_socket.close(); }  catch ( Exception ex ) { ; }
+//        try { process.destroy(); } catch ( Exception ex ) { ; }
     }
 
     public String ia2s( int[] array ) { return Arrays.toString(array).replaceAll("\\[|\\]|\\s", ""); }

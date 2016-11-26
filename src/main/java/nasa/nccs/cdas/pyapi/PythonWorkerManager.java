@@ -8,7 +8,6 @@ import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-
 public class PythonWorkerManager {
     ZMQ.Context zmqContext = null;
     int worker_index = 0;
@@ -48,7 +47,7 @@ public class PythonWorkerManager {
         System.out.println( "\t   *** PythonWorkerManager SHUTDOWN *** " );
         while( !availableWorkers.isEmpty() ) { availableWorkers.poll().shutdown(); }
         while( !busyWorkers.isEmpty() ) { busyWorkers.poll().shutdown(); }
-        zmqContext.term();
+        try { Thread.sleep(3000); } catch ( Exception ex ) {;}
         printPythonLog(0);
     }
 

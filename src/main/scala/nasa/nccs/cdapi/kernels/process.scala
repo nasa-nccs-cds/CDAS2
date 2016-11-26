@@ -570,8 +570,8 @@ abstract class PythonRDDKernel extends Kernel {
         case None =>
           logger.error( "Unidentified kernel input: " + input_id )
       }
-//      logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
-//      worker.sendRequest(context.operation.identifier, context.operation.inputs.toArray, context.getConfiguration )
+      logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
+      worker.sendRequest(context.operation.identifier, context.operation.inputs.toArray, context.getConfiguration )
 
 //      val results = icdas.execute( context.operation.identifier, op_metadata, transArrays ).split(";")
 //      val result = results.head

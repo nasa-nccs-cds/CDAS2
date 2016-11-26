@@ -53,7 +53,8 @@ class Worker(object):
 
     def run(self):
         self.logger.info(  " Running: listening for messages" )
-        while True:
+        active = True
+        while active:
             try:
                 header = self.request_socket.recv()
                 type = self.getMessageField(header,0)
@@ -63,12 +64,13 @@ class Worker(object):
                     self.loadVariable(header,data)
 
                 elif type == "task":
-                    ""
-                    self.result_socket.send(header)
+                    self.logger.info(  " Got task request, header = " + header + ", cached inputs = " + ', '.join( self.cached_inputs.keys() ) )
+                    result = self.processTask( header )
+                    self.result_socket.send(result)
 
                 elif type == "quit":
-                    self.shutdown()
-                    return
+                    self.logger.info(  " Quitting main thread. " )
+                    active = False
 
             except Exception as err:
                 self.logger.error( "\n-------------------------------\nError getting messsage: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
@@ -87,6 +89,31 @@ class Worker(object):
         try: os.remove(log_file)
         except Exception: pass
         return log_file
+
+    def processTask(self, task_header ):
+        t0 = time.time()
+        header_toks = task_header.split('|')
+        taskToks = header_toks[1].split('-')
+        opToks = taskToks[0].split('.')
+        module = opToks[0]
+        op = opToks[1]
+        rId = taskToks[1]
+        inpitIds = header_toks[2].split(',')
+        metadata = mParse.s2m( header_toks[3] )
+        inputs = [ self.cached_inputs.get( inputId ) for inputId in inpitIds ]
+
+        if( op == "regrid" ):
+            crsToks = metadata.get("crs","gaussian~128").split("~")
+            regridder = metadata.get("regridder","regrid2")
+            crs = crsToks[0]
+            resolution = int(crsToks[1]) if len(crsToks) > 1 else 128
+            if crs == "gaussian":
+                t42 = cdms2.createGaussianGrid( resolution )
+                results = [ input.regrid( t42 , regridTool=regridder ) for input in inputs ]
+                self.logger.info( " >> Regridded variables in time {0}, nresults = {1}".format( (time.time()-t0), len(results) ) )
+                return results
+
+
 
     def loadVariable( self, header, data ):
         try:
@@ -113,8 +140,7 @@ class Worker(object):
             self.logger.info( " >> Array Origin: [{0}]".format( ', '.join( map(str, origin) ) ) )
 
             partition_axes = self.subsetAxes( axes, origin, shape )
-            self.logger.info( " >> Partition Axes: {0}".format(', '.join( [ axis.id for axis in partition_axes ] ) ) )
-            variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.missing, grid=grid, axes=partition_axes, attributes=metadata, id=collection+"-"+name)
+            variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.getMissing(), grid=grid, axes=partition_axes, attributes=metadata, id=collection+"-"+name)
             variable.createattribute( "gridfile", gridFilePath )
             t1 = time.time()
             self.logger.info( " >> Created Variable: {0} ({1} in time {2}".format( variable.id, name,  (t1-t0) ) )
@@ -124,11 +150,15 @@ class Worker(object):
 
     def subsetAxes( self, axes, origin, shape ):
         subAxes = []
-        self.logger.info( " >> subsetAxes: Shape: [{0}], naxes: {1}".format( ', '.join( map(str, shape) ), len(axes) ) )
-        for index in range( len(shape) ):
-            start = origin[index]
-            length = shape[index]
-            subAxes.append( axes[index].subAxis( start, start + length) )
+        try:
+            for index in range( len(axes) ):
+                start = origin[index]
+                length = shape[index]
+                axis = axes[index]
+                subAxes.append( axis.subAxis( start, start + length ) )
+        except Exception as err:
+            self.logger.info( "\n-------------------------------\nError subsetting Axes: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
+            self.logger
         return subAxes
 
 worker_index = mParse.getIntArg(1,0)
