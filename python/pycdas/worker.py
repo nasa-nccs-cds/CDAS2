@@ -3,12 +3,16 @@ import time, numpy as np
 import zmq, cdms2
 from pycdas.messageParser import mParse
 
-def sa2s( strArray ): ','.join( strArray )
-def ia2s( intArray ): ','.join( str(e) for e in intArray )
-def m2s( map  ): ';'.join( key+":"+value for (key,value) in map.iteritems() )
+def sa2s( strArray ): return ','.join( strArray )
+def ia2s( intArray ): return ','.join( str(e) for e in intArray )
+def null2s( val ):
+    if val is not None: return val;
+    else: return "";
+def m2s( map  ): return ';'.join( key+":"+null2s(value) for key,value in map.iteritems() )
 def s2b( s ):
     if s.lower() == "t": return True
     else: return False
+
 
 class Worker(object):
 
@@ -67,12 +71,24 @@ class Worker(object):
                 self.logger.error( "\n-------------------------------\nError getting messsage: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
 
     def sendVariableData( self, resultVar ):
-        header = [ "array", resultVar.id, resultVar.origin, ia2s(resultVar.shape), m2s(resultVar.attributes) ].join("|")
+        header = "|".join( [ "array", resultVar.id, resultVar.origin, ia2s(resultVar.shape), m2s(resultVar.attributes) ] )
         self.logger.info( "Sending Result, header: {0}".format( header ) )
         self.result_socket.send( header )
         result_data = resultVar.data.tobytes()
         self.logger.info( "Sending Result data,  nbytes: {0}".format( str(len(result_data) ) ) )
         self.result_socket.send(result_data)
+
+    def saveGridFile( self, resultId, variable  ):
+        axes = variable.getAxisList()
+        grid = variable.getGrid()
+        outdir = os.path.dirname( variable.gridfile )
+        outpath = os.path.join(outdir, resultId + ".nc" )
+        newDataset = cdms2.createDataset( outpath )
+        for axis in axes: newDataset.copyAxis(axis)
+        newDataset.copyGrid(grid)
+        newDataset.close()
+        self.logger.info( "Saved grid file: {0}".format( outpath ) )
+        return outpath
 
     def getLogger( self, index ):
         logger = logging.getLogger('ICDAS')
@@ -113,6 +129,9 @@ class Worker(object):
                 for input in inputs:
                     result = input.regrid( t42 , regridTool=regridder )
                     result.id = result.id  + "-" + rId
+                    gridFilePath = self.saveGridFile( result.id, result )
+                    result.createattribute( "gridfile", gridFilePath )
+                    result.createattribute( "origin", input.attributes[ "origin"] )
                     if cacheReturn[0]: self.cached_results[ result.id ] = result
                     if cacheReturn[1]: results.append( result )
                 self.logger.info( " >> Regridded variables in time {0}, nresults = {1}".format( (time.time()-t0), len(results) ) )
@@ -127,7 +146,7 @@ class Worker(object):
             origin = mParse.s2ia( header_toks[2] )
             shape = mParse.s2ia( header_toks[3] )
             metadata = mParse.s2m( header_toks[4] )
-            gridFilePath = metadata["gridFile"]
+            gridFilePath = metadata["gridfile"]
             gridfile = cdms2.open( gridFilePath )
             name = metadata["name"]
             var = gridfile[name]

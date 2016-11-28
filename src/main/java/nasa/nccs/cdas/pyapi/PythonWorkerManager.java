@@ -1,5 +1,7 @@
 package nasa.nccs.cdas.pyapi;
+import nasa.nccs.utilities.CDASLogManager;
 import org.zeromq.ZMQ;
+import org.apache.log4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -13,6 +15,7 @@ public class PythonWorkerManager {
     int worker_index = 0;
     ConcurrentLinkedQueue<PythonWorker> availableWorkers = null;
     ConcurrentLinkedQueue<PythonWorker> busyWorkers = null;
+    Logger logger = CDASLogManager.getCurrentLogger();
 
     private PythonWorkerManager(){
         zmqContext = ZMQ.context(1);
@@ -31,7 +34,7 @@ public class PythonWorkerManager {
     public PythonWorker getWorker() {
         PythonWorker worker = availableWorkers.poll();
         if( worker == null ) {
-            worker = new PythonWorker( worker_index, zmqContext );
+            worker = new PythonWorker( worker_index, zmqContext, logger );
             worker_index += 1;
         }
         busyWorkers.add( worker );
@@ -44,7 +47,7 @@ public class PythonWorkerManager {
     }
 
     public void shutdown() {
-        System.out.println( "\t   *** PythonWorkerManager SHUTDOWN *** " );
+        logger.info( "\t   *** PythonWorkerManager SHUTDOWN *** " );
         while( !availableWorkers.isEmpty() ) { availableWorkers.poll().shutdown(); }
         while( !busyWorkers.isEmpty() ) { busyWorkers.poll().shutdown(); }
         try { Thread.sleep(2000); } catch ( Exception ex ) {;}
@@ -55,7 +58,7 @@ public class PythonWorkerManager {
         try {
             Path path = FileSystems.getDefault().getPath(System.getProperty("user.home"), ".cdas", String.format("pycdas-%d.log", iPartition));
             BufferedReader br = new BufferedReader(new FileReader(path.toString()));
-            System.out.println( "\tPYTHON LOG: PARTITION-" + String.valueOf(iPartition) );
+            logger.info( "\tPYTHON LOG: PARTITION-" + String.valueOf(iPartition) );
             String line = br.readLine();
             while (line != null) {
                 System.out.println( line );
@@ -63,7 +66,7 @@ public class PythonWorkerManager {
             }
             br.close();
         } catch ( IOException ex ) {
-            System.out.println( "Error reading log file : " + ex.toString() );
+            logger.info( "Error reading log file : " + ex.toString() );
         }
     }
 }

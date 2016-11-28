@@ -11,6 +11,8 @@ import org.apache.log4j.{ Logger, LogManager, Level }
 object CDASLogManager extends Serializable {
   val logger = getLogger
 
+  def getCurrentLogger() = { logger }
+
   def getLogger: Logger = {
     val _logger: Logger = LogManager.getLogger(this.getClass)
     _logger.setLevel(Level.INFO)

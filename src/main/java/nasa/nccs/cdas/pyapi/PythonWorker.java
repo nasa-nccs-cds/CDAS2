@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.pyapi;
 import org.zeromq.ZMQ;
-
+import org.apache.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileSystems;
@@ -14,10 +14,20 @@ public class PythonWorker {
     ConcurrentLinkedQueue<TransVar> results = null;
     Process process = null;
     ResultThread resultThread = null;
+    Logger logger = null;
     int index;
 
     private void addResult( String result_header, byte[] data ) {
+        logger.info( "Caching result from worker: " + result_header );
         results.add( new TransVar( result_header, data ) );
+    }
+
+    public TransVar getResult() {
+        logger.info( "Waiting for result to appear from worker");
+        while( true ) {
+            if( results.isEmpty() ) try { Thread.sleep(100); } catch( Exception err ) { return null; }
+            else { return results.poll(); }
+        }
     }
 
     public class ResultThread extends Thread {
@@ -30,11 +40,14 @@ public class PythonWorker {
         public void run() {
             while( active ) try {
                 String result_header = new String(result_socket.recv(0)).trim();
-                String rtype = result_header.split("|")[0];
-                if( rtype == "array" ) {
+                String[] parts = result_header.split("[|]");
+                logger.info( "Received result header from worker: " + result_header );
+                if( parts[0].equals("array") ) {
+                    logger.info( "Waiting for result data " );
                     byte[] data = result_socket.recv(0);
                     addResult( result_header, data );
-
+                } else {
+                    logger.info( "Unknown result header type: " + parts[0] );
                 }
             } catch ( java.nio.channels.ClosedSelectorException ex ) {
                 System.out.println( "Result Socket closed." );
@@ -51,8 +64,9 @@ public class PythonWorker {
         }
     }
 
-    public PythonWorker( int worker_index, ZMQ.Context context ) {
+    public PythonWorker( int worker_index, ZMQ.Context context, Logger _logger ) {
         index = worker_index;
+        logger = _logger;
         int request_port = BASE_PORT + worker_index * 2;
         int result_port = request_port + 1;
         results = new ConcurrentLinkedQueue();

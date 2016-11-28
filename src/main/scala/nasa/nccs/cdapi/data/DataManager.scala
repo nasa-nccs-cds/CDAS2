@@ -2,10 +2,14 @@ package nasa.nccs.cdapi.data
 
 import nasa.nccs.caching.Partition
 import nasa.nccs.cdapi.tensors._
+import nasa.nccs.cdas.pyapi.TransVar
 import nasa.nccs.esgf.process.CDSection
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.spark.rdd.RDD
 import ucar.nc2.constants.AxisType
+import ucar.ma2
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 // Developer API for integrating various data management and IO frameworks such as SIA-IO and CDAS-Cache.
 // It is intended to be deployed on the master node of the analytics server (this is not a client API).
@@ -87,7 +91,14 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
 object HeapFltArray {
   def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray =
     new HeapFltArray( cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), metadata, optWeights.map( _.getArrayData()), cdarray.getCoordMaps )
+
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], metadata: Map[String,String], missing: Float ): HeapFltArray = HeapFltArray( CDArray(ucarray,missing), origin, metadata, None )
+
+  def apply( tvar: TransVar, invalidOpt: Option[Float] ): HeapFltArray = {
+    val ucarray: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, tvar.getShape, tvar.getDataBuffer() )
+    val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter(CDArray[Float](ucarray, Float.MaxValue ) )
+    new HeapFltArray( tvar.getShape, tvar.getOrigin, floatArray.getStorageArray, invalidOpt, tvar.getMetaData.asScala.toMap )
+  }
   def empty(rank:Int) = HeapFltArray( CDFloatArray.empty, Array.fill(rank)(0), Map.empty[String,String], None )
 }
 
