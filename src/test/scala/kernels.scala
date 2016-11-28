@@ -121,7 +121,7 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val cache_result_node = executeTest(datainputs,false,"util.cache")
     logger.info( "Cache Result: " + printer.format(cache_result_node) )
   }
-  
+
   test("Aggregate&Cache") {
     val index = 6
     val collection = s"GISS_r${index}i1p1"
