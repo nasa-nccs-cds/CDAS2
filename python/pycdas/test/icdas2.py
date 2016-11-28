@@ -147,7 +147,7 @@
 #         return log_file
 #
 #     class Java:
-#         implements = ["nasa.nccs.cdas.pyapi.ICDAS"]
+#         implements = ["nasa.nccs.cdas.workers.ICDAS"]
 #
 # part_index = getIntArg(1,0)
 # java_port = getIntArg(2,8201 )

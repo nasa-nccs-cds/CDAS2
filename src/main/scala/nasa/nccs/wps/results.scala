@@ -28,7 +28,8 @@ abstract class WPSExecuteResponse( val serviceInstance: String, val processes: L
 
   def getOutputs: List[xml.Elem] = processes.flatMap( p => p.outputs.map( output => <wps:Output> { output.getHeader } { getReference } { getProcessOutputs( p.identifier, output.identifier) } </wps:Output> ) )
   def getProcessOutputs( process_id: String, output_id: String ): Iterable[xml.Elem]
-  def getData( id: String, array: CDFloatArray, units: String ): xml.Elem = <wps:Data id={id}> <wps:LiteralData uom={units} shape={array.getShape.mkString(",")}>{ array.mkDataString(",") }</wps:LiteralData> </wps:Data>
+  def getData( id: String, array: CDFloatArray, units: String, maxSize: Int = Int.MaxValue ): xml.Elem =
+    <wps:Data id={id}> <wps:LiteralData uom={units} shape={array.getShape.mkString(",")}>{ array.mkBoundedDataString(",",maxSize) }</wps:LiteralData> </wps:Data>
 }
 
 abstract class WPSReferenceExecuteResponse( serviceInstance: String, val process: WPSProcess, val optResultId: Option[String] )  extends WPSExecuteResponse( serviceInstance, process )  {
@@ -98,6 +99,6 @@ class BlockingExecutionResult( serviceInstance: String, process: WPSProcess, id:
   //    val results = result_tensor.mkDataString(",")
   //    <result id={id} op={idToks.head} rid={resultId.getOrElse("")}> { inputs } { grid } <data undefined={result_tensor.getInvalid.toString}> {results}  </data>  </result>
   //  }
-  def getProcessOutputs( process_id: String, output_id: String  ): Iterable[xml.Elem] = List( getData( output_id, result_tensor, intputSpecs.head.units ) )
+  def getProcessOutputs( process_id: String, output_id: String  ): Iterable[xml.Elem] = List( getData( output_id, result_tensor, intputSpecs.head.units, 250 ) )
 }
 

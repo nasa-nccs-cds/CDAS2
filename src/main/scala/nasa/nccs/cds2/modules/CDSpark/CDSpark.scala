@@ -4,7 +4,7 @@ import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition}
 import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray._
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDIndexMap, CDTimeCoordMap}
-import nasa.nccs.cdas.pyapi.PythonWorkerManager
+import nasa.nccs.cdas.workers.python.PythonWorkerPortal
 import nasa.nccs.wps.{WPSDataInput, WPSProcessOutput}
 import org.apache.spark.rdd.RDD
 

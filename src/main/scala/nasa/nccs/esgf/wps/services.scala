@@ -49,11 +49,18 @@ object cds2ServiceProvider extends ServiceProvider {
 
   override def executeProcess(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
     try {
-      cdsutils.time( logger, "\n\n-->> Process %s, datainputs: %s \n\n".format( process_name, datainputs2Str(datainputs) ) ) {
-        if( runargs.getOrElse("async","false").toBoolean )  cds2ExecutionManager.asyncExecute(TaskRequest(process_name, datainputs), runargs).toXml
-        else   cds2ExecutionManager.blockingExecute(TaskRequest(process_name, datainputs), runargs).toXml
+      cdsutils.time(logger, "\n\n-->> Process %s, datainputs: %s \n\n".format(process_name, datainputs2Str(datainputs))) {
+        if (runargs.getOrElse("async", "false").toBoolean) {
+          val result = cds2ExecutionManager.asyncExecute(TaskRequest(process_name, datainputs), runargs)
+          result.toXml
+        } else {
+          val result = cds2ExecutionManager.blockingExecute(TaskRequest(process_name, datainputs), runargs)
+          result.toXml
+        }
       }
-    } catch { case e: Exception => fatal(e).toXml }
+    } catch {
+      case e: Exception => fatal(e).toXml
+    }
   }
   def describeWPSProcess(process_name: String): xml.Elem = {
     try {

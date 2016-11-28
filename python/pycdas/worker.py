@@ -16,8 +16,8 @@ def s2b( s ):
 
 class Worker(object):
 
-    def __init__(self, worker_index, request_port, result_port ):
-        self.logger = self.getLogger( worker_index )
+    def __init__(self, request_port, result_port ):
+        self.logger = self.getLogger( request_port )
         self.cached_results = {}
         self.cached_inputs = {}
         try:
@@ -40,7 +40,6 @@ class Worker(object):
         self.result_socket.close()
 
     def getMessageField(self, header, index ):
-        self.logger.info(  " Got header: " + str(header) )
         toks = header.split('|')
         return toks[index]
 
@@ -51,13 +50,11 @@ class Worker(object):
             try:
                 header = self.request_socket.recv()
                 type = self.getMessageField(header,0)
-                self.logger.info(  " Worker got message, type = " + type )
                 if type == "array":
                     data = self.request_socket.recv()
                     self.loadVariable(header,data)
 
                 elif type == "task":
-                    self.logger.info(  " Got task request, header = " + header + ", cached inputs = " + ', '.join( self.cached_inputs.keys() ) )
                     resultVars = self.processTask( header )
                     for resultVar in resultVars:
                         self.sendVariableData( resultVar )
@@ -184,9 +181,8 @@ class Worker(object):
             self.logger
         return subAxes
 
-worker_index = mParse.getIntArg(1,0)
-request_port = mParse.getIntArg(2, 8200 )
-result_port = mParse.getIntArg(3, 8201 )
-worker = Worker( worker_index, request_port, result_port )
+request_port = mParse.getIntArg(1, 8200 )
+result_port = mParse.getIntArg(2, 8201 )
+worker = Worker( request_port, result_port )
 worker.run()
 worker.logger.info(  " ############################## EXITING WORKER ##############################"  )

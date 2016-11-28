@@ -1,21 +1,33 @@
-package nasa.nccs.cdas.pyapi;
+package nasa.nccs.cdas.workers;
 import org.zeromq.ZMQ;
 import org.apache.log4j.Logger;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
+
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-public class PythonWorker {
+
+public abstract class Worker {
     int BASE_PORT = 2336;
     ZMQ.Socket request_socket = null;
     ConcurrentLinkedQueue<TransVar> results = null;
     Process process = null;
     ResultThread resultThread = null;
-    Logger logger = null;
-    int index;
+    protected Logger logger = null;
+    protected int result_port = -1;
+    protected int request_port = -1;
+
+    static int bindSocket( ZMQ.Socket socket, int init_port ) {
+        int test_port = init_port;
+        while( true ) {
+            try {
+                socket.bind("tcp://*:" + String.valueOf(test_port));
+                break;
+            } catch (Exception err ) {
+                test_port = test_port + 1;
+            }
+        }
+        return test_port;
+    }
 
     private void addResult( String result_header, byte[] data ) {
         logger.info( "Caching result from worker: " + result_header );
@@ -25,17 +37,19 @@ public class PythonWorker {
     public TransVar getResult() {
         logger.info( "Waiting for result to appear from worker");
         while( true ) {
-            if( results.isEmpty() ) try { Thread.sleep(100); } catch( Exception err ) { return null; }
-            else { return results.poll(); }
+            TransVar result = results.poll();
+            if( result == null ) try { Thread.sleep(100); } catch( Exception err ) { return null; }
+            else { return result; }
         }
     }
 
     public class ResultThread extends Thread {
         ZMQ.Socket result_socket = null;
+        int port = -1;
         boolean active = true;
-        public ResultThread( int result_port, ZMQ.Context context ) {
+        public ResultThread( int base_port, ZMQ.Context context ) {
             result_socket = context.socket(ZMQ.PULL);
-            result_socket.bind("tcp://*:"+ String.valueOf(result_port));
+            port = bindSocket(result_socket,base_port);
         }
         public void run() {
             while( active ) try {
@@ -50,10 +64,10 @@ public class PythonWorker {
                     logger.info( "Unknown result header type: " + parts[0] );
                 }
             } catch ( java.nio.channels.ClosedSelectorException ex ) {
-                System.out.println( "Result Socket closed." );
+                logger.info( "Result Socket closed." );
                 active = false;
             } catch ( Exception ex ) {
-                System.out.println( "Error in ResultThread: " + ex.toString() );
+                logger.error( "Error in ResultThread: " + ex.toString() );
                 ex.printStackTrace();
                 term();
             }
@@ -64,17 +78,15 @@ public class PythonWorker {
         }
     }
 
-    public PythonWorker( int worker_index, ZMQ.Context context, Logger _logger ) {
-        index = worker_index;
+    public Worker( ZMQ.Context context, Logger _logger ) {
         logger = _logger;
-        int request_port = BASE_PORT + worker_index * 2;
-        int result_port = request_port + 1;
         results = new ConcurrentLinkedQueue();
         request_socket = context.socket(ZMQ.PUSH);
-        request_socket.bind("tcp://*:" + String.valueOf(request_port) );
-        process = startup( request_port, result_port );
-        resultThread = new ResultThread( result_port, context );
+        request_port = bindSocket( request_socket, BASE_PORT );
+        resultThread = new ResultThread( request_port + 1, context );
         resultThread.start();
+        result_port = resultThread.port;
+        logger.info( String.format("Starting Worker, ports: %d %d",  request_port, result_port ) );
     }
 
     public void sendDataPacket( String header, byte[] data ) {
@@ -106,26 +118,6 @@ public class PythonWorker {
         String header = String.join("|", slist);
         System.out.println( "Sending Quit Request: " + header );
         request_socket.send(header);
-    }
-
-    private Process startup( int request_port, int result_port ) {
-        try {
-            String cdas_home = System.getenv("CDAS_HOME_DIR");
-            Path path = FileSystems.getDefault().getPath(cdas_home, "python", "pycdas", "worker.py" );
-            Path process_root = FileSystems.getDefault().getPath( cdas_home, "python" );
-            Path log_path = FileSystems.getDefault().getPath( System.getProperty("user.home"), ".cdas", String.format("python-worker-%d.log",index) );
-            ProcessBuilder pb = new ProcessBuilder( "python", path.toString(), String.valueOf(index), String.valueOf(request_port), String.valueOf(result_port) );
-            Map<String, String> env = pb.environment();
-            env.put("PYTHONPATH", env.get("PYTHONPATH") + ":" + process_root.toString() );
-            pb.directory( process_root.toFile() );
-            pb.redirectErrorStream( true );
-            pb.redirectOutput( ProcessBuilder.Redirect.appendTo( log_path.toFile() ));
-            System.out.println( "Starting Python Worker " + String.valueOf(index) );
-            return pb.start();
-        } catch ( IOException ex ) {
-            System.out.println( "Error starting Python Worker : " + ex.toString() );
-            return null;
-        }
     }
 
     public void shutdown( ) {

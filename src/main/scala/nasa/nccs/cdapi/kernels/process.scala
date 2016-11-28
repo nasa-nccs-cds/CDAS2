@@ -12,7 +12,8 @@ import java.nio.{ByteBuffer, FloatBuffer}
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.caching.collectionDataCache
 import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
-import nasa.nccs.cdas.pyapi.{PythonWorker, PythonWorkerManager, TransVar}
+import nasa.nccs.cdas.workers.TransVar
+import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.wps.WPSProcess
@@ -547,14 +548,14 @@ abstract class MultiRDDKernel extends Kernel {
 
 abstract class PythonRDDKernel extends Kernel {
 
-  override def cleanUp() = PythonWorkerManager.getInstance().shutdown()
+  override def cleanUp() = PythonWorkerPortal.getInstance().shutdown()
 
   override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
     val inputs = inputTups._2
     val key = inputTups._1
     val t0 = System.nanoTime
-    val workerManager: PythonWorkerManager  = PythonWorkerManager.getInstance();
-    val worker: PythonWorker = workerManager.getWorker();
+    val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance();
+    val worker: PythonWorker = workerManager.getPythonWorker();
     try {
       logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
       val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.flatMap(inputs.element)

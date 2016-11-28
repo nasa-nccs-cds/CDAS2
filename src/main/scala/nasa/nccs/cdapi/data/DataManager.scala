@@ -2,7 +2,7 @@ package nasa.nccs.cdapi.data
 
 import nasa.nccs.caching.Partition
 import nasa.nccs.cdapi.tensors._
-import nasa.nccs.cdas.pyapi.TransVar
+import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.esgf.process.CDSection
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.spark.rdd.RDD
