@@ -1,7 +1,7 @@
 package nasa.nccs.esgf.process
 
 import nasa.nccs.caching.{CDASPartitioner, JobRecord}
-import nasa.nccs.cdapi.cdm.{ CDSVariable, Collection, PartitionedFragment}
+import nasa.nccs.cdapi.cdm.{CDSVariable, Collection, PartitionedFragment}
 import nasa.nccs.cdapi.kernels.AxisIndices
 import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray}
@@ -10,6 +10,8 @@ import ucar.{ma2, nc2}
 import org.joda.time.{DateTime, DateTimeZone}
 import nasa.nccs.utilities.Loggable
 import java.util.UUID
+
+import nasa.nccs.esgf.process.OperationContext.OpResultType
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -733,7 +735,9 @@ object DomainContainer extends ContainerBase {
   def empty( name: String ):  DomainContainer = new DomainContainer( name )
 }
 
-class OperationContext( val index: Int, val identifier: String, val name: String, val rid: String, val inputs: List[String], private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext with Serializable  {
+
+
+class OperationContext( val index: Int, val identifier: String, val name: String, val rid: String, val inputs: List[String], val resultType: OpResultType, private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext with Serializable  {
   def getConfiguration = configuration
   val moduleName: String = name.toLowerCase.split('.').head
   override def toString = s"OperationContext { id = $identifier,  name = $name, rid = $rid, inputs = $inputs, configurations = $configuration }"
@@ -741,7 +745,10 @@ class OperationContext( val index: Int, val identifier: String, val name: String
 }
 
 object OperationContext extends ContainerBase  {
-  var resultIndex = 0
+  type OpResultType = OperationContext.ResultType.Value
+  object ResultType extends Enumeration { val UNDEF, PRODUCT, INTERMEDIATE = Value }
+  private var resultIndex = 0;
+
   def apply( index: Int, uid: UID, process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
     val op_inputs: Iterable[String] = metadata.get( "input" ) match {
       case Some( input_values: List[_] ) => input_values.map( uid + _.toString.trim.toLowerCase )
@@ -749,17 +756,26 @@ object OperationContext extends ContainerBase  {
       case None => uid_list.map( uid + _.trim.toLowerCase )
       case x => throw new Exception ( "Unrecognized input in operation spec: " + x.toString )
     }
+    var productType =  ResultType.UNDEF;
     val op_name = metadata.getOrElse( "name", process_name ).toString.trim.toLowerCase
     val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim.toLowerCase ).map(identity)  // map(identity) to work around scala serialization bug
     val input = metadata.getOrElse("input","").toString
     val opLongName = op_name + "-" + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
-    val rid = metadata.get("result") match {
-      case Some( result_id ) => uid + result_id.toString
-      case None => uid + op_name + "-" + index.toString
+    val rid = metadata.get("id") match {
+      case Some( result_id ) =>
+        productType =  ResultType.INTERMEDIATE;
+        uid + result_id.toString
+      case None =>
+        productType =  ResultType.PRODUCT;
+        metadata.get("id") match {
+          case Some(result_id) => uid + result_id.toString
+          case None =>            uid + op_name + "-" + index.toString
+        }
     }
-    new OperationContext( index, identifier = UID() + op_name, name=op_name, rid = rid, inputs = op_inputs.toList, optargs )
+    new OperationContext( index, identifier = UID() + op_name, name=op_name, rid = rid, inputs = op_inputs.toList, productType, optargs )
   }
+
   def generateResultId: String = { resultIndex += 1; "$v"+resultIndex.toString }
 }
 

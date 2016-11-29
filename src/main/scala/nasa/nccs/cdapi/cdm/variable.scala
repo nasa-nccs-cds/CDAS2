@@ -71,6 +71,8 @@ trait OperationInput {
   def getKeyString: String
 }
 
+class EmptyOperationInput() extends OperationInput { def getKeyString: String = ""; }
+
 class OperationTransientInput( val variable: RDDTransientVariable ) extends OperationInput with Loggable {
 //  def domainDataFragment( partIndex: Int,  optSection: Option[ma2.Section] ): Option[DataFragment] = variable.
   def getKeyString: String =  variable.request.getInputSpec match {

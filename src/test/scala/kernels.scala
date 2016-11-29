@@ -13,20 +13,25 @@ import org.apache.log4j.{Level, LogManager, Logger}
 class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
   test("Aggregate") {
-    ( 1 to 5 ) map { index =>
-      val collection = s"GISS_r${index}i1p1"
-      val url = getClass.getResource(s"/collections/GISS/$collection.csv")
-      val GISS_path = url.getFile
-      val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$GISS_path"}]]"""
+    val model = "GEOS5"
+    val nExp = 3
+    ( 1 to nExp ) map { index =>
+      val collection = s"${model}_r${index}i1p1"
+      val location = s"/collections/${model}/$collection.csv"
+      val url = getClass.getResource(location)
+      val collection_path = url.getFile
+      val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
       val agg_result_node = executeTest(datainputs, false, "util.agg")
       logger.info(s"Agg collection $collection Result: " + printer.format(agg_result_node))
     }
   }
 
   test("Cache") {
-    ( 1 to 5 ) map { index =>
-      val collection = s"GISS_r${index}i1p1"
-      val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":100,"system":"indices"}}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
+    val model = "GEOS5"
+    val nExp = 3
+    ( 1 to nExp ) map { index =>
+      val collection = s"${model}_r${index}i1p1"
+      val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
       val cache_result_node = executeTest(datainputs, false, "util.cache")
       logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
     }
@@ -52,9 +57,24 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   test("EnsembleAve") {
+    val model = "GISS"
+    val nExp = 3
+    val variables = ( 1 to nExp ) map { index => s"""{"uri":"collection:/${model}_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
+    val vids = ( 1 to nExp ) map { index => s"v$index" }
+    val datainputs = """[domain=[{"name":"d0"}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format( variables.mkString(","), vids.mkString(",") )
+    val result_node = executeTest(datainputs)
+  }
+
+  test("ESGF_Demo") {
     val variables = ( 1 to 5 ) map { index => s"""{"uri":"collection:/GISS_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
     val vids = ( 1 to 5 ) map { index => s"v$index" }
-    val datainputs = """[domain=[{"name":"d0","time":{"start":0,"end":5,"system":"indices"}}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format( variables.mkString(","), vids.mkString(",") )
+    val datainputs = """[
+         variable=[%s],
+         domain=[       { "name":"d0"}],
+         operation=[    {"name":"CDSpark.multiAverage","input":"%s","domain":"d0","id":"ea1"},
+                        {"name":"CDSpark.regrid","input":"ea1","domain":"d0","crs":"gaussian~128","result":"esgfDemo"}
+               ]
+        ]""".replaceAll("\\s", "").format( variables.mkString(","), vids.mkString(",") )
     val result_node = executeTest(datainputs)
   }
 

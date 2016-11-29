@@ -29,6 +29,7 @@ import java.util.concurrent._
 
 import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cds2.engine.spark.{CDSparkContext, CDSparkExecutionManager}
+import nasa.nccs.esgf.process.OperationContext.ResultType
 import nasa.nccs.wps._
 import org.apache.spark.{SparkConf, SparkContext}
 import ucar.nc2.Attribute
@@ -439,11 +440,18 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
       case "util" =>  new WPSMergedEventReport( request.workflow.map( utilityExecution( _, requestCx )))
       case x =>
         logger.info( "---------->>> Execute Workflows: " + request.workflow.mkString(",") )
+        streamWorkflows( request, requestCx )
         new MergedWPSExecuteResponse( request.id.toString, request.workflow.map( operationExecution( _, requestCx )))
     }
     FragmentPersistence.close()
 //    logger.info( "---------->>> Execute Workflows: Created XML response: " + results.toXml.toString )
     results
+  }
+
+  def streamWorkflows( request: TaskRequest, requestCx: RequestContext ): Unit = {
+    val nodes = request.workflow.map( opCx => WorkflowNode( new CDASExecutionContext( opCx, requestCx, serverContext ), getKernel( opCx.name.toLowerCase ) )  )
+    val workflow = new Workflow( nodes, serverContext );
+    workflow.stream( request, requestCx )
   }
 
   def executeUtility( context: CDASExecutionContext ): UtilityExecutionResult = {
