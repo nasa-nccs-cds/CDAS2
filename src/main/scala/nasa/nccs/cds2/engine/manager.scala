@@ -440,15 +440,18 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
       case "util" =>  new WPSMergedEventReport( request.workflow.map( utilityExecution( _, requestCx )))
       case x =>
         logger.info( "---------->>> Execute Workflows: " + request.workflow.mkString(",") )
-        streamWorkflows( request, requestCx )
-        new MergedWPSExecuteResponse( request.id.toString, request.workflow.map( operationExecution( _, requestCx )))
+        if( request.workflow.length > 1 ) {
+          new MergedWPSExecuteResponse(request.id.toString, streamWorkflows( request, requestCx ) )
+        } else {
+          new MergedWPSExecuteResponse(request.id.toString, request.workflow.map(operationExecution(_, requestCx)))
+        }
     }
     FragmentPersistence.close()
 //    logger.info( "---------->>> Execute Workflows: Created XML response: " + results.toXml.toString )
     results
   }
 
-  def streamWorkflows( request: TaskRequest, requestCx: RequestContext ): Unit = {
+  def streamWorkflows( request: TaskRequest, requestCx: RequestContext ): List[WPSExecuteResponse] = {
     val nodes = request.workflow.map( opCx => WorkflowNode( new CDASExecutionContext( opCx, requestCx, serverContext ), getKernel( opCx.name.toLowerCase ) )  )
     val workflow = new Workflow( nodes, serverContext );
     workflow.stream( request, requestCx )

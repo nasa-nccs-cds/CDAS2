@@ -1,11 +1,12 @@
 package nasa.nccs.cds2.engine
 
 import nasa.nccs.caching.{RDDTransientVariable, collectionDataCache}
-import nasa.nccs.cdapi.cdm.{EmptyOperationInput, OperationInput, OperationTransientInput}
+import nasa.nccs.cdapi.cdm.{DependencyOperationInput, EmptyOperationInput, OperationInput, OperationTransientInput}
 import nasa.nccs.cdapi.kernels.{CDASExecutionContext, Kernel}
 import nasa.nccs.esgf.process.{OperationContext, RequestContext, ServerContext, TaskRequest}
 import nasa.nccs.esgf.process.OperationContext.{OpResultType, ResultType}
 import nasa.nccs.utilities.Loggable
+import nasa.nccs.wps.{AsyncExecutionResult, WPSExecuteResponse, WPSProcess}
 
 object WorkflowNode {
   def apply( context: CDASExecutionContext, kernel: Kernel ): WorkflowNode = {
@@ -35,21 +36,22 @@ class Workflow( val nodes: List[WorkflowNode], val serverContext: ServerContext 
             case Some( inode ) =>
               workflowNode.addDependency( inode )
               getNodeInputs( inode )
+              uid -> new DependencyOperationInput( inode )
             case None =>
               val errorMsg = "Unidentified input in workflow node %s: %s".format( workflowNode.getNodeId, uid )
               logger.error( errorMsg )
               throw new Exception( errorMsg )
           }
-          uid -> new EmptyOperationInput()
       }
     }
     Map(items:_*)
   }
 
-  def stream( request: TaskRequest, requestCx: RequestContext ): Unit = {
+  def stream( request: TaskRequest, requestCx: RequestContext ): List[WPSExecuteResponse] = {
     val product_nodes = nodes.filter( _.getResultType == ResultType.PRODUCT )
-    for( product_node <- product_nodes ) {
+    for( product_node <- product_nodes ) yield {
       val inputs = getNodeInputs( product_node )
+      new AsyncExecutionResult( product_node.getNodeId(), request.getProcess, Some(product_node.getResultId) )
     }
   }
 

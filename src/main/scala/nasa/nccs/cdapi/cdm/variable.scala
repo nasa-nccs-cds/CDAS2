@@ -4,6 +4,7 @@ import nasa.nccs.caching.{Partition, Partitions, RDDTransientVariable}
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition, RDDVariableSpec}
 import nasa.nccs.cdapi.kernels.CDASExecutionContext
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
+import nasa.nccs.cds2.engine.WorkflowNode
 import nasa.nccs.esgf.process._
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
@@ -70,8 +71,11 @@ trait OperationInput {
 //  def domainDataFragment( partIndex: Int,  optSection: Option[ma2.Section] ): Option[DataFragment]
   def getKeyString: String
 }
-
 class EmptyOperationInput() extends OperationInput { def getKeyString: String = ""; }
+
+class DependencyOperationInput( val workflowNode: WorkflowNode ) extends OperationInput with Loggable {
+  def getKeyString: String =  workflowNode.getNodeId()
+}
 
 class OperationTransientInput( val variable: RDDTransientVariable ) extends OperationInput with Loggable {
 //  def domainDataFragment( partIndex: Int,  optSection: Option[ma2.Section] ): Option[DataFragment] = variable.
