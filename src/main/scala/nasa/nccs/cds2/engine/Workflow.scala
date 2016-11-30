@@ -30,6 +30,11 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   def getNodeId(): String = operation.identifier
   def addDependency( node: WorkflowNode ) = { dependencies.update( node.getNodeId(), node ) }
 
+  def generateKernelContext( requestCx: RequestContext ): KernelContext = {
+    val sectionMap: Map[String, Option[CDSection]] = requestCx.inputs.mapValues(_.map(_.cdsection)).map(identity)
+    new KernelContext( operation, GridContext(requestCx.targetGrid), sectionMap, requestCx.getConfiguration)
+  }
+
   def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {
     logger.info( "\n\n ----------------------- BEGIN reduce Operation ----------------------- \n" )
     val t0 = System.nanoTime()
@@ -51,7 +56,8 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
     reduce( mapresult, kernelContext, kernel )
   }
 
-  def stream( kernelContext: KernelContext, requestCx: RequestContext ): RDD[(Int,RDDPartition)] = {
+  def stream( requestCx: RequestContext ): RDD[(Int,RDDPartition)] = {
+    val kernelContext = generateKernelContext( requestCx )
     val inputs = prepareInputs( kernelContext, requestCx )                                                     // TODO: Add (reduce/broadcast)-when-required
     map( inputs, kernelContext, kernel )
   }
@@ -76,49 +82,47 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
 
 object Workflow {
   def apply( request: TaskRequest, executionMgr: CDS2ExecutionManager ): Workflow = {
-
     new Workflow( request, executionMgr )
   }
 }
 
 class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager ) extends Loggable {
-  val nodes = request.workflow.map( opCx => WorkflowNode( opCx, this )  )
+  val nodes = request.workflow.map(opCx => WorkflowNode(opCx, this))
 
-  def createKernel( id: String ): Kernel =  executionMgr.getKernel( id )
+  def createKernel(id: String): Kernel = executionMgr.getKernel(id)
 
-  def stream( requestCx: RequestContext ): List[WPSExecuteResponse] = {
-    val product_nodes = nodes.filter( _.getResultType == ResultType.PRODUCT )
-    for( product_node <- product_nodes ) yield {
-      generateProduct( requestCx, product_node )
+  def stream(requestCx: RequestContext): List[WPSExecuteResponse] = {
+    val product_nodes = nodes.filter(_.getResultType == ResultType.PRODUCT)
+    for (product_node <- product_nodes) yield {
+      generateProduct(requestCx, product_node)
       //      new AsyncExecutionResult( product_node.getNodeId(), request.getProcess, Some(product_node.getResultId) )
     }
   }
 
-  def getNodeInputs( requestCx: RequestContext, workflowNode: WorkflowNode ): Map[String,OperationInput] = {
+  def getNodeInputs(requestCx: RequestContext, workflowNode: WorkflowNode): Map[String, OperationInput] = {
     val items = for (uid <- workflowNode.operation.inputs) yield {
       requestCx.getInputSpec(uid) match {
         case Some(inputSpec) =>
           logger.info("getInputSpec: %s -> %s ".format(uid, inputSpec.longname))
-          uid -> executionMgr.serverContext.getOperationInput( inputSpec )
+          uid -> executionMgr.serverContext.getOperationInput(inputSpec)
         case None =>
-          nodes.find( _.getResultId.equals(uid) ) match {
-            case Some( inode ) =>
-              workflowNode.addDependency( inode )
-              uid -> new DependencyOperationInput( inode )
+          nodes.find(_.getResultId.equals(uid)) match {
+            case Some(inode) =>
+              workflowNode.addDependency(inode)
+              uid -> new DependencyOperationInput(inode)
             case None =>
-              val errorMsg = "Unidentified input in workflow node %s: %s".format( workflowNode.getNodeId, uid )
-              logger.error( errorMsg )
-              throw new Exception( errorMsg )
+              val errorMsg = "Unidentified input in workflow node %s: %s".format(workflowNode.getNodeId, uid)
+              logger.error(errorMsg)
+              throw new Exception(errorMsg)
           }
       }
     }
-    Map(items:_*)
+    Map(items: _*)
   }
 
 
   def generateProduct( requestCx: RequestContext, node: WorkflowNode  ): WPSExecuteResponse = {
-    val sectionMap: Map[String,Option[CDSection]] = requestCx.inputs.mapValues( _.map( _.cdsection ) ).map(identity)
-    val kernelContext = new KernelContext( node.operation, GridContext(requestCx.targetGrid), sectionMap, requestCx.getConfiguration )
+    val kernelContext = node.generateKernelContext( requestCx )
     val t0 = System.nanoTime()
     var pre_result: RDDPartition = node.mapReduce( kernelContext, requestCx )
     val t1 = System.nanoTime()
@@ -151,7 +155,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val opSection: Option[ma2.Section] = getOpSectionIntersection( requestCx, node )
     val rdds: Iterable[RDD[(Int,RDDPartition)]] = opInputs.map { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) => executionMgr.serverContext.spark.getRDD( uid, dataInput, dataInput.partitions, opSection )
-        case ( kernelInput: DependencyOperationInput  ) => node.stream( kernelContext, requestCx )
+        case ( kernelInput: DependencyOperationInput  ) => kernelInput.workflowNode.stream( requestCx )
         case (  x ) => throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
       }
     }

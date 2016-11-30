@@ -179,6 +179,15 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
     }
   }
 
+  def getCombinedGridfile( inputs: Map[String,ArrayBase[Float]] ): String = {
+    for ( ( id, array ) <- inputs ) {
+      array.metadata.get("gridfile") match {
+        case Some(gridfile) => return gridfile
+      }
+    }
+    throw new Exception(" Missing gridfile in kernel inputs: " + name )
+  }
+
   def combineRDD(context: KernelContext)(rdd0: RDDPartition, rdd1: RDDPartition, axes: AxisIndices): RDDPartition = {
     val t0 = System.nanoTime
     logger.info("&COMBINE: start OP %s (%d <-> %d)".format( context.operation.name, rdd0.iPart, rdd1.iPart  ) )
@@ -524,6 +533,7 @@ abstract class DualRDDKernel extends Kernel {
 }
 
 abstract class MultiRDDKernel extends Kernel {
+
   override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
     val inputs = inputTups._2
     val key = inputTups._1
@@ -531,10 +541,9 @@ abstract class MultiRDDKernel extends Kernel {
     logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart ) )
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
-    val input_arrays = context.operation.inputs.flatMap( inputs.element )
+    val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.flatMap( inputs.element )
     assert( input_arrays.size > 1, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
     val cdFloatArrays = input_arrays.map( _.toCDFloatArray ).toArray
-    val result_metadata = MetadataOps.mergeMetadata( name, input_arrays.map( _.metadata ) )
     val final_result: CDFloatArray = if( mapCombineNOp.isDefined ) {
       CDFloatArray.combine( mapCombineNOp.get, cdFloatArrays )
     } else if( mapCombineWNOp.isDefined ) {
@@ -542,6 +551,7 @@ abstract class MultiRDDKernel extends Kernel {
       result_array / countArray
     } else { throw new Exception("Undefined operation in MultiRDDKernel") }
     logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
+    val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
     key -> RDDPartition( inputs.iPart, Map( context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
   }
 }
@@ -560,7 +570,6 @@ abstract class PythonRDDKernel extends Kernel {
       logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
       val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.flatMap(inputs.element)
       assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
-      val result_metadata = MetadataOps.mergeMetadata(name, input_arrays.map(_.metadata))
       val operation_input_arrays = context.operation.inputs.flatMap( input_id => inputs.element(input_id) )
 
       for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
@@ -580,8 +589,9 @@ abstract class PythonRDDKernel extends Kernel {
         val result = HeapFltArray( tvar, input_array.missing )
         input_array.uid + "-" + context.operation.rid -> result
       }
-      logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
-      key -> RDDPartition( inputs.iPart, Map(resultItems:_*), inputs.metadata )
+      val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
+      logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s, metadata = %s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9, result_metadata.mkString(";") ) )
+      key -> RDDPartition( inputs.iPart, Map(resultItems:_*), result_metadata )
     } finally {
       workerManager.releaseWorker( worker )
     }

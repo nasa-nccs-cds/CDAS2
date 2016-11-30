@@ -16,7 +16,7 @@ def s2b( s ):
 
 class Worker(object):
 
-    def __init__(self, request_port, result_port ):
+    def __init__( self, request_port, result_port ):
         self.logger = self.getLogger( request_port )
         self.cached_results = {}
         self.cached_inputs = {}
@@ -181,8 +181,8 @@ class Worker(object):
             self.logger
         return subAxes
 
-request_port = mParse.getIntArg(1, 8200 )
-result_port = mParse.getIntArg(2, 8201 )
+request_port = mParse.getIntArg( 1, 8200 )
+result_port = mParse.getIntArg( 2, 8201 )
 worker = Worker( request_port, result_port )
 worker.run()
 worker.logger.info(  " ############################## EXITING WORKER ##############################"  )
