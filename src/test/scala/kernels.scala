@@ -13,7 +13,7 @@ import org.apache.log4j.{Level, LogManager, Logger}
 class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
   test("Aggregate") {
-    val model = "GEOS5"
+    val model = "CNRM"
     val nExp = 3
     ( 1 to nExp ) map { index =>
       val collection = s"${model}_r${index}i1p1"

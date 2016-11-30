@@ -48,18 +48,19 @@ class Counter(start: Int = 0) {
 object CDS2ExecutionManager extends Loggable {
   val handler_type_key = "execution.handler.type"
 
-  def apply(): CDS2ExecutionManager =
-    appParameters( handler_type_key, "spark" ) match {
-      case exeMgr if exeMgr.toLowerCase.startsWith("future") =>
-        throw new Exception( "CDFuturesExecutionManager no currently supported.")
-//        import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
-//        logger.info("\nExecuting Futures manager: serverConfig = " + exeMgr)
-//        new CDFuturesExecutionManager()
-      case exeMgr if exeMgr.toLowerCase.startsWith("spark") =>
-        logger.info("\nExecuting Spark manager: serverConfig = " + exeMgr)
-        new CDSparkExecutionManager()
-      case x => throw new Exception("Unrecognized execution.manager.type: " + x)
-    }
+  def apply(): CDS2ExecutionManager = { new CDS2ExecutionManager }
+
+//    appParameters( handler_type_key, "spark" ) match {
+//      case exeMgr if exeMgr.toLowerCase.startsWith("future") =>
+//        throw new Exception( "CDFuturesExecutionManager no currently supported.")
+////        import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
+////        logger.info("\nExecuting Futures manager: serverConfig = " + exeMgr)
+////        new CDFuturesExecutionManager()
+//      case exeMgr if exeMgr.toLowerCase.startsWith("spark") =>
+//        logger.info("\nExecuting Spark manager: serverConfig = " + exeMgr)
+//        new CDSparkExecutionManager()
+//      case x => throw new Exception("Unrecognized execution.manager.type: " + x)
+//    }
 
 
   def getConfigParamValue( key: String, serverConfiguration: Map[String,String], default_val: String  ): String =
@@ -69,8 +70,8 @@ object CDS2ExecutionManager extends Loggable {
     }
 }
 
-abstract class CDS2ExecutionManager extends WPSServer with Loggable {
-  val serverContext = new ServerContext( collectionDataCache )
+class CDS2ExecutionManager extends WPSServer with Loggable {
+  val serverContext = new ServerContext( collectionDataCache, CDSparkContext() )
   val kernelManager = new KernelMgr()
   private val counter = new Counter
   val nprocs: Int = CDASPartitioner.nProcessors
@@ -440,11 +441,7 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
       case "util" =>  new WPSMergedEventReport( request.workflow.map( utilityExecution( _, requestCx )))
       case x =>
         logger.info( "---------->>> Execute Workflows: " + request.workflow.mkString(",") )
-        if( request.workflow.length > 1 ) {
-          new MergedWPSExecuteResponse(request.id.toString, streamWorkflows( request, requestCx ) )
-        } else {
-          new MergedWPSExecuteResponse(request.id.toString, request.workflow.map(operationExecution(_, requestCx)))
-        }
+        new MergedWPSExecuteResponse( request.id.toString, streamWorkflows( request, requestCx ) )
     }
     FragmentPersistence.close()
 //    logger.info( "---------->>> Execute Workflows: Created XML response: " + results.toXml.toString )
@@ -452,9 +449,8 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
   }
 
   def streamWorkflows( request: TaskRequest, requestCx: RequestContext ): List[WPSExecuteResponse] = {
-    val nodes = request.workflow.map( opCx => WorkflowNode( new CDASExecutionContext( opCx, requestCx, serverContext ), getKernel( opCx.name.toLowerCase ) )  )
-    val workflow = new Workflow( nodes, serverContext );
-    workflow.stream( request, requestCx )
+    val workflow = Workflow( request, this );
+    workflow.stream( requestCx )
   }
 
   def executeUtility( context: CDASExecutionContext ): UtilityExecutionResult = {
@@ -462,12 +458,6 @@ abstract class CDS2ExecutionManager extends WPSServer with Loggable {
     new UtilityExecutionResult( context.operation.name.toLowerCase + "~u0", report )
   }
 
-  def executeProcess( context: CDASExecutionContext, kernel: Kernel  ): WPSExecuteResponse
-
-  def operationExecution( operationCx: OperationContext, requestCx: RequestContext ): WPSExecuteResponse = {
-    logger.info( " ***** Operation Execution: opName=%s >> Operation = %s ".format( operationCx.name, operationCx.toString ) )
-    executeProcess( new CDASExecutionContext( operationCx, requestCx, serverContext ), getKernel( operationCx.name.toLowerCase ) )
-  }
   def utilityExecution( operationCx: OperationContext, requestCx: RequestContext ): UtilityExecutionResult = {
     logger.info( " ***** Utility Execution: utilName=%s, >> Operation = %s ".format( operationCx.name, operationCx.toString ) )
     executeUtility( new CDASExecutionContext( operationCx, requestCx, serverContext ) )
