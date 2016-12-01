@@ -4,6 +4,7 @@ import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition}
 import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray._
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDIndexMap, CDTimeCoordMap}
+import nasa.nccs.cdas.workers.python.PythonWorkerPortal
 import nasa.nccs.wps.{WPSDataInput, WPSProcessOutput}
 import org.apache.spark.rdd.RDD
 
@@ -127,6 +128,13 @@ class multiAverage extends MultiRDDKernel {
   val title = "Ensemble Mean"
   val description = "Computes point-by-point average over intputs withing specified ROI"
   override val mapCombineNOp: Option[ReduceNOpFlt] = Some(aveOpN)
+}
+
+class regrid extends PythonRDDKernel {
+  val inputs = List(WPSDataInput("input variable", 1, 1))
+  val outputs = List(WPSProcessOutput("operation result"))
+  val title = "Regrid"
+  val description = "Regrids input variable to specified crs"
 }
 
 class average extends SingularRDDKernel {

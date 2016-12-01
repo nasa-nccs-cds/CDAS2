@@ -16,7 +16,7 @@ object Library {
   val scalaxml       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
   val scalaparser    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
   val commonsIO      = "commons-io"         % "commons-io"      % "2.5"
-
+  val zeromq         = "org.zeromq"         % "jeromq"          % "0.3.5"
   val cdm            = "edu.ucar"           % "cdm"             % "4.6.6"
   val clcommon       = "edu.ucar"           % "clcommon"        % "4.6.6"
   val netcdf4        = "edu.ucar"           % "netcdf4"         % "4.6.6"
@@ -28,6 +28,7 @@ object Library {
   val udunits        = "edu.ucar"           %  "udunits"        % "4.6.0"
   val joda           = "joda-time"          % "joda-time"       % "2.8.1"
   val natty          = "com.joestelmach"    % "natty"           % "0.12"
+  val py4j           = "net.sf.py4j"        % "py4j"            % "0.10.4"
   val geotools       = "org.geotools"      %  "gt-shapefile"    % "13.2"
   val breeze         = "org.scalanlp"      %% "breeze"          % "0.12"
   val sprayCache     = "io.spray"       % "spray-caching_2.11" % "1.3.3"
@@ -41,7 +42,7 @@ object Library {
 object Dependencies {
   import Library._
 
-  val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest )
+  val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, zeromq )
 
   val spark = Seq( sparkCore )
 

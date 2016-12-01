@@ -9,6 +9,8 @@ export CDSHELL_HOME_DIR=${CDSHELL_HOME_DIR:-${CDAS_HOME_DIR}/../CDASClientConsol
 export CDAS_SCALA_DIR=${CDAS_BIN_DIR}/../src/main/scala
 export PATH=${CDAS_BIN_DIR}:${PATH}
 export CLASSPATH=${CDAS_SCALA_DIR}:${CDAS_CACHE_DIR}:${CLASSPATH}
+export UVCDAT_ANONYMOUS_LOG=no
+export UVCDAT_VERSION=2.6.1
 export WPS_CMD="$CDWPS_HOME_DIR/target/universal/cdwps-1.1-SNAPSHOT/bin/cdwps -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M"
 
 alias cdas='cd $CDAS_HOME_DIR'
@@ -21,4 +23,5 @@ alias cdshw='export CDAS_SERVER_ADDRESS=localhost; unset CDAS_SERVER_PORT; cd $C
 alias cdshr='export CDAS_SERVER_ADDRESS=localhost; export CDAS_SERVER_PORT=9001; cd $CDSHELL_HOME_DIR; sbt run'
 alias cdup='cd $CDAS_HOME_DIR; git fetch; git pull; sbt compile'
 
+source activate uvcdat-$UVCDAT_VERSION
 umask 002

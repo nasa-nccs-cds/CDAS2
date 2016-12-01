@@ -13,20 +13,25 @@ import org.apache.log4j.{Level, LogManager, Logger}
 class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
   test("Aggregate") {
-    ( 1 to 5 ) map { index =>
-      val collection = s"GISS_r${index}i1p1"
-      val url = getClass.getResource(s"/collections/GISS/$collection.csv")
-      val GISS_path = url.getFile
-      val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$GISS_path"}]]"""
+    val model = "GISS-E2-R"
+    val nExp = 6
+    ( 1 to nExp ) map { index =>
+      val collection = s"${model}_r${index}i1p1"
+      val location = s"/collections/${model}/$collection.csv"
+      val url = getClass.getResource(location)
+      val collection_path = url.getFile
+      val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
       val agg_result_node = executeTest(datainputs, false, "util.agg")
       logger.info(s"Agg collection $collection Result: " + printer.format(agg_result_node))
     }
   }
 
   test("Cache") {
-    ( 1 to 5 ) map { index =>
-      val collection = s"GISS_r${index}i1p1"
-      val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":100,"system":"indices"}}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
+    val model = "GISS-E2-R"
+    val nExp = 6
+    ( 1 to nExp ) map { index =>
+      val collection = s"${model}_r${index}i1p1"
+      val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
       val cache_result_node = executeTest(datainputs, false, "util.cache")
       logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
     }
@@ -38,6 +43,12 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val result_node = executeTest(datainputs)
     assert( getResultData( result_node ).maxScaledDiff( nco_verified_result ) < eps, s" Incorrect value computed for Sum")
   }
+
+  test("regridTest") {
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":1000,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.regrid","input":"v1","domain":"d0","crs":"gaussian~128"}]]"""
+    val result_node = executeTest(datainputs)
+  }
+
   test("subsetTestT") {
     val nco_verified_result: CDFloatArray = CDFloatArray( Array( 295.6538,295.7205,295.9552,295.3324,293.0879,291.5541,289.6255,288.7875,289.7614,290.5001,292.3553,293.8378,296.7862,296.6005,295.6378,294.9304,293.6324,292.1851,290.8981,290.5262,290.5347,291.6595,292.8715,294.0839,295.4386,296.1736,296.4382,294.7264,293.0489,291.6237,290.5149,290.1141,289.8373,290.8802,292.615,294.0024,295.5854,296.5497,296.4013,295.1263,293.2203,292.2885,291.0839,290.281,290.1516,290.7351,292.7598,294.1442,295.8959,295.8112,296.1058,294.8028,292.7733,291.7613,290.7009,290.7226,290.1038,290.6277,292.1299,294.4099,296.1226,296.5852,296.4395,294.7828,293.7856,291.9353,290.2696,289.8393,290.3558,290.162,292.2701,294.3617,294.6855,295.9736,295.9881,294.853,293.4628,292.2583,291.2488,290.84,289.9593,290.8045,291.5576,293.0114,294.7605,296.3679,295.6986,293.4995,292.2574,290.9722,289.9694,290.1006,290.2442,290.7669,292.0513,294.2266,295.9346,295.6064,295.4227,294.3889,292.8391 ).map(_.toFloat), Float.MaxValue )
     val datainputs = s"""[domain=[{"name":"d0","lat":{"start":30,"end":30,"system":"indices"},"lon":{"start":30,"end":30,"system":"indices"},"time":{"start":0,"end":100,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
@@ -46,9 +57,29 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   test("EnsembleAve") {
-    val variables = ( 1 to 5 ) map { index => s"""{"uri":"collection:/GISS_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
-    val vids = ( 1 to 5 ) map { index => s"v$index" }
-    val datainputs = """[domain=[{"name":"d0","time":{"start":0,"end":5,"system":"indices"}}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format( variables.mkString(","), vids.mkString(",") )
+    val model = "GISS"
+    val nExp = 6
+    val variables = ( 1 to nExp ) map { index => s"""{"uri":"collection:/${model}_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
+    val vids = ( 1 to nExp ) map { index => s"v$index" }
+    val datainputs = """[domain=[{"name":"d0"}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format( variables.mkString(","), vids.mkString(",") )
+    val result_node = executeTest(datainputs)
+  }
+
+  test("ESGF_Demo") {
+    val GISS_H_vids = ( 1 to 6 ) map { index => s"vH$index" }
+    val GISS_R_vids = ( 1 to 6 ) map { index => s"vR$index" }
+    val GISS_variables = ( ( 1 to 6 ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
+    val GEOS5_variables = ( ( 1 to 6 )  map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
+    val datainputs = s"""[
+         variable=[$GISS_variables,$GEOS5_variables],
+         domain=[       { "name":"d0"}],
+         operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
+                        {"name":"CDSpark.multiAverage","input":"${GISS_R_vids.mkString(",")}","domain":"d0","id":"eaGISS-R"},
+                        {"name":"CDSpark.regrid","input":"eaGISS-R","domain":"d0","crs":"gaussian~128","id":"rgR"},
+                        {"name":"CDSpark.regrid","input":"eaGISS-H","domain":"d0","crs":"gaussian~128","id":"rgH"},
+                        {"name":"CDSpark.multiAverage","input":"rgR,rgH","domain":"d0","result":"esgfDemo"}
+               ]
+        ]""".replaceAll("\\s", "")
     val result_node = executeTest(datainputs)
   }
 
@@ -115,8 +146,6 @@ class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val cache_result_node = executeTest(datainputs,false,"util.cache")
     logger.info( "Cache Result: " + printer.format(cache_result_node) )
   }
-
-
 
   test("Aggregate&Cache") {
     val index = 6

@@ -9,6 +9,7 @@ import java.util.Formatter
 import nasa.nccs.cdapi.data.{ArrayBase, HeapDblArray, HeapFltArray}
 import nasa.nccs.cdapi.kernels.AxisIndices
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDDoubleArray, CDFloatArray}
+import nasa.nccs.cds2.engine.spark.CDSparkContext
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.utilities.{Loggable, cdsutils}
@@ -451,7 +452,7 @@ class TargetGrid( variable: CDSVariable, roiOpt: Option[List[DomainAxis]]=None )
   }
 }
 
-class ServerContext( val dataLoader: DataLoader )  extends ScopeContext with Serializable {
+class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  extends ScopeContext with Serializable {
   val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
   def getVariable( collection: Collection, varname: String ): CDSVariable = collection.getVariable(varname)
   def getConfiguration: Map[String,String] = appParameters.getParameterMap

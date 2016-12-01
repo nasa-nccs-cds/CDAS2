@@ -18,7 +18,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 object collectionRDDDataCache extends CollectionDataCacheMgr()
 
@@ -44,7 +44,7 @@ object collectionRDDDataCache extends CollectionDataCacheMgr()
 //  }
 
 
-class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext() ) extends CDS2ExecutionManager {
+class CDSparkExecutionManager() extends CDS2ExecutionManager {
 
   def mapReduce(context: CDASExecutionContext, kernel: Kernel ): RDDPartition = {
     val kernelContext = context.toKernelContext
@@ -57,7 +57,7 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
     logger.info( "\n\n ----------------------- BEGIN prepare Inputs -------\n" )
     val t0 = System.nanoTime()
     val opInputs: Map[String,OperationInput] = getOperationInputs( context )
-    val inputs: RDD[(Int,RDDPartition)] = cdsContext.domainRDDPartition( opInputs, context )
+    val inputs: RDD[(Int,RDDPartition)] = serverContext.spark.domainRDDPartition( opInputs, context )
     logger.info( "\n\n ----------------------- FINISHED prepare Inputs, time = %.3f sec ----------------------- ".format((System.nanoTime() - t0) / 1.0E9))
     inputs
   }
@@ -79,7 +79,9 @@ class CDSparkExecutionManager( val cdsContext: CDSparkContext = CDSparkContext()
     val t2 = System.nanoTime()
     logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec, postOp time = %.3f sec   ********** \n".format(kernel.name,kernel.id,context.operation.toString, (t2 - t0) / 1.0E9, (t2 - t1) / 1.0E9))
 //    logger.info( "\n\nResult partition elements= %s \n\n".format( result.elements.values.map( cdsutils.toString(_) ) ) )
-    createResponse( kernel, result, context )
+    val response = createResponse( kernel, result, context )
+    if( Try( context.request.config("unitTest","false").toBoolean ).getOrElse(false)  ) { kernel.cleanUp(); }
+    response
   }
 
   def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {

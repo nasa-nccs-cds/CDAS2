@@ -6,14 +6,18 @@ import nasa.nccs.cdapi.cdm._
 import nasa.nccs.esgf.process._
 import org.apache.spark.rdd.RDD
 import org.slf4j.LoggerFactory
-import java.io.{File, IOException, PrintWriter, StringWriter}
+import java.io._
+import java.nio.{ByteBuffer, FloatBuffer}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.caching.collectionDataCache
 import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
+import nasa.nccs.cdas.workers.TransVar
+import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.wps.WPSProcess
+import org.apache.commons.io.{FileUtils, IOUtils}
 import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
@@ -23,6 +27,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
+import scala.util.control.NonFatal
 
 object Port {
   def apply( name: String, cardinality: String, description: String="", datatype: String="", identifier: String="" ) = {
@@ -44,6 +49,7 @@ class Port( val name: String, val cardinality: String, val description: String, 
 class KernelContext( val operation: OperationContext, val grid: GridContext, val sectionMap: Map[String,Option[CDSection]], private val configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
   def getConfiguration = configuration ++ operation.getConfiguration
   def getAxes: AxisIndices = grid.getAxisIndices( config("axes", "") )
+  def getContextStr = getConfiguration map { case ( key, value ) => key + ":" + value } mkString (";")
 }
 
 class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) extends Loggable  {
@@ -155,6 +161,7 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   val mapCombineWNOp: Option[ReduceWNOpFlt] = None
   val reduceCombineOpt: Option[ReduceOpFlt] = None
   val initValue: Float = 0f
+  def cleanUp() = {}
 
   def getOpName(context: KernelContext): String = "%s(%s)".format(name, context.operation.inputs.mkString(","))
 
@@ -170,6 +177,11 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
     case None => {
       a0 ++ a1
     }
+  }
+
+  def getCombinedGridfile( inputs: Map[String,ArrayBase[Float]] ): String = {
+    for ( ( id, array ) <- inputs ) array.metadata.get("gridfile") match { case Some(gridfile) => return gridfile; case None => Unit }
+    throw new Exception( " Missing gridfile in kernel inputs: " + name )
   }
 
   def combineRDD(context: KernelContext)(rdd0: RDDPartition, rdd1: RDDPartition, axes: AxisIndices): RDDPartition = {
@@ -510,13 +522,14 @@ abstract class DualRDDKernel extends Kernel {
       case Some( combineOp ) => CDFloatArray.combine( combineOp, i0, i1 )
       case None => i0
     }
-    val result_metadata = input_arrays(0).mergeMetadata( name,input_arrays(1) )
+    val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
     key -> RDDPartition( inputs.iPart, Map( context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
   }
 }
 
 abstract class MultiRDDKernel extends Kernel {
+
   override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
     val inputs = inputTups._2
     val key = inputTups._1
@@ -524,10 +537,9 @@ abstract class MultiRDDKernel extends Kernel {
     logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart ) )
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
-    val input_arrays = context.operation.inputs.flatMap( inputs.element )
+    val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.flatMap( inputs.element )
     assert( input_arrays.size > 1, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
     val cdFloatArrays = input_arrays.map( _.toCDFloatArray ).toArray
-    val result_metadata = MetadataOps.mergeMetadata( name, input_arrays.map( _.metadata ) )
     val final_result: CDFloatArray = if( mapCombineNOp.isDefined ) {
       CDFloatArray.combine( mapCombineNOp.get, cdFloatArrays )
     } else if( mapCombineWNOp.isDefined ) {
@@ -535,9 +547,53 @@ abstract class MultiRDDKernel extends Kernel {
       result_array / countArray
     } else { throw new Exception("Undefined operation in MultiRDDKernel") }
     logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
+    val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
     key -> RDDPartition( inputs.iPart, Map( context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
   }
 }
+
+abstract class PythonRDDKernel extends Kernel {
+
+  override def cleanUp() = PythonWorkerPortal.getInstance().shutdown()
+
+  override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
+    val inputs = inputTups._2
+    val key = inputTups._1
+    val t0 = System.nanoTime
+    val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance();
+    val worker: PythonWorker = workerManager.getPythonWorker();
+    try {
+      logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
+      val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.flatMap( key => inputs.element( key.split(':')(0) ) )
+      assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
+      val operation_input_arrays = context.operation.inputs.flatMap( input_id => inputs.element( input_id ) )
+
+      for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
+        case Some( input_array ) =>
+          val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array()
+          logger.info("Kernel part-%d: Sending data to worker for input %s, nbytes=%d".format( inputs.iPart, input_id, byte_data.length ))
+          worker.sendArrayData( input_array.uid, input_array.origin, input_array.shape, byte_data, input_array.metadata )
+          logger.info( "Kernel part-%d: Finished Sending data to worker" )
+        case None =>
+          logger.error( "Unidentified kernel input: " + input_id )
+      }
+      logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
+      worker.sendRequest(context.operation.identifier, context.operation.inputs.toArray, context.getConfiguration )
+      val resultItems = for( input_array <- operation_input_arrays ) yield {
+        val tvar = worker.getResult()
+        logger.info( "Got result for input: " + input_array.uid + ", shape = " + tvar.getShape.mkString(","));
+        val result = HeapFltArray( tvar, input_array.missing )
+        context.operation.rid + ":" + input_array.uid -> result
+      }
+      val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
+      logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s, metadata = %s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9, result_metadata.mkString(";") ) )
+      key -> RDDPartition( inputs.iPart, Map(resultItems:_*), result_metadata )
+    } finally {
+      workerManager.releaseWorker( worker )
+    }
+  }
+}
+
 
 class TransientFragment( val dataFrag: DataFragment, val request: RequestContext, val varMetadata: Map[String,nc2.Attribute] ) extends OperationDataInput( dataFrag.spec, varMetadata ) {
   def toXml(id: String): xml.Elem = {

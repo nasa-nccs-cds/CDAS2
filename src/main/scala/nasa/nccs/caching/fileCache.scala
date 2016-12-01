@@ -268,6 +268,7 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, val maskOpt: Option[
     }
   }
 
+
   def cacheChunk(partition: Partition,  iChunk: Int, outStr: BufferedOutputStream) = {
     logger.info( "CacheChunk: part=%d, chunk=%d".format(partition.index, iChunk))
     val subsection: ma2.Section = partition.chunkSection(iChunk, roi)
