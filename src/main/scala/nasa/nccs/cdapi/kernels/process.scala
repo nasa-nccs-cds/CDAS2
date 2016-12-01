@@ -489,7 +489,7 @@ abstract class SingularRDDKernel extends Kernel {
       val shape = inputs.elements.head._2.shape
       logger.info(" ##### KERNEL [%s]: Map Op: combine, part = 0, input shape = %s".format( name, shape.mkString(",") ) )
     }
-    val elem = inputs.element(inputId) match {
+    val elem = inputs.findElements(inputId).headOption match {
       case Some( input_array ) =>
         mapCombineOpt match {
           case Some(combineOp) =>
@@ -514,7 +514,7 @@ abstract class DualRDDKernel extends Kernel {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
-    val input_arrays = context.operation.inputs.flatMap( inputs.element ).toArray
+    val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[ArrayBase[Float]]())( _ ++ _ )
     assert( input_arrays.size > 1, "Missing input(s) to dual input operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
     val i0 = input_arrays(0).toCDFloatArray
     val i1 = input_arrays(1).toCDFloatArray
@@ -537,7 +537,7 @@ abstract class MultiRDDKernel extends Kernel {
     logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart ) )
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
-    val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.flatMap( inputs.element )
+    val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[ArrayBase[Float]]())( _ ++ _ )
     assert( input_arrays.size > 1, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
     val cdFloatArrays = input_arrays.map( _.toCDFloatArray ).toArray
     val final_result: CDFloatArray = if( mapCombineNOp.isDefined ) {
@@ -564,7 +564,7 @@ abstract class PythonRDDKernel extends Kernel {
     val worker: PythonWorker = workerManager.getPythonWorker();
     try {
       logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
-      val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.flatMap( key => inputs.element( key.split(':')(0) ) )
+      val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[ArrayBase[Float]]())( _ ++ _ )
       assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
       val operation_input_arrays = context.operation.inputs.flatMap( input_id => inputs.element( input_id ) )
 
