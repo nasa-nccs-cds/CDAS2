@@ -323,13 +323,13 @@ class FileMetadata( val ncFile: URI ) {
 object addressSorder extends App {
   import scala.io.Source, scala.collection.mutable.HashMap, java.io._
   import java.nio.file.{Paths, Files}
-  val root = Paths.get("/Users/tpmaxwel/Data/ESGF/")
-  val expIndex = 13
+  val root = Paths.get("/usr/local/web/WPS/CDAS2/python")
+  val model = "GISS-E2-R"
   val esgfSearchFile = root.resolve( "data_esgf.txt" ).toFile
   val lines = Source.fromFile(esgfSearchFile).getLines.toList
-  val expMap = lines.groupBy( line => line.split("//")(1).split("/")(expIndex) )
+  val expMap = lines.groupBy( line => line.split("//")(1).split("/")(8).split("_")(4) )
   for( ( key, values ) <- expMap ) {
-    val pw = new PrintWriter( root.resolve( key + ".csv" ).toFile )
+    val pw = new PrintWriter( root.resolve( model + "_" + key + ".csv" ).toFile )
     for( value <- values ) { pw.write( value + "\n" ) }
     pw.close
   }

@@ -1,6 +1,6 @@
 import cdms2
 
-inputPath = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_195101-200512.nc"
+inputPath = "http://aims3.llnl.gov/thredds/dodsC/cmip5_css02_data/cmip5/output1/CMCC/CMCC-CESM/historical/mon/atmos/Amon/r1i1p1/tas/1/tas_Amon_CMCC-CESM_historical_r1i1p1_198001-198412.nc"
 
 dataset = cdms2.open( inputPath )
 resolution = 128

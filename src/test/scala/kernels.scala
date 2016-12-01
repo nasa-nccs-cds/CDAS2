@@ -13,8 +13,8 @@ import org.apache.log4j.{Level, LogManager, Logger}
 class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
   test("Aggregate") {
-    val model = "CNRM"
-    val nExp = 3
+    val model = "GISS-E2-R"
+    val nExp = 6
     ( 1 to nExp ) map { index =>
       val collection = s"${model}_r${index}i1p1"
       val location = s"/collections/${model}/$collection.csv"
@@ -27,8 +27,8 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   test("Cache") {
-    val model = "GEOS5"
-    val nExp = 3
+    val model = "GISS-E2-R"
+    val nExp = 6
     ( 1 to nExp ) map { index =>
       val collection = s"${model}_r${index}i1p1"
       val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
@@ -58,7 +58,7 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
   test("EnsembleAve") {
     val model = "GISS"
-    val nExp = 3
+    val nExp = 6
     val variables = ( 1 to nExp ) map { index => s"""{"uri":"collection:/${model}_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
     val vids = ( 1 to nExp ) map { index => s"v$index" }
     val datainputs = """[domain=[{"name":"d0"}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format( variables.mkString(","), vids.mkString(",") )
@@ -66,15 +66,20 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   test("ESGF_Demo") {
-    val variables = ( 1 to 5 ) map { index => s"""{"uri":"collection:/GISS_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
-    val vids = ( 1 to 5 ) map { index => s"v$index" }
-    val datainputs = """[
-         variable=[%s],
+    val GISS_H_vids = ( 1 to 6 ) map { index => s"vH$index" }
+    val GISS_R_vids = ( 1 to 6 ) map { index => s"vR$index" }
+    val GISS_variables = ( ( 1 to 6 ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
+    val GEOS5_variables = ( ( 1 to 6 )  map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
+    val datainputs = s"""[
+         variable=[$GISS_variables,$GEOS5_variables],
          domain=[       { "name":"d0"}],
-         operation=[    {"name":"CDSpark.multiAverage","input":"%s","domain":"d0","id":"ea1"},
-                        {"name":"CDSpark.regrid","input":"ea1","domain":"d0","crs":"gaussian~128","result":"esgfDemo"}
+         operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
+                        {"name":"CDSpark.multiAverage","input":"${GISS_R_vids.mkString(",")}","domain":"d0","id":"eaGISS-R"},
+                        {"name":"CDSpark.regrid","input":"eaGISS-R","domain":"d0","crs":"gaussian~128","id":"rgR"},
+                        {"name":"CDSpark.regrid","input":"eaGISS-H","domain":"d0","crs":"gaussian~128","id":"rgH"},
+                        {"name":"CDSpark.multiAverage","input":"rgR,rgH","domain":"d0","result":"esgfDemo"}
                ]
-        ]""".replaceAll("\\s", "").format( variables.mkString(","), vids.mkString(",") )
+        ]""".replaceAll("\\s", "")
     val result_node = executeTest(datainputs)
   }
 

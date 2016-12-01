@@ -180,12 +180,8 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   }
 
   def getCombinedGridfile( inputs: Map[String,ArrayBase[Float]] ): String = {
-    for ( ( id, array ) <- inputs ) {
-      array.metadata.get("gridfile") match {
-        case Some(gridfile) => return gridfile
-      }
-    }
-    throw new Exception(" Missing gridfile in kernel inputs: " + name )
+    for ( ( id, array ) <- inputs ) array.metadata.get("gridfile") match { case Some(gridfile) => return gridfile; case None => Unit }
+    throw new Exception( " Missing gridfile in kernel inputs: " + name )
   }
 
   def combineRDD(context: KernelContext)(rdd0: RDDPartition, rdd1: RDDPartition, axes: AxisIndices): RDDPartition = {
@@ -526,7 +522,7 @@ abstract class DualRDDKernel extends Kernel {
       case Some( combineOp ) => CDFloatArray.combine( combineOp, i0, i1 )
       case None => i0
     }
-    val result_metadata = input_arrays(0).mergeMetadata( name,input_arrays(1) )
+    val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
     logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
     key -> RDDPartition( inputs.iPart, Map( context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
   }
@@ -568,9 +564,9 @@ abstract class PythonRDDKernel extends Kernel {
     val worker: PythonWorker = workerManager.getPythonWorker();
     try {
       logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
-      val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.flatMap(inputs.element)
+      val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.flatMap( key => inputs.element( key.split(':')(0) ) )
       assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
-      val operation_input_arrays = context.operation.inputs.flatMap( input_id => inputs.element(input_id) )
+      val operation_input_arrays = context.operation.inputs.flatMap( input_id => inputs.element( input_id ) )
 
       for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
         case Some( input_array ) =>
@@ -587,7 +583,7 @@ abstract class PythonRDDKernel extends Kernel {
         val tvar = worker.getResult()
         logger.info( "Got result for input: " + input_array.uid + ", shape = " + tvar.getShape.mkString(","));
         val result = HeapFltArray( tvar, input_array.missing )
-        input_array.uid + "-" + context.operation.rid -> result
+        context.operation.rid + ":" + input_array.uid -> result
       }
       val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
       logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s, metadata = %s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9, result_metadata.mkString(";") ) )

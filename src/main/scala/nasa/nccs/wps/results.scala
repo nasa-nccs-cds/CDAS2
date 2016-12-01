@@ -54,6 +54,26 @@ class RDDExecutionResult( serviceInstance: String, process: WPSProcess, id: Stri
   }
 }
 
+class ExecutionErrorReport( serviceInstance: String, process: WPSProcess, id: String, val err: Throwable ) extends WPSReferenceExecuteResponse( serviceInstance, process, None )  with Loggable {
+  print_error
+  override def toXml = {
+    <ows:ExceptionReport xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                         xsi:schemaLocation="http://www.opengis.net/ows/1.1 ../../../ows/1.1.0/owsExceptionReport.xsd" version="1.0.0" xml:lang="en-CA">
+      { getReport }
+    </ows:ExceptionReport>
+  }
+  def getReport: Iterable[xml.Elem] =  List(  <ows:Exception exceptionCode={err.getClass.getName}> <ows:ExceptionText>{err.getMessage}</ows:ExceptionText> </ows:Exception> )
+  def print_error = {
+    val err1 = if (err.getCause == null) err else err.getCause
+    logger.error("\n\n-------------------------------------------\n" + err1.toString + "\n")
+    logger.error(  err1.getStackTrace.mkString("\n")  )
+    if (err.getCause != null) { logger.error( "\nTriggered at: \n" + err.getStackTrace.mkString("\n") ) }
+    logger.error( "\n-------------------------------------------\n\n")
+  }
+  def getProcessOutputs( process_id: String, response_id: String ): Iterable[xml.Elem] = Iterable.empty[xml.Elem]
+}
+
+
 abstract class WPSEventReport extends WPSResponse {
   def toXml: xml.Elem =  <EventReports>  { getReport } </EventReports>
   def getReport: Iterable[xml.Elem]

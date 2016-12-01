@@ -2,7 +2,6 @@ package nasa.nccs.cdas.workers;
 import nasa.nccs.utilities.CDASLogManager;
 import org.zeromq.ZMQ;
 import org.apache.log4j.Logger;
-
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -66,6 +65,11 @@ public class WorkerManager {
         public void term() {
             active = false;
             try { responder.close(); }  catch ( Exception ex ) { ; }
+        }
+
+        public void kill_all_zombies() {
+
+
         }
     }
 }

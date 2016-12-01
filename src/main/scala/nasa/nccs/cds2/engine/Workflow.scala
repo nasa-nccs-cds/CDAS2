@@ -8,7 +8,7 @@ import nasa.nccs.cds2.engine.spark.CDSparkContext
 import nasa.nccs.esgf.process._
 import nasa.nccs.esgf.process.OperationContext.{OpResultType, ResultType}
 import nasa.nccs.utilities.Loggable
-import nasa.nccs.wps.{AsyncExecutionResult, RDDExecutionResult, WPSExecuteResponse, WPSProcess}
+import nasa.nccs.wps._
 import org.apache.spark.rdd.RDD
 import ucar.ma2
 import ucar.ma2.Section
@@ -91,11 +91,14 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def createKernel(id: String): Kernel = executionMgr.getKernel(id)
 
-  def stream(requestCx: RequestContext): List[WPSExecuteResponse] = {
+  def stream(requestCx: RequestContext): List[ WPSExecuteResponse ] = {
     val product_nodes = nodes.filter(_.getResultType == ResultType.PRODUCT)
     for (product_node <- product_nodes) yield {
-      generateProduct(requestCx, product_node)
-      //      new AsyncExecutionResult( product_node.getNodeId(), request.getProcess, Some(product_node.getResultId) )
+      try {
+        generateProduct(requestCx, product_node)
+      } catch {
+        case err: Exception => createErrorReport( err, requestCx, product_node )
+      }
     }
   }
 
@@ -141,10 +144,14 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     new RDDExecutionResult( "", node.kernel, node.operation.identifier, result, resultId ) // TODO: serviceInstance
   }
 
+  def createErrorReport( err: Throwable, context: RequestContext, node: WorkflowNode ): WPSExecuteResponse = {
+    new ExecutionErrorReport( "", node.kernel, node.operation.identifier, err ) // TODO: serviceInstance
+  }
+
   def cacheResult( result: RDDPartition, context: RequestContext, node: WorkflowNode ): Option[String] = {
     try {
       collectionDataCache.putResult( node.operation.rid, new RDDTransientVariable( result, node.operation, context ) )
-      logger.info( " ^^^^## Cached result, results = " + collectionDataCache.getResultIdList.mkString(",") )
+      logger.info( " ^^^^## Cached result, results = " + collectionDataCache.getResultIdList.mkString(",") + ", shape = " + result.head._2.shape.mkString(",") )
       Some(node.operation.rid)
     } catch {
       case ex: Exception => logger.error( "Can't cache result: " + ex.getMessage ); None

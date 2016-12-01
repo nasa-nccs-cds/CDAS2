@@ -122,8 +122,9 @@ class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase[Float]] ,
     assert( (iPart==other.iPart) || (iPart == -1) || (other.iPart == -1), "Attempt to merge RDDPartitions with incommensurate partition indices: %d vs %d".format(iPart,other.iPart ) )
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
   }
-  def element( id: String ): Option[ArrayBase[Float]] = elements.get( id )
-  def empty( id: String ) = { element(id) == None }
+  def element( id: String ): Option[ArrayBase[Float]] = ( elements find { case (key,array) => key.split(':')(0).equals(id) } ) map ( _._2 )
+  def findElements( id: String ): Iterable[ArrayBase[Float]] = ( elements filter { case (key,array) => key.split(':')(0).equals(id) } ) values
+  def empty( id: String ) = { element(id).isEmpty }
   def head: ( String, ArrayBase[Float] ) = elements.head
   def toXml: xml.Elem = {
     val values: Iterable[xml.Node] = elements.values.map(_.toXml)

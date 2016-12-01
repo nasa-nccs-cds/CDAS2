@@ -751,14 +751,14 @@ object OperationContext extends ContainerBase  {
 
   def apply( index: Int, uid: UID, process_name: String, uid_list: List[String], metadata: Map[String, Any] ): OperationContext = {
     val op_inputs: Iterable[String] = metadata.get( "input" ) match {
-      case Some( input_values: List[_] ) => input_values.map( uid + _.toString.trim.toLowerCase )
-      case Some( input_value: String ) => input_value.split(',').map( uid + _.trim.toLowerCase )
-      case None => uid_list.map( uid + _.trim.toLowerCase )
+      case Some( input_values: List[_] ) => input_values.map( uid + _.toString.trim )
+      case Some( input_value: String ) => input_value.split(',').map( uid + _.trim )
+      case None => uid_list.map( uid + _.trim )
       case x => throw new Exception ( "Unrecognized input in operation spec: " + x.toString )
     }
     var productType =  ResultType.UNDEF;
-    val op_name = metadata.getOrElse( "name", process_name ).toString.trim.toLowerCase
-    val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim.toLowerCase ).map(identity)  // map(identity) to work around scala serialization bug
+    val op_name = metadata.getOrElse( "name", process_name ).toString.trim
+    val optargs: Map[String,String] = metadata.filterNot( (item) => List("input","name").contains(item._1) ).mapValues( _.toString.trim ).map(identity)  // map(identity) to work around scala serialization bug
     val input = metadata.getOrElse("input","").toString
     val opLongName = op_name + "-" + ( List( input ) ++ optargs.toList.map( item => item._1 + "=" + item._2 )).filterNot( (item) => item.isEmpty ).mkString("(","_",")")
     val dt: DateTime = new DateTime( DateTimeZone.getDefault() )
@@ -768,7 +768,7 @@ object OperationContext extends ContainerBase  {
         uid + result_id.toString
       case None =>
         productType =  ResultType.PRODUCT;
-        metadata.get("id") match {
+        metadata.get("result") match {
           case Some(result_id) => uid + result_id.toString
           case None =>            uid + op_name + "-" + index.toString
         }
