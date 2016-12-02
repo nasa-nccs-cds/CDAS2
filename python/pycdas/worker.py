@@ -1,6 +1,5 @@
 import sys, os, logging, traceback
-import time, numpy as np
-import zmq, cdms2
+import time
 from pycdas.messageParser import mParse
 
 def sa2s( strArray ): return ','.join( strArray )
@@ -52,12 +51,18 @@ class Worker(object):
                 type = self.getMessageField(header,0)
                 if type == "array":
                     data = self.request_socket.recv()
-                    self.loadVariable(header,data)
+                    try:
+                        self.loadVariable(header,data)
+                    except Exception as err:
+                        self.sendError( err )
 
                 elif type == "task":
-                    resultVars = self.processTask( header )
-                    for resultVar in resultVars:
-                        self.sendVariableData( resultVar )
+                    try:
+                        resultVars = self.processTask( header )
+                        for resultVar in resultVars:
+                            self.sendVariableData( resultVar )
+                    except Exception as err:
+                        self.sendError( err )
 
 
                 elif type == "quit":
@@ -65,7 +70,7 @@ class Worker(object):
                     active = False
 
             except Exception as err:
-                self.logger.error( "\n-------------------------------\nError getting messsage: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
+                self.sendError( err )
 
     def sendVariableData( self, resultVar ):
         header = "|".join( [ "array", resultVar.id, resultVar.origin, ia2s(resultVar.shape), m2s(resultVar.attributes) ] )
@@ -74,6 +79,12 @@ class Worker(object):
         result_data = resultVar.data.tobytes()
         self.logger.info( "Sending Result data,  nbytes: {0}".format( str(len(result_data) ) ) )
         self.result_socket.send(result_data)
+
+    def sendError( self, err ):
+        msg = "\n-------------------------------\nWorker Error: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() )
+        self.logger.error( msg  )
+        header = "|".join( [ "error", msg ] )
+        self.result_socket.send( header )
 
     def saveGridFile( self, resultId, variable  ):
         axes = variable.getAxisList()
@@ -103,6 +114,7 @@ class Worker(object):
         return log_file
 
     def processTask(self, task_header ):
+        import zmq, cdms2, numpy as np
         t0 = time.time()
         header_toks = task_header.split('|')
         taskToks = header_toks[1].split('-')
@@ -135,38 +147,36 @@ class Worker(object):
                 return results
 
     def loadVariable( self, header, data ):
-        try:
-            t0 = time.time()
-            self.logger.info(  " *** Got data, nbytes = : " + str(len(data)) )
-            header_toks = header.split('|')
-            vid = header_toks[1]
-            origin = mParse.s2ia( header_toks[2] )
-            shape = mParse.s2ia( header_toks[3] )
-            metadata = mParse.s2m( header_toks[4] )
-            gridFilePath = metadata["gridfile"]
-            gridfile = cdms2.open( gridFilePath )
-            name = metadata["name"]
-            var = gridfile[name]
-            collection = metadata["collection"]
-            dimensions = metadata["dimensions"].split(",")
-            axes = [ gridfile.axes.get(dim) for dim in dimensions ]
-            grid = gridfile.grids.values()[0]
-            nparray = np.frombuffer( data, dtype='f' ).reshape( shape )
+        import zmq, cdms2, numpy as np
+        t0 = time.time()
+        self.logger.info(  " *** Got data, nbytes = : " + str(len(data)) )
+        header_toks = header.split('|')
+        vid = header_toks[1]
+        origin = mParse.s2ia( header_toks[2] )
+        shape = mParse.s2ia( header_toks[3] )
+        metadata = mParse.s2m( header_toks[4] )
+        gridFilePath = metadata["gridfile"]
+        gridfile = cdms2.open( gridFilePath )
+        name = metadata["name"]
+        var = gridfile[name]
+        collection = metadata["collection"]
+        dimensions = metadata["dimensions"].split(",")
+        axes = [ gridfile.axes.get(dim) for dim in dimensions ]
+        grid = gridfile.grids.values()[0]
+        nparray = np.frombuffer( data, dtype='f' ).reshape( shape )
 
-            self.logger.info( " >> Array Metadata: {0}".format( metadata ) )
-            self.logger.info( " >> Array Shape: [{0}]".format( ', '.join( map(str, shape) ) ) )
-            self.logger.info( " >> Array Dimensions: [{0}]".format( ', '.join( map(str, dimensions) ) ) )
-            self.logger.info( " >> Array Origin: [{0}]".format( ', '.join( map(str, origin) ) ) )
+        self.logger.info( " >> Array Metadata: {0}".format( metadata ) )
+        self.logger.info( " >> Array Shape: [{0}]".format( ', '.join( map(str, shape) ) ) )
+        self.logger.info( " >> Array Dimensions: [{0}]".format( ', '.join( map(str, dimensions) ) ) )
+        self.logger.info( " >> Array Origin: [{0}]".format( ', '.join( map(str, origin) ) ) )
 
-            partition_axes = self.subsetAxes( axes, origin, shape )
-            variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.getMissing(), grid=grid, axes=partition_axes, attributes=metadata, id=collection+"-"+name)
-            variable.createattribute( "gridfile", gridFilePath )
-            variable.createattribute( "origin", ia2s(origin) )
-            t1 = time.time()
-            self.logger.info( " >> Created Variable: {0} ({1} in time {2}".format( variable.id, name,  (t1-t0) ) )
-            self.cached_inputs[vid] = variable
-        except Exception as err:
-            self.logger.error( "\n-------------------------------\nError creating variable: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
+        partition_axes = self.subsetAxes( axes, origin, shape )
+        variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.getMissing(), grid=grid, axes=partition_axes, attributes=metadata, id=collection+"-"+name)
+        variable.createattribute( "gridfile", gridFilePath )
+        variable.createattribute( "origin", ia2s(origin) )
+        t1 = time.time()
+        self.logger.info( " >> Created Variable: {0} ({1} in time {2}".format( variable.id, name,  (t1-t0) ) )
+        self.cached_inputs[vid] = variable
 
     def subsetAxes( self, axes, origin, shape ):
         subAxes = []

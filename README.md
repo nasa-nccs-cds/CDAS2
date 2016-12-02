@@ -35,9 +35,10 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
     
     2) Install packages using conda:
         
-        >> conda create -n uvcdat-2.x.y -c uvcdat -c conda-forge uvcdat
+        >> conda create -n uvcdat-2.8 -c uvcdat -c conda-forge uvcdat
         >> conda install -c conda-forge nco
-        >> source activate uvcdat-2..x.y
+        >> source activate uvcdat-2.8
+        >> conda install zeromq
 
 
 ####  Code development:

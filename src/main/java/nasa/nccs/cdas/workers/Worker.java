@@ -15,6 +15,7 @@ public abstract class Worker {
     protected Logger logger = null;
     protected int result_port = -1;
     protected int request_port = -1;
+    private boolean isValid = true;
 
     static int bindSocket( ZMQ.Socket socket, int init_port ) {
         int test_port = init_port;
@@ -34,13 +35,18 @@ public abstract class Worker {
         results.add( new TransVar( result_header, data ) );
     }
 
+    private void invalidateRequest( ) {
+        isValid = false;
+    }
+
     public TransVar getResult() {
         logger.info( "Waiting for result to appear from worker");
-        while( true ) {
+        while( isValid ) {
             TransVar result = results.poll();
             if( result == null ) try { Thread.sleep(100); } catch( Exception err ) { return null; }
             else { return result; }
         }
+        return null;
     }
 
     public class ResultThread extends Thread {
@@ -57,9 +63,12 @@ public abstract class Worker {
                 String[] parts = result_header.split("[|]");
                 logger.info( "Received result header from worker: " + result_header );
                 if( parts[0].equals("array") ) {
-                    logger.info( "Waiting for result data " );
+                    logger.info("Waiting for result data ");
                     byte[] data = result_socket.recv(0);
-                    addResult( result_header, data );
+                    addResult(result_header, data);
+                } else if( parts[0].equals("error") ) {
+                    logger.error("Python worker signaled error:\n" + parts[1] );
+                    invalidateRequest();
                 } else {
                     logger.info( "Unknown result header type: " + parts[0] );
                 }
@@ -111,6 +120,7 @@ public abstract class Worker {
         String header = String.join("|", slist);
         System.out.println( "Sending Task Request: " + header );
         request_socket.send(header);
+        isValid = true;
     }
 
     public void sendShutdown( ) {
