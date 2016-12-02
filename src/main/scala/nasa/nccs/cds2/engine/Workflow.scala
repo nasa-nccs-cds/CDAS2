@@ -21,14 +21,10 @@ object WorkflowNode {
   }
 }
 
-class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) extends DAGNode[WorkflowNode] with Loggable {
-  import scala.collection.mutable.HashMap
+class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) extends DAGNode with Loggable {
   val kernel = workflow.createKernel( operation.name.toLowerCase )
-  private val dependencies = new HashMap[String,WorkflowNode]()
-  def getResultType: OpResultType = operation.resultType
   def getResultId: String = operation.rid
   def getNodeId(): String = operation.identifier
-  def addDependency( node: WorkflowNode ) = { dependencies.update( node.getNodeId(), node ) }
 
   def generateKernelContext( requestCx: RequestContext ): KernelContext = {
     val sectionMap: Map[String, Option[CDSection]] = requestCx.inputs.mapValues(_.map(_.cdsection)).map(identity)
@@ -92,7 +88,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   def createKernel(id: String): Kernel = executionMgr.getKernel(id)
 
   def stream(requestCx: RequestContext): List[ WPSExecuteResponse ] = {
-    val product_nodes = nodes.filter(_.getResultType == ResultType.PRODUCT)
+    val product_nodes = DAGNode.sort( nodes.filter( _.isRoot ) )
     for (product_node <- product_nodes) yield {
       try {
         generateProduct(requestCx, product_node)
@@ -111,7 +107,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
         case None =>
           nodes.find(_.getResultId.equals(uid)) match {
             case Some(inode) =>
-              workflowNode.addDependency(inode)
+              workflowNode.addChild(inode)
               uid -> new DependencyOperationInput(inode)
             case None =>
               val errorMsg = "Unidentified input in workflow node %s: %s".format(workflowNode.getNodeId, uid)
