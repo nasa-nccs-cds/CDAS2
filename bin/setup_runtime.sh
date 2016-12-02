@@ -10,7 +10,7 @@ export CDAS_SCALA_DIR=${CDAS_BIN_DIR}/../src/main/scala
 export PATH=${CDAS_BIN_DIR}:${PATH}
 export CLASSPATH=${CDAS_SCALA_DIR}:${CDAS_CACHE_DIR}:${CLASSPATH}
 export UVCDAT_ANONYMOUS_LOG=no
-export UVCDAT_VERSION=2.6.1
+export UVCDAT_VERSION=2.8
 export WPS_CMD="$CDWPS_HOME_DIR/target/universal/cdwps-1.1-SNAPSHOT/bin/cdwps -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M"
 
 alias cdas='cd $CDAS_HOME_DIR'
