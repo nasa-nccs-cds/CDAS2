@@ -7,7 +7,7 @@ import nasa.nccs.cdapi.kernels.{CDASExecutionContext, Kernel, KernelContext}
 import nasa.nccs.cds2.engine.spark.CDSparkContext
 import nasa.nccs.esgf.process._
 import nasa.nccs.esgf.process.OperationContext.{OpResultType, ResultType}
-import nasa.nccs.utilities.Loggable
+import nasa.nccs.utilities.{ Loggable, DAGNode }
 import nasa.nccs.wps._
 import org.apache.spark.rdd.RDD
 import ucar.ma2
@@ -21,7 +21,7 @@ object WorkflowNode {
   }
 }
 
-class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) extends Loggable {
+class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) extends DAGNode[WorkflowNode] with Loggable {
   import scala.collection.mutable.HashMap
   val kernel = workflow.createKernel( operation.name.toLowerCase )
   private val dependencies = new HashMap[String,WorkflowNode]()
