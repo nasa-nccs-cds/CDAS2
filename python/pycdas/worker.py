@@ -1,5 +1,5 @@
 import sys, os, logging, traceback
-import time
+import time, zmq
 from pycdas.messageParser import mParse
 
 def sa2s( strArray ): return ','.join( strArray )
