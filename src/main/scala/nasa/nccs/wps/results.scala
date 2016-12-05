@@ -37,10 +37,10 @@ abstract class WPSReferenceExecuteResponse( serviceInstance: String, val process
   def getReference: xml.Elem = <wps:Reference encoding="UTF-8" mimeType="text/xml" href={statusHref}/>
 }
 
-class MergedWPSExecuteResponse( serviceInstance: String, responses: List[WPSExecuteResponse] ) extends WPSExecuteResponse( serviceInstance, responses.flatMap(_.processes) ) {
+class MergedWPSExecuteResponse( serviceInstance: String, responses: List[WPSExecuteResponse] ) extends WPSExecuteResponse( serviceInstance, responses.flatMap(_.processes) ) with Loggable {
   val process_ids: List[String] = responses.flatMap( response => response.processes.map( process => process.identifier ) )
   def getReference: xml.Elem = responses.head.getReference
-  assert( process_ids.distinct.size == process_ids.size, "Error, non unique process IDs in process list: " + processes.mkString(", ") )
+  if( process_ids.distinct.size != process_ids.size ) { logger.warn( "Error, non unique process IDs in process list: " + processes.mkString(", ") ) }
   val responseMap: Map[String,WPSExecuteResponse] = Map( responses.flatMap( response => response.processes.map( process => ( process.identifier -> response ) ) ): _* )
   def getProcessOutputs( process_id: String, response_id: String ): Iterable[xml.Elem] = responseMap.get( process_id ) match {
     case Some( response ) => response.getProcessOutputs(process_id, response_id);
