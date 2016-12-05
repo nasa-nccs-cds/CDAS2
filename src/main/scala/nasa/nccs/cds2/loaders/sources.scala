@@ -228,15 +228,17 @@ object Collections extends XmlResource {
     for ( ( scope, filePath ) <- filePaths.iterator ) if( Files.exists( Paths.get(filePath) ) ) {
         try {
           logger.info( "Loading collections from file: " + filePath )
-          XML.loadFile(filePath).child.foreach(node => node.attribute("id") match {
+          val children = XML.loadFile(filePath).child
+          children.foreach(node => node.attribute("id") match {
             case None => None;
-            case Some(id) =>
-              logger.info( "Loading collection: " + id.toString.toLowerCase )
+            case Some(id) => try {
               val collection = getCollection(node, scope)
-              datasets.put(id.toString.toLowerCase, collection )
+              datasets.put(id.toString.toLowerCase, collection)
+              logger.info("Loading collection: " + id.toString.toLowerCase)
+            } catch { case err: Exception => logger.warn( "Skipping collection " + id.toString + " due to error: " + err.toString ) }
           })
         } catch {
-          case err: java.io.IOException => throw new Exception("Error opening collection data file {%s}: %s".format(filePath, err.getMessage))
+          case err: Exception => throw new Exception("Error opening collection data file {%s}: %s".format(filePath, err.getMessage))
         }
       } else {
         logger.warn( "Collections file does not exist: " + filePath )

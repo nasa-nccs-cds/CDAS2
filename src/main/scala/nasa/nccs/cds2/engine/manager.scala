@@ -28,7 +28,7 @@ import scala.collection.JavaConverters._
 import java.util.concurrent._
 
 import nasa.nccs.cdapi.data.RDDPartition
-import nasa.nccs.cds2.engine.spark.{CDSparkContext, CDSparkExecutionManager}
+import nasa.nccs.cds2.engine.spark.{CDSparkContext}
 import nasa.nccs.esgf.process.OperationContext.ResultType
 import nasa.nccs.wps._
 import org.apache.spark.{SparkConf, SparkContext}
