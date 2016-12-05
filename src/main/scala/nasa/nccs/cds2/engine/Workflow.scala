@@ -88,6 +88,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   def createKernel(id: String): Kernel = executionMgr.getKernel(id)
 
   def stream(requestCx: RequestContext): List[ WPSExecuteResponse ] = {
+    linkNodes( requestCx )
     val product_nodes = DAGNode.sort( nodes.filter( _.isRoot ) )
     for (product_node <- product_nodes) yield {
       try {
@@ -95,6 +96,22 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
         generateProduct(requestCx, product_node)
       } catch {
         case err: Exception => createErrorReport( err, requestCx, product_node )
+      }
+    }
+  }
+
+  def linkNodes(requestCx: RequestContext): Unit = {
+    for (workflowNode <- nodes; uid <- workflowNode.operation.inputs)  {
+      requestCx.getInputSpec(uid) match {
+        case Some(inputSpec) => Unit
+        case None =>
+          nodes.find(_.getResultId.equals(uid)) match {
+            case Some(inode) => workflowNode.addChild(inode)
+            case None =>
+              val errorMsg = "Unidentified input in workflow node %s: %s".format(workflowNode.getNodeId, uid)
+              logger.error(errorMsg)
+              throw new Exception(errorMsg)
+          }
       }
     }
   }
@@ -108,7 +125,6 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
         case None =>
           nodes.find(_.getResultId.equals(uid)) match {
             case Some(inode) =>
-              workflowNode.addChild(inode)
               uid -> new DependencyOperationInput(inode)
             case None =>
               val errorMsg = "Unidentified input in workflow node %s: %s".format(workflowNode.getNodeId, uid)
