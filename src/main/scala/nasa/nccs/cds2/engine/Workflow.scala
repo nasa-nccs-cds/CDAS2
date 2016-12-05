@@ -91,6 +91,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val product_nodes = DAGNode.sort( nodes.filter( _.isRoot ) )
     for (product_node <- product_nodes) yield {
       try {
+        logger.info( "\n\n ----------------------- Execute PRODUCT Node: %s -------\n".format( product_node.getNodeId() ))
         generateProduct(requestCx, product_node)
       } catch {
         case err: Exception => createErrorReport( err, requestCx, product_node )
@@ -157,9 +158,13 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
     val opSection: Option[ma2.Section] = getOpSectionIntersection( requestCx, node )
     val rdds: Iterable[RDD[(Int,RDDPartition)]] = opInputs.map { case ( uid, opinput ) => opinput match {
-        case ( dataInput: PartitionedFragment) => executionMgr.serverContext.spark.getRDD( uid, dataInput, dataInput.partitions, opSection )
-        case ( kernelInput: DependencyOperationInput  ) => kernelInput.workflowNode.stream( requestCx )
-        case (  x ) => throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
+        case ( dataInput: PartitionedFragment) =>
+          executionMgr.serverContext.spark.getRDD( uid, dataInput, dataInput.partitions, opSection )
+        case ( kernelInput: DependencyOperationInput  ) =>
+          logger.info( "\n\n ----------------------- Stream DEPENDENCY Node: %s -------\n".format( kernelInput.workflowNode.getNodeId() ))
+          kernelInput.workflowNode.stream( requestCx )
+        case (  x ) =>
+          throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
       }
     }
     if( opInputs.size == 1 ) rdds.head else rdds.tail.foldLeft( rdds.head )( CDSparkContext.merge(_,_) )
