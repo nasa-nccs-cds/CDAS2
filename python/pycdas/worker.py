@@ -137,10 +137,10 @@ class Worker(object):
             resolution = int(crsToks[1]) if len(crsToks) > 1 else 128
             if crs == "gaussian":
                 results = []
-                t42 = cdms2.createGaussianGrid( resolution )
+                t42 = cdms2.createGaussianGrid( 128 ) # resolution )
                 for input in inputs:
                     self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( input.data.flat[i] ) for i in range(20,90) ] ) ) )
-                    result = input.regrid( t42 , regridTool=regridder )
+                    result = input.regrid( t42 ) # , regridTool=regridder )
                     result.id = result.id  + "-" + rId
                     self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( result.data.flat[i] ) for i in range(20,90) ] ) ) )
                     gridFilePath = self.saveGridFile( result.id, result )
