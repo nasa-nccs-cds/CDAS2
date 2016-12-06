@@ -139,9 +139,10 @@ class Worker(object):
                 results = []
                 t42 = cdms2.createGaussianGrid( resolution )
                 for input in inputs:
-                    self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( input.data.flat[i] ) for i in range(20,26) ] ) ) )
+                    self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( input.data.flat[i] ) for i in range(20,90) ] ) ) )
                     result = input.regrid( t42 , regridTool=regridder )
                     result.id = result.id  + "-" + rId
+                    self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( result.data.flat[i] ) for i in range(20,90) ] ) ) )
                     gridFilePath = self.saveGridFile( result.id, result )
                     result.createattribute( "gridfile", gridFilePath )
                     result.createattribute( "origin", input.attributes[ "origin"] )
