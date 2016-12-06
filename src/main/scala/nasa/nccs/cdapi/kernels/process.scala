@@ -573,6 +573,7 @@ abstract class PythonRDDKernel extends Kernel {
           val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array()
           logger.info("Kernel part-%d: Sending data to worker for input %s, nbytes=%d".format( inputs.iPart, input_id, byte_data.length ))
           logger.info( "Sample Data: " + input_array.getSampleDataStr( 6, 1000 ) )
+//          logger.info( "Sample Byte Data: " + ( 0 to 10 ) map { i => " %x".format(byte_data[i]) } )
           worker.sendArrayData( input_array.uid, input_array.origin, input_array.shape, byte_data, input_array.metadata )
           logger.info( "Kernel part-%d: Finished Sending data to worker" )
         case None =>
@@ -614,3 +615,21 @@ class TransientFragment( val dataFrag: DataFragment, val request: RequestContext
 //  printf( Kernel.getClass.isAssignableFrom( CDSpark. ).toString )
 //}
 
+object SerializeTest extends App {
+  val input_array: CDFloatArray = CDFloatArray.const( Array(4), 2.5f )
+  val ucar_array = CDFloatArray.toUcarArray( input_array )
+  val byte_data = ucar_array.getDataAsByteBuffer().array()
+  println( "Byte data: %x %x %x %x".format( byte_data(0),byte_data(1), byte_data(2), byte_data(3) ))
+  val tvar = new TransVar( " | |0|4| ", byte_data )
+  val result = HeapFltArray( tvar, None )
+  println( "Float data: %f %f %f %f".format( result.data(0), result.data(1), result.data(2), result.data(3) ))
+}
+
+object zmqSerializeTest extends App {
+  import nasa.nccs.cdas.workers.test.floatClient
+  val input_array: CDFloatArray = CDFloatArray.const( Array(4), 2.5f )
+  val ucar_array = CDFloatArray.toUcarArray( input_array )
+  val byte_data = ucar_array.getDataAsByteBuffer().array()
+  println( "Byte data: %d %d %d %d".format( byte_data(0),byte_data(1), byte_data(2), byte_data(3) ))
+  floatClient.run( byte_data )
+}

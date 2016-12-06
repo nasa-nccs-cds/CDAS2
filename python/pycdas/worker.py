@@ -1,5 +1,6 @@
 import sys, os, logging, traceback
 import time, zmq, cdms2
+import numpy as np
 from pycdas.messageParser import mParse
 
 def sa2s( strArray ): return ','.join( strArray )
@@ -19,6 +20,7 @@ class Worker(object):
         self.logger = self.getLogger( request_port )
         self.cached_results = {}
         self.cached_inputs = {}
+        self.float_dtype = np.dtype( np.float32 ).newbyteorder('>')
         try:
             self.context = zmq.Context()
             self.request_socket = self.context.socket(zmq.PULL)
@@ -76,7 +78,7 @@ class Worker(object):
         header = "|".join( [ "array", resultVar.id, resultVar.origin, ia2s(resultVar.shape), m2s(resultVar.attributes) ] )
         self.logger.info( "Sending Result, header: {0}".format( header ) )
         self.result_socket.send( header )
-        self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( resultVar[i] ) for i in range(1000,1006) ] ) ) )
+        self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( resultVar.data.flat[i] ) for i in range(20,26) ] ) ) )
         result_data = resultVar.data.tobytes()
         self.logger.info( "Sending Result data,  nbytes: {0}".format( str(len(result_data) ) ) )
         self.result_socket.send(result_data)
@@ -164,14 +166,13 @@ class Worker(object):
         dimensions = metadata["dimensions"].split(",")
         axes = [ gridfile.axes.get(dim) for dim in dimensions ]
         grid = gridfile.grids.values()[0]
-        nparray_flat = np.frombuffer( data, dtype='f' )
-        nparray = nparray_flat.reshape( shape )
+        nparray = np.frombuffer( data, dtype=self.float_dtype ).reshape( shape )
 
         self.logger.info( " >> Array Metadata: {0}".format( metadata ) )
         self.logger.info( " >> Array Shape: [{0}]".format( ', '.join( map(str, shape) ) ) )
         self.logger.info( " >> Array Dimensions: [{0}]".format( ', '.join( map(str, dimensions) ) ) )
         self.logger.info( " >> Array Origin: [{0}]".format( ', '.join( map(str, origin) ) ) )
-        self.logger.info( " >> Array Data Sample: [ {0} ]".format( ', '.join(  [ str( nparray_flat[i] ) for i in range(1000,1006) ] ) ) )
+        self.logger.info( " >> Array Data Sample: [ {0} ]".format( ', '.join(  [ str(x) for x in np.nditer(nparray[0:6])] ) ) )
 
         partition_axes = self.subsetAxes( axes, origin, shape )
         variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.getMissing(), grid=grid, axes=partition_axes, attributes=metadata, id=collection+"-"+name)
