@@ -20,7 +20,7 @@ class Worker(object):
         self.logger = self.getLogger( request_port )
         self.cached_results = {}
         self.cached_inputs = {}
-        self.float_dtype = np.dtype( np.float32 ).newbyteorder('>')
+        self.io_dtype = np.dtype( np.float32 ).newbyteorder('>')
         try:
             self.context = zmq.Context()
             self.request_socket = self.context.socket(zmq.PULL)
@@ -79,7 +79,7 @@ class Worker(object):
         self.logger.info( "Sending Result, header: {0}".format( header ) )
         self.result_socket.send( header )
         self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( resultVar.data.flat[i] ) for i in range(20,26) ] ) ) )
-        result_data = resultVar.data.tobytes()
+        result_data = resultVar.data.astype( self.io_dtype ).tobytes()
         self.logger.info( "Sending Result data,  nbytes: {0}".format( str(len(result_data) ) ) )
         self.result_socket.send(result_data)
 
@@ -168,7 +168,7 @@ class Worker(object):
         dimensions = metadata["dimensions"].split(",")
         axes = [ gridfile.axes.get(dim) for dim in dimensions ]
         grid = gridfile.grids.values()[0]
-        nparray = np.frombuffer( data, dtype=self.float_dtype ).reshape( shape ).astype( np.float32 )
+        nparray = np.frombuffer( data, dtype=self.io_dtype ).reshape( shape ).astype( np.float32 )
 
         self.logger.info( " >> Array Metadata: {0}".format( metadata ) )
         self.logger.info( " >> Array Shape: [{0}]".format( ', '.join( map(str, shape) ) ) )
