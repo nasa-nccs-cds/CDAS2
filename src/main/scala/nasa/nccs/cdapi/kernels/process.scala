@@ -572,6 +572,7 @@ abstract class PythonRDDKernel extends Kernel {
         case Some( input_array ) =>
           val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array()
           logger.info("Kernel part-%d: Sending data to worker for input %s, nbytes=%d".format( inputs.iPart, input_id, byte_data.length ))
+          logger.info( "Sample Data: " + input_array.getSampleData(1000, 6 ).mkString( "[ ",", ", " ]") )
           worker.sendArrayData( input_array.uid, input_array.origin, input_array.shape, byte_data, input_array.metadata )
           logger.info( "Kernel part-%d: Finished Sending data to worker" )
         case None =>
@@ -581,8 +582,8 @@ abstract class PythonRDDKernel extends Kernel {
       worker.sendRequest(context.operation.identifier, context.operation.inputs.toArray, context.getConfiguration )
       val resultItems = for( input_array <- operation_input_arrays ) yield {
         val tvar = worker.getResult()
-        logger.info( "Got result for input: " + input_array.uid + ", shape = " + tvar.getShape.mkString(","));
         val result = HeapFltArray( tvar, input_array.missing )
+        logger.info( "Got result for input: " + input_array.uid + ", shape = " + tvar.getShape.mkString(",") + ", sampe = " + result.getSampleDataStr(1000,6));
         context.operation.rid + ":" + input_array.uid -> result
       }
       val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
