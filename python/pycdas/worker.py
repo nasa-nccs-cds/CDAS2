@@ -168,7 +168,7 @@ class Worker(object):
         dimensions = metadata["dimensions"].split(",")
         axes = [ gridfile.axes.get(dim) for dim in dimensions ]
         grid = gridfile.grids.values()[0]
-        nparray = np.frombuffer( data, dtype=self.float_dtype ).reshape( shape )
+        nparray = np.frombuffer( data, dtype=self.float_dtype ).reshape( shape ).astype( np.float32 )
 
         self.logger.info( " >> Array Metadata: {0}".format( metadata ) )
         self.logger.info( " >> Array Shape: [{0}]".format( ', '.join( map(str, shape) ) ) )
