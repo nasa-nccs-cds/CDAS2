@@ -139,6 +139,7 @@ class Worker(object):
                 results = []
                 t42 = cdms2.createGaussianGrid( resolution )
                 for input in inputs:
+                    self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( input.data.flat[i] ) for i in range(20,26) ] ) ) )
                     result = input.regrid( t42 , regridTool=regridder )
                     result.id = result.id  + "-" + rId
                     gridFilePath = self.saveGridFile( result.id, result )
@@ -172,7 +173,6 @@ class Worker(object):
         self.logger.info( " >> Array Shape: [{0}]".format( ', '.join( map(str, shape) ) ) )
         self.logger.info( " >> Array Dimensions: [{0}]".format( ', '.join( map(str, dimensions) ) ) )
         self.logger.info( " >> Array Origin: [{0}]".format( ', '.join( map(str, origin) ) ) )
-        self.logger.info( " >> Array Data Sample: [ {0} ]".format( ', '.join(  [ str(x) for x in np.nditer(nparray[0:6])] ) ) )
 
         partition_axes = self.subsetAxes( axes, origin, shape )
         variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.getMissing(), grid=grid, axes=partition_axes, attributes=metadata, id=collection+"-"+name)
