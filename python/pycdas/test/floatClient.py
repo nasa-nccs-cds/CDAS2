@@ -4,7 +4,7 @@
 #   Sends "Hello" to server, expects "World" back
 #
 
-import zmq
+import zmq, numpy as np
 
 context = zmq.Context()
 
@@ -13,11 +13,12 @@ print("Connecting to hello world server")
 socket = context.socket(zmq.REQ)
 socket.connect("tcp://localhost:5555")
 # val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array()
-#  Do 10 requests, waiting each time for a response
-for request in range(10):
-    print("Sending request %s" % request)
-    socket.send(b"Hello")
 
-    #  Get the reply.
-    message = socket.recv()
-    print("Received reply %s [ %s ]" % (request, message))
+databuff = np.getbuffer( np.array([ 2.5, 3.1, 1.1, 0.1]) )
+data = [ databuff[i] for i in range(0,4) ]
+print("Sending request %d %d %d %d" % ( data[0], data[1], data[2], data[3] ) )
+socket.send( data )
+
+#  Get the reply.
+message = socket.recv()
+print("Received reply [ %s ]" % (message))
