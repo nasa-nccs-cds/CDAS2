@@ -158,7 +158,7 @@ class GridCoordSpec( val index: Int, val grid: CDGrid, val coordAxis: Coordinate
         case x =>
           CDDoubleArray.factory( coordAxis.read(List(range)) ).getArrayData()
       }
-    case None => Array.empty[Double]
+    case None => CDDoubleArray.factory( coordAxis.read() ).getArrayData()
   }
 
   def getUnits: String =  coordAxis.getAxisType match {
