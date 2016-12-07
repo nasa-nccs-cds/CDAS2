@@ -32,7 +32,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   }
 
   def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {
-    logger.info( "\n\n ----------------------- BEGIN reduce Operation ----------------------- \n" )
+    logger.info( "\n\n ----------------------- BEGIN reduce Operation: %s (%s) ----------------------- \n".format( context.operation.identifier, context.operation.rid ) )
     val t0 = System.nanoTime()
     val result = if( kernel.reduceCombineOpt.isDefined && context.getAxes.includes(0) ) {
       mapresult.reduce( kernel.reduceRDDOp(context) _ )._2
@@ -42,7 +42,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
       logger.info( "REDUCE STAGES >>>===> Collect: %.3f sec".format( (t1 - t0) / 1.0E9 ))
       results.tail.foldLeft( results.head._2 )( { case (r0,(index,r1)) => kernel.mergeRDD(r0,r1) } )
     }
-    logger.info( "\n\n ----------------------- FINISHED reduce Operation, time = %.3f sec ----------------------- ".format((System.nanoTime() - t0) / 1.0E9))
+    logger.info( "\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format( context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
     result
   }
 
@@ -59,19 +59,17 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   }
 
   def prepareInputs( kernelContext: KernelContext, requestCx: RequestContext ): RDD[(Int,RDDPartition)] = {
-    logger.info( "\n\n ----------------------- BEGIN prepare Inputs -------\n" )
     val t0 = System.nanoTime()
     val opInputs = workflow.getNodeInputs( requestCx, this )
     val inputs: RDD[(Int,RDDPartition)] = workflow.domainRDDPartition( opInputs, kernelContext, requestCx, this )
-    logger.info( "\n\n ----------------------- FINISHED prepare Inputs, time = %.3f sec ----------------------- ".format((System.nanoTime() - t0) / 1.0E9))
+    logger.info( " FINISHED defining prepare Inputs, time = %.3f sec".format((System.nanoTime() - t0) / 1.0E9))
     inputs
   }
 
   def map( input: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDD[(Int,RDDPartition)] = {
-    logger.info( "\n\n ----------------------- BEGIN map Operation -------\n")
     val t0 = System.nanoTime()
     val result = input.map( rdd_part => kernel.map( rdd_part, context ) )
-    logger.info( "\n\n ----------------------- FINISHED map Operation, time = %.3f sec ----------------------- ".format((System.nanoTime() - t0) / 1.0E9))
+    logger.info( "FINISHED defining map Operation, time = %.3f sec".format((System.nanoTime() - t0) / 1.0E9))
     result
   }
 }
@@ -164,7 +162,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   def cacheResult( result: RDDPartition, context: RequestContext, node: WorkflowNode ): Option[String] = {
     try {
       collectionDataCache.putResult( node.operation.rid, new RDDTransientVariable( result, node.operation, context ) )
-      logger.info( " ^^^^## Cached result, results = " + collectionDataCache.getResultIdList.mkString(",") + ", shape = " + result.head._2.shape.mkString(",") )
+      logger.info( " ^^^^## Cached result, results = " + collectionDataCache.getResultIdList.mkString(",") + ", shape = " + result.head._2.shape.mkString(",") + ", rid = " + node.operation.rid )
       Some(node.operation.rid)
     } catch {
       case ex: Exception => logger.error( "Can't cache result: " + ex.getMessage ); None
