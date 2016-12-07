@@ -155,17 +155,21 @@ class Worker(object):
         import zmq, cdms2, numpy as np
         t0 = time.time()
         self.logger.info(  " *** Got data, nbytes = : " + str(len(data)) )
-        header_toks = header.split('|')
-        vid = header_toks[1]
-        origin = mParse.s2ia( header_toks[2] )
-        shape = mParse.s2ia( header_toks[3] )
-        metadata = mParse.s2m( header_toks[4] )
-        gridFilePath = metadata["gridfile"]
+        try:
+            header_toks = header.split('|')
+            vid = header_toks[1]
+            origin = mParse.s2ia( header_toks[2] )
+            shape = mParse.s2ia( header_toks[3] )
+            metadata = mParse.s2m( header_toks[4] )
+            gridFilePath = metadata["gridfile"]
+            name = metadata["name"]
+            collection = metadata["collection"]
+            dimensions = metadata["dimensions"].split(",")
+        except  Exception as err:
+            self.logger.info( "Metadata Error: {0}\ntoks: {1}\nmdata: {2}".format(err, ', '.join(header_toks), str(metadata) ) )
         gridfile = cdms2.open( gridFilePath )
-        name = metadata["name"]
+
         var = gridfile[name]
-        collection = metadata["collection"]
-        dimensions = metadata["dimensions"].split(",")
         axes = [ gridfile.axes.get(dim) for dim in dimensions ]
         grid = gridfile.grids.values()[0]
         nparray = np.frombuffer( data, dtype=self.io_dtype ).reshape( shape ).astype( np.float32 )
@@ -193,7 +197,6 @@ class Worker(object):
                 subAxes.append( axis.subAxis( start, start + length ) )
         except Exception as err:
             self.logger.info( "\n-------------------------------\nError subsetting Axes: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
-            self.logger
         return subAxes
 
 request_port = mParse.getIntArg( 1, 8200 )
