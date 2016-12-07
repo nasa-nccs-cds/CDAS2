@@ -81,7 +81,8 @@ object Workflow {
 }
 
 class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager ) extends Loggable {
-  val nodes = request.workflow.map(opCx => WorkflowNode(opCx, this))
+  val nodes = request.operations.map(opCx => WorkflowNode(opCx, this))
+  val roots = findRootNodes()
 
   def createKernel(id: String): Kernel = executionMgr.getKernel(id)
 
@@ -112,6 +113,19 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
           }
       }
     }
+  }
+
+  def findRootNodes(): List[WorkflowNode] = {
+    import scala.collection.mutable.LinkedHashSet
+    val results = LinkedHashSet( nodes:_* )
+    for (potentialRootNode <- nodes ) {
+       for ( workflowNode <- nodes; uid <- workflowNode.operation.inputs )  {
+          if( potentialRootNode.getResultId.equals(uid) ) {
+            results.remove(potentialRootNode)
+          }
+       }
+    }
+    return results.toList
   }
 
   def getNodeInputs(requestCx: RequestContext, workflowNode: WorkflowNode): Map[String, OperationInput] = {
