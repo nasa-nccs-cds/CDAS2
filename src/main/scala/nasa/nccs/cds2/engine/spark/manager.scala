@@ -1,24 +1,6 @@
 package nasa.nccs.cds2.engine.spark
 
-import nasa.nccs.caching.{CollectionDataCacheMgr, RDDTransientVariable, collectionDataCache}
-import nasa.nccs.cdapi.cdm
-import nasa.nccs.cdapi.cdm.{OperationInput, PartitionedFragment}
-import nasa.nccs.cdapi.data.RDDPartition
-import nasa.nccs.cdapi.kernels._
-import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.engine.CDS2ExecutionManager
-import nasa.nccs.esgf.process._
-import nasa.nccs.utilities.cdsutils
-import nasa.nccs.wps.{RDDExecutionResult, WPSExecuteResponse, WPSResponse}
-import org.apache.spark.rdd.RDD
-import ucar.nc2
-import ucar.nc2.Attribute
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.collection.mutable
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
-import scala.util.{Failure, Success, Try}
+import nasa.nccs.caching.{CollectionDataCacheMgr}
 
 object collectionRDDDataCache extends CollectionDataCacheMgr()
 

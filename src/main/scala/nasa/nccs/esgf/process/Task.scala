@@ -11,6 +11,7 @@ import org.joda.time.{DateTime, DateTimeZone}
 import nasa.nccs.utilities.Loggable
 import java.util.UUID
 
+import nasa.nccs.cds2.engine.{CDS2ExecutionManager, Workflow}
 import nasa.nccs.esgf.process.OperationContext.OpResultType
 
 import scala.collection.JavaConversions._
@@ -23,6 +24,7 @@ import mutable.ListBuffer
 import org.apache.log4j.Logger
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.esgf.utilities.wpsNameMatchers
+import nasa.nccs.esgf.wps.cds2ServiceProvider
 import nasa.nccs.wps.{WPSDataInput, WPSProcess, WPSProcessOutput, WPSWorkflowProcess}
 import org.apache.commons.lang.RandomStringUtils
 
@@ -38,10 +40,11 @@ case class ErrorReport(severity: String, message: String) {
   }
 }
 
-class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val workflow: List[OperationContext] = List(), val metadata: Map[String,String]=Map("id"->"#META") ) extends Loggable {
+class TaskRequest( val id: UID, val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val operations: List[OperationContext] = List(), val metadata: Map[String,String]=Map("id"->"#META") ) extends Loggable {
   val errorReports = new ListBuffer[ErrorReport]()
   validate()
-  logger.info( s"TaskRequest: name= $name, workflows= " + workflow.mkString(",") + ", variableMap= " + variableMap.toString + ", domainMap= " + domainMap.toString )
+  logger.info( s"TaskRequest: name= $name, workflows= " + operations.mkString(",") + ", variableMap= " + variableMap.toString + ", domainMap= " + domainMap.toString )
+  val workflow = Workflow( this, cds2ServiceProvider.cds2ExecutionManager );
 
   def addErrorReport(severity: String, message: String) = {
     val error_rep = ErrorReport(severity, message)
@@ -55,8 +58,8 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
   def getOutputs: List[WPSProcessOutput] = List( WPSProcessOutput(id.toString,"text/xml","Workflow Output") )
 
   def getJobRec( run_args: Map[String,String] ): JobRecord = {
-    val jobIds = for(  operation <- workflow ) yield operation.rid
-    new JobRecord( jobIds.mkString("-"))
+    val jobIds = for( node <- workflow.roots ) yield node.operation.rid
+    new JobRecord( jobIds.mkString(";"))
   }
 
   def isMetadataRequest: Boolean = name.split('.').last.toLowerCase().equals("metadata")
@@ -84,7 +87,7 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
         throw new Exception( s"Error, Missing domain $domid in variable $vid" )
       }
     }
-    for (operation <- workflow; opid = operation.name; var_arg <- operation.inputs; if !var_arg.isEmpty ) {
+    for (operation <- operations; opid = operation.name; var_arg <- operation.inputs; if !var_arg.isEmpty ) {
       if (!variableMap.contains(var_arg)) {
         var keylist = variableMap.keys.mkString("[", ",", "]")
         logger.error(s"Error, No $var_arg in $keylist in operation $opid")
@@ -94,14 +97,14 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
   }
 
   override def toString = {
-    var taskStr = s"TaskRequest { name='$name', variables = '$variableMap', domains='$domainMap', workflows='$workflow' }"
+    var taskStr = s"TaskRequest { name='$name', variables = '$variableMap', domains='$domainMap', workflows='$operations' }"
     if ( errorReports.nonEmpty ) {
       taskStr += errorReports.mkString("\nError Reports: {\n\t", "\n\t", "\n}")
     }
     taskStr
   }
 
-  def getDescription: String = "Processes { %s }".format( workflow.map(_.toString ) )
+  def getDescription: String = "Processes { %s }".format( operations.map(_.toString ) )
 
   def toXml = {
     <task_request name={name}>
@@ -112,7 +115,7 @@ class TaskRequest(val id: UID, val name: String, val variableMap : Map[String,Da
         {domainMap.values.map(_.toXml ) }
       </domains>
       <operation>
-        { workflow.map(_.toXml ) }
+        { operations.map(_.toXml ) }
       </operation>
       <error_reports>
         {errorReports.map(_.toXml ) }
@@ -146,7 +149,7 @@ class UID {
 
 
 object TaskRequest extends Loggable {
-  def apply(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]]) = {
+  def apply( process_name: String, datainputs: Map[String, Seq[Map[String, Any]]]) = {
     logger.info( "TaskRequest--> process_name: %s, datainputs: %s".format( process_name, datainputs.toString ) )
     val uid = UID()
     val data_list: List[DataContainer] = datainputs.getOrElse("variable", List() ).flatMap( DataContainer.factory(uid,_) ).toList

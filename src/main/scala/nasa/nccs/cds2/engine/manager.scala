@@ -437,10 +437,10 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
   }
 
   def executeWorkflows( request: TaskRequest, requestCx: RequestContext ): WPSResponse = {
-    val results = request.workflow.head.moduleName match {
-      case "util" =>  new WPSMergedEventReport( request.workflow.map( utilityExecution( _, requestCx )))
+    val results = request.operations.head.moduleName match {
+      case "util" =>  new WPSMergedEventReport( request.operations.map( utilityExecution( _, requestCx )))
       case x =>
-        logger.info( "---------->>> Execute Workflows: " + request.workflow.mkString(",") )
+        logger.info( "---------->>> Execute Workflows: " + request.operations.mkString(",") )
         new MergedWPSExecuteResponse( request.id.toString, streamWorkflows( request, requestCx ) )
     }
     FragmentPersistence.close()
@@ -449,8 +449,7 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
   }
 
   def streamWorkflows( request: TaskRequest, requestCx: RequestContext ): List[WPSExecuteResponse] = {
-    val workflow = Workflow( request, this );
-    workflow.stream( requestCx )
+    request.workflow.stream( requestCx )
   }
 
   def executeUtility( context: CDASExecutionContext ): UtilityExecutionResult = {
