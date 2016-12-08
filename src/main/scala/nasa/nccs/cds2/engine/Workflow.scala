@@ -107,7 +107,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
           nodes.find(_.getResultId.equals(uid)) match {
             case Some(inode) => workflowNode.addChild(inode)
             case None =>
-              val errorMsg = "Unidentified input in workflow node %s: %s, inputs ids = %s".format(workflowNode.getNodeId, uid, requestCx.inputs.keySet.mkString(", "))
+              val errorMsg = "Unidentified input in workflow node %s: %s, inputs ids = %s, values = %s".format(workflowNode.getNodeId, uid, requestCx.inputs.keySet.mkString(", "), requestCx.inputs.values.mkString(", "))
               logger.error(errorMsg)
               throw new Exception(errorMsg)
           }
