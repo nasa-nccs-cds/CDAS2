@@ -4,7 +4,7 @@ import sbt._
 
 val kernelPackages = settingKey[ Seq[String] ]("A list of user-defined Kernel packages")
 
-name := "cdas2"
+name := "CDAS2"
 version := "1.2-SNAPSHOT"
 scalaVersion := "2.11.7"
 organization := "nasa.nccs"
@@ -21,6 +21,7 @@ resolvers += "spray repo" at "http://repo.spray.io"
 resolvers += "Artima Maven Repository" at "http://repo.artima.com/releases"
 resolvers += "Geotoolkit" at "http://maven.geotoolkit.org/"
 
+
 libraryDependencies ++= Dependencies.scala
 
 libraryDependencies ++= Dependencies.spark
@@ -30,6 +31,8 @@ libraryDependencies ++= Dependencies.cache
 libraryDependencies ++= Dependencies.geo
 
 libraryDependencies ++= Dependencies.netcdf
+
+dependencyOverrides ++= Set( "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4" )
 
 sbtcp := {
   val files: Seq[File] = (fullClasspath in Compile).value.files
@@ -45,7 +48,6 @@ fork in test:= true
 logBuffered in Test := false
 
 javaOptions in run ++= Seq( "-Xmx64000M", "-Xms512M")
-dependencyOverrides ++= Set( "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4" )
 ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 
 import java.util.Properties
