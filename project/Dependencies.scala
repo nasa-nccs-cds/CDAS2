@@ -21,7 +21,6 @@ object Library {
   val clcommon       = "edu.ucar"           % "clcommon"        % "4.6.6"
   val netcdf4        = "edu.ucar"           % "netcdf4"         % "4.6.6"
   val opendap        = "edu.ucar"           % "opendap"         % "4.6.6"
-  val netcdfAll      = "edu.ucar"           % "netcdfAll"       % "4.6.6"
   val nd4s           = "org.nd4j"           % "nd4s_2.11"       % "0.4-rc3.8"
   val nd4j           =  "org.nd4j"          % "nd4j-x86"        % "0.4-rc3.8"
   val httpservices   = "edu.ucar"           %  "httpservices"   % "4.6.0"
@@ -52,7 +51,7 @@ object Dependencies {
 
   val geo  = Seq( geotools )
 
-  val netcdf = Seq( netcdfAll ) // cdm, clcommon, netcdf4, opendap )
+  val netcdf = Seq( cdm, clcommon, netcdf4, opendap )
 }
 
 //<groupId>com.googlecode.concurrentlinkedhashmap</groupId>
