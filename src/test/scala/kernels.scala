@@ -90,6 +90,11 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     assert(Math.abs( getResultValue(result_node) - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
   }
 
+  test("Maximum1") {
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":100,"system":"indices"},"lon":{"start":100,"end":200,"system":"values"},"lat":{"start":0,"end":80,"system":"values"} }],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"t"}]]"""
+    val result_node = executeTest(datainputs)
+  }
+
   test("Minimum") {
     val nco_verified_result: CDFloatArray = CDFloatArray( Array( 211.1611, 209.252, 205.9775, 208.0006, 206.4181, 202.4724, 202.9022, 203.1199, 217.8426, 215.4173, 216.0199, 217.2311, 231.4988, 231.5838, 232.7329, 232.5641 ).map(_.toFloat), Float.MaxValue )
     val datainputs = s"""[domain=[{"name":"d0","lat":{"start":5,"end":8,"system":"indices"},"lon":{"start":5,"end":8,"system":"indices"},"time":{"start":0,"end":100,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.min","input":"v1","domain":"d0","axes":"t"}]]"""

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-: ${CDAS_CACHE_DIR:?"Need to set the CDAS_CACHE_DIR environment variable"}
-
+export CDAS_CACHE_DIR=${CDAS_CACHE_DIR:-${HOME}/.cdas/cache}
 export CDAS_BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export CDAS_HOME_DIR=${CDAS_BIN_DIR}/..
 export CDWPS_HOME_DIR=${CDWPS_HOME_DIR:-${CDAS_HOME_DIR}/../CDWPS}

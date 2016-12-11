@@ -1,18 +1,7 @@
 import sys, os, logging, traceback
 import time, zmq, cdms2
 import numpy as np
-from pycdas.messageParser import mParse
-
-def sa2s( strArray ): return ','.join( strArray )
-def ia2s( intArray ): return ','.join( str(e) for e in intArray )
-def null2s( val ):
-    if val is not None: return val;
-    else: return "";
-def m2s( map  ): return ';'.join( key+":"+null2s(value) for key,value in map.iteritems() )
-def s2b( s ):
-    if s.lower() == "t": return True
-    else: return False
-
+from messageParser import mParse
 
 class Worker(object):
 

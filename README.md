@@ -2,30 +2,33 @@
 
 _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and python tools such as UVCDAT, etc._
 
-####  Prerequisite: Install the Scala develpment tools:
+####  Prerequisite: Install the Java/Scala develpment tools:
 
-    1) Scala:                     http://www.scala-lang.org/download/install.html                   
-                        
-    
-    2) Scala Build Tool (sbt):    http://www.scala-sbt.org/0.13/docs/Setup.html
-                        
+    1) Java SE Platform (JDK) 1.8:   http://www.oracle.com/technetwork/indexes/downloads/index.html
+    2) Scala:                        http://www.scala-lang.org/download/install.html
+    3) Scala Build Tool (sbt):       http://www.scala-sbt.org/0.13/docs/Setup.html
 
 ####  Install and run CDS2:
 
     1) Checkout the CDS2 sources:
 
+        >> cd <prefix>
         >> git clone https://github.com/nasa-nccs-cds/CDAS2.git 
 
     2) Build the application:
 
         >> cd CDAS2
-        >> sbt publish-local
+        >> sbt publish
 
      3) Run unit tests:
 
         >> sbt test
 
-     4) Access demos:
+     4) Source the setup file to configure the runtime environment:
+
+        >> source <prefix>/CDAS2/bin/setup_runtime.sh
+
+     6) Access demos:
 
         Designed to be deployed with the CDWPS framework (https://github.com/nasa-nccs-cds/CDWPS)
 
@@ -35,11 +38,8 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
     
     2) Install packages using conda:
         
-        >> conda create -n uvcdat-2.8 -c uvcdat -c conda-forge uvcdat
-        >> conda install -c conda-forge nco
+        >> conda create -n uvcdat-2.8  -c conda-forge -c uvcdat nco pyzmq uvcdat
         >> source activate uvcdat-2.8
-        >> conda install pyzmq
-
 
 ####  Code development:
 

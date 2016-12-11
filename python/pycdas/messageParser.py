@@ -15,6 +15,19 @@ class MessageParser:
     def s2ia(self, mdataStr ):
         return np.asarray( [ int(item) for item in mdataStr.split(',') ] )
 
+    def sa2s(self,  strArray ): return ','.join( strArray )
+
+    def ia2s(self,  intArray ): return ','.join( str(e) for e in intArray )
+
+    def null2s(self,  val ):
+        if val is not None: return val;
+        else: return "";
+
+    def m2s(self,  map  ): return ';'.join( key+":"+self.null2s(value) for key,value in map.iteritems() )
+
+    def s2b(self,  s ):
+        if s.lower() == "t": return True
+        else: return False
 
 
 mParse = MessageParser()

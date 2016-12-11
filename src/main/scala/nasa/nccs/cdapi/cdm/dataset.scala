@@ -46,7 +46,7 @@ object Collection extends Loggable {
 
   def aggregate( dsource: DataSource ): xml.Elem = {
     val col = dsource.collection
-    logger.info( "Creating collection '" + col.id + "' path: " + col.dataPath )
+    logger.info( "XXXX-> Creating collection '" + col.id + "' path: " + col.dataPath )
 //    val url = if ( col.dataPath.startsWith("http:") ) {
 //      col.dataPath
 //    } else {

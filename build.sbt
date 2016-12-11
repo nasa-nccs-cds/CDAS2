@@ -86,7 +86,7 @@ cdasProperties := {
 def getCacheDir(): File =
   sys.env.get("CDAS_CACHE_DIR") match {
     case Some(cache_dir) => file(cache_dir)
-    case None => file(System.getProperty("user.home")) / ".cdas" / "cache"
+    case None =>  { val cache_dir = file(System.getProperty("user.home")) / ".cdas" / "cache"; cache_dir.mkdirs(); cache_dir }
   }
 
 def getUvcdatEnv(): File =
@@ -117,11 +117,8 @@ unmanagedClasspath in Test +=  uvcdat_prefix.value / "lib"
 
 publishTo := Some(Resolver.file( "file",  sys.env.get("SBT_PUBLISH_DIR") match {
   case Some(pub_dir) => { val pdir = file(pub_dir); pdir.mkdirs(); pdir }
-  case None =>
-    val pub_dir = cdasProperties.value.getProperty("publish.dir", "")
-    if(pub_dir.isEmpty) { cdas_cache_dir.value } else { val pdir = file(pub_dir); pdir.mkdirs(); pdir }
+  case None =>  { val pdir = getCacheDir() / "publish"; pdir.mkdirs(); pdir }
 } ) )
-
 
 lazy val md = taskKey[Unit]("Prints 'Hello World'")
 //
