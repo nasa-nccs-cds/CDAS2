@@ -81,6 +81,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
       RDDPartSpec( partition, List(pFrag.getRDDVariableSpec(uid, partition, opSection) ) )
     ) filterNot( _.empty(uid) )
     logger.info( "Discarded empty partitions:: Creating RDD with <<%d>> paritions".format( rddSpecs.length ) )
+    assert( rddSpecs.length > 0, "Invalid RDD: all partitions are empty: " + uid )
     sparkContext.parallelize(rddSpecs).map(_.getRDDPartition).keyBy( _.iPart )
   }
   def getRDD( uid: String, tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(Int,RDDPartition)] = {

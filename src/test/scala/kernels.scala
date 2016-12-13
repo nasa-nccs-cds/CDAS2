@@ -91,7 +91,7 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   test("Maximum1") {
-    val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":100,"system":"indices"},"lon":{"start":100,"end":200,"system":"values"},"lat":{"start":0,"end":80,"system":"values"} }],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"t"}]]"""
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":100,"end":200,"system":"indices"},"lon":{"start":100,"end":200,"system":"values"},"lat":{"start":0,"end":80,"system":"values"} }],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"t"}]]"""
     val result_node = executeTest(datainputs)
   }
 

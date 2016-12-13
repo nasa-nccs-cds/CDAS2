@@ -321,6 +321,7 @@ class  GridSection( val grid: CDGrid, val axes: IndexedSeq[GridCoordSpec] ) exte
 
 object CDSection {
   def apply( section: ma2.Section ): CDSection = new CDSection( section.getOrigin, section.getShape )
+  def relative( section: ma2.Section ): CDSection = new CDSection( Array.fill(section.getRank)(0), section.getShape )
   def empty( rank: Int ): CDSection = new CDSection( Array.fill(rank)(0), Array.fill(rank)(0) )
 }
 class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
@@ -328,6 +329,7 @@ class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
   def getRange( axis_index: Int ) = toSection.getRange(axis_index)
   def getShape = toSection.getShape
   def getOrigin = toSection.getOrigin
+  override def toString() = "Section[%s:%s]".format( origin.mkString(","), shape.mkString(","))
 }
 
 object GridContext extends Loggable {

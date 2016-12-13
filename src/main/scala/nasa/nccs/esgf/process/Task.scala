@@ -337,7 +337,7 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
                         val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
                         val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section],
                         val missing_value: Float, val mask: Option[String] = None ) extends Loggable with Serializable {
-//  logger.info( "DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s".format( _section, _domSectOpt.getOrElse("null").toString ) )
+  logger.info( "DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s".format( _section, _domSectOpt.getOrElse("null").toString ) )
   override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
@@ -415,7 +415,8 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
   }
 
   def intersectRoi( cutSection: ma2.Section ): ma2.Section = {
-    val base_sect = roi;      val raw_intersection = base_sect.intersect(cutSection)
+    val base_sect = roi;
+    val raw_intersection = base_sect.intersect(cutSection)
     val ranges = for( ir <- raw_intersection.getRanges.indices; r0 = raw_intersection.getRange(ir); r1 = base_sect.getRange(ir) ) yield new ma2.Range( r1.getName, r0 )
     new ma2.Section( ranges )
   }
@@ -439,15 +440,21 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
     ( new ma2.Section( new_ranges:_* ) -> sectionMerge )
   }
 
-  def cutIntersection( cutSection: ma2.Section ): Option[DataFragmentSpec] =
-    if( roi.intersects( cutSection ) ) {
+  def cutIntersection( cutSection: ma2.Section ): Option[DataFragmentSpec] = {
+    val mySection = roi
+    if ( mySection.intersects(cutSection) ) {
       val intersection = intersectRoi(cutSection)
-//      logger.info( "DOMAIN INTERSECTION:  %s <-> %s  => %s".format( roi.toString, cutSection.toString, intersection.toString ))
-      Some( new DataFragmentSpec( uid, varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, intersection, domainSectOpt, missing_value, mask ) )
-    }  else None
+      //      logger.info( "DOMAIN INTERSECTION:  %s <-> %s  => %s".format( roi.toString, cutSection.toString, intersection.toString ))
+      Some(new DataFragmentSpec(uid, varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, intersection, domainSectOpt, missing_value, mask))
+    } else None
+  }
 
   def getReducedSection( axisIndices: Set[Int], newsize: Int = 1 ): ma2.Section = {
     new ma2.Section( roi.getRanges.zipWithIndex.map( rngIndx => if( axisIndices(rngIndx._2) ) collapse( rngIndx._1, newsize ) else rngIndx._1 ):_* )
+  }
+
+  def getOffsetSection( axisIndex: Int, offset: Int ): ma2.Section = {
+    new ma2.Section( roi.getRanges.zipWithIndex.map( rngIndx => if( axisIndex == rngIndx._2) new ma2.Range(rngIndx._1.first()+offset,rngIndx._1.last()+offset) else rngIndx._1 ):_* )
   }
 
   def reduce( axisIndices: Set[Int], newsize: Int = 1 ): DataFragmentSpec =  reSection( getReducedSection(axisIndices,newsize) )

@@ -107,12 +107,12 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
 
   def partFragSpec( partIndex: Int ): DataFragmentSpec = {
     val part = partitions.getPart(partIndex)
-    fragmentSpec.reSection( fragmentSpec.roi.replaceRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
+    fragmentSpec.reSection( part.partSection( fragmentSpec.roi ) )
   }
 
   def domainFragSpec( partIndex: Int ): DataFragmentSpec = {
     val part = partitions.getPart(partIndex)
-    fragmentSpec.domainSpec.reSection( fragmentSpec.roi.replaceRange(0, new ma2.Range( part.startIndex, part.startIndex + part.partSize -1 ) ) )
+    fragmentSpec.domainSpec.reSection( part.partSection( fragmentSpec.roi ) )
   }
 
   def partDataFragment( partIndex: Int ): DataFragment = {
@@ -180,7 +180,7 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
   def getRDDVariableSpec( uid: String, partition: Partition,  optSection: Option[ma2.Section] ): RDDVariableSpec =
     domainSection(partition,optSection) match {
       case Some( ( fragSpec, section ) ) =>
-        new RDDVariableSpec( uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection(section) )
+        new RDDVariableSpec( uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection.relative(section) )
       case _ =>
         new RDDVariableSpec( uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
     }

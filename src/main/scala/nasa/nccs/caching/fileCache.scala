@@ -69,6 +69,7 @@ object Partition {
             path: String,
             dimIndex: Int,
             startIndex: Int,
+            roiStartIndex: Int,
             partSize: Int,
             chunkSize: Int,
             sliceMemorySize: Long,
@@ -78,6 +79,7 @@ object Partition {
                   path,
                   dimIndex,
                   startIndex,
+                  roiStartIndex,
                   partSize,
                   chunkSize,
                   sliceMemorySize,
@@ -88,25 +90,16 @@ object Partition {
   }
 }
 
-class Partition(val index: Int,
-                val path: String,
-                val dimIndex: Int,
-                val startIndex: Int,
-                val partSize: Int,
-                val chunkSize: Int,
-                val sliceMemorySize: Long,
-                val shape: Array[Int])
-    extends Loggable
-    with Serializable {
-//  logger.info(s" *** Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s)".format( shape.mkString(",") ))
+class Partition(val index: Int, val path: String, val dimIndex: Int, val startIndex: Int, val roiStartIndex: Int,
+                val partSize: Int, val chunkSize: Int, val sliceMemorySize: Long, val shape: Array[Int]) extends Loggable with Serializable {
   def data(missing_value: Float): CDFloatArray = {
     val file = new RandomAccessFile(path, "r")
     val channel: FileChannel = file.getChannel()
+    logger.info(s" *** Mapping channel for Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s), path=%s".format( shape.mkString(","), path ))
     val buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, partSize * sliceMemorySize)
     channel.close(); file.close()
     new CDFloatArray(shape, buffer.asFloatBuffer, missing_value)
   }
-
   def delete() = { FileUtils.deleteQuietly(new File(path)) }
   def chunkSection(iChunk: Int, section: ma2.Section): ma2.Section = {
     new ma2.Section(section.getRanges).replaceRange(dimIndex, chunkRange(iChunk)).intersect(section)
@@ -116,20 +109,19 @@ class Partition(val index: Int,
   }
   def nChunks = math.ceil(partSize / chunkSize.toDouble).toInt
   def endIndex = startIndex + partSize - 1
+
   def chunkRange(iChunk: Int): ma2.Range = {
     val start = chunkStartIndex(iChunk);
-    new ma2.Range(start, Math.min(start + chunkSize - 1, endIndex))
+    new ma2.Range(start, roiStartIndex+Math.min(start + chunkSize - 1, endIndex))
   }
-  def partRange: ma2.Range = { new ma2.Range(startIndex, endIndex) }
-  def chunkStartIndex(iChunk: Int) = { iChunk * chunkSize + startIndex }
+  def partRange: ma2.Range = { new ma2.Range( roiStartIndex+startIndex, roiStartIndex+endIndex) }
+  def chunkStartIndex(iChunk: Int) = { roiStartIndex + iChunk * chunkSize + startIndex }
   def chunkIndexArray: IndexedSeq[Int] = (0 until nChunks)
   def chunkMemorySize = chunkSize * sliceMemorySize
-  override def toString =
-    s"Part[$index]{dim=$dimIndex, start=$startIndex, size=$partSize, shape=(%s)}"
-      .format(shape.mkString(","))
+  override def toString = s"Part[$index]{dim=$dimIndex, start=$startIndex, size=$partSize, shape=(%s)}" .format(shape.mkString(","))
+
   def getRelativeSection(global_section: ma2.Section): ma2.Section = {
-    val relative_ranges = for (ir <- global_section.getRanges.indices;
-                               r = global_section.getRange(ir)) yield {
+    val relative_ranges = for (ir <- global_section.getRanges.indices; r = global_section.getRange(ir)) yield {
       if (ir == dimIndex) { r.shiftOrigin(startIndex) } else r
     }
     new ma2.Section(relative_ranges)
@@ -190,6 +182,7 @@ class CDASPartitioner(val cache_id: String, private val _section: ma2.Section, d
       cacheFilePath,
       0,
       startIndex,
+      _section.getOrigin(0),
       partSize,
       nSlicesPerChunk,
       sliceMemorySize,
@@ -246,16 +239,9 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, val maskOpt: Option[
     val t0 = System.nanoTime()
     val partIndexArray: Array[IndexedSeq[Int]] = partitioner.partIndexArray
     val future_partitions: Array[Future[IndexedSeq[Partition]]] =
-      for (pIndices <- partIndexArray)
-        yield
-          Future { processChunkedPartitions(cacheId, pIndices, missing_value) }
-    val partitions: Array[Partition] = Await
-      .result(Future.sequence(future_partitions.toList), Duration.Inf)
-      .flatten
-      .toArray
-    logger.info(
-      "\n ********** Completed Cache Op, total time = %.3f min  ********** \n"
-        .format((System.nanoTime() - t0) / 6.0E10))
+      for (pIndices <- partIndexArray) yield Future { processChunkedPartitions(cacheId, pIndices, missing_value) }
+    val partitions: Array[Partition] = Await.result(Future.sequence(future_partitions.toList), Duration.Inf).flatten.toArray
+    logger.info("\n ********** Completed Cache Op, total time = %.3f min  ********** \n".format((System.nanoTime() - t0) / 6.0E10))
     new Partitions(cacheId, roi, partitions)
   }
 
@@ -290,7 +276,7 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, val maskOpt: Option[
 
   def cachePartition(partition: Partition, stream: BufferedOutputStream) = {
     logger.info( "Caching Partition(%d): chunk start indices: (%s), roi: %s".format( partition.index, partition.chunkIndexArray.map(partition.chunkStartIndex).mkString(","), baseShape.mkString(",")))
-    for (iChunk <- partition.chunkIndexArray; startLoc = partition.chunkStartIndex(iChunk); if startLoc < baseShape(0))
+    for (iChunk <- partition.chunkIndexArray; startLoc = partition.chunkStartIndex(iChunk); if startLoc <= _section.getRange(0).last())
       yield cacheChunk(partition, iChunk, stream)
   }
 }
@@ -376,12 +362,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
                   val partitioner = new CDASPartitioner(cache_id, roi)
                   fragSpec.cutIntersection(roi) match {
                     case Some(section) =>
-                      new PartitionedFragment(
-                        new Partitions(cache_id,
-                                       roi,
-                                       partitioner.getPartitions),
-                        None,
-                        section)
+                      new PartitionedFragment( new Partitions(cache_id, roi, partitioner.getPartitions), None, section)
                     case None =>
                       throw new Exception(
                         "No intersection in enclosing fragment")

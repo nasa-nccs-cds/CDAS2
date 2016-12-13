@@ -1,3 +1,4 @@
+
 class KernelManager(object):
 
     def __init__( self ):
@@ -6,4 +7,7 @@ class KernelManager(object):
 
 
     def build(self):
-        pass
+        g = globals().copy()
+        for name, obj in g.iteritems():
+            if( isinstance(obj, types.ClassType) ):
+                pass
