@@ -1,21 +1,23 @@
 package nasa.nccs.utilities
 
+import java.io.File
 import java.util.jar.JarFile
+
 import com.joestelmach.natty
 import ucar.nc2.time.CalendarDate
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import org.apache.log4j.{ Logger, LogManager, Level }
+import org.slf4j.{Logger, LoggerFactory}
 
 object CDASLogManager extends Serializable {
   val logger = getLogger
 
   def getCurrentLogger() = { logger }
 
-  def getLogger: Logger = {
-    val _logger: Logger = LogManager.getLogger(this.getClass)
-    _logger.setLevel(Level.INFO)
+  def getLogger = {
+    val _logger = LoggerFactory.getLogger(this.getClass)
     _logger
   }
 }

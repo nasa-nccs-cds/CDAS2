@@ -13,7 +13,6 @@ import nasa.nccs.utilities.Loggable
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import ucar.ma2
-import org.apache.log4j.{Level, LogManager, Logger}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -35,7 +34,6 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  CDSparkContext Creation FINISHED  **** ")
     logger.info( "--------------------------------------------------------")
-    logger.info( " Loggers: " + LogManager.getCurrentLoggers.map( _.asInstanceOf[Logger].getName ).mkString(",") )
     rv
   }
 

@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.workers;
 import org.zeromq.ZMQ;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;

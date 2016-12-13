@@ -1,7 +1,7 @@
 package nasa.nccs.cdas.workers;
 import nasa.nccs.utilities.CDASLogManager;
 import org.zeromq.ZMQ;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;

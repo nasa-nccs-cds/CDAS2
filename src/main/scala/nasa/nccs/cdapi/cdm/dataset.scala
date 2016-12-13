@@ -243,17 +243,19 @@ class Collection( val ctype: String, val id: String,  val dataPath: String, val 
 
   def initNCML: File = {
     val _ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collId).toFile
-    val recreate =  appParameters.bool("ncml.recreate",false)
-    if( !_ncmlFile.exists || recreate ) {
-      assert( !dataPath.isEmpty, "Attempt to create NCML from empty data path: " + dataPath )
-      val pathFile = new File(toFilePath(dataPath))
-      _ncmlFile.getParentFile.mkdirs
-      val ncmlWriter = NCMLWriter(pathFile)
-      ncmlWriter.writeNCML(_ncmlFile)
+    val recreate = appParameters.bool("ncml.recreate", false)
+    if (!_ncmlFile.exists || recreate) {
+      if (dataPath.isEmpty) {
+        throw new Exception("Attempt to create NCML from empty data path for collection: " + id)
+      } else {
+        val pathFile = new File(toFilePath(dataPath))
+        _ncmlFile.getParentFile.mkdirs
+        val ncmlWriter = NCMLWriter(pathFile)
+        ncmlWriter.writeNCML(_ncmlFile)
+      }
     }
     _ncmlFile
   }
-
 }
 
 object DiskCacheFileMgr extends XmlResource {

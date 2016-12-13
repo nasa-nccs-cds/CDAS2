@@ -21,7 +21,6 @@ import scala.collection.{immutable, mutable}
 import scala.collection.mutable.HashSet
 import scala.xml._
 import mutable.ListBuffer
-import org.apache.log4j.Logger
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.esgf.utilities.wpsNameMatchers
 import nasa.nccs.esgf.wps.cds2ServiceProvider
