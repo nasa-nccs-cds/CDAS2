@@ -64,7 +64,7 @@ class Worker(object):
                 self.sendError( err )
 
     def sendVariableData( self, resultVar ):
-        header = "|".join( [ "array", resultVar.id, resultVar.origin, ia2s(resultVar.shape), m2s(resultVar.attributes) ] )
+        header = "|".join( [ "array", resultVar.id, resultVar.origin, mParse.ia2s(resultVar.shape), mParse.m2s(resultVar.attributes) ] )
         self.logger.info( "Sending Result, header: {0}".format( header ) )
         self.result_socket.send( header )
         self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( resultVar.data.flat[i] ) for i in range(20,26) ] ) ) )
@@ -116,8 +116,12 @@ class Worker(object):
         rId = taskToks[1]
         inpitIds = header_toks[2].split(',')
         metadata = mParse.s2m( header_toks[3] )
-        cacheReturn = [ s2b(s) for s in metadata.get( "cacheReturn", "ft" ) ]
-        inputs = [ self.cached_inputs.get( inputId ) for inputId in inpitIds ]
+        cacheReturn = [ mParse.s2b(s) for s in metadata.get( "cacheReturn", "ft" ) ]
+        inputs = [ ]
+        for inputId in inpitIds:
+            input = self.cached_inputs.get( inputId )
+            assert( input != None,  "Missing input to task {0}: {1}".format( op, inputId )  )
+            inputs.append( input )
 
         if( op == "regrid" ):
             crsToks = metadata.get("crs","gaussian~128").split("~")
@@ -171,7 +175,7 @@ class Worker(object):
         partition_axes = self.subsetAxes( axes, origin, shape )
         variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.getMissing(), grid=grid, axes=partition_axes, attributes=metadata, id=collection+"-"+name)
         variable.createattribute( "gridfile", gridFilePath )
-        variable.createattribute( "origin", ia2s(origin) )
+        variable.createattribute( "origin", mParse.ia2s(origin) )
         t1 = time.time()
         self.logger.info( " >> Created Variable: {0} ({1} in time {2}".format( variable.id, name,  (t1-t0) ) )
         self.cached_inputs[vid] = variable

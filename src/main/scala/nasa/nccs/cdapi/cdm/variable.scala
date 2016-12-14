@@ -98,9 +98,7 @@ abstract class OperationDataInput( val fragmentSpec: DataFragmentSpec, val metad
   def delete
 }
 
-class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByteArray], fragSpec: DataFragmentSpec, mdata: Map[String,nc2.Attribute] = Map.empty ) extends OperationDataInput(fragSpec,mdata)  {
-  val LOG = org.slf4j.LoggerFactory.getLogger(this.getClass)
-
+class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByteArray], fragSpec: DataFragmentSpec, mdata: Map[String,nc2.Attribute] = Map.empty ) extends OperationDataInput(fragSpec,mdata) with Loggable {
   def delete = partitions.delete
 
   def data(partIndex: Int ): CDFloatArray = partitions.getPartData(partIndex, fragmentSpec.missing_value )
@@ -180,7 +178,7 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
   def getRDDVariableSpec( uid: String, partition: Partition,  optSection: Option[ma2.Section] ): RDDVariableSpec =
     domainSection(partition,optSection) match {
       case Some( ( fragSpec, section ) ) =>
-        new RDDVariableSpec( uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection.relative(section) )
+        new RDDVariableSpec( uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection(section) )
       case _ =>
         new RDDVariableSpec( uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
     }
@@ -205,9 +203,9 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
       }
       partFragSpec.cutIntersection( sub_section ) match {
         case Some( cut_spec: DataFragmentSpec ) =>
-          val offset: Array[Int] = (0 until frag_section.getRank).map( index => if( index == 0 ) frag_section.getOrigin(0) else 0 ).toArray
-          val array_section = cut_spec.roi.shiftOrigin( new ma2.Section( offset, Array.fill[Int](frag_section.getRank)(1) ) )
-          Some( ( cut_spec, array_section ) )
+//          val offset: Array[Int] = (0 until frag_section.getRank).map( index => if( index == 0 ) frag_section.getOrigin(0) else 0 ).toArray
+//          val array_section = cut_spec.roi.shiftOrigin( new ma2.Section( offset, Array.fill[Int](frag_section.getRank)(1) ) )
+          Some( ( cut_spec, cut_spec.roi ) )
         case None =>None
       }
     } catch {

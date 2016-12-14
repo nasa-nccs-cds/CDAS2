@@ -20,9 +20,6 @@ import org.nd4j.linalg.factory.Nd4j
   */
 object NetCDFReader {
 
-  // Class logger
-  val logger = LoggerFactory.getLogger("NetCDFReader")
-
   def readArraySubset( varName: String, collection : Collection,  roi: List[DomainAxis] ): INDArray = {
     val t0 = System.nanoTime
     val ncDataset: NetcdfDataset = NetCDFUtils.loadNetCDFDataSet( collection.getUrl( varName ) )

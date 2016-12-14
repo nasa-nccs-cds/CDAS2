@@ -17,7 +17,7 @@ object CDASLogManager extends Serializable {
   def getCurrentLogger() = { logger }
 
   def getLogger = {
-    val _logger = LoggerFactory.getLogger(this.getClass)
+    val _logger = LoggerFactory.getLogger("debug")
     _logger
   }
 }

@@ -162,7 +162,7 @@ class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val mi
   override def toString = s"RDDVariableSpec($uid)[" + section.toString + "]"
   def toHeapArray( partition: Partition ) = {
     logger.info( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
-    HeapFltArray(partition.dataSection(section, missing), section.getOrigin, metadata, None)
+    HeapFltArray( partition.dataSection(section, missing), section.getOrigin, metadata, None )
   }
   def empty = section.getShape.contains(0)
   def rank = section.getShape.length

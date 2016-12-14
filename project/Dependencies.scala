@@ -9,6 +9,7 @@ object Version {
 }
 
 object Library {
+  val logback        = "ch.qos.logback"     %  "logback-core"   % "1.1.3"
   val mockitoAll     = "org.mockito"       %  "mockito-all"     % Version.mockito
   val scalaTest      = "org.scalatest"     %% "scalatest"       % Version.scalaTest
   val sparkSQL       = "org.apache.spark"  %% "spark-sql"       % Version.spark
@@ -41,7 +42,7 @@ object Library {
 object Dependencies {
   import Library._
 
-  val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, zeromq )
+  val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, zeromq, logback )
 
   val spark = Seq( sparkCore )
 

@@ -65,33 +65,18 @@ class Partitions(val id: String,
 }
 
 object Partition {
-  def apply(index: Int,
-            path: String,
-            dimIndex: Int,
-            startIndex: Int,
-            roiStartIndex: Int,
-            partSize: Int,
-            chunkSize: Int,
-            sliceMemorySize: Long,
-            fragShape: Array[Int]): Partition = {
+  def apply(index: Int, path: String, dimIndex: Int, startIndex: Int, partSize: Int, chunkSize: Int,
+            sliceMemorySize: Long, origin: Array[Int], fragShape: Array[Int]): Partition = {
     val partShape = getPartitionShape(partSize, fragShape)
-    new Partition(index,
-                  path,
-                  dimIndex,
-                  startIndex,
-                  roiStartIndex,
-                  partSize,
-                  chunkSize,
-                  sliceMemorySize,
-                  partShape)
+    new Partition(index, path, dimIndex, startIndex, partSize, chunkSize, sliceMemorySize, origin, partShape)
   }
   def getPartitionShape(partSize: Int, fragShape: Array[Int]): Array[Int] = {
     var shape = fragShape.clone(); shape(0) = partSize; shape
   }
 }
 
-class Partition(val index: Int, val path: String, val dimIndex: Int, val startIndex: Int, val roiStartIndex: Int,
-                val partSize: Int, val chunkSize: Int, val sliceMemorySize: Long, val shape: Array[Int]) extends Loggable with Serializable {
+class Partition(val index: Int, val path: String, val dimIndex: Int, val startIndex: Int,
+                val partSize: Int, val chunkSize: Int, val sliceMemorySize: Long, val origin: Array[Int], val shape: Array[Int]) extends Loggable with Serializable {
   def data(missing_value: Float): CDFloatArray = {
     val file = new RandomAccessFile(path, "r")
     val channel: FileChannel = file.getChannel()
@@ -100,6 +85,7 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
     channel.close(); file.close()
     new CDFloatArray(shape, buffer.asFloatBuffer, missing_value)
   }
+  val partitionOrigin = origin.zipWithIndex map { case (value, index) => if( index == 0 ) value + startIndex else value }
   def delete() = { FileUtils.deleteQuietly(new File(path)) }
   def chunkSection(iChunk: Int, section: ma2.Section): ma2.Section = {
     new ma2.Section(section.getRanges).replaceRange(dimIndex, chunkRange(iChunk)).intersect(section)
@@ -112,10 +98,10 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
 
   def chunkRange(iChunk: Int): ma2.Range = {
     val start = chunkStartIndex(iChunk);
-    new ma2.Range(start, roiStartIndex+Math.min(start + chunkSize - 1, endIndex))
+    new ma2.Range(start, origin(0)+Math.min(start + chunkSize - 1, endIndex))
   }
-  def partRange: ma2.Range = { new ma2.Range( roiStartIndex+startIndex, roiStartIndex+endIndex) }
-  def chunkStartIndex(iChunk: Int) = { roiStartIndex + iChunk * chunkSize + startIndex }
+  def partRange: ma2.Range = { new ma2.Range( origin(0)+startIndex, origin(0)+endIndex) }
+  def chunkStartIndex(iChunk: Int) = { origin(0) + iChunk * chunkSize + startIndex }
   def chunkIndexArray: IndexedSeq[Int] = (0 until nChunks)
   def chunkMemorySize = chunkSize * sliceMemorySize
   override def toString = s"Part[$index]{dim=$dimIndex, start=$startIndex, size=$partSize, shape=(%s)}" .format(shape.mkString(","))
@@ -128,7 +114,9 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
   }
   def dataSection(section: CDSection, missing_value: Float): CDFloatArray =
     try {
-      data(missing_value).section(section.toSection)
+      val partData = data(missing_value)
+      val partSection = section.toSection( partitionOrigin )
+      partData.section( partSection )
     } catch {
       case ex: AssertionError =>
         logger.error(" Error in dataSection, section origin = %s, shape = %s".format( section.getOrigin.mkString(","), section.getShape.mkString(",")) )
@@ -178,15 +166,7 @@ class CDASPartitioner(val cache_id: String, private val _section: ma2.Section, d
     val cacheFilePath = getCacheFilePath(partIndex)
     val startIndex = partIndex * nSlicesPerPart
     val partSize = Math.min(nSlicesPerPart, baseShape(0) - startIndex)
-    Partition(partIndex,
-      cacheFilePath,
-      0,
-      startIndex,
-      _section.getOrigin(0),
-      partSize,
-      nSlicesPerChunk,
-      sliceMemorySize,
-      baseShape)
+    Partition(partIndex, cacheFilePath, 0, startIndex, partSize, nSlicesPerChunk, sliceMemorySize, _section.getOrigin, baseShape)
   }
   def getPartitions: Array[Partition] =
     (0 until nPartitions).map(getPartition(_)).toArray

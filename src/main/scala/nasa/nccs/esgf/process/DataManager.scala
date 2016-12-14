@@ -67,8 +67,7 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
   def getAxisIndices( axisConf: String ): AxisIndices = targetGrid.getAxisIndices( axisConf  )
 }
 
-class GridCoordSpec( val index: Int, val grid: CDGrid, val coordAxis: CoordinateAxis1D, val domainAxisOpt: Option[DomainAxis] )  extends Serializable {
-  val logger = org.slf4j.LoggerFactory.getLogger("nasa.nccs.cds2.cdm.GridCoordSpec")
+class GridCoordSpec( val index: Int, val grid: CDGrid, val coordAxis: CoordinateAxis1D, val domainAxisOpt: Option[DomainAxis] )  extends Serializable with Loggable {
   private val _optRange: Option[ma2.Range] = getAxisRange( coordAxis, domainAxisOpt )
   private val _data = getCoordinateValues
   val bounds: Array[Double] = getAxisBounds( coordAxis, domainAxisOpt)
@@ -275,8 +274,7 @@ object GridSection extends Loggable {
   }
 }
 
-class  GridSection( val grid: CDGrid, val axes: IndexedSeq[GridCoordSpec] ) extends Serializable {
-  val logger = org.slf4j.LoggerFactory.getLogger("nasa.nccs.cds2.cdm.GridCoordSpec")
+class  GridSection( val grid: CDGrid, val axes: IndexedSeq[GridCoordSpec] ) extends Serializable with Loggable {
   def getAxisSpec( dim_index: Int ): GridCoordSpec = axes(dim_index)
   def getAxisSpec( axis_type: AxisType ): Option[GridCoordSpec] = axes.find( axis => axis.getAxisType == axis_type )
   def getAxisSpec( domainAxis: DomainAxis ): Option[GridCoordSpec] = axes.find( axis => domainAxis.matches(axis.getAxisType ) )
@@ -326,6 +324,7 @@ object CDSection {
 }
 class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
   def toSection: ma2.Section = new ma2.Section( origin, shape )
+  def toSection(offset: Array[Int]): ma2.Section = new ma2.Section( origin, shape ).shiftOrigin( new ma2.Section( offset, shape ) )
   def getRange( axis_index: Int ) = toSection.getRange(axis_index)
   def getShape = toSection.getShape
   def getOrigin = toSection.getOrigin
@@ -454,8 +453,7 @@ class TargetGrid( variable: CDSVariable, roiOpt: Option[List[DomainAxis]]=None )
   }
 }
 
-class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  extends ScopeContext with Serializable {
-  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
+class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  extends ScopeContext with Serializable with Loggable  {
   def getVariable( collection: Collection, varname: String ): CDSVariable = collection.getVariable(varname)
   def getConfiguration: Map[String,String] = appParameters.getParameterMap
 

@@ -15,4 +15,6 @@ mkdir -p out
 
 # ncwa -O -v tas -d lat,5,8 -d lon,5,8 -d time,0,100 -a time -y min ${datafile} ~/test/out/minval.nc
 
-ncwa -O -v tas -d lat,30,40 -d time,10,10 -a lon -y sum ${datafile} ~/test/out/aveval.nc
+# ncwa -O -v tas -d lat,5,8 -d lon,5,8 -d time,50,150 -a time -y min ${datafile} maxval.nc
+
+ncwa -O -v tas -d time,10,10 -d lat,10,20 -a lat,lon -y max ${datafile} maxval.nc

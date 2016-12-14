@@ -27,7 +27,7 @@ public class PythonWorker extends Worker {
             pb.directory( exe_dir.toFile() );
             pb.redirectErrorStream( true );
             pb.redirectOutput( ProcessBuilder.Redirect.appendTo( log_path.toFile() ));
-            System.out.println( "Starting Python Worker: " + String.valueOf(request_port) + " " + String.valueOf(result_port) );
+            System.out.println( "Starting Python Worker: " + path.toString() );
             return pb.start();
         } catch ( IOException ex ) {
             System.out.println( "Error starting Python Worker : " + ex.toString() );
