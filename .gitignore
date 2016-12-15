@@ -21,3 +21,6 @@ project/target/
 .worksheet
 .idea
 
+# python
+*.pyc
+
