@@ -3,6 +3,7 @@ import time, zmq, cdms2
 import numpy as np
 from messageParser import mParse
 from cdasArray import CDArray
+from kernels.OperationsManager import cdasOpManager
 
 class Worker(object):
 
@@ -102,46 +103,8 @@ class Worker(object):
         return log_file
 
     def processTask(self, task_header ):
-        import zmq, cdms2, numpy as np
-        t0 = time.time()
-        header_toks = task_header.split('|')
-        taskToks = header_toks[1].split('-')
-        opToks = taskToks[0].split('.')
-        module = opToks[0]
-        op = opToks[1]
-        rId = taskToks[1]
-        inputIds = header_toks[2].split(',')
-        metadata = mParse.s2m( header_toks[3] )
-        cacheReturn = [ mParse.s2b(s) for s in metadata.get( "cacheReturn", "ft" ) ]
-        inputs = [ ]
-        results = []
-        for inputId in inputIds:
-            try:
-                input = self.cached_inputs[ inputId ]
-                inputs.append( input )
-            except:  "Missing input to task {0}: {1}".format( op, inputId )
-
-
-        if( op == "regrid" ):
-            crsToks = metadata.get("crs","gaussian~128").split("~")
-            regridder = metadata.get("regridder","regrid2")
-            crs = crsToks[0]
-            resolution = int(crsToks[1]) if len(crsToks) > 1 else 128
-            if crs == "gaussian":
-
-                t42 = cdms2.createGaussianGrid( resolution )
-                for input in inputs:
-                    self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( input.data.flat[i] ) for i in range(20,90) ] ) ) )
-                    result = input.regrid( t42 ) # , regridTool=regridder )
-                    result.id = result.id  + "-" + rId
-                    self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( result.data.flat[i] ) for i in range(20,90) ] ) ) )
-                    gridFilePath = self.saveGridFile( result.id, result )
-                    result.createattribute( "gridfile", gridFilePath )
-                    result.createattribute( "origin", input.attributes[ "origin"] )
-                    if cacheReturn[0]: self.cached_results[ result.id ] = result
-                    if cacheReturn[1]: results.append( result )
-                self.logger.info( " >> Regridded variables in time {0}, nresults = {1}".format( (time.time()-t0), len(results) ) )
-        return results
+        opModule = cdasOpManager.getModule( task_header )
+        return opModule.executeTask( task_header, self.cached_inputs )
 
 request_port = mParse.getIntArg( 1, 8200 )
 result_port = mParse.getIntArg( 2, 8201 )

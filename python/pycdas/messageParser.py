@@ -29,5 +29,4 @@ class MessageParser:
         if s.lower() == "t": return True
         else: return False
 
-
 mParse = MessageParser()
