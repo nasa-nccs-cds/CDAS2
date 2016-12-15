@@ -17,4 +17,9 @@ mkdir -p out
 
 # ncwa -O -v tas -d lat,5,8 -d lon,5,8 -d time,50,150 -a time -y min ${datafile} maxval.nc
 
-ncwa -O -v tas -d time,10,10 -d lat,10,20 -a lat,lon -y max ${datafile} maxval.nc
+# ncwa -O -v tas -d time,10,10 -d lat,10,20 -a lat,lon -y max ${datafile} maxval.nc
+
+ncwa -O -v tas -d time,10,10 -d lat,30.0,50.0 -a lon -y max ${datafile} maxval.nc
+
+#"""[domain=[{"name":"d0","lat":{"start":30,"end":40,"system":"values"},"time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"x"}]]"""
+

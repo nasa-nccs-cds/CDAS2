@@ -1,3 +1,3 @@
-from pycdas.kernels.internal import PycdasModule
+from pycdasModule.kernels.internal import PycdasModule
 
 pymod = PycdasModule()

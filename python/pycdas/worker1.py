@@ -1,7 +1,7 @@
 import sys, os, logging, traceback
 import time, numpy as np
 import zmq, cdms2
-from pycdas.messageParser import mParse
+from pycdasModule.messageParser import mParse
 
 class Worker(object):
 

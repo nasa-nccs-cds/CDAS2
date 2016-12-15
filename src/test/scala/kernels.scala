@@ -12,7 +12,7 @@ import ucar.ma2
 
 class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
-  test("Aggregate") {
+  ignore("Aggregate") {
     val model = "GISS-E2-R"
     val nExp = 6
     ( 1 to nExp ) map { index =>
@@ -26,7 +26,7 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     }
   }
 
-  test("Cache") {
+  ignore("Cache") {
     val model = "GISS-E2-R"
     val nExp = 6
     ( 1 to nExp ) map { index =>
@@ -58,11 +58,13 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 
   test("EnsembleAve") {
     val model = "GISS"
-    val nExp = 6
-    val variables = ( 1 to nExp ) map { index => s"""{"uri":"collection:/${model}_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
-    val vids = ( 1 to nExp ) map { index => s"v$index" }
-    val datainputs = """[domain=[{"name":"d0"}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format( variables.mkString(","), vids.mkString(",") )
+    val nExp = 2
+    val variables = (1 to nExp) map { index => s"""{"uri":"collection:/${model}_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
+    val vids = (1 to nExp) map { index => s"v$index" }
+    val datainputs = """[domain=[{"name":"d0","time":{"start":0,"end":100,"system":"indices"},"lon":{"start":200.0,"end":250.0,"system":"values"},"lat":{"start":0.0,"end":30.0,"system":"values"}}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format(variables.mkString(","), vids.mkString(","))
     val result_node = executeTest(datainputs)
+    val result_data = getResultData(result_node)
+    println("Completed EnsembleAve, result shape = [%s], result sample = %s".format( result_data.getShape.mkString(","), result_data.mkBoundedDataString(", ",10)))
   }
 
   test("ESGF_Demo") {
@@ -72,7 +74,7 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     val GEOS5_variables = ( ( 1 to 3 )  map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
     val datainputs = s"""[
          variable=[$GISS_variables,$GEOS5_variables],
-         domain=[       { "name":"d0","time":{"start":0,"end":100,"system":"indices"}}],
+         domain=[       {"name":"d0","time":{"start":0,"end":100,"system":"indices"},"lon":{"start":200.0,"end":250.0,"system":"values"},"lat":{"start":0.0,"end":30.0,"system":"values"}}],
          operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
                         {"name":"CDSpark.multiAverage","input":"${GISS_R_vids.mkString(",")}","domain":"d0","id":"eaGISS-R"},
                         {"name":"CDSpark.regrid","input":"eaGISS-R","domain":"d0","crs":"gaussian~128","id":"rgR"},
@@ -134,8 +136,8 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   test("Max3") {
-    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 303, 308.6181, 306.1747, 306.206, 306.1697, 304.6593 ).map(_.toFloat), Float.MaxValue )
-    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":30,"end":40,"system":"indices"},"time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"x"}]]"""
+    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 296.312, 294.3597, 293.7058, 292.8994, 291.9226, 291.0488 ).map(_.toFloat), Float.MaxValue )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":30,"end":40,"system":"values"},"time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"x"}]]"""
     val result_node = executeTest(datainputs)
     val result_data = getResultData( result_node )
     println( "Op Result:       " + result_data.mkDataString(", ") )

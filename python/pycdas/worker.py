@@ -2,6 +2,7 @@ import sys, os, logging, traceback
 import time, zmq, cdms2
 import numpy as np
 from messageParser import mParse
+from cdasArray import CDArray
 
 class Worker(object):
 
@@ -34,34 +35,29 @@ class Worker(object):
         return toks[index]
 
     def run(self):
-        self.logger.info(  " Running: listening for messages" )
-        active = True
-        while active:
-            try:
+        try:
+            self.logger.info(  " XX Running: listening for messages" )
+            active = True
+            while active:
                 header = self.request_socket.recv()
                 type = self.getMessageField(header,0)
                 if type == "array":
                     data = self.request_socket.recv()
-                    try:
-                        self.loadVariable(header,data)
-                    except Exception as err:
-                        self.sendError( err )
+                    array = CDArray(header,data)
+                    self.cached_inputs[array.id] = array
 
                 elif type == "task":
-                    try:
-                        resultVars = self.processTask( header )
-                        for resultVar in resultVars:
-                            self.sendVariableData( resultVar )
-                    except Exception as err:
-                        self.sendError( err )
-
+                    resultVars = self.processTask( header )
+                    for resultVar in resultVars:
+                        self.sendVariableData( resultVar )
 
                 elif type == "quit":
                     self.logger.info(  " Quitting main thread. " )
                     active = False
 
-            except Exception as err:
-                self.sendError( err )
+        except Exception as err:
+            self.logger.error( "Execution error %s:\n%s".format( err, traceback.format_exc() ) )
+            self.sendError( err )
 
     def sendVariableData( self, resultVar ):
         header = "|".join( [ "array", resultVar.id, resultVar.origin, mParse.ia2s(resultVar.shape), mParse.m2s(resultVar.attributes) ] )
@@ -114,14 +110,17 @@ class Worker(object):
         module = opToks[0]
         op = opToks[1]
         rId = taskToks[1]
-        inpitIds = header_toks[2].split(',')
+        inputIds = header_toks[2].split(',')
         metadata = mParse.s2m( header_toks[3] )
         cacheReturn = [ mParse.s2b(s) for s in metadata.get( "cacheReturn", "ft" ) ]
         inputs = [ ]
-        for inputId in inpitIds:
-            input = self.cached_inputs.get( inputId )
-            assert( input != None,  "Missing input to task {0}: {1}".format( op, inputId )  )
-            inputs.append( input )
+        results = []
+        for inputId in inputIds:
+            try:
+                input = self.cached_inputs[ inputId ]
+                inputs.append( input )
+            except:  "Missing input to task {0}: {1}".format( op, inputId )
+
 
         if( op == "regrid" ):
             crsToks = metadata.get("crs","gaussian~128").split("~")
@@ -129,7 +128,7 @@ class Worker(object):
             crs = crsToks[0]
             resolution = int(crsToks[1]) if len(crsToks) > 1 else 128
             if crs == "gaussian":
-                results = []
+
                 t42 = cdms2.createGaussianGrid( resolution )
                 for input in inputs:
                     self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( input.data.flat[i] ) for i in range(20,90) ] ) ) )
@@ -142,55 +141,7 @@ class Worker(object):
                     if cacheReturn[0]: self.cached_results[ result.id ] = result
                     if cacheReturn[1]: results.append( result )
                 self.logger.info( " >> Regridded variables in time {0}, nresults = {1}".format( (time.time()-t0), len(results) ) )
-                return results
-
-    def loadVariable( self, header, data ):
-        import zmq, cdms2, numpy as np
-        t0 = time.time()
-        self.logger.info(  " *** Got data, nbytes = : " + str(len(data)) )
-        try:
-            header_toks = header.split('|')
-            vid = header_toks[1]
-            origin = mParse.s2ia( header_toks[2] )
-            shape = mParse.s2ia( header_toks[3] )
-            metadata = mParse.s2m( header_toks[4] )
-            gridFilePath = metadata["gridfile"]
-            name = metadata["name"]
-            collection = metadata["collection"]
-            dimensions = metadata["dimensions"].split(",")
-        except  Exception as err:
-            self.logger.info( "Metadata Error: {0}\ntoks: {1}\nmdata: {2}".format(err, ', '.join(header_toks), str(metadata) ) )
-        gridfile = cdms2.open( gridFilePath )
-
-        var = gridfile[name]
-        axes = [ gridfile.axes.get(dim) for dim in dimensions ]
-        grid = gridfile.grids.values()[0]
-        nparray = np.frombuffer( data, dtype=self.io_dtype ).reshape( shape ).astype( np.float32 )
-
-        self.logger.info( " >> Array Metadata: {0}".format( metadata ) )
-        self.logger.info( " >> Array Shape: [{0}]".format( ', '.join( map(str, shape) ) ) )
-        self.logger.info( " >> Array Dimensions: [{0}]".format( ', '.join( map(str, dimensions) ) ) )
-        self.logger.info( " >> Array Origin: [{0}]".format( ', '.join( map(str, origin) ) ) )
-
-        partition_axes = self.subsetAxes( axes, origin, shape )
-        variable =  cdms2.createVariable( nparray, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.getMissing(), grid=grid, axes=partition_axes, attributes=metadata, id=collection+"-"+name)
-        variable.createattribute( "gridfile", gridFilePath )
-        variable.createattribute( "origin", mParse.ia2s(origin) )
-        t1 = time.time()
-        self.logger.info( " >> Created Variable: {0} ({1} in time {2}".format( variable.id, name,  (t1-t0) ) )
-        self.cached_inputs[vid] = variable
-
-    def subsetAxes( self, axes, origin, shape ):
-        subAxes = []
-        try:
-            for index in range( len(axes) ):
-                start = origin[index]
-                length = shape[index]
-                axis = axes[index]
-                subAxes.append( axis.subAxis( start, start + length ) )
-        except Exception as err:
-            self.logger.info( "\n-------------------------------\nError subsetting Axes: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
-        return subAxes
+        return results
 
 request_port = mParse.getIntArg( 1, 8200 )
 result_port = mParse.getIntArg( 2, 8201 )

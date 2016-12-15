@@ -1,4 +1,4 @@
-from pycdas.messageParser import mParse
+from pycdasModule.messageParser import mParse
 
 class Task:
     def __init__( self, task_header ):
