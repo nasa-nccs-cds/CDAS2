@@ -7,7 +7,9 @@ class KernelSpec:
 
     def name(self): return self._name
 
-    def __str__(self): return "|".join( [ self._name,self._description,";".join(self._inputs) ] )
+    def __str__(self): return ";".join( [ self._name, self.getDescription(), ",".join(self._inputs) ] )
+
+    def getDescription(self): return self._description.translate(None, ";,|!~^")
 
 class Kernel:
 
@@ -27,7 +29,8 @@ class Kernel:
     def executeOperation( self, task, input ):
         pass
 
-    def getSpec(self): return self._spec
+    def getCapabilities(self): return self._spec
+    def getCapabilitiesStr(self): return str(self._spec)
 
     def getAxes( self, task ):
         axes = task.metadata.get("axes")

@@ -1,12 +1,11 @@
 from pycdas.kernels.Kernel import Kernel, KernelSpec
-from pycdas.kernels.Modules import KernelModule
+from pycdas.kernels.Modules import KernelModule, OperationModule
 import cdms2, numpy as np, time
-import sys, inspect
 from pycdas.messageParser import mParse
 
 class PycdasModule(KernelModule):
     def __init__( self ):
-        KernelModule.__init__( self, sys.modules[__name__]  )       # Always use this boilerplate to initialize the KernelModule
+        KernelModule.__init__( self, __name__  )       # Always use this boilerplate to initialize the KernelModule
 
 class StdKernel(Kernel):
     def __init__( self ):
@@ -81,4 +80,4 @@ class RegridKernel(Kernel):
 
 if __name__ == "__main__":
     pycdasModule = PycdasModule()
-    print( [ str(spec) for spec in pycdasModule.getCapabilities() ] )
+    print( pycdasModule.getCapabilitiesStr() )

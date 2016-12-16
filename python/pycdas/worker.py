@@ -52,6 +52,12 @@ class Worker(object):
                     for resultVar in resultVars:
                         self.sendVariableData( resultVar )
 
+                elif type == "util":
+                    type = self.getMessageField(header,1)
+                    if type == "capabilities":
+                        capabilities = cdasOpManager.getCapabilitiesStr()
+                        self.sendInfoMsg( capabilities )
+
                 elif type == "quit":
                     self.logger.info(  " Quitting main thread. " )
                     active = False
@@ -73,6 +79,12 @@ class Worker(object):
         msg = "\n-------------------------------\nWorker Error: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() )
         self.logger.error( msg  )
         header = "|".join( [ "error", msg ] )
+        self.result_socket.send( header )
+
+    def sendInfoMessage( self, msg ):
+        msg = "Worker Info: {0}\n".format( msg )
+        self.logger.info( msg  )
+        header = "|".join( [ "info", msg ] )
         self.result_socket.send( header )
 
     def saveGridFile( self, resultId, variable  ):
@@ -105,6 +117,7 @@ class Worker(object):
     def processTask(self, task_header ):
         opModule = cdasOpManager.getModule( task_header )
         return opModule.executeTask( task_header, self.cached_inputs )
+
 
 request_port = mParse.getIntArg( 1, 8200 )
 result_port = mParse.getIntArg( 2, 8201 )
