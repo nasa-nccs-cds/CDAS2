@@ -1,6 +1,6 @@
 from pycdas.kernels.Kernel import Kernel, KernelSpec
 from pycdas.kernels.Modules import KernelModule, OperationModule
-import cdms2, numpy as np, time
+import cdms2, os, time
 from pycdas.messageParser import mParse
 
 class PycdasModule(KernelModule):

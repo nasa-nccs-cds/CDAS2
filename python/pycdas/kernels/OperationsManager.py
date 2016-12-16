@@ -1,27 +1,8 @@
 from Modules import *
-import importlib, types
-from pycdas.kernels.internal.pycdasModule import *
-
-# def list_modules(module_name):
-#     try:
-#         module = __import__(module_name, globals(), locals(), [module_name.split('.')[-1]])
-#     except ImportError:
-#         return
-#     print(module_name)
-#     for name in dir(module):
-#         if type(getattr(module, name)) == types.ModuleType:
-#             list_modules('.'.join([module_name, name]))
-#
-# kernelModuleList = [ "pycdas.kernels.internal" ]
-
-# for kernelModule in kernelModuleList:
-#     list_modules(kernelModule)
-#     # kmods = kernelModule.split(".")
-#     # parent = ".".join( kmods[0:len(kmods)-1] )
-#     # imp_mod = importlib.import_module( kernelModule, package=parent )
-#     # for key, obj in imp_mod.__dict__.iteritems():
-#     #     print " ====>>> " + key
-
+from pycdas.kernels.Kernel import Kernel
+from os import listdir
+from os.path import isfile, join, os
+_debug_ = True
 
 class OperationsManager:
 
@@ -30,16 +11,22 @@ class OperationsManager:
         self.build()
 
     def build(self):
-        g = globals().copy()
-        for name, mod_cls in g.iteritems():
-            if( inspect.isclass(mod_cls) ):
-                if( issubclass( mod_cls, OperationModule ) ):
+        directory = os.path.dirname(os.path.abspath(__file__))
+        internals_path = os.path.join( directory, "internal")
+        allfiles = [ os.path.splitext(f) for f in listdir(internals_path) if ( isfile(join(internals_path, f)) ) ]
+        modules = [ ftoks[0] for ftoks in allfiles if ( (ftoks[1] == ".py") and (ftoks[0] != "__init__") ) ]
+        for module_name in modules:
+            module_path = "pycdas.kernels.internal." + module_name
+            module = __import__( module_path, globals(), locals(), ['*']  )
+            for clsname in dir(module) :
+                mod_cls = getattr( module, clsname)
+                if( inspect.isclass(mod_cls) and issubclass( mod_cls, Kernel ) and (mod_cls.__module__ == module_path) ):
                     try:
                         mod_instance = mod_cls()
                         self.operation_modules.append(mod_instance)
-                        print " ----------->> Adding Module: " + str( mod_instance )
+                        if _debug_: print " ----------->> Adding Module: " + str( mod_instance )
                     except TypeError, err:
-                        print "Skipping improperly structured op module: " + name + " -->> " + str(err)
+                        if _debug_: print "Skipping improperly structured op module: " + clsname + " -->> " + str(err)
 
     def getModule(self, task_header ):
         module_name = self.getModuleName(task_header)
@@ -52,7 +39,7 @@ class OperationsManager:
         return opToks[0]
 
     def getCapabilitiesStr(self):
-        specs = [ opMod.serialize()  for opMod in self.operation_modules ]
+        specs = [ opMod.getCapabilitiesStr()  for opMod in self.operation_modules ]
         return "|".join( specs )
 
 
@@ -60,3 +47,5 @@ cdasOpManager = OperationsManager()
 
 if __name__ == "__main__":
     print( cdasOpManager.getCapabilitiesStr() )
+
+
