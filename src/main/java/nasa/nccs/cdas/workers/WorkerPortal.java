@@ -23,18 +23,24 @@ public abstract class WorkerPortal {
         busyWorkers = new ConcurrentLinkedQueue<Worker>();
     }
 
-    public Worker getWorker() {
+    public Worker getWorker() throws Exception {
         Worker worker = availableWorkers.poll();
         if( worker == null ) { worker =  newWorker(); }
         busyWorkers.add( worker );
         return worker;
     }
 
-    protected abstract Worker newWorker();
+    protected abstract Worker newWorker() throws Exception;
 
     public void releaseWorker( Worker worker ) {
         busyWorkers.remove( worker );
         availableWorkers.add( worker );
+    }
+
+    public void killWorker( Worker worker ) {
+        busyWorkers.remove( worker );
+        availableWorkers.remove( worker );
+        worker.quit();
     }
 
     int getNumWorkers() { return availableWorkers.size() + busyWorkers.size(); }
@@ -44,9 +50,9 @@ public abstract class WorkerPortal {
         while( !availableWorkers.isEmpty() ) {
             Worker worker = availableWorkers.poll();
             printPythonLog( worker.request_port );
-            worker.shutdown();
+            worker.quit();
         }
-        while( !busyWorkers.isEmpty() ) { busyWorkers.poll().shutdown(); }
+        while( !busyWorkers.isEmpty() ) { busyWorkers.poll().quit(); }
         try { Thread.sleep(2000); } catch ( Exception ex ) {;}
     }
 

@@ -3,7 +3,7 @@ import nasa.nccs.cdapi.cdm.Collection
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.esgf.wps.wpsObjectParser
-
+import nasa.nccs.cdas.workers.python.PythonWorkerPortal
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import nasa.nccs.utilities.{Loggable, cdsutils}
@@ -44,9 +44,14 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     assert( getResultData( result_node ).maxScaledDiff( nco_verified_result ) < eps, s" Incorrect value computed for Sum")
   }
 
+  test("getCapabilities") {
+    val response = getCapabilities("op")
+  }
+
   test("regridTest") {
     val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":1000,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.regrid","input":"v1","domain":"d0","crs":"gaussian~128"}]]"""
     val result_node = executeTest(datainputs)
+    PythonWorkerPortal.getInstance().quit()
   }
 
   test("subsetTestT") {
@@ -83,6 +88,7 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
                ]
         ]""".replaceAll("\\s", "")
     val result_node = executeTest(datainputs)
+    PythonWorkerPortal.getInstance().quit()
   }
 
   test("Maximum") {

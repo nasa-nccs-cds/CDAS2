@@ -1,5 +1,6 @@
 package nasa.nccs.cds2.kernels
 import nasa.nccs.cdapi.kernels.Kernel
+import nasa.nccs.cdas.workers.python.PythonWorkerPortal
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -17,8 +18,9 @@ class KernelMgr(  ) {
   def toXml = <modules>{ kernelModules.values.map( _.toXml ) } </modules>
 
   def getModulesXml = {
-    val elemList: List[xml.Elem] = kernelModules.values.map( _.toXml ).toList
-    <kernels>{ elemList }</kernels>
+    val elemList: Array[xml.Elem] = kernelModules.values.map( _.toXml ).toArray
+    val pyElemList: Array[xml.Elem] = PythonWorkerPortal.getInstance().getCapabilities().map( spec => KernelModule.toXml(spec) )
+    <kernels>{ elemList ++ pyElemList }</kernels>
   }
 
   def getKernelMap: Map[String,Kernel] =

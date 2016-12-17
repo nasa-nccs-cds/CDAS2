@@ -9,12 +9,12 @@ import java.util.*;
 
 public class PythonWorker extends Worker {
 
-    public PythonWorker( ZMQ.Context context, Logger logger ) {
+    public PythonWorker( ZMQ.Context context, Logger logger ) throws Exception {
         super( context, logger );
         startup();
     }
 
-    Process startup() {
+    Process startup() throws Exception {
         try {
             String cdas_home = System.getenv("CDAS_HOME_DIR");
             Path path = FileSystems.getDefault().getPath(cdas_home, "bin", "run_worker.sh" );
@@ -30,8 +30,7 @@ public class PythonWorker extends Worker {
             System.out.println( "Starting Python Worker: " + path.toString() );
             return pb.start();
         } catch ( IOException ex ) {
-            System.out.println( "Error starting Python Worker : " + ex.toString() );
-            return null;
+            throw new Exception( "Error starting Python Worker : " + ex.toString() );
         }
     }
 

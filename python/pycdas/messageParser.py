@@ -30,3 +30,7 @@ class MessageParser:
         else: return False
 
 mParse = MessageParser()
+
+if __name__ == "__main__":
+    from kernels.OperationsManager import cdasOpManager
+    print cdasOpManager.getCapabilitiesStr()

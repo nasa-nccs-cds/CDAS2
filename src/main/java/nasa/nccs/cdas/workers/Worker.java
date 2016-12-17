@@ -5,11 +5,11 @@ import org.slf4j.Logger;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-
 public abstract class Worker {
     int BASE_PORT = 2336;
     ZMQ.Socket request_socket = null;
     ConcurrentLinkedQueue<TransVar> results = null;
+    ConcurrentLinkedQueue<String> messages = null;
     Process process = null;
     ResultThread resultThread = null;
     protected Logger logger = null;
@@ -28,6 +28,11 @@ public abstract class Worker {
             }
         }
         return test_port;
+    }
+
+    private void postInfo( String info ) {
+        logger.info( "Posting info from worker: " + info );
+        messages.add( info );
     }
 
     private void addResult( String result_header, byte[] data ) {
@@ -49,6 +54,16 @@ public abstract class Worker {
         return null;
     }
 
+    public String getMessage() {
+        logger.info( "Waiting for message to be posted from worker");
+        while( isValid ) {
+            String message = messages.poll();
+            if( message == null ) try { Thread.sleep(100); } catch( Exception err ) { return null; }
+            else { return message; }
+        }
+        return null;
+    }
+
     public class ResultThread extends Thread {
         ZMQ.Socket result_socket = null;
         int port = -1;
@@ -66,6 +81,8 @@ public abstract class Worker {
                     logger.info("Waiting for result data ");
                     byte[] data = result_socket.recv(0);
                     addResult(result_header, data);
+                } else if( parts[0].equals("info") ) {
+                    postInfo( parts[1] );
                 } else if( parts[0].equals("error") ) {
                     logger.error("Python worker signaled error:\n" + parts[1] );
                     invalidateRequest();
@@ -90,6 +107,7 @@ public abstract class Worker {
     public Worker( ZMQ.Context context, Logger _logger ) {
         logger = _logger;
         results = new ConcurrentLinkedQueue();
+        messages = new ConcurrentLinkedQueue();
         request_socket = context.socket(ZMQ.PUSH);
         request_port = bindSocket( request_socket, BASE_PORT );
         resultThread = new ResultThread( request_port + 1, context );
@@ -104,8 +122,13 @@ public abstract class Worker {
     }
 
     public void quit() {
-        request_socket.send("quit");
-        shutdown();
+        request_socket.send("util|quit");
+        try { resultThread.term();  }  catch ( Exception ex ) { ; }
+        try { request_socket.close(); }  catch ( Exception ex ) { ; }
+    }
+
+    public void getCapabilites() {
+        request_socket.send("util|capabilities");
     }
 
     public void sendArrayData( String id, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
@@ -123,17 +146,16 @@ public abstract class Worker {
         isValid = true;
     }
 
-    public void sendShutdown( ) {
-        List<String> slist = Arrays.asList(  "quit", "0"  );
+    public void sendUtility( String request ) {
+        List<String> slist = Arrays.asList(  "util", request );
         String header = String.join("|", slist);
-        System.out.println( "Sending Quit Request: " + header );
+        System.out.println( "Sending Utility Request: " + header );
         request_socket.send(header);
     }
 
-    public void shutdown( ) {
-        sendShutdown();
-        try { resultThread.term();  }  catch ( Exception ex ) { ; }
-        try { request_socket.close(); }  catch ( Exception ex ) { ; }
+    public String getCapabilities() {
+        sendUtility("capabilities");
+        return getMessage();
     }
 
     public String ia2s( int[] array ) { return Arrays.toString(array).replaceAll("\\[|\\]|\\s", ""); }

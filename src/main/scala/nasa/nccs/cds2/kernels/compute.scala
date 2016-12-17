@@ -30,6 +30,19 @@ class ClassInfoRec( val module: String, val name: String, val classinfo: ClassPa
 
 object KernelModule {
   def apply( classInfoRecs: List[ClassInfoRec] ): KernelModule = new KernelModule( classInfoRecs.head.module, Map( classInfoRecs.map( _.getMapEntry ): _* ) )
+
+  def toXml( moduleSpec: String ): xml.Elem = {
+    val specToks = moduleSpec.split("[!]")
+    val kernelSpecs = specToks(1).split("[~]")
+    <kernelModule name={specToks(0)}>
+      <kernels> { kernelSpecs.map( kernelSpec => getKernelXml(specToks(0),kernelSpec) ) } </kernels>
+    </kernelModule>
+  }
+
+  def getKernelXml( modname: String, kernelSpec: String ): xml.Elem = {
+      val specToks = kernelSpec.split("[;]")
+      <kernel module={modname} name={specToks(0)} description={specToks(1)} inputs={specToks(1)} />
+  }
 }
 
 class KernelModule( val name: String, val kernelClassMap: Map[String,ClassPath.ClassInfo] ) extends Loggable {
@@ -39,7 +52,7 @@ class KernelModule( val name: String, val kernelClassMap: Map[String,ClassPath.C
   def getKernels: Iterable[Kernel] = kernels.values.flatten
   def getKernelNames: List[String] = kernels.keys.toList
 
-  def toXml = {
+  def toXml: xml.Elem = {
     <kernelModule name={name}>
       <kernels> { kernels.keys.map( kname => <kernel module={name} name={kname}/> ) } </kernels>
     </kernelModule>

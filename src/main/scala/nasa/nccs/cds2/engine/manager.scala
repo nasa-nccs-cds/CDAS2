@@ -45,7 +45,7 @@ class Counter(start: Int = 0) {
   }
 }
 
-object CDS2ExecutionManager extends Loggable {
+object get extends Loggable {
   val handler_type_key = "execution.handler.type"
 
   def apply(): CDS2ExecutionManager = { new CDS2ExecutionManager }

@@ -24,17 +24,9 @@ class KernelModule(OperationModule):
     def __init__( self, module ):
         self._kernels = {}
         OperationModule.__init__( self, module )
-        self.build()
 
     def isLocal( self, obj ):
         str(obj).split('\'')[1].split('.')[0] == "__main__"
-
-    def build(self):
-        module = sys.modules[self.getModule()]
-        for name, obj in module.__dict__.items():
-            if inspect.isclass(obj) and issubclass( obj, Kernel ) and obj.__module__ == module.__name__:
-                instance = obj()
-                self._kernels[instance.name()] = instance
 
     def executeTask( self, task, inputs ):
         try:
@@ -42,6 +34,10 @@ class KernelModule(OperationModule):
             kernel.executeTask(task, inputs)
         except Exception, err:
             print err
+
+    def setKernels( self, kernels ):
+        for kernel in kernels: self._kernels[ kernel.name() ] = kernel
+
 
     def getCapabilities(self): return [ kernel.getCapabilities() for kernel in self._kernels.values() ]
     def getCapabilitiesStr(self): return "~".join([ kernel.getCapabilitiesStr() for kernel in self._kernels.values() ])

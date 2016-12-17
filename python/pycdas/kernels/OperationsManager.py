@@ -1,5 +1,6 @@
 from Modules import *
-from pycdas.kernels.Kernel import Kernel
+from pycdas.kernels.Kernel import Kernel, logger
+import pycdas
 from os import listdir
 from os.path import isfile, join, os
 _debug_ = True
@@ -18,16 +19,24 @@ class OperationsManager:
         for module_name in modules:
             module_path = "pycdas.kernels.internal." + module_name
             module = __import__( module_path, globals(), locals(), ['*']  )
+            kernels = []
+            mod_instance = None
             for clsname in dir(module) :
                 mod_cls = getattr( module, clsname)
-                if( inspect.isclass(mod_cls) and issubclass( mod_cls, Kernel ) and (mod_cls.__module__ == module_path) ):
+                if( inspect.isclass(mod_cls) and (mod_cls.__module__ == module_path) ):
                     try:
-                        mod_instance = mod_cls()
-                        self.operation_modules.append(mod_instance)
-                        if _debug_: print " ----------->> Adding Module: " + str( mod_instance )
+                        if issubclass( mod_cls, Kernel ):
+                            kernel_instance = mod_cls();
+                            kernels.append( kernel_instance )
+                            logger.debug(  " ----------->> Adding Kernel Class: " + str( mod_instance ) )
+                        elif issubclass( mod_cls, pycdas.kernels.Modules.OperationModule ):
+                            mod_instance = mod_cls();
+                            self.operation_modules.append(mod_instance)
+                            if _debug_: print " ----------->> Adding Module Class: " + str( mod_instance )
                     except TypeError, err:
-                        if _debug_: print "Skipping improperly structured op module: " + clsname + " -->> " + str(err)
-
+                        logger.debug( "Skipping improperly structured class: " + clsname + " -->> " + str(err) )
+            if mod_instance <> None: mod_instance.setKernels( kernels )
+            else: logger.warn( "Missing Module Class in assumed operation module " + clsname )
     def getModule(self, task_header ):
         module_name = self.getModuleName(task_header)
         return self.operation_modules[ module_name ]
@@ -39,8 +48,9 @@ class OperationsManager:
         return opToks[0]
 
     def getCapabilitiesStr(self):
-        specs = [ opMod.getCapabilitiesStr()  for opMod in self.operation_modules ]
+        specs = [ opMod.serialize() for opMod in self.operation_modules ]
         return "|".join( specs )
+
 
 
 cdasOpManager = OperationsManager()

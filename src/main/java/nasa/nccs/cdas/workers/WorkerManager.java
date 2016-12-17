@@ -66,10 +66,5 @@ public class WorkerManager {
             active = false;
             try { responder.close(); }  catch ( Exception ex ) { ; }
         }
-
-        public void kill_all_zombies() {
-
-
-        }
     }
 }

@@ -45,7 +45,9 @@ trait WPSServer {
         <ows:Operation name="DescribeProcess"/>
         <ows:Operation name="Execute"/>
       </ows:OperationsMetadata>
-      <wps:ProcessOfferings>  { getProcesses.values.map( _.GetCapabilities ) }  </wps:ProcessOfferings>
+      <wps:ProcessOfferings>  {
+        getProcesses.values.map( _.GetCapabilities )
+        }  </wps:ProcessOfferings>
     </wps:Capabilities>
 
 }
