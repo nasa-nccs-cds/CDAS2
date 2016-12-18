@@ -49,7 +49,6 @@ class WPSWorkflowProcess( val identifier: String, val description: String, val t
 
 }
 
-
 trait WPSProcess extends WPSElement {
 //  val inputs: List[WPSDataInput]
   val outputs: List[WPSProcessOutput]

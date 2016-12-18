@@ -16,7 +16,7 @@ import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.utilities.Loggable
-import nasa.nccs.wps.WPSProcess
+import nasa.nccs.wps.{WPSProcess, WPSProcessOutput}
 import org.apache.commons.io.{FileUtils, IOUtils}
 import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
@@ -103,6 +103,15 @@ object Kernel {
     if( deleteExisting && resultFile.exists ) resultFile.delete
     resultFile
   }
+
+  def apply( module: String, kernelSpec: String, api: String ): Kernel = {
+    val specToks = kernelSpec.split("[;]")
+    api match {
+      case "python" => new zmqPythonKernel( module, specToks(0), specToks(1), specToks(2) )
+      case   wtf    => throw new Exception( "Unrecognized kernel api: " + api )
+    }
+  }
+
 }
 
 object pathTest extends App {
@@ -552,7 +561,16 @@ abstract class MultiRDDKernel extends Kernel {
   }
 }
 
-abstract class PythonRDDKernel extends Kernel {
+class zmqPythonKernel( _module: String, _operation: String, _title: String, _description: String  ) extends Kernel {
+  override def operation: String = _operation
+  override def module = _module
+  override def name = _module + "." + _operation
+  override def id = "python." + name
+  override val identifier = name
+
+  val outputs = List( WPSProcessOutput( "operation result" ) )
+  val title = _title
+  val description = _description
 
   override def cleanUp() = PythonWorkerPortal.getInstance().shutdown()
 

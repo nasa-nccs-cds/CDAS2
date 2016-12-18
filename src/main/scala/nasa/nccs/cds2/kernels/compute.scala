@@ -28,13 +28,24 @@ class ClassInfoRec( val module: String, val name: String, val classinfo: ClassPa
   def getMapEntry = ( name.toLowerCase -> classinfo )
 }
 
-object KernelModule {
-  def apply( classInfoRecs: List[ClassInfoRec] ): KernelModule = new KernelModule( classInfoRecs.head.module, Map( classInfoRecs.map( _.getMapEntry ): _* ) )
+object KernelModule extends Loggable {
+  def apply( classInfoRecs: List[ClassInfoRec] ): KernelModule = {
+    val kernelClassMap = Map(classInfoRecs.map(_.getMapEntry): _*)
+    new KernelModule( classInfoRecs.head.module, kernelClassMap.mapValues(KernelModule.loadKernel(_) ) )
+  }
+  def apply(moduleSpec: String): KernelModule = {
+    val specToks = moduleSpec.split("[!]")
+    val module_name = specToks(0)
+    val api = specToks(1)
+    val kernelSpecs = specToks(2).split("[~]")
+    val kernels = kernelSpecs.map(kspec => Kernel(module_name, kspec, api))
+    new KernelModule(specToks(0), Map(kernels.map(kernel => kernel.id -> Some(kernel)): _*))
+  }
 
   def toXml( moduleSpec: String ): xml.Elem = {
     val specToks = moduleSpec.split("[!]")
-    val kernelSpecs = specToks(1).split("[~]")
-    <kernelModule name={specToks(0)}>
+    val kernelSpecs = specToks(2).split("[~]")
+    <kernelModule name={specToks(0)} api={specToks(1)}>
       <kernels> { kernelSpecs.map( kernelSpec => getKernelXml(specToks(0),kernelSpec) ) } </kernels>
     </kernelModule>
   }
@@ -42,20 +53,6 @@ object KernelModule {
   def getKernelXml( modname: String, kernelSpec: String ): xml.Elem = {
       val specToks = kernelSpec.split("[;]")
       <kernel module={modname} name={specToks(0)} description={specToks(1)} inputs={specToks(1)} />
-  }
-}
-
-class KernelModule( val name: String, val kernelClassMap: Map[String,ClassPath.ClassInfo] ) extends Loggable {
-  val kernels: Map[String,Option[Kernel]] = kernelClassMap.mapValues( loadKernel(_) )
-  def getKernelClassInfo(name: String): Option[ClassPath.ClassInfo] = kernelClassMap.get(name)
-  def getKernel(name: String): Option[Kernel] = kernels.get(name).flatten
-  def getKernels: Iterable[Kernel] = kernels.values.flatten
-  def getKernelNames: List[String] = kernels.keys.toList
-
-  def toXml: xml.Elem = {
-    <kernelModule name={name}>
-      <kernels> { kernels.keys.map( kname => <kernel module={name} name={kname}/> ) } </kernels>
-    </kernelModule>
   }
 
   def loadKernel( cls: ClassPath.ClassInfo ): Option[Kernel] = try {
@@ -70,7 +67,18 @@ class KernelModule( val name: String, val kernelClassMap: Map[String,ClassPath.C
       logger.error( "%s(%s) loading Kernel class: %s".format( err.getClass.getName, err.getMessage, cls.getName ) )
       None
   }
+}
 
+class KernelModule( val name: String, val kernels: Map[String,Option[Kernel]] ) extends Loggable {
+  def getKernel(name: String): Option[Kernel] = kernels.get(name).flatten
+  def getKernels: Iterable[Kernel] = kernels.values.flatten
+  def getKernelNames: List[String] = kernels.keys.toList
+
+  def toXml: xml.Elem = {
+    <kernelModule name={name}>
+      <kernels> { kernels.keys.map( kname => <kernel module={name} name={kname}/> ) } </kernels>
+    </kernelModule>
+  }
 }
 
 

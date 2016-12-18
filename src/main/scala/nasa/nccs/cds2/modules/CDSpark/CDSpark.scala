@@ -130,13 +130,6 @@ class multiAverage extends MultiRDDKernel {
   override val mapCombineNOp: Option[ReduceNOpFlt] = Some(aveOpN)
 }
 
-class regrid extends PythonRDDKernel {
-  val inputs = List(WPSDataInput("input variable", 1, 1))
-  val outputs = List(WPSProcessOutput("operation result"))
-  val title = "Regrid"
-  val description = "Regrids input variable to specified crs"
-}
-
 class average extends SingularRDDKernel {
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )

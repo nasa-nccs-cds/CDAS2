@@ -20,23 +20,19 @@ class OperationsManager:
             module_path = "pycdas.kernels.internal." + module_name
             module = __import__( module_path, globals(), locals(), ['*']  )
             kernels = []
-            mod_instance = None
-            for clsname in dir(module) :
+            for clsname in dir(module):
                 mod_cls = getattr( module, clsname)
                 if( inspect.isclass(mod_cls) and (mod_cls.__module__ == module_path) ):
                     try:
                         if issubclass( mod_cls, Kernel ):
                             kernel_instance = mod_cls();
                             kernels.append( kernel_instance )
-                            logger.debug(  " ----------->> Adding Kernel Class: " + str( mod_instance ) )
-                        elif issubclass( mod_cls, pycdas.kernels.Modules.OperationModule ):
-                            mod_instance = mod_cls();
-                            self.operation_modules.append(mod_instance)
-                            if _debug_: print " ----------->> Adding Module Class: " + str( mod_instance )
+                            logger.debug(  " ----------->> Adding Kernel Class: " + str( clsname ) )
                     except TypeError, err:
                         logger.debug( "Skipping improperly structured class: " + clsname + " -->> " + str(err) )
-            if mod_instance <> None: mod_instance.setKernels( kernels )
-            else: logger.warn( "Missing Module Class in assumed operation module " + clsname )
+            if len(kernels) > 0:
+                self.operation_modules.append( KernelModule( module_name, kernels ) )
+                logger.debug(  " ----------->> Adding Module: " + str( module_name ) )
     def getModule(self, task_header ):
         module_name = self.getModuleName(task_header)
         return self.operation_modules[ module_name ]
@@ -50,8 +46,6 @@ class OperationsManager:
     def getCapabilitiesStr(self):
         specs = [ opMod.serialize() for opMod in self.operation_modules ]
         return "|".join( specs )
-
-
 
 cdasOpManager = OperationsManager()
 

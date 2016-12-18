@@ -56,7 +56,7 @@ class Worker(object):
                     utype = self.getMessageField(header,1)
                     if utype == "capabilities":
                         capabilities = cdasOpManager.getCapabilitiesStr()
-                        self.sendInfoMsg( capabilities )
+                        self.sendInfoMessage( capabilities )
                     elif utype == "quit":
                         logger.info(  " Quitting main thread. " )
                         active = False
@@ -81,8 +81,7 @@ class Worker(object):
         self.result_socket.send( header )
 
     def sendInfoMessage( self, msg ):
-        msg = "Worker Info: {0}\n".format( msg )
-        logger.info( msg  )
+        logger.info( "Worker Info: {0}\n".format( msg )  )
         header = "|".join( [ "info", msg ] )
         self.result_socket.send( header )
 
@@ -102,6 +101,8 @@ class Worker(object):
         opModule = cdasOpManager.getModule( task_header )
         return opModule.executeTask( task_header, self.cached_inputs )
 
+
+print cdasOpManager.getCapabilitiesStr()
 
 request_port = mParse.getIntArg( 1, 8200 )
 result_port = mParse.getIntArg( 2, 8201 )

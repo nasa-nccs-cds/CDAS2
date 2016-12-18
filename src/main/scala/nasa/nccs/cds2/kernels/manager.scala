@@ -19,8 +19,7 @@ class KernelMgr(  ) {
 
   def getModulesXml = {
     val elemList: Array[xml.Elem] = kernelModules.values.map( _.toXml ).toArray
-    val pyElemList: Array[xml.Elem] = PythonWorkerPortal.getInstance().getCapabilities().map( spec => KernelModule.toXml(spec) )
-    <kernels>{ elemList ++ pyElemList }</kernels>
+    <kernels>{ elemList }</kernels>
   }
 
   def getKernelMap: Map[String,Kernel] =
@@ -40,7 +39,9 @@ object KernelPackageTools {
   }
 
   def getKernelMap: Map[String,KernelModule] = {
-    getKernelClasses.map(ClassInfoRec( _ )).groupBy( _.module.toLowerCase ).mapValues( KernelModule(_) )
+    val internal_kernels = getKernelClasses.map(ClassInfoRec( _ )).groupBy( _.module.toLowerCase ).mapValues( KernelModule(_) )
+    val external_kernels = PythonWorkerPortal.getInstance().getCapabilities().map( spec => KernelModule(spec) )
+    internal_kernels ++ internal_kernels
   }
 }
 
