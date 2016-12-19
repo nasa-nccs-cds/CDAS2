@@ -46,15 +46,17 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   test("getCapabilities") {
-    val response = getCapabilities("op")
-    println( response.mkString(",") )
-    PythonWorkerPortal.getInstance().quit()
+    try {
+      val response = getCapabilities("op")
+      println( response.mkString(",") )
+    } finally { PythonWorkerPortal.getInstance().quit() }
   }
 
   test("regridTest") {
-    val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":1000,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.regrid","input":"v1","domain":"d0","crs":"gaussian~128"}]]"""
-    val result_node = executeTest(datainputs)
-    PythonWorkerPortal.getInstance().quit()
+    try {
+      val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":1000,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.regrid","input":"v1","domain":"d0","crs":"gaussian~128"}]]"""
+      val result_node = executeTest(datainputs)
+    } finally { PythonWorkerPortal.getInstance().quit() }
   }
 
   test("subsetTestT") {
@@ -76,22 +78,23 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   test("ESGF_Demo") {
-    val GISS_H_vids = ( 1 to 3 ) map { index => s"vH$index" }
-    val GISS_R_vids = ( 1 to 3 ) map { index => s"vR$index" }
-    val GISS_variables = ( ( 1 to 3 ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
-    val GEOS5_variables = ( ( 1 to 3 )  map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
-    val datainputs = s"""[
-         variable=[$GISS_variables,$GEOS5_variables],
-         domain=[       {"name":"d0","time":{"start":0,"end":100,"system":"indices"},"lon":{"start":200.0,"end":250.0,"system":"values"},"lat":{"start":0.0,"end":30.0,"system":"values"}}],
-         operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
-                        {"name":"CDSpark.multiAverage","input":"${GISS_R_vids.mkString(",")}","domain":"d0","id":"eaGISS-R"},
-                        {"name":"CDSpark.regrid","input":"eaGISS-R","domain":"d0","crs":"gaussian~128","id":"rgR"},
-                        {"name":"CDSpark.regrid","input":"eaGISS-H","domain":"d0","crs":"gaussian~128","id":"rgH"},
-                        {"name":"CDSpark.multiAverage","input":"rgR,rgH","domain":"d0","result":"esgfDemo"}
-               ]
-        ]""".replaceAll("\\s", "")
-    val result_node = executeTest(datainputs)
-    PythonWorkerPortal.getInstance().quit()
+    try {
+      val GISS_H_vids = ( 1 to 3 ) map { index => s"vH$index" }
+      val GISS_R_vids = ( 1 to 3 ) map { index => s"vR$index" }
+      val GISS_variables = ( ( 1 to 3 ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
+      val GEOS5_variables = ( ( 1 to 3 )  map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
+      val datainputs = s"""[
+           variable=[$GISS_variables,$GEOS5_variables],
+           domain=[       {"name":"d0","time":{"start":0,"end":100,"system":"indices"},"lon":{"start":200.0,"end":250.0,"system":"values"},"lat":{"start":0.0,"end":30.0,"system":"values"}}],
+           operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
+                          {"name":"CDSpark.multiAverage","input":"${GISS_R_vids.mkString(",")}","domain":"d0","id":"eaGISS-R"},
+                          {"name":"CDSpark.regrid","input":"eaGISS-R","domain":"d0","crs":"gaussian~128","id":"rgR"},
+                          {"name":"CDSpark.regrid","input":"eaGISS-H","domain":"d0","crs":"gaussian~128","id":"rgH"},
+                          {"name":"CDSpark.multiAverage","input":"rgR,rgH","domain":"d0","result":"esgfDemo"}
+                 ]
+          ]""".replaceAll("\\s", "")
+      val result_node = executeTest(datainputs)
+    } finally { PythonWorkerPortal.getInstance().quit() }
   }
 
   test("Maximum") {
@@ -115,13 +118,15 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   test("pyMaximum1") {
-    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 277.8863, 279.0432, 280.0728, 280.9739, 282.2123, 283.7078, 284.6707, 285.4793, 286.259, 286.9836, 287.6983 ).map(_.toFloat), Float.MaxValue )
-    val datainputs = s"""[domain=[{"name":"d0","time":{"start":50,"end":150,"system":"indices"},"lon":{"start":100,"end":100,"system":"indices"},"lat":{"start":10,"end":20,"system":"indices"} }],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"pycdasModule.max","input":"v1","domain":"d0","axes":"t"}]]"""
-    val result_node = executeTest(datainputs)
-    val result_data = getResultData( result_node )
-    println( "Op Result:       " + result_data.mkDataString(", ") )
-    println( "Verified Result: " + nco_verified_result.mkDataString(", ") )
-    assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Subset")
+    try {
+      val nco_verified_result: CDFloatArray = CDFloatArray(Array(277.8863, 279.0432, 280.0728, 280.9739, 282.2123, 283.7078, 284.6707, 285.4793, 286.259, 286.9836, 287.6983).map(_.toFloat), Float.MaxValue)
+      val datainputs = s"""[domain=[{"name":"d0","time":{"start":50,"end":150,"system":"indices"},"lon":{"start":100,"end":100,"system":"indices"},"lat":{"start":10,"end":20,"system":"indices"} }],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.pycdasModule.max","input":"v1","domain":"d0","axes":"t"}]]"""
+      val result_node = executeTest(datainputs)
+      val result_data = getResultData(result_node)
+      println("Op Result:       " + result_data.mkDataString(", "))
+      println("Verified Result: " + nco_verified_result.mkDataString(", "))
+      assert(result_data.maxScaledDiff(nco_verified_result) < eps, s" Incorrect value computed for Subset")
+    } finally { PythonWorkerPortal.getInstance().quit() }
   }
 
   test("Minimum") {

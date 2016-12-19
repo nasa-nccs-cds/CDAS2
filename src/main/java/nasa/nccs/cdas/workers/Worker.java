@@ -30,6 +30,8 @@ public abstract class Worker {
         return test_port;
     }
 
+    public int id() { return request_port; }
+
     private void postInfo( String info ) {
         logger.info( "Posting info from worker: " + info );
         messages.add( info );

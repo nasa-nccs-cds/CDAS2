@@ -8,7 +8,7 @@ _debug_ = True
 class OperationsManager:
 
     def __init__( self ):
-        self.operation_modules = []
+        self.operation_modules = {}
         self.build()
 
     def build(self):
@@ -31,20 +31,14 @@ class OperationsManager:
                     except TypeError, err:
                         logger.debug( "Skipping improperly structured class: " + clsname + " -->> " + str(err) )
             if len(kernels) > 0:
-                self.operation_modules.append( KernelModule( module_name, kernels ) )
+                self.operation_modules["python."+module_name] = KernelModule( module_name, kernels )
                 logger.debug(  " ----------->> Adding Module: " + str( module_name ) )
-    def getModule(self, task_header ):
-        module_name = self.getModuleName(task_header)
-        return self.operation_modules[ module_name ]
 
-    def getModuleName(self,task_header ):
-        header_toks = task_header.split('|')
-        taskToks = header_toks[1].split('-')
-        opToks = taskToks[0].split('.')
-        return opToks[0]
+    def getModule(self, task ):
+        return self.operation_modules[ task.module ]
 
     def getCapabilitiesStr(self):
-        specs = [ opMod.serialize() for opMod in self.operation_modules ]
+        specs = [ opMod.serialize() for opMod in self.operation_modules.itervalues() ]
         return "|".join( specs )
 
 cdasOpManager = OperationsManager()

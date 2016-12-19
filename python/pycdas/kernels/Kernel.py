@@ -40,10 +40,12 @@ class Kernel:
 
     def executeTask( self, task, inputs ):
         results = []
+        logger.info( "Executing kernel {0}, inputs len = {2}".format( self.name(), len(inputs) ) )
         for inputId in task.inputs:
             input = inputs.get( inputId )
             result = self.executeOperation( task, input )
             results.append( result )
+        logger.info( "Executing kernel {0}, result len = {2}".format( self.name(), len(results) ) )
         return results
 
     def executeOperation( self, task, input ):

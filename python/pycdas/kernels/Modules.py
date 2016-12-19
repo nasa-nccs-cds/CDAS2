@@ -1,5 +1,5 @@
 import sys, inspect
-from Kernel import Kernel
+from Kernel import Kernel, logger
 
 class OperationModule:
 
@@ -9,7 +9,8 @@ class OperationModule:
     def getName(self): return self._name
 
     def executeTask( self, task, inputs ):
-        pass
+        logger.error( "Executing Unimplemented method on abstract base class: " + self.getName() )
+        return []
 
     def getCapabilities(self):
         pass
@@ -31,11 +32,10 @@ class KernelModule(OperationModule):
         str(obj).split('\'')[1].split('.')[0] == "__main__"
 
     def executeTask( self, task, inputs ):
-        try:
-            kernel = self.kernels.get( task.op )
-            kernel.executeTask(task, inputs)
-        except Exception, err:
-            print err
+        kernel = self._kernels.get( task.op )
+        if( kernel == None ): raise Exception( "Unrecognized kernel name: "+ task.op +", registered kernels = " + ", ".join( self._kernels.keys() ) )
+        logger.info( "Executing Kernel: " + kernel.name() )
+        return kernel.executeTask(task, inputs)
 
     def getCapabilities(self): return [ kernel.getCapabilities() for kernel in self._kernels.values() ]
     def getCapabilitiesStr(self): return "~".join([ kernel.getCapabilitiesStr() for kernel in self._kernels.values() ])
