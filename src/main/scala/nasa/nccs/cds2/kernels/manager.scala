@@ -7,6 +7,8 @@ import scala.collection.JavaConverters._
 import nasa.nccs.utilities.cdsutils
 import nasa.nccs.wps.WPSProcess
 
+import scala.collection.immutable.Map
+
 class KernelMgr(  ) {
 
   val kernelModules = KernelPackageTools.getKernelMap
@@ -39,9 +41,10 @@ object KernelPackageTools {
   }
 
   def getKernelMap: Map[String,KernelModule] = {
-    val internal_kernels = getKernelClasses.map(ClassInfoRec( _ )).groupBy( _.module.toLowerCase ).mapValues( KernelModule(_) )
-    val external_kernels = PythonWorkerPortal.getInstance().getCapabilities().map( spec => KernelModule(spec) )
-    internal_kernels ++ internal_kernels
+    val internal_kernels: Map[String,KernelModule] = getKernelClasses.map(ClassInfoRec( _ )).groupBy( _.module.toLowerCase ).mapValues( KernelModule(_) )
+    val python_kernels: Array[KernelModule] = PythonWorkerPortal.getInstance().getCapabilities().map( KernelModule(_) )
+    val external_kernel_map: Map[String,KernelModule] = Map( python_kernels.map( km => km.getName -> km ): _* )
+    internal_kernels ++ external_kernel_map
   }
 }
 

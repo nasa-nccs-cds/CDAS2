@@ -73,6 +73,7 @@ class KernelModule( val name: String, val kernels: Map[String,Option[Kernel]] ) 
   def getKernel(name: String): Option[Kernel] = kernels.get(name).flatten
   def getKernels: Iterable[Kernel] = kernels.values.flatten
   def getKernelNames: List[String] = kernels.keys.toList
+  def getName = name
 
   def toXml: xml.Elem = {
     <kernelModule name={name}>

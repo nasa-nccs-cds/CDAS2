@@ -101,11 +101,8 @@ class Worker(object):
         opModule = cdasOpManager.getModule( task_header )
         return opModule.executeTask( task_header, self.cached_inputs )
 
-
-print cdasOpManager.getCapabilitiesStr()
-
 request_port = mParse.getIntArg( 1, 8200 )
 result_port = mParse.getIntArg( 2, 8201 )
 worker = Worker( request_port, result_port )
 worker.run()
-worker.logger.info(  " ############################## EXITING WORKER ##############################"  )
+logger.info(  " ############################## EXITING WORKER ##############################"  )
