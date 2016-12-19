@@ -259,9 +259,8 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   }
 
   def toXmlHeader = <kernel module={module} name={name}>
-    {if (description.nonEmpty) <description>
-      {description}
-    </description>}
+    {if (title.nonEmpty) <title> {title} </title>}
+    {if (description.nonEmpty) <description> {description} </description>}
   </kernel>
 
   def getStringArg(args: Map[String, String], argname: String, defaultVal: Option[String] = None): String = {
@@ -564,8 +563,8 @@ abstract class MultiRDDKernel extends Kernel {
 class zmqPythonKernel( _module: String, _operation: String, _title: String, _description: String  ) extends Kernel {
   override def operation: String = _operation
   override def module = _module
-  override def name = _module + "." + _operation
-  override def id = "python." + name
+  override def name = _operation
+  override def id = _module + "." + _operation
   override val identifier = name
 
   val outputs = List( WPSProcessOutput( "operation result" ) )
