@@ -15,6 +15,9 @@ class MessageParser:
     def s2ia(self, mdataStr ):
         return np.asarray( [ int(item) for item in mdataStr.split(',') ] )
 
+    def s2it(self, mdataStr ):
+        return tuple( [ int(item) for item in mdataStr.split(',') ] )
+
     def sa2s(self,  strArray ): return ','.join( strArray )
 
     def ia2s(self,  intArray ): return ','.join( str(e) for e in intArray )

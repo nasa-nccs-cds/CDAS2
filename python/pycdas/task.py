@@ -6,7 +6,7 @@ class Task:
         taskToks = headerToks[1].split('-')
         opToks = taskToks[0].split('.')
         self.module = ".".join( opToks[0:2] )
-        self.op = opToks[1]
+        self.op = opToks[-1]
         self.rId = taskToks[1]
         self.inputs = headerToks[2].split(',')
         self.metadata = mParse.s2m( headerToks[3] )

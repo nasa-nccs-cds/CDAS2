@@ -597,11 +597,11 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
           logger.error( "Unidentified kernel input: " + input_id )
       }
       logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
-      worker.sendRequest(context.operation.identifier, context.operation.inputs.toArray, context.getConfiguration )
+      val metadata = indexAxisConf( context.getConfiguration, context.grid.axisIndexMap )
+      worker.sendRequest(context.operation.identifier, context.operation.inputs.toArray, metadata )
       val resultItems = for( input_array <- operation_input_arrays ) yield {
         val tvar = worker.getResult()
         val result = HeapFltArray( tvar, input_array.missing )
-        logger.info( "Got result for input: " + input_array.uid + ", shape = " + tvar.getShape.mkString(",") + ", sampe = " + result.getSampleDataStr(6,1000));
         context.operation.rid + ":" + input_array.uid -> result
       }
       val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
@@ -611,8 +611,19 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
       workerManager.releaseWorker( worker )
     }
   }
-}
 
+  def indexAxisConf( metadata: Map[String,String], axisIndexMap: Map[String,Int] ): Map[String,String] = {
+    try {
+      metadata.get("axes") match {
+        case None => metadata
+        case Some(axis_spec) =>
+          val axisIndices = axis_spec.map( _.toString).map( axis => axisIndexMap(axis) )
+          metadata + ( "axes" -> axisIndices.mkString(""))
+      }
+    } catch { case e: Exception => throw new Exception( "Error converting axis spec %s to indices using axisIndexMap {%s}: %s".format( metadata.get("axes"), axisIndexMap.mkString(","), e.toString ) )  }
+
+  }
+}
 
 class TransientFragment( val dataFrag: DataFragment, val request: RequestContext, val varMetadata: Map[String,nc2.Attribute] ) extends OperationDataInput( dataFrag.spec, varMetadata ) {
   def toXml(id: String): xml.Elem = {

@@ -44,7 +44,7 @@ class Worker(object):
                 type = self.getMessageField(header,0)
                 if type == "array":
                     data = self.request_socket.recv()
-                    array = CDArray(header,data)
+                    array = CDArray.createInput(header,data)
                     self.cached_inputs[array.id] = array
 
                 elif type == "task":
@@ -64,11 +64,10 @@ class Worker(object):
             except Exception as err: self.sendError( err )
 
     def sendVariableData( self, resultVar ):
-        header = "|".join( [ "array", resultVar.id, resultVar.origin, mParse.ia2s(resultVar.shape), mParse.m2s(resultVar.attributes) ] )
+        header = "|".join( [ "array", resultVar.id,  mParse.ia2s(resultVar.origin), mParse.ia2s(resultVar.shape), mParse.m2s(resultVar.metadata) ] )
         logger.info( "Sending Result, header: {0}".format( header ) )
         self.result_socket.send( header )
-        logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( resultVar.data.flat[i] ) for i in range(20,26) ] ) ) )
-        result_data = resultVar.data.astype( IO_DType ).tobytes()
+        result_data = resultVar.array.astype( IO_DType ).tobytes()
         logger.info( "Sending Result data,  nbytes: {0}".format( str(len(result_data) ) ) )
         self.result_socket.send(result_data)
 
