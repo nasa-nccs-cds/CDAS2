@@ -3,7 +3,6 @@ from pycdas.kernels.Kernel import Kernel, logger
 import pycdas
 from os import listdir
 from os.path import isfile, join, os
-_debug_ = True
 
 class OperationsManager:
 

@@ -3,12 +3,35 @@ import time
 from messageParser import mParse
 from kernels.Kernel import logger
 IO_DType = np.dtype( np.float32 ).newbyteorder('>')
+from abc import ABCMeta, abstractmethod
 
 class CDArray:
+    __metaclass__ = ABCMeta
+
+    def __init__(self, _id, _origin, _shape, _metadata ):
+        self.id = _id
+        self.origin = _origin
+        self.shape = _shape
+        self.metadata = _metadata
+        logger.debug("Created Array: {0}".format(self.id))
+        logger.debug(" >> Array Metadata: {0}".format(self.metadata))
+        logger.debug(" >> Array Shape: [{0}]".format(', '.join(map(str, self.array.shape))))
+        logger.debug(" >> Array Dimensions: [{0}]".format(', '.join(map(str, self.dimensions))))
+        logger.debug(" >> Array Origin: [{0}]".format(', '.join(map(str, self.origin))))
+
+    @abstractmethod
+    def getVariable(self): pass
+
+    @abstractmethod
+    def subsetAxes(self): pass
+
+
+
+class npArray(CDArray):
 
     @classmethod
     def createResult(cls, task, input, result_array ):
-        return CDArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array )
+        return CDnpArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array )
 
 
     @classmethod
@@ -21,19 +44,16 @@ class CDArray:
             shape = mParse.s2it(header_toks[3])
             metadata = mParse.s2m(header_toks[4])
             array = np.frombuffer( data, dtype=IO_DType ).reshape(shape).astype(np.float32)
-            return CDArray( id, origin, shape, metadata, array )
+            return CDnpArray( id, origin, shape, metadata, array )
         except  Exception as err:
             logger.info( "Metadata Error: {0}\ntoks: {1}\nmdata: {2}".format(err, ', '.join(header_toks), str(metadata)))
             raise err
 
 
-    def __init__(self, _id, _origin, _shape, _metadata, _result_array ):
-        logger.info(" *** Creating data array, nbytes = " + str( _result_array.nbytes ) )
+    def __init__(self, _id, _origin, _shape, _metadata, _ndarray ):
+        super(CDnpArray, self).__init__(_id,_origin,_shape,_metadata)
+        logger.info(" *** Creating data array, nbytes = " + str( _ndarray.nbytes ) )
         try:
-            self.id = _id
-            self.origin = _origin
-            self.shape = _shape
-            self.metadata = _metadata
             self.gridFilePath = self.metadata["gridfile"]
             self.name = self.metadata["name"]
             self.collection = self.metadata["collection"]
@@ -41,12 +61,7 @@ class CDArray:
         except  Exception as err:
             logger.info( "Metadata Error: {0}\nmdata: {1}".format(err, str(self.metadata)))
             raise err
-        self.array = _result_array
-        logger.info(" >> Array Metadata: {0}".format(self.metadata))
-        logger.info(" >> Array Shape: [{0}]".format(', '.join(map(str, self.array.shape))))
-        logger.info(" >> Array Dimensions: [{0}]".format(', '.join(map(str, self.dimensions))))
-        logger.info(" >> Array Origin: [{0}]".format(', '.join(map(str, self.origin))))
-        logger.info(" >> Array Origin Class: [{0}]".format( self.origin.__class__.__name__ ) )
+        self.array = _ndarray
 
     def getVariable(self):
         import cdms2
@@ -62,6 +77,53 @@ class CDArray:
         t1 = time.time()
         logger.info(" >> Created CDMS Variable: {0} ({1} in time {2}".format(variable.id, self.name, (t1 - t0)))
         return variable
+
+    def subsetAxes( self, dimensions, gridfile, origin, shape ):
+        subAxes = []
+        try:
+            for index in range( len(dimensions) ):
+                start = origin[index]
+                length = shape[index]
+                dim = dimensions[index]
+                axis = gridfile.axes.get(dim)
+                subAxes.append( axis.subAxis( start, start + length ) )
+                logger.info( " >> Axis: {0}, length: {1} ".format( dim, length ) )
+        except Exception as err:
+            logger.info( "\n-------------------------------\nError subsetting Axes: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
+            raise err
+        return subAxes
+
+
+class cdmsArray(CDArray):
+
+    @classmethod
+    def createResult(cls, task, input, result_array ):
+        return cdmsArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array )
+
+
+    @classmethod
+    def createInput( cls, cdVariable ):
+        logger.info(" *** Creating input cdms array, size = : " + str( cdVariable.size ) )
+        id = cdVariable.id
+        origin = cdVariable.attributes.get("origin")
+        shape = cdVariable.shape
+        metadata = cdVariable.attributes
+        return cdmsArray( id, origin, shape, metadata, cdVariable )
+
+
+    def __init__(self, _id, _origin, _shape, _metadata, cdVariable ):
+        super(cdmsArray, self).__init__(_id,_origin,_shape,_metadata)
+        logger.info(" *** Creating input cdms array, size = " + str( cdVariable.size ) )
+        try:
+            self.name = cdVariable.name_in_file
+            self.grid = cdVariable.getGrid()
+            self.dimensions = self.metadata["dimensions"].split(",")
+        except  Exception as err:
+            logger.info( "Metadata Error: {0}\nmdata: {1}".format(err, str(self.metadata)))
+            raise err
+        self.variable = cdVariable
+
+    def getVariable(self): return self.variable
 
     def subsetAxes( self, dimensions, gridfile, origin, shape ):
         subAxes = []

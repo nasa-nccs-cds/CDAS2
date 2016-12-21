@@ -1,4 +1,5 @@
 import logging, os
+from abc import ABCMeta, abstractmethod
 
 def _getLogger():
     logger = logging.getLogger('ICDAS')
@@ -32,6 +33,7 @@ class KernelSpec:
     def getTitle(self): return self._title.translate(None, ";,|!~^")
 
 class Kernel:
+    __metaclass__ = ABCMeta
 
     def __init__( self, spec ):
         self._spec = spec
@@ -46,8 +48,8 @@ class Kernel:
             results.append( result )
         return results
 
-    def executeOperation( self, task, input ):
-        pass
+    @abstractmethod
+    def executeOperation( self, task, input ): pass
 
     def getCapabilities(self): return self._spec
     def getCapabilitiesStr(self): return str(self._spec)
@@ -57,6 +59,15 @@ class Kernel:
         if axes == None: return None
         else: return tuple( [ int(item) for item in axes ] )
 
+class InputMode:
+    __metaclass__ = ABCMeta
+
+    def __init__( self, mode, spec ):
+        self._spec = spec
+        self._mode = mode
+
+    @abstractmethod
+    def execute(self): pass
 
 if __name__ == "__main__":
     metadata = { "axes": "13" }

@@ -1,7 +1,9 @@
 import sys, inspect
 from Kernel import Kernel, logger
+from abc import ABCMeta, abstractmethod
 
 class OperationModule:
+    __metaclass__ = ABCMeta
 
     def __init__( self, name ):
         self._name = name
@@ -12,11 +14,11 @@ class OperationModule:
         logger.error( "Executing Unimplemented method on abstract base class: " + self.getName() )
         return []
 
-    def getCapabilities(self):
-        pass
+    @abstractmethod
+    def getCapabilities(self): pass
 
-    def getCapabilitiesStr(self):
-        pass
+    @abstractmethod
+    def getCapabilitiesStr(self): pass
 
     def serialize(self): return "!".join( [self._name, "python", self.getCapabilitiesStr() ] )
 
