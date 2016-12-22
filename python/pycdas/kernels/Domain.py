@@ -1,6 +1,7 @@
 from pycdas.utilities import  *
 from pycdas.json import  *
 import re, traceback
+from kernels.Kernel import logger
 
 class RegionContainer(JSONObjectContainer):
 
@@ -86,22 +87,22 @@ class CDAxis(JSONObject):
                             if start is None:
                                start =  values.get('value',None)
                                if start is None:
-                                   wpsLog.error( "Warning, no bounds specified for axis: %s " % str(values) )
+                                   logger.error( "Warning, no bounds specified for axis: %s " % str(values) )
                             self['bounds'] = [ float(start) ]
                         else:
                             self['bounds'] = [ float(start), float(end) ]
                         self['config'] = filter_attributes( values, ['start','end','value'], False )
                     except KeyError:
-                        wpsLog.error( "Error, can't recognize region values keys: %s " % values.keys() )
+                        logger.error( "Error, can't recognize region values keys: %s " % values.keys() )
                     except TypeError, err:
-                        wpsLog.error( "\n !!!TypeError processing axis bounds: %s %s \n" % ( start, end ) )
+                        logger.error( "\n !!!TypeError processing axis bounds: %s %s \n" % ( start, end ) )
             else:
                 self['bounds'] = [ float(v) for v in values ] if self['axis'] <> CDAxis.TIME else values
         else:
             try:
                 self['bounds'] = [ float(values) ] if self['axis'] <> CDAxis.TIME else [ values ]
             except Exception, err:
-                wpsLog.error( "Error, unknown region axis value: %s, axis: %s " % ( str(values), self['axis'] )  )
+                logger.error( "Error, unknown region axis value: %s, axis: %s " % ( str(values), self['axis'] )  )
                 axis_bounds = values
 
 class Region(JSONObject):
@@ -119,7 +120,7 @@ class Region(JSONObject):
             return bounds
 #            if (len(bounds) == 0) or (system == axis_system): return bounds
         except Exception, err:
-            wpsLog.error( "Error in getAxisRange( %s ): %s" % ( axis_name, str(err) ) )
+            logger.error( "Error in getAxisRange( %s ): %s" % ( axis_name, str(err) ) )
             return None
 
     def getIndexedAxisSize(self, axis_name, axis ):
@@ -229,7 +230,7 @@ class Region(JSONObject):
                             else:
                                     kargs[str(k)] = slice(int(v[0]),int(v[1])) if ( len( v ) > 1 ) else slice(int(v[0]),int(v[0])+1)
                 except Exception, err:
-                    wpsLog.error( "Error processing axis '%s' spec '%s': %s\n %s " % ( k, str(axis_spec), str(err), traceback.format_exc() ) )
+                    logger.error( "Error processing axis '%s' spec '%s': %s\n %s " % ( k, str(axis_spec), str(err), traceback.format_exc() ) )
 
         return kargs
 
@@ -447,8 +448,8 @@ class DomainManager:
            if wid: wids.append( wid )
            domain.release()
            self.domains.remove( domain )
-           wpsLog.error( "\n  ****uncache**** Removing domain from cache: %s " % str(domain) )
-        wpsLog.error( " ----> Remaining domains: %s " % str(self.domains) )
+           logger.error( "\n  ****uncache**** Removing domain from cache: %s " % str(domain) )
+        logger.error( " ----> Remaining domains: %s " % str(self.domains) )
         return wids
 
     def findSmallestDomain(self, domain_list ):

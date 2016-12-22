@@ -21,5 +21,4 @@ alias cdshw='export CDAS_SERVER_ADDRESS=localhost; unset CDAS_SERVER_PORT; cd $C
 alias cdshr='export CDAS_SERVER_ADDRESS=localhost; export CDAS_SERVER_PORT=9001; cd $CDSHELL_HOME_DIR; sbt run'
 alias cdup='cd $CDAS_HOME_DIR; git fetch; git pull; sbt compile'
 
-source activate uvcdat-2.8
 umask 002

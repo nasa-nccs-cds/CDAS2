@@ -1,5 +1,5 @@
 import numpy as np
-import time
+import time, traceback
 from messageParser import mParse
 from kernels.Kernel import logger
 IO_DType = np.dtype( np.float32 ).newbyteorder('>')
@@ -15,9 +15,16 @@ class CDArray:
         self.metadata = _metadata
         logger.debug("Created Array: {0}".format(self.id))
         logger.debug(" >> Array Metadata: {0}".format(self.metadata))
-        logger.debug(" >> Array Shape: [{0}]".format(', '.join(map(str, self.array.shape))))
-        logger.debug(" >> Array Dimensions: [{0}]".format(', '.join(map(str, self.dimensions))))
+        logger.debug(" >> Array Shape: [{0}]".format(', '.join(map(str, self.shape))))
         logger.debug(" >> Array Origin: [{0}]".format(', '.join(map(str, self.origin))))
+
+    @classmethod
+    @abstractmethod
+    def createResult(cls, task, input, result_array ): raise Exception( "Executing abstract method createResult in CDArray")
+
+    @classmethod
+    @abstractmethod
+    def createInput(cls, header, data): raise Exception( "Executing abstract method createInput in CDArray")
 
     @abstractmethod
     def getVariable(self): pass
@@ -31,36 +38,27 @@ class npArray(CDArray):
 
     @classmethod
     def createResult(cls, task, input, result_array ):
-        return CDnpArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array )
+        return npArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array )
 
 
     @classmethod
     def createInput(cls, header, data):
         logger.info(" *** Creating data array, nbytes = : " + str(len(data)))
-        try:
-            header_toks = header.split('|')
-            id = header_toks[1]
-            origin = mParse.s2it(header_toks[2])
-            shape = mParse.s2it(header_toks[3])
-            metadata = mParse.s2m(header_toks[4])
-            array = np.frombuffer( data, dtype=IO_DType ).reshape(shape).astype(np.float32)
-            return CDnpArray( id, origin, shape, metadata, array )
-        except  Exception as err:
-            logger.info( "Metadata Error: {0}\ntoks: {1}\nmdata: {2}".format(err, ', '.join(header_toks), str(metadata)))
-            raise err
-
+        header_toks = header.split('|')
+        id = header_toks[1]
+        origin = mParse.s2it(header_toks[2])
+        shape = mParse.s2it(header_toks[3])
+        metadata = mParse.s2m(header_toks[4])
+        nparray = np.frombuffer( data, dtype=IO_DType ).reshape(shape).astype(np.float32)
+        return npArray( id, origin, shape, metadata, nparray )
 
     def __init__(self, _id, _origin, _shape, _metadata, _ndarray ):
-        super(CDnpArray, self).__init__(_id,_origin,_shape,_metadata)
+        super(npArray, self).__init__(_id,_origin,_shape,_metadata)
         logger.info(" *** Creating data array, nbytes = " + str( _ndarray.nbytes ) )
-        try:
-            self.gridFilePath = self.metadata["gridfile"]
-            self.name = self.metadata["name"]
-            self.collection = self.metadata["collection"]
-            self.dimensions = self.metadata["dimensions"].split(",")
-        except  Exception as err:
-            logger.info( "Metadata Error: {0}\nmdata: {1}".format(err, str(self.metadata)))
-            raise err
+        self.gridFilePath = self.metadata["gridfile"]
+        self.name = self.metadata["name"]
+        self.collection = self.metadata["collection"]
+        self.dimensions = self.metadata["dimensions"].split(",")
         self.array = _ndarray
 
     def getVariable(self):
@@ -114,13 +112,9 @@ class cdmsArray(CDArray):
     def __init__(self, _id, _origin, _shape, _metadata, cdVariable ):
         super(cdmsArray, self).__init__(_id,_origin,_shape,_metadata)
         logger.info(" *** Creating input cdms array, size = " + str( cdVariable.size ) )
-        try:
-            self.name = cdVariable.name_in_file
-            self.grid = cdVariable.getGrid()
-            self.dimensions = self.metadata["dimensions"].split(",")
-        except  Exception as err:
-            logger.info( "Metadata Error: {0}\nmdata: {1}".format(err, str(self.metadata)))
-            raise err
+        self.name = cdVariable.name_in_file
+        self.grid = cdVariable.getGrid()
+        self.dimensions = self.metadata["dimensions"].split(",")
         self.variable = cdVariable
 
     def getVariable(self): return self.variable

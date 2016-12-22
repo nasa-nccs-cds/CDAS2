@@ -744,8 +744,6 @@ object DomainContainer extends ContainerBase {
   def empty( name: String ):  DomainContainer = new DomainContainer( name )
 }
 
-
-
 class OperationContext( val index: Int, val identifier: String, val name: String, val rid: String, val inputs: List[String], val resultType: OpResultType, private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext with Serializable  {
   def getConfiguration = configuration
   val moduleName: String = name.toLowerCase.split('.').head

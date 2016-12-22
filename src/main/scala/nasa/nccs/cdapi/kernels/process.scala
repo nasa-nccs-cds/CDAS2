@@ -594,7 +594,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
           worker.sendArrayData( input_array.uid, input_array.origin, input_array.shape, byte_data, input_array.metadata )
           logger.info( "Kernel part-%d: Finished Sending data to worker" )
         case None =>
-          logger.error( "Unidentified kernel input: " + input_id )
+          worker.sendUtility( List( "input", input_id ).mkString(";") )
       }
       logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
       val metadata = indexAxisConf( context.getConfiguration, context.grid.axisIndexMap )

@@ -1,11 +1,5 @@
 import logging, time, os, json, numpy, traceback
 
-LogDir = os.path.abspath( os.path.join( os.path.dirname(__file__), '../', 'logs' ) )
-DefaultLogLevel = logging.DEBUG
-wpsLog = logging.getLogger('wps')
-wpsLog.setLevel(DefaultLogLevel)
-if len( wpsLog.handlers ) == 0: wpsLog.addHandler( logging.FileHandler( os.path.join( LogDir, 'wps.log') ) )
-
 def wrank( value ):
     return ( value if not isinstance(value,basestring) else int( value.split('-')[1] ) )
 
@@ -42,31 +36,20 @@ def get_json_arg( id, args, default=None ):
 
 def convert_json_str( json_arg ):
         if isinstance(json_arg, basestring):
-            try:
-                json_arg = str(json_arg).replace("u'","'")
-                json_arg = str(json_arg).replace("'",'"')
-                return json.loads( json_arg )
-            except Exception, err:
-                wpsLog.error( "Can't recognize json: <%s>: %s" % ( str(json_arg), str(err) ) )
-                wpsLog.error( traceback.format_exc() )
-                return []
+            json_arg = str(json_arg).replace("u'","'")
+            json_arg = str(json_arg).replace("'",'"')
+            return json.loads( json_arg )
         else:
             return json_arg
 
 def genericize( results ):
-    try:
-        result_list = results if isinstance( results, list ) else [ results ]
-        for result in result_list:
-            for key,value in result.iteritems():
-                if type(value) not in [ dict, list, str, tuple ]: result[key] = str(value)
-    except Exception, err:
-        wpsLog.error( "Error in genericize: '%s' " % ( str(err) ) )
+    result_list = results if isinstance( results, list ) else [ results ]
+    for result in result_list:
+        for key,value in result.iteritems():
+            if type(value) not in [ dict, list, str, tuple ]: result[key] = str(value)
 
 def dump_json_str( obj ):
-    try:
-        return json.dumps( obj ) if not isinstance(obj, basestring) else obj
-    except:
-        wpsLog.error( "Can't serialize object '%s' " % ( str(obj) ) )
+    return json.dumps( obj ) if not isinstance(obj, basestring) else obj
 
 class ExecutionRecord:
 
@@ -145,17 +128,6 @@ class Profiler(object):
         for mark in self.marks:
             print " %s: %.4f " % ( mark[0], mark[1] )
 
-    @staticmethod
-    def getLogger( name, level=DefaultLogLevel ):
-        logger = logging.getLogger(name)
-        logger.setLevel(level)
-        if len( logger.handlers ) == 0:
-            logger.addHandler( logging.FileHandler( os.path.join( LogDir, '%s.log' % name ) ) )
-        return logger
-
-def getConfigSetting( id ):
-    from modules import configuration
-    return getattr( configuration, id )
 
 def location2cdms(region):
     kargs = {}

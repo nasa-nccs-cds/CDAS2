@@ -2,7 +2,7 @@ import os, traceback
 import zmq, cdms2
 import numpy as np
 from messageParser import mParse
-from cdasArray import CDArray, IO_DType
+from cdasArray import npArray, IO_DType
 from kernels.OperationsManager import cdasOpManager
 from kernels.Kernel import logger
 from task import Task
@@ -44,7 +44,7 @@ class Worker(object):
                 type = self.getMessageField(header,0)
                 if type == "array":
                     data = self.request_socket.recv()
-                    array = CDArray.createInput(header,data)
+                    array = npArray.createInput(header,data)
                     self.cached_inputs[array.id] = array
 
                 elif type == "task":
