@@ -11,7 +11,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class WorkerManager {
     int BASE_PORT = 2335;
-    ZMQ.Socket responder = null;
     ResponderThread responderThread = null;
 
     private WorkerManager() {
