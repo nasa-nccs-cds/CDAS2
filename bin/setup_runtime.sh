@@ -13,6 +13,7 @@ export WPS_CMD="$CDWPS_HOME_DIR/target/universal/cdwps-1.1-SNAPSHOT/bin/cdwps -J
 
 alias cdas='cd $CDAS_HOME_DIR'
 alias cdist='cd $CDWPS_HOME_DIR; sbt dist; cd target/universal/; rm -rf cdwps-*-SNAPSHOT; unzip *.zip; cd ../..; chmod -R a+rwX target; chmod -R a+rX ../CDWPS'
+alias pdist='cd $CDAS_HOME_DIR; sbt universal:packageBin; cd target/universal/; rm -rf cdas2-*-SNAPSHOT; unzip *.zip; cd ../..; chmod -R a+rwX target; chmod -R a+rX ../CDAS2'
 alias cdwps=$WPS_CMD
 alias cdwpsb='nohup $WPS_CMD &'
 alias pcdas='cd $CDAS_HOME_DIR; git fetch; git pull; sbt publish'

@@ -114,10 +114,6 @@ object Kernel {
 
 }
 
-object pathTest extends App {
-  println( System.getProperty("user.home") )
-}
-
 object KernelUtilities extends Loggable {
   def getWeights( inputId: String, context: KernelContext ): CDFloatArray =  {
     val weighting_type = context.config("weights", if (context.config("axes", "").contains('y')) "cosine" else "")
@@ -638,12 +634,7 @@ class TransientFragment( val dataFrag: DataFragment, val request: RequestContext
   def delete() = {;}
 }
 
-//object classTest extends App {
-//  import nasa.nccs.cds2.modules.CDSpark._
-//  printf( Kernel.getClass.isAssignableFrom( CDSpark. ).toString )
-//}
-
-object SerializeTest extends App {
+class SerializeTest {
   val input_array: CDFloatArray = CDFloatArray.const( Array(4), 2.5f )
   val ucar_array = CDFloatArray.toUcarArray( input_array )
   val byte_data = ucar_array.getDataAsByteBuffer().array()
@@ -653,7 +644,7 @@ object SerializeTest extends App {
   println( "Float data: %f %f %f %f".format( result.data(0), result.data(1), result.data(2), result.data(3) ))
 }
 
-object zmqSerializeTest extends App {
+class zmqSerializeTest {
   import nasa.nccs.cdas.workers.test.floatClient
   val input_array: CDFloatArray = CDFloatArray.const( Array(4), 2.5f )
   val ucar_array = CDFloatArray.toUcarArray( input_array )

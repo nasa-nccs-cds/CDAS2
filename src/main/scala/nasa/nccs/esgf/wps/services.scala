@@ -79,14 +79,3 @@ object cds2ServiceProvider extends ServiceProvider {
   override def getResultStatus( resultId: String ): xml.Node = cds2ExecutionManager.getResultStatus( resultId )
 
 }
-
-
-object resourceTest extends App {
-  import nasa.nccs.cds2.engine.CDS2ExecutionManager
-  val serverConfiguration: Map[String,String] = Map()
-
-  val cds2ExecutionManager = new CDS2ExecutionManager()
-
-  val resourcePath = cds2ExecutionManager.getResourcePath("/collections.xml")
-  println( resourcePath )
-}

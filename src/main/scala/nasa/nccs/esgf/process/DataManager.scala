@@ -581,11 +581,3 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
 }
 
 
-object serializeTest extends App {
-
-
-
-}
-
-
-

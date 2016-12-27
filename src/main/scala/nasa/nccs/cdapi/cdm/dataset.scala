@@ -474,7 +474,7 @@ object TestType {
   val NcFile = 4
 }
 
-object ncReadTest extends App with Loggable {
+class ncReadTest extends Loggable {
 
   import nasa.nccs.cds2.utilities.runtime
   import java.nio.channels.FileChannel
@@ -570,7 +570,7 @@ object ncReadTest extends App with Loggable {
   }
 }
 
-object ncWriteTest extends App with Loggable {
+class ncWriteTest extends Loggable {
   import nasa.nccs.cds2.utilities.runtime
   import java.nio.channels.FileChannel
   import java.nio.file.StandardOpenOption._

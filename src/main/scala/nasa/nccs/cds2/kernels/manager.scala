@@ -48,7 +48,7 @@ object KernelPackageTools {
   }
 }
 
-object ClasspathToolsTest extends App {
+class ClasspathToolsTest {
   val kmap = KernelPackageTools.getKernelMap
   kmap.get("CDSpark") match {
     case Some( kmod ) =>

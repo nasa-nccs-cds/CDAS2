@@ -250,9 +250,3 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
   }
 }
 
-object sectionTest1 extends App {
-  val offset = new ma2.Section( Array( 20, 0, 0 ), Array( 0, 0, 0 ) )
-  val section = new ma2.Section( Array( 20, 50, 30 ), Array( 100, 100, 100 ) )
-  val section1 = section.compose( offset )
-  println( section1.toString )
-}

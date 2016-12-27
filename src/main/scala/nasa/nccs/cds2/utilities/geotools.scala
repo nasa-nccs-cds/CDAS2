@@ -87,7 +87,7 @@ class GeoTools( val SRID: Int = 4326 ) {
 
 }
 
-object maskPointsTest extends App {
+class maskPointsTest {
 //  val oceanShapeUrl=getClass.getResource("/shapes/110m/ocean/ne_110m_ocean.shp")
   val oceanShapeUrl = getClass.getResource("/shapes/ocean50m/ne_50m_ocean.shp")
   val geotools = new GeoTools()

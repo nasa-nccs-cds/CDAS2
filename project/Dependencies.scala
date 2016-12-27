@@ -17,6 +17,7 @@ object Library {
   val scalaxml       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
   val scalaparser    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
   val commonsIO      = "commons-io"         % "commons-io"      % "2.5"
+//  val packager       = "com.typesafe.sbt" % "sbt-native-packager" % "1.2.0-SNAPSHOT"
   val zeromq         = "org.zeromq"         % "jeromq"          % "0.3.5"
   val cdm            = "edu.ucar"           % "cdm"             % "4.6.6"
   val clcommon       = "edu.ucar"           % "clcommon"        % "4.6.6"

@@ -2,6 +2,7 @@ package nasa.nccs.cdas.workers;
 import org.zeromq.ZMQ;
 import org.slf4j.Logger;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 

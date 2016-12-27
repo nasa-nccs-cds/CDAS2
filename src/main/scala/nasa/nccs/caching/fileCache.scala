@@ -781,18 +781,6 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
 
 object collectionDataCache extends CollectionDataCacheMgr()
 
-object TestApp extends App {
-  val it1 = Int.MaxValue
-  val it2 = math.pow(2, 31).toInt
-  println(it1 + ", " + it2)
-}
-
-object PartitionTest extends App {
-  val section0 = new ma2.Section(Array(319944, 361, 576))
-  val section1 = new ma2.Section(Array(248, 42, 144, 288))
-  val partitioner = new CDASPartitioner("0000", section1)
-}
-
 // class FileToCacheStream1( val ncVariable: nc2.Variable, val roi: ma2.Section, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment"  ) extends Loggable {
 //  private val chunkCache = new ConcurrentLinkedHashMap.Builder[Int,CacheChunk].initialCapacity(500).maximumWeightedCapacity(1000000).build()
 //  private val nReadProcessors = 3
@@ -915,9 +903,3 @@ object PartitionTest extends App {
 //  }
 //}
 
-object appTest extends App {
-  val list = List(2, 4, 6, 8, 9, 4, 2, 1)
-  val l1 = list.sortWith(_ < _)
-  println(l1.mkString(", "))
-  println(l1.headOption.get)
-}

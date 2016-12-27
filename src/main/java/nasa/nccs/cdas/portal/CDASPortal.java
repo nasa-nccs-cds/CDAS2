@@ -9,11 +9,15 @@ public abstract class CDASPortal {
     protected ZMQ.Context zmqContext = null;
     protected ZMQ.Socket request_socket = null;
     protected ZMQ.Socket response_socket = null;
+    protected int request_port = -1;
+    protected int response_port = -1;
     protected Logger logger = CDASLogManager.getCurrentLogger();
     private boolean active = true;
 
-    protected CDASPortal( int request_port, int response_port ) {
+    protected CDASPortal( int _request_port, int _response_port ) {
         try {
+            request_port = _request_port;
+            response_port = _response_port;
             zmqContext = ZMQ.context(1);
             request_socket = zmqContext.socket(ZMQ.PULL);
             request_socket.connect(String.format("tcp://localhost:%d", request_port));
@@ -40,6 +44,7 @@ public abstract class CDASPortal {
 
     public void run() {
         while( active ) try {
+            logger.info( String.format( "Listening for requests on port: %d",  request_port ) );
             String request_header = new String(request_socket.recv(0)).trim();
             String[] parts = request_header.split("[|]");
             logger.info( "Received request header from portal: " + request_header );

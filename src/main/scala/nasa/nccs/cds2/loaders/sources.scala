@@ -9,7 +9,6 @@ import scala.collection.JavaConversions._
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
-import nasa.nccs.cdapi.cdm.ncReadTest._
 import nasa.nccs.cdapi.cdm.{Collection, DiskCacheFileMgr, NCMLWriter}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.dataset.NetcdfDataset
@@ -285,11 +284,7 @@ object Collections extends XmlResource {
   def getCollectionKeys(): Array[String] = datasets.keys.toArray
 }
 
-object UpdateCollectionVars extends App {
-  Collections.updateVars
-}
-
-object netcdfTestApp extends App {
+class netcdfTestApp {
   import ucar.nc2.dataset.NetcdfDataset
   val origin = Array(1404,0,0)
   val shape = Array(234,90,144)

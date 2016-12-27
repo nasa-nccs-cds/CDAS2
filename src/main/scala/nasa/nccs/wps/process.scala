@@ -77,9 +77,3 @@ object TestProcess extends WPSProcess {
   val inputs = List( WPSDataInput("input-0",1,1,"input-title","input-abstract") )
   val outputs = List( WPSProcessOutput("output-0","text/xml","output-title","output-abstract") )
 }
-
-object WPSTest extends App {
-  val printer = new scala.xml.PrettyPrinter(200, 3)
-  val response = TestProcess.DescribeProcess
-  println( printer.format(response) )
-}

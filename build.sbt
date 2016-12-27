@@ -21,6 +21,7 @@ resolvers += "spray repo" at "http://repo.spray.io"
 resolvers += "Artima Maven Repository" at "http://repo.artima.com/releases"
 resolvers += "Geotoolkit" at "http://maven.geotoolkit.org/"
 
+enablePlugins(JavaAppPackaging)
 
 libraryDependencies ++= Dependencies.scala
 

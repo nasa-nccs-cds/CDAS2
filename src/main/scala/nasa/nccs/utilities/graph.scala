@@ -66,7 +66,7 @@ class LabeledDAGNode(id: String) extends DAGNode with Loggable {
   override def toString: String = s"DAGNode[$id]"
 }
 
-object DAGNodeTest extends App {
+class DAGNodeTest {
   val dn1 = new LabeledDAGNode("N1")
   val dn2 = new LabeledDAGNode("N2")
   val dn3 = new LabeledDAGNode("N3")
