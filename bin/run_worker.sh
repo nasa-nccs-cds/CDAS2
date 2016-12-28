@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-source ./setup_runtime.sh
+source ~/.bash_profile
 CDAS_WORKER=${CDAS_HOME_DIR}/python/pycdas/worker.py
 echo "Running Python worker: "
 echo ${CDAS_WORKER}
