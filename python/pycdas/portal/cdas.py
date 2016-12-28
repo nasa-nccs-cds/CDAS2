@@ -2,7 +2,7 @@ import zmq, traceback
 from pycdas.kernels.Kernel import logger
 from threading import Thread
 from pycdas.cdasArray import npArray
-from subprocess import call
+from subprocess import Popen
 import shlex
 
 def bindSocket( socket, init_port ):
@@ -22,40 +22,65 @@ class CDASPortal:
             self.context = zmq.Context()
             self.request_socket = self.context.socket(zmq.PUSH)
             self.request_port = bindSocket( self.request_socket, 2335 )
-            logger.info( "Connected request socket on port: {0}".format( self.request_port ) )
+            logger.info( "Started request socket on port: {0}".format( self.request_port ) )
             self.response_thread = ResponseThread(self.request_port + 1)
             self.response_thread.start()
         except Exception as err:
-            logger.error( "\n-------------------------------\nWorker Init error: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
+            err_msg =  "\n-------------------------------\nWorker Init error: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() )
+            logger.error(err_msg)
+            print err_msg
+            self.shutdown()
 
     def __del__(self): self.shutdown()
 
     def start_CDAS(self):
-        cdas_startup = "cdas -pullport {0} -pushport {1} -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M".format( self.response_thread.port, self.request_port )
-        call( shlex.split( cdas_startup ) )
+        self.application_thread = AppThread( self.request_port, self.response_thread.port )
+        self.application_thread.start()
 
     def shutdown(self):
         logger.info(  " ############################## SHUT DOWN DATA SOCKET ##############################"  )
         self.sendMessage("shutdown")
-        self.request_socket.close()
-        self.result_socket.close()
+        try: self.request_socket.close()
+        except Exception: pass
+        self.application_thread.term()
+        self.response_thread.term()
 
-    def sendMessage( self, type, msg = "" ):
-        logger.info( "Sending {1} Message: {0}\n".format( type, msg )  )
-        message = "|".join( [ type, msg ] )
-        self.request_socket.send( message )
+    def sendMessage( self, type, msgStrs = [""] ):
+        logger.info( "Sending {1} Message: {0}\n".format( type, msgStrs )  )
+        msgStrs.append(type)
+        self.request_socket.send( "|".join( msgStrs ) )
 
+    def join(self):
+        self.response_thread.join()
+
+class AppThread(Thread):
+    def __init__(self, request_port, response_port):
+        Thread.__init__(self)
+        self._response_port = response_port
+        self._request_port = request_port
+
+    def run(self):
+        cdas_startup = "cdas2 {0} {1} -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M".format( self._request_port, self._response_port )
+        self.process = Popen( shlex.split( cdas_startup ) )
+        logger.info( "Staring CDAS with command: {0}\n".format( cdas_startup ) )
+
+    def term(self):
+        self.process.terminate()
+
+    def join(self):
+        self.process.wait()
 
 class ResponseThread(Thread):
     def __init__(self, init_port ):
         Thread.__init__(self)
+        self.context = zmq.Context()
         self.cached_results = {}
         self.cached_arrays = {}
         self.socket = self.context.socket(zmq.PULL)
         self.port = bindSocket( self.socket, init_port )
         self.active = True
         self.setName('CDAS Response Thread')
-        logger.info( "Connected response socket on port: {0}".format( self.port ) )
+        logger.info( "Started response socket on port: {0}".format( self.port ) )
 
     def getMessageField(self, header, index ):
         toks = header.split('|')
@@ -75,6 +100,7 @@ class ResponseThread(Thread):
 
                 elif type == "result":
                     self.cached_results[ toks[1] ] = toks[2]
+                    logger.info("Received result {0}: {1}".format(toks[1],toks[2]))
 
             except Exception as err:
                 logger.error( "CDAS error: {0}\n{1}\n".format(err, traceback.format_exc() ) )

@@ -10,7 +10,7 @@ import org.zeromq.ZMQ;
 //
 public class taskvent {
 
-    public static void main (String[] args) throws Exception {
+    public static void run (String[] args) throws Exception {
         ZMQ.Context context = ZMQ.context(1);
 
         //  Socket to send messages on

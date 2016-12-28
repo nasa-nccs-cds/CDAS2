@@ -11,6 +11,7 @@ export CLASSPATH=${CDAS_SCALA_DIR}:${CDAS_CACHE_DIR}:${CLASSPATH}
 export UVCDAT_ANONYMOUS_LOG=no
 export WPS_CMD="$CDWPS_HOME_DIR/target/universal/cdwps-1.1-SNAPSHOT/bin/cdwps -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M"
 export PYTHONPATH=${PYTHONPATH}:${CDAS_HOME_DIR}/python
+export PATH=${CDAS_HOME_DIR}/target/universal/stage/bin:${PATH}
 
 alias cdas='cd $CDAS_HOME_DIR'
 alias cdist='cd $CDWPS_HOME_DIR; sbt dist; cd target/universal/; rm -rf cdwps-*-SNAPSHOT; unzip *.zip; cd ../..; chmod -R a+rwX target; chmod -R a+rX ../CDWPS'
