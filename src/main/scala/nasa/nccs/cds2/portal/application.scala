@@ -7,39 +7,39 @@ class CDASapp( request_port: Int, response_port: Int, appConfiguration: Map[Stri
   val processManager = new ProcessManager( appConfiguration )
   val process = "cdas"
 
-  def postArray(header: String, data: Array[Byte]) = {
+  override def postArray(header: String, data: Array[Byte]) = {
 
   }
 
-  def execUtility(utilSpec: Array[String]) = {
+  override def execUtility(utilSpec: Array[String]) = {
 
   }
 
   def getResult( resultSpec: Array[String] ) = {
-    val result: xml.Node = processManager.getResult( process, resultSpec(0) )
+    val result: xml.Node = processManager.getResult( process, resultSpec(1) )
     sendResponse( result.toString )
   }
 
   def getResultStatus( resultSpec: Array[String] ) = {
-    val result: xml.Node = processManager.getResultStatus( process, resultSpec(0) )
+    val result: xml.Node = processManager.getResultStatus( process, resultSpec(1) )
     sendResponse( result.toString )
   }
 
-  def execute( taskSpec: Array[String] ) = {
-    val process_name = taskSpec(0)
-    val datainputs = wpsObjectParser.parseDataInputs( taskSpec(1) )
-    val runargs = wpsObjectParser.parseMap( taskSpec(2) )
+  override def execute( taskSpec: Array[String] ) = {
+    val process_name = taskSpec(1)
+    val datainputs = wpsObjectParser.parseDataInputs( taskSpec(2) )
+    val runargs = if( taskSpec.length > 3 ) wpsObjectParser.parseMap( taskSpec(3) ) else Map.empty[String, Any]
     val response = processManager.executeProcess( process, process_name, datainputs, runargs.mapValues(_.toString) )
     sendResponse( response.toString )
   }
 
-  def getCapabilities(utilSpec: Array[String]) = {
-    val result: xml.Elem = processManager.getCapabilities( process, utilSpec(0) )
+  override def getCapabilities(utilSpec: Array[String]) = {
+    val result: xml.Elem = processManager.getCapabilities( process, utilSpec(1) )
     sendResponse( result.toString )
   }
 
-  def describeProcess(procSpec: Array[String]) = {
-    val result: xml.Elem = processManager.describeProcess( process, procSpec(0) )
+  override def describeProcess(procSpec: Array[String]) = {
+    val result: xml.Elem = processManager.describeProcess( process, procSpec(1) )
     sendResponse( result.toString  )
   }
 }

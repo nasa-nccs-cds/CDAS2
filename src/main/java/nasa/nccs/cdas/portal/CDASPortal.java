@@ -35,31 +35,31 @@ public abstract class CDASPortal {
         logger.info( " Sent response: " + response );
     }
 
-    abstract void postArray( String header, byte[] data );
-    abstract void execUtility( String[] utilSpec );
+    public abstract void postArray( String header, byte[] data );
+    public abstract void execUtility( String[] utilSpec );
 
-    abstract void execute( String[] taskSpec );
-    abstract void getCapabilities( String[] utilSpec );
-    abstract void describeProcess( String[] utilSpec );
+    public abstract void execute( String[] taskSpec );
+    public abstract void getCapabilities( String[] utilSpec );
+    public abstract void describeProcess( String[] utilSpec );
 
     public void run() {
         while( active ) try {
             logger.info( String.format( "Listening for requests on port: %d",  request_port ) );
             String request_header = new String(request_socket.recv(0)).trim();
-            String[] parts = request_header.split("[|]");
-            logger.info( "Received request header from portal: " + request_header );
+            logger.info( String.format( "  ###  Processing request: %s",  request_header ) );
+            String[] parts = request_header.split("[!]");
             if( parts[0].equals("array") ) {
                 logger.info("Waiting for result data ");
                 byte[] data = request_socket.recv(0);
                 postArray(request_header, data);
             } else if( parts[0].equals("execute") ) {
-                execute( Arrays.copyOfRange( parts, 1, parts.length) );
+                execute( parts );
             } else if( parts[0].equals("util") ) {
-                execUtility( Arrays.copyOfRange( parts, 1, parts.length) );
+                execUtility( parts );
             } else if( parts[0].equals("getCapabilities") ) {
-                getCapabilities( Arrays.copyOfRange( parts, 1, parts.length) );
+                getCapabilities( parts );
             } else if( parts[0].equals("describeProcess") ) {
-                describeProcess( Arrays.copyOfRange( parts, 1, parts.length) );
+                describeProcess( parts );
             } else {
                 logger.info( "Unknown request header type: " + parts[0] );
             }

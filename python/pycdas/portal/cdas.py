@@ -47,8 +47,7 @@ class CDASPortal:
 
     def sendMessage( self, type, msgStrs = [""] ):
         logger.info( "Sending {1} Message: {0}\n".format( type, msgStrs )  )
-        msgStrs.append(type)
-        self.request_socket.send( "|".join( msgStrs ) )
+        self.request_socket.send( "!".join( [type] + msgStrs ) )
 
     def join(self):
         self.response_thread.join()
