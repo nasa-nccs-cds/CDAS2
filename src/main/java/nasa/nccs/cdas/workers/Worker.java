@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.workers;
 import org.zeromq.ZMQ;
-import org.slf4j.Logger;
+import org.apache.log4j.Logger;
 
 import java.io.IOException;
 import java.util.*;
@@ -140,14 +140,14 @@ public abstract class Worker {
     public void sendArrayData( String id, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
         List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata) );
         String header = String.join("|", slist);
-        System.out.println("Sending header: " + header);
+        logger.info("Sending header: " + header);
         sendDataPacket( header, data );
     }
 
     public void sendRequest( String operation, String[] inputs, Map<String, String> metadata ) {
         List<String> slist = Arrays.asList(  "task", operation, sa2s(inputs), m2s(metadata)  );
         String header = String.join("|", slist);
-        System.out.println( "Sending Task Request: " + header );
+        logger.info( "Sending Task Request: " + header );
         request_socket.send(header);
         isValid = true;
     }
@@ -155,9 +155,9 @@ public abstract class Worker {
     public void sendUtility( String request ) {
         List<String> slist = Arrays.asList(  "util", request );
         String header = String.join("|", slist);
-        System.out.println( "Sending Utility Request: " + header );
+        logger.info( "Sending Utility Request: " + header );
         request_socket.send(header);
-        System.out.println( "Utility Request Sent!" );
+        logger.info( "Utility Request Sent!" );
     }
 
     public String getCapabilities() {

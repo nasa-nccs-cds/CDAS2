@@ -6,12 +6,12 @@ export CDAS_HOME_DIR=${CDAS_BIN_DIR}/..
 export CDWPS_HOME_DIR=${CDWPS_HOME_DIR:-${CDAS_HOME_DIR}/../CDWPS}
 export CDSHELL_HOME_DIR=${CDSHELL_HOME_DIR:-${CDAS_HOME_DIR}/../CDASClientConsole}
 export CDAS_SCALA_DIR=${CDAS_BIN_DIR}/../src/main/scala
-export PATH=${CDAS_BIN_DIR}:${PATH}
-export CLASSPATH=${CDAS_SCALA_DIR}:${CDAS_CACHE_DIR}:${CLASSPATH}
+export CDAS_STAGE_DIR=${CDAS_HOME_DIR}/target/universal/stage
+export CLASSPATH=${CDAS_SCALA_DIR}:${CDAS_CACHE_DIR}:${CDAS_STAGE_DIR}/conf:${CDAS_STAGE_DIR}/lib:${CLASSPATH}
 export UVCDAT_ANONYMOUS_LOG=no
 export WPS_CMD="$CDWPS_HOME_DIR/target/universal/cdwps-1.1-SNAPSHOT/bin/cdwps -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M"
 export PYTHONPATH=${PYTHONPATH}:${CDAS_HOME_DIR}/python
-export PATH=${CDAS_HOME_DIR}/target/universal/stage/bin:${PATH}
+export PATH=${CDAS_STAGE_DIR}/bin:${CDAS_BIN_DIR}:${PATH}
 
 alias cdas='cd $CDAS_HOME_DIR'
 alias cdist='cd $CDWPS_HOME_DIR; sbt dist; cd target/universal/; rm -rf cdwps-*-SNAPSHOT; unzip *.zip; cd ../..; chmod -R a+rwX target; chmod -R a+rX ../CDWPS'

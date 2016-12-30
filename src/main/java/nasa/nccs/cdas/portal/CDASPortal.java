@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.portal;
 import nasa.nccs.cdas.workers.python.PythonWorkerPortal;
-import org.slf4j.Logger;
+import org.apache.log4j.Logger;
 import org.zeromq.ZMQ;
 import nasa.nccs.utilities.CDASLogManager;
 
@@ -47,8 +47,8 @@ public abstract class CDASPortal {
         while( active ) try {
             logger.info( String.format( "Listening for requests on port: %d",  request_port ) );
             String request_header = new String(request_socket.recv(0)).trim();
-            logger.info( String.format( "  ###  Processing request: %s",  request_header ) );
             String[] parts = request_header.split("[!]");
+            logger.info( String.format( "  ###  Processing %s request: %s",  parts[0], request_header ) );
             if( parts[0].equals("array") ) {
                 logger.info("Waiting for result data ");
                 byte[] data = request_socket.recv(0);

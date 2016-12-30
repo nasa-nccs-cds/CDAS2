@@ -1,22 +1,23 @@
 import logging, os
 from abc import ABCMeta, abstractmethod
 
-def _getLogger():
-    logger = logging.getLogger('ICDAS')
-    handler = logging.FileHandler( _getLogFile( os.getpid() ) )
-    formatter = logging.Formatter('\t\t%(asctime)s %(levelname)s %(message)s')
+def getLogger( name ):
+    logger = logging.getLogger( name )
+    handler = logging.FileHandler( _getLogFile() )
+    formatter = logging.Formatter(name + ': %(asctime)s %(levelname)s %(message)s')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(logging.DEBUG)
     return logger
 
-def _getLogFile( index ):
-    log_file = os.path.expanduser('~/.cdas/pycdas-{0}.log'.format(index))
+def _getLogFile(  ):
+    log_file = os.path.expanduser('~/.cdas/pycdas.log')
     try: os.remove(log_file)
     except Exception: pass
     return log_file
 
-logger = _getLogger()
+portal_logger = getLogger('portal')
+worker_logger = getLogger('worker')
 
 class KernelSpec:
     def __init__( self, name, title, description, inputs=[] ):

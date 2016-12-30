@@ -1,5 +1,5 @@
 from Modules import *
-from pycdas.kernels.Kernel import Kernel, logger
+from pycdas.kernels.Kernel import Kernel, worker_logger
 import pycdas
 from os import listdir
 from os.path import isfile, join, os
@@ -7,6 +7,7 @@ from os.path import isfile, join, os
 class OperationsManager:
 
     def __init__( self ):
+        self.logger = worker_logger
         self.operation_modules = {}
         self.build()
 
@@ -26,12 +27,12 @@ class OperationsManager:
                         if issubclass( mod_cls, Kernel ):
                             kernel_instance = mod_cls();
                             kernels.append( kernel_instance )
-                            logger.debug(  " ----------->> Adding Kernel Class: " + str( clsname ) )
+                            self.logger.debug(  " ----------->> Adding Kernel Class: " + str( clsname ) )
                     except TypeError, err:
-                        logger.debug( "Skipping improperly structured class: " + clsname + " -->> " + str(err) )
+                        self.logger.debug( "Skipping improperly structured class: " + clsname + " -->> " + str(err) )
             if len(kernels) > 0:
                 self.operation_modules["python."+module_name] = KernelModule( module_name, kernels )
-                logger.debug(  " ----------->> Adding Module: " + str( module_name ) )
+                self.logger.debug(  " ----------->> Adding Module: " + str( module_name ) )
 
     def getModule(self, task ):
         return self.operation_modules[ task.module ]

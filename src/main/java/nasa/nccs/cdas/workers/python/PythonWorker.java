@@ -1,7 +1,7 @@
 package nasa.nccs.cdas.workers.python;
 import nasa.nccs.cdas.workers.Worker;
 import org.zeromq.ZMQ;
-import org.slf4j.Logger;
+import org.apache.log4j.Logger;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;

@@ -1,4 +1,4 @@
-from pycdas.kernels.Kernel import Kernel, KernelSpec, logger
+from pycdas.kernels.Kernel import Kernel, KernelSpec
 from pycdas.cdasArray import npArray
 
 class StdKernel(Kernel):

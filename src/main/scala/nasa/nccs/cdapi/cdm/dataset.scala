@@ -402,7 +402,7 @@ trait DiskCachable extends XmlResource {
 //}
 //public class NcMLReader {
 //  static private final Namespace ncNS = thredds.client.catalog.Catalog.ncmlNS;
-//  static private org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(NcMLReader.class);
+//  static private org.apache.log4j.Logger log = Logger.getLogger(NcMLReader.class);
 //
 //  private static boolean debugURL = false, debugXML = false, showParsedXML = false;
 //  private static boolean debugOpen = false, debugConstruct = false, debugCmd = false;
@@ -419,7 +419,7 @@ trait DiskCachable extends XmlResource {
 //  }
 
 //class CDSDataset( val name: String, val collection: Collection ) extends Serializable {
-//  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
+//  val logger = Logger.getLogger(this.getClass)
 //  val fileHeaders: Option[DatasetFileHeaders] = getDatasetFileHeaders
 //  def getFilePath = collection.dataPath
 //

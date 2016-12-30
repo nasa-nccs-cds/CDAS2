@@ -5,7 +5,6 @@ import nasa.nccs.cdapi.tensors.{CDArray, CDCoordMap, CDFloatArray, CDTimeCoordMa
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.esgf.process._
 import org.apache.spark.rdd.RDD
-import org.slf4j.LoggerFactory
 import java.io._
 import java.nio.{ByteBuffer, FloatBuffer}
 

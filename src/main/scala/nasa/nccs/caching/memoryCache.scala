@@ -2,7 +2,7 @@ package nasa.nccs.caching
 
 import java.io._
 import java.nio.file.{Files, Paths}
-
+import org.apache.log4j.Logger
 import org.apache.commons.io.FileUtils
 
 import collection.mutable
@@ -115,7 +115,6 @@ object ValueMagnet {
 //  override def onEviction(key: K, value: V ) {;}
 //}
 class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boolean ) extends Cache[K,V] with Loggable {
-  val cache_logger = org.slf4j.LoggerFactory.getLogger("cache")
   val KpG = 1000000L
   val maxCapacity: Long = appParameters(Array(ctype.toLowerCase,cname.toLowerCase,"capacity").mkString("."),"30").toLong * KpG
   val initialCapacity: Int=64
@@ -130,7 +129,7 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
   def weightedSize: Long = store.weightedSize()
 
   def capacity_log( key: K, msg: String ) = synchronized {
-    cache_logger.info( s" %s [$cname-$ctype](%s): size = %d".format( msg, key.toString, weightedSize ) );
+    logger.info( s"CACHE LOG: %s [$cname-$ctype](%s): size = %d".format( msg, key.toString, weightedSize ) );
   }
 
   def getStore(): ConcurrentLinkedHashMap[K, Future[V]] = {
