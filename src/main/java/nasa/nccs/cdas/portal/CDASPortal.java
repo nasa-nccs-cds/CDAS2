@@ -1,4 +1,5 @@
 package nasa.nccs.cdas.portal;
+import nasa.nccs.cdas.workers.python.PythonWorkerPortal;
 import org.slf4j.Logger;
 import org.zeromq.ZMQ;
 import nasa.nccs.utilities.CDASLogManager;
@@ -56,6 +57,8 @@ public abstract class CDASPortal {
                 execute( parts );
             } else if( parts[0].equals("util") ) {
                 execUtility( parts );
+            }else if( parts[0].equals("quit") ) {
+                term();
             } else if( parts[0].equals("getCapabilities") ) {
                 getCapabilities( parts );
             } else if( parts[0].equals("describeProcess") ) {
@@ -75,6 +78,7 @@ public abstract class CDASPortal {
 
     public void term() {
         active = false;
+        PythonWorkerPortal.getInstance().quit();
         try { request_socket.close(); }  catch ( Exception ex ) { ; }
         try { response_socket.close(); }  catch ( Exception ex ) { ; }
     }

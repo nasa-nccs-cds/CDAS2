@@ -62,6 +62,11 @@ lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val uvcdat_prefix = settingKey[File]("The UVCDAT env directory.")
 
+unmanagedResourceDirectories in Test += baseDirectory.value / "src" / "universal" / "conf"
+unmanagedResourceDirectories in (Compile, runMain) += baseDirectory.value / "src" / "universal" / "conf"
+unmanagedClasspath in Test += baseDirectory.value / "src" / "universal" / "conf"
+unmanagedClasspath in (Compile, runMain) += baseDirectory.value / "src" / "universal" / "conf"
+
 // lazy val cdasGlobalCollectionsFile = settingKey[File]("The cdas global Collections file")
 
 cdas_cache_dir := { val cache_dir = getCacheDir();  cache_dir.mkdirs();  cache_dir  }

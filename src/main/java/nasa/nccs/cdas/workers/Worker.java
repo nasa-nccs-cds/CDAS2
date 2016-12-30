@@ -119,6 +119,9 @@ public abstract class Worker {
         logger.info( String.format("Starting Worker, ports: %d %d",  request_port, result_port ) );
     }
 
+    @Override
+    public void finalize() { quit(); }
+
     public void sendDataPacket( String header, byte[] data ) {
         request_socket.send(header);
         request_socket.send(data);
@@ -154,6 +157,7 @@ public abstract class Worker {
         String header = String.join("|", slist);
         System.out.println( "Sending Utility Request: " + header );
         request_socket.send(header);
+        System.out.println( "Utility Request Sent!" );
     }
 
     public String getCapabilities() {

@@ -21,7 +21,7 @@ class CDASPortal:
         try:
             self.context = zmq.Context()
             self.request_socket = self.context.socket(zmq.PUSH)
-            self.request_port = bindSocket( self.request_socket, 2335 )
+            self.request_port = bindSocket( self.request_socket, 4336 )
             logger.info( "Started request socket on port: {0}".format( self.request_port ) )
             self.response_thread = ResponseThread(self.request_port + 1)
             self.response_thread.start()

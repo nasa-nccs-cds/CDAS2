@@ -8,10 +8,12 @@ import java.nio.file.Path;
 import java.util.*;
 
 public class PythonWorker extends Worker {
+    Process proc;
 
     public PythonWorker( ZMQ.Context context, Logger logger ) throws Exception {
         super( context, logger );
-        startup();
+        proc = startup();
+        logger.info( " *** Started worker process: " +  proc.toString() );
     }
 
     Process startup() throws Exception {
@@ -27,7 +29,7 @@ public class PythonWorker extends Worker {
             pb.directory( exe_dir.toFile() );
             pb.redirectErrorStream( true );
             pb.redirectOutput( ProcessBuilder.Redirect.appendTo( log_path.toFile() ));
-            System.out.println( "Starting Python Worker: " + path.toString() );
+            logger.info( " *** Starting Python Worker: " + path.toString() + "\n --> request_port = " + String.valueOf(request_port)+ ", result_port = " + String.valueOf(result_port));
             return pb.start();
         } catch ( IOException ex ) {
             throw new Exception( "Error starting Python Worker : " + ex.toString() );

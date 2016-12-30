@@ -752,7 +752,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
           fragmentCache.put(fkey, partFrag)
           Some(partFragFut)
         case None =>
-          logger.warn("Unable to restore frag from cache: " + fkey.toString)
+          logger.warn("Unable to restore frag from cache: " + fkey.toString + "\n --> Frags in cache: " + FragmentPersistence.keys.mkString(", "))
           None
       }
     } else {
