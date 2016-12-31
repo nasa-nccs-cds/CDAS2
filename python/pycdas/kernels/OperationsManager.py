@@ -1,13 +1,13 @@
 from Modules import *
-from pycdas.kernels.Kernel import Kernel, worker_logger
-import pycdas
+from pycdas.kernels.Kernel import Kernel
+import logging
 from os import listdir
 from os.path import isfile, join, os
 
 class OperationsManager:
 
     def __init__( self ):
-        self.logger = worker_logger
+        self.logger =  logging.getLogger("worker")
         self.operation_modules = {}
         self.build()
 

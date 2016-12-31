@@ -34,14 +34,14 @@ abstract class WPSExecuteResponse( val serviceInstance: String, val processes: L
     <wps:Data id={id}> <wps:LiteralData uom={units} shape={array.getShape.mkString(",")}>{ array.mkBoundedDataString(",",maxSize) }</wps:LiteralData> </wps:Data>
 }
 
-abstract class WPSReferenceExecuteResponse( serviceInstance: String, val process: WPSProcess, val optResultId: Option[String] )  extends WPSExecuteResponse( serviceInstance, process )  {
-  val statusHref: String = optResultId match { case Some( rid ) => proxyAddress + s"/wps/status?id=$rid"; case None => "" }
-  val fileHref: String = optResultId match { case Some( rid ) => proxyAddress + s"/wps/file?id=$rid"; case None => "" }
-  val resultHref: String = optResultId match { case Some( rid ) => proxyAddress + s"/wps/result?id=$rid"; case None => "" }
+abstract class WPSReferenceExecuteResponse( serviceInstance: String, val process: WPSProcess, val resultId: String )  extends WPSExecuteResponse( serviceInstance, process )  {
+  val statusHref: String = proxyAddress + s"/wps/status?id=$resultId"
+  val fileHref: String = proxyAddress + s"/wps/file?id=$resultId"
+  val resultHref: String = proxyAddress + s"/wps/result?id=$resultId"
   def getReference: xml.Elem = <wps:Reference encoding="UTF-8" mimeType="text/xml" href={statusHref}/>
   def getFileReference: xml.Elem = <wps:Reference encoding="UTF-8" mimeType="text/xml" href={fileHref}/>
   def getResultReference: xml.Elem = <wps:Reference encoding="UTF-8" mimeType="text/xml" href={resultHref}/>
-
+  def getResultId: String = resultId
 }
 
 class MergedWPSExecuteResponse( serviceInstance: String, responses: List[WPSExecuteResponse] ) extends WPSExecuteResponse( serviceInstance, responses.flatMap(_.processes) ) with Loggable {
@@ -57,13 +57,13 @@ class MergedWPSExecuteResponse( serviceInstance: String, responses: List[WPSExec
   }
 }
 
-class RDDExecutionResult( serviceInstance: String, process: WPSProcess, id: String, val result: RDDPartition,  optResultId: Option[String] = None ) extends WPSReferenceExecuteResponse( serviceInstance, process, optResultId )  with Loggable {
+class RDDExecutionResult( serviceInstance: String, process: WPSProcess, id: String, val result: RDDPartition,  resultId: String ) extends WPSReferenceExecuteResponse( serviceInstance, process, resultId )  with Loggable {
   def getProcessOutputs( process_id: String, output_id: String  ): Iterable[xml.Elem] = {
     result.elements map { case (id, array) => getData( id, array.toCDFloatArray, array.metadata.getOrElse("units","") ) }
   }
 }
 
-class ExecutionErrorReport( serviceInstance: String, process: WPSProcess, id: String, val err: Throwable ) extends WPSReferenceExecuteResponse( serviceInstance, process, None )  with Loggable {
+class ExecutionErrorReport( serviceInstance: String, process: WPSProcess, id: String, val err: Throwable ) extends WPSReferenceExecuteResponse( serviceInstance, process, "" )  with Loggable {
   print_error
   override def toXml = {
     <ows:ExceptionReport xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -110,7 +110,7 @@ class WPSExceptionReport( val err: Throwable ) extends WPSEventReport with Logga
   }
 }
 
-class AsyncExecutionResult( serviceInstance: String, process: WPSProcess, optResultId: Option[String] ) extends WPSReferenceExecuteResponse( serviceInstance, process, optResultId )  {
+class AsyncExecutionResult( serviceInstance: String, process: WPSProcess, resultId: String ) extends WPSReferenceExecuteResponse( serviceInstance, process, resultId )  {
   def getProcessOutputs( process_id: String, output_id: String ): Iterable[xml.Elem] = List()
 }
 
@@ -119,7 +119,7 @@ class WPSMergedEventReport( val reports: List[WPSEventReport] ) extends WPSEvent
 }
 
 class BlockingExecutionResult( serviceInstance: String, process: WPSProcess, id: String, val intputSpecs: List[DataFragmentSpec], val gridSpec: TargetGrid, val result_tensor: CDFloatArray,
-                               optResultId: Option[String] = None ) extends WPSReferenceExecuteResponse( serviceInstance, process, optResultId )  with Loggable {
+                               resultId: String ) extends WPSReferenceExecuteResponse( serviceInstance, process, resultId )  with Loggable {
   //  def toXml_old = {
   //    val idToks = id.split('-')
   //    logger.info( "BlockingExecutionResult-> result_tensor(" + id + "): \n" + result_tensor.toString )

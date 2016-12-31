@@ -173,14 +173,10 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     new ExecutionErrorReport( "", node.kernel, node.operation.identifier, err ) // TODO: serviceInstance
   }
 
-  def cacheResult( result: RDDPartition, context: RequestContext, node: WorkflowNode ): Option[String] = {
-    try {
-      collectionDataCache.putResult( node.operation.rid, new RDDTransientVariable( result, node.operation, context ) )
-      logger.info( " ^^^^## Cached result, results = " + collectionDataCache.getResultIdList.mkString(",") + ", shape = " + result.head._2.shape.mkString(",") + ", rid = " + node.operation.rid )
-      Some(node.operation.rid)
-    } catch {
-      case ex: Exception => logger.error( "Can't cache result: " + ex.getMessage ); None
-    }
+  def cacheResult( result: RDDPartition, context: RequestContext, node: WorkflowNode ): String = {
+    collectionDataCache.putResult( node.operation.rid, new RDDTransientVariable( result, node.operation, context ) )
+    logger.info( " ^^^^## Cached result, results = " + collectionDataCache.getResultIdList.mkString(",") + ", shape = " + result.head._2.shape.mkString(",") + ", rid = " + node.operation.rid )
+    node.operation.rid
   }
 
   def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {

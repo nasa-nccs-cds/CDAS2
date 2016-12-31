@@ -47,20 +47,21 @@ public abstract class WorkerPortal {
 
     public void shutdown() {
         logger.info( "\t   *** WorkerPortal SHUTDOWN *** " );
+        printPythonLog( "worker" );
         while( !availableWorkers.isEmpty() ) {
             Worker worker = availableWorkers.poll();
-            printPythonLog( worker.request_port );
             worker.quit();
         }
         while( !busyWorkers.isEmpty() ) { busyWorkers.poll().quit(); }
         try { Thread.sleep(2000); } catch ( Exception ex ) {;}
+        printPythonLog( "portal" );
     }
 
-    private void printPythonLog( int worker_id ) {
+    private void printPythonLog( String ltype ) {
         try {
-            Path path = FileSystems.getDefault().getPath(System.getProperty("user.home"), ".cdas", String.format("pycdas-%d.log", worker_id));
+            Path path = FileSystems.getDefault().getPath(System.getProperty("user.home"), ".cdas", ltype + ".log");
             BufferedReader br = new BufferedReader(new FileReader(path.toString()));
-            logger.info( "\tPYTHON LOG: WORKER-" + String.valueOf(worker_id) );
+            logger.info( "\tPYTHON LOG: " + ltype + "-" );
             String line = br.readLine();
             while (line != null) {
                 System.out.println( line );

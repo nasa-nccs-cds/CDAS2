@@ -1,7 +1,6 @@
 import numpy as np
-import time, traceback
+import time, traceback, logging
 from messageParser import mParse
-from kernels.Kernel import worker_logger
 IO_DType = np.dtype( np.float32 ).newbyteorder('>')
 from abc import ABCMeta, abstractmethod
 
@@ -9,7 +8,7 @@ class CDArray:
     __metaclass__ = ABCMeta
 
     def __init__(self, _id, _origin, _shape, _metadata ):
-        self.logger = worker_logger
+        self.logger = logging.getLogger("worker")
         self.id = _id
         self.origin = _origin
         self.shape = _shape

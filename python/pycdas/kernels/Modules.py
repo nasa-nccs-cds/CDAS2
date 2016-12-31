@@ -1,12 +1,11 @@
-import sys, inspect
-from Kernel import Kernel, worker_logger
+import sys, inspect, logging
 from abc import ABCMeta, abstractmethod
 
 class OperationModule:
     __metaclass__ = ABCMeta
 
     def __init__( self, name ):
-        self.logger = worker_logger
+        self.logger =  logging.getLogger("worker")
         self._name = name
 
     def getName(self): return self._name
@@ -27,7 +26,7 @@ class OperationModule:
 class KernelModule(OperationModule):
 
     def __init__( self, name, kernels ):
-        self.logger = worker_logger
+        self.logger =  logging.getLogger("worker")
         self._kernels = {}
         for kernel in kernels: self._kernels[ kernel.name() ] = kernel
         OperationModule.__init__( self, name )

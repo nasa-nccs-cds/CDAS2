@@ -26,13 +26,10 @@ class CDASapp( request_port: Int, response_port: Int, appConfiguration: Map[Stri
   }
 
   override def execute( taskSpec: Array[String] ) = {
-    logger.info( "Processing execute request: " + taskSpec.mkString(", "))
     val process_name = taskSpec(1)
     val datainputs = wpsObjectParser.parseDataInputs( taskSpec(2) )
     val runargs = if( taskSpec.length > 3 ) wpsObjectParser.parseMap( taskSpec(3) ) else Map.empty[String, Any]
-    logger.info( "Executing cdas process: " + process_name )
     val response = processManager.executeProcess( process, process_name, datainputs, runargs.mapValues(_.toString) ).toString
-    logger.info( "Sending execute response: " + response )
     sendResponse( response )
   }
 

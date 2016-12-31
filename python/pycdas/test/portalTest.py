@@ -6,8 +6,11 @@ portal.start_CDAS()
 
 time.sleep(4)
 
-datainputs="""[variable=[{"domain":"d0","uri":"collection:/GISS_r1i1p1","id":"tas|v0"}];domain=[{"id":"d0"}];operation=[{"input":["v0"],"name":"CDSpark.max","axes":"t"}]]"""
+datainputs = """[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
 
 portal.sendMessage("execute", [ "CDSpark.max", datainputs, ""] )
 
-portal.join()
+portal.waitForResponse()
+
+portal.shutdown()
+

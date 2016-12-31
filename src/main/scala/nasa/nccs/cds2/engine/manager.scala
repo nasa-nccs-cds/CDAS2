@@ -399,7 +399,7 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
         }
         futureResult onFailure { case e: Throwable => fatal(e); collectionDataCache.removeJob(jobId); throw e }
     }
-    new AsyncExecutionResult( request.id.toString, request.getProcess, Some(jobId) )
+    new AsyncExecutionResult( request.id.toString, request.getProcess, jobId )
   }
 
   def processAsyncResult( jobId: String, results: WPSMergedEventReport ) = {

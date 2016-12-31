@@ -1,7 +1,6 @@
 from pycdas.utilities import  *
 from pycdas.json import  *
-import re, traceback
-from kernels.Kernel import worker_logger
+import re, traceback, logging
 
 class RegionContainer(JSONObjectContainer):
 
@@ -35,7 +34,7 @@ class CDAxis(JSONObject):
 
     def init( self, axis, values, **args ):
         JSONObject.__init__( self )
-        self.logger = worker_logger
+        self.logger =  logging.getLogger("worker")
         self.tolerance=0.001
         self.items['config'] = {}
         self.items['bounds'] = {}
@@ -110,7 +109,7 @@ class Region(JSONObject):
 
     def __init__( self, region={}, **args ):
         JSONObject.__init__( self, region, **args )
-        self.logger = worker_logger
+        self.logger =  logging.getLogger("worker")
 
     def getAxisRange( self, axis_name ):
         try:
@@ -239,7 +238,7 @@ class Region(JSONObject):
 class DomainSpec:
 
     def __init__( self, variable_spec,  region_spec ):
-        self.logger = worker_logger
+        self.logger =  logging.getLogger("worker")
         self.variable_spec = variable_spec
         self.region_spec = region_spec
         self.stat = {}
@@ -290,7 +289,7 @@ class Domain(Region):
     COMPLETE = 1
 
     def __init__( self, region=None,  **args ):
-        self.logger = worker_logger
+        self.logger =  logging.getLogger("worker")
         self.stat = args.get( 'region_spec', { 'persist_id':None } )
         Region.__init__( self, region )
         self._variable = None
@@ -404,7 +403,7 @@ class Domain(Region):
 class DomainManager:
 
     def __init__( self ):
-        self.logger = worker_logger
+        self.logger =  logging.getLogger("worker")
         self.domains = []
 
     def persist( self, **args ):

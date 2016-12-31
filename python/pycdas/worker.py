@@ -1,10 +1,9 @@
 import os, traceback
-import zmq, cdms2
+import zmq, cdms2, logging
 import numpy as np
 from messageParser import mParse
 from cdasArray import npArray, IO_DType
 from kernels.OperationsManager import cdasOpManager
-from kernels.Kernel import worker_logger
 from task import Task
 
 class Worker(object):
@@ -12,7 +11,7 @@ class Worker(object):
     def __init__( self, request_port, result_port ):
         self.cached_results = {}
         self.cached_inputs = {}
-        self.logger = worker_logger
+        self.logger = logging.getLogger("worker")
         try:
             self.context = zmq.Context()
             self.request_socket = self.context.socket(zmq.PULL)
@@ -103,4 +102,4 @@ request_port = mParse.getIntArg( 1, 8200 )
 result_port = mParse.getIntArg( 2, 8201 )
 worker = Worker( request_port, result_port )
 worker.run()
-worker_logger.info(  " ############################## EXITING WORKER ##############################"  )
+worker.logger.info(  " ############################## EXITING WORKER ##############################"  )

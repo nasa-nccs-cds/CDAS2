@@ -1,5 +1,4 @@
-import zmq, traceback
-from pycdas.kernels.Kernel import portal_logger
+import zmq, traceback, time, logging
 from threading import Thread
 from pycdas.cdasArray import npArray
 from subprocess import Popen
@@ -19,7 +18,7 @@ class CDASPortal:
 
     def __init__( self ):
         try:
-            self.logger = portal_logger
+            self.logger =  logging.getLogger("portal")
             self.context = zmq.Context()
             self.request_socket = self.context.socket(zmq.PUSH)
             self.request_port = bindSocket( self.request_socket, 4336 )
@@ -47,17 +46,24 @@ class CDASPortal:
         self.response_thread.term()
 
     def sendMessage( self, type, msgStrs = [""] ):
-        self.logger.info( "Sending {0} request on port {1}.".format( type, self.request_port )  )
+        self.logger.info( "Sending {0} request {1} on port {2}.".format( type, msgStrs, self.request_port )  )
         self.request_socket.send( "!".join( [type] + msgStrs ) )
-        self.logger.info("Sent message: {0}\n".format(msgStrs))
 
     def join(self):
         self.response_thread.join()
 
+    def waitForResponse(self):
+        while( True ):
+            response = self.response_thread.popResponse()
+            if response:
+                self.logger.info(" Received response: " + response )
+                break
+            else: time.sleep(0.25)
+
 class AppThread(Thread):
     def __init__(self, request_port, response_port):
         Thread.__init__(self)
-        self.logger = portal_logger
+        self.logger = logging.getLogger("portal")
         self._response_port = response_port
         self._request_port = request_port
 
@@ -75,9 +81,9 @@ class AppThread(Thread):
 class ResponseThread(Thread):
     def __init__(self, init_port ):
         Thread.__init__(self)
-        self.logger = portal_logger
+        self.logger = logging.getLogger("portal")
         self.context = zmq.Context()
-        self.cached_results = {}
+        self.cached_results = []
         self.cached_arrays = {}
         self.socket = self.context.socket(zmq.PULL)
         self.port = bindSocket( self.socket, init_port )
@@ -89,11 +95,20 @@ class ResponseThread(Thread):
         toks = header.split('|')
         return toks[index]
 
+    def popResponse(self):
+        if( len( self.cached_results ) == 0 ):
+            return None
+        else:
+            return self.cached_results.pop()
+
+#    def getResponse(self, key, default = None ):
+#       return self.cached_results.get( key, default )
+
     def run(self):
         while( self.active ):
             try:
                 response = self.socket.recv()
-                toks = response.split('|')
+                toks = response.split('!')
                 type = toks[0]
                 if type == "array":
                     header = toks[1]
@@ -101,9 +116,11 @@ class ResponseThread(Thread):
                     array = npArray.createInput(header,data)
                     self.cached_arrays[array.id] = array
 
-                elif type == "result":
-                    self.cached_results[ toks[1] ] = toks[2]
-                    self.logger.info("Received result {0}: {1}".format(toks[1],toks[2]))
+                elif type == "response":
+                    self.cached_results.append( toks[1] )
+                    self.logger.info("Received result: {0}".format(toks[1]))
+                else:
+                    self.logger.error("CDASPortal.ResponseThread-> Received unrecognized message type: {0}".format(type))
 
             except Exception as err:
                 self.logger.error( "CDAS error: {0}\n{1}\n".format(err, traceback.format_exc() ) )

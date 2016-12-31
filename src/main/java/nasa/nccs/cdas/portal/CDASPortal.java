@@ -32,7 +32,7 @@ public abstract class CDASPortal {
     }
 
     public void sendResponse( String response  ) {
-        response_socket.send( response );
+        response_socket.send( String.join("!","response", response ) );
         logger.info( " Sent response: " + response );
     }
 
@@ -57,7 +57,7 @@ public abstract class CDASPortal {
                 execute( parts );
             } else if( parts[0].equals("util") ) {
                 execUtility( parts );
-            }else if( parts[0].equals("quit") ) {
+            }else if( parts[0].equals("quit") || parts[0].equals("shutdown") ) {
                 term();
             } else if( parts[0].equals("getCapabilities") ) {
                 getCapabilities( parts );
