@@ -28,7 +28,8 @@ import scala.collection.JavaConverters._
 import java.util.concurrent._
 
 import nasa.nccs.cdapi.data.RDDPartition
-import nasa.nccs.cds2.engine.spark.{CDSparkContext}
+import nasa.nccs.cdas.workers.python.PythonWorkerPortal
+import nasa.nccs.cds2.engine.spark.CDSparkContext
 import nasa.nccs.esgf.process.OperationContext.ResultType
 import nasa.nccs.wps._
 import org.apache.spark.{SparkConf, SparkContext}
@@ -45,7 +46,7 @@ class Counter(start: Int = 0) {
   }
 }
 
-object get extends Loggable {
+object CDS2ExecutionManager extends Loggable {
   val handler_type_key = "execution.handler.type"
 
   def apply(): CDS2ExecutionManager = { new CDS2ExecutionManager }
@@ -75,6 +76,10 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
   val kernelManager = new KernelMgr()
   private val counter = new Counter
   val nprocs: Int = CDASPartitioner.nProcessors
+
+  def shutdown() = {
+    PythonWorkerPortal.getInstance().quit()
+  }
 
   def getOperationInputs( context: CDASExecutionContext ): Map[String,OperationInput] = {
     val items = for (uid <- context.operation.inputs) yield {

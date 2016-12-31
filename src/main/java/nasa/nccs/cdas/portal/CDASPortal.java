@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.portal;
 import nasa.nccs.cdas.workers.python.PythonWorkerPortal;
-import org.apache.log4j.Logger;
+import nasa.nccs.utilities.Logger;
 import org.zeromq.ZMQ;
 import nasa.nccs.utilities.CDASLogManager;
 

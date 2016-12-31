@@ -2,7 +2,7 @@ package nasa.nccs.caching
 
 import java.io._
 import java.nio.file.{Files, Paths}
-import org.apache.log4j.Logger
+import nasa.nccs.utilities.Logger
 import org.apache.commons.io.FileUtils
 
 import collection.mutable

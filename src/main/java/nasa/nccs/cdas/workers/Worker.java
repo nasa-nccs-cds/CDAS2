@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.workers;
 import org.zeromq.ZMQ;
-import org.apache.log4j.Logger;
+import nasa.nccs.utilities.Logger;
 
 import java.io.IOException;
 import java.util.*;

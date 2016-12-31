@@ -1,40 +1,55 @@
 package nasa.nccs.utilities
 
-import java.io.File
+import java.io.{File, PrintWriter}
 import java.util.jar.JarFile
 
 import com.joestelmach.natty
-import org.apache.log4j.{ConsoleAppender, FileAppender, Level, Logger, PatternLayout}
 import ucar.nc2.time.CalendarDate
 import java.nio.file.Paths
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
+class Logger( val name: String ) extends Serializable {
+  val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", "cdas.log" ).toString
+  val writer = new PrintWriter(logFilePath)
+  def log( level: String, msg: String  ) = {
+    val output = name + "-" + level + ": " + msg
+    writer.print( output )
+    println( output )
+    writer.flush()
+  }
+  def info( msg: String ) = { log( "info", msg ) }
+  def debug( msg: String ) = { log( "debug", msg ) }
+  def error( msg: String ) = { log( "error", msg ) }
+  def warn( msg: String ) = { log( "warn", msg ) }
+}
+
 object CDASLogManager extends Serializable {
-  val logger: Logger = getLogger
+  val logger: Logger = new Logger("cdas")
 
   def getCurrentLogger() = { logger }
 
-  def getLogger = {
-    val _logger = Logger.getLogger("debug")
-    val console = new ConsoleAppender();
-    val PATTERN = "%d [%p|%c|%C{1}] %m%n";
-    console.setLayout(new PatternLayout(PATTERN));
-    console.setThreshold(Level.DEBUG);
-    console.activateOptions();
-    _logger.addAppender(console);
-
-    val fa = new FileAppender();
-    fa.setName("FileLogger");
-    fa.setFile( Paths.get( System.getProperty("user.home"), ".cdas", "cdas.log" ).toString );
-    fa.setLayout(new PatternLayout("%d %-5p [%c{1}] %m%n"));
-    fa.setThreshold(Level.DEBUG);
-    fa.setAppend(true);
-    fa.activateOptions();
-    _logger.addAppender(fa);
-    _logger
-  }
+//  def getLogger( name: String ) = {
+//    val console = new ConsoleAppender();
+//    val PATTERN = "%d [%p|%c|%C{1}] %m%n";
+//    console.setLayout(new PatternLayout(PATTERN));
+//    console.setThreshold(Level.DEBUG);
+//    console.activateOptions();
+//    Logger.getRootLogger().addAppender(console);
+//
+//    val fa = new FileAppender();
+//    fa.setName("FileLogger");
+//    fa.setFile(  );
+//    fa.setLayout(new PatternLayout("%d %-5p [%c{1}] %m%n"));
+//    fa.setThreshold(Level.DEBUG);
+//    fa.setAppend(true);
+//    fa.activateOptions();
+//    Logger.getRootLogger().addAppender(fa);
+//
+//    Logger.getLogger( name )
+//  }
 }
 
 trait Loggable extends Serializable {

@@ -6,7 +6,7 @@ import nasa.nccs.utilities.Loggable
 
 class APIManager( serverConfiguration: Map[String,String] ) extends Loggable {
 
-  val providers = Map( "cds2" -> cds2ServiceProvider )
+  val providers = Map( "cdas" -> cds2ServiceProvider )
   val default_service = cds2ServiceProvider
   appParameters.addConfigParams( serverConfiguration )
 

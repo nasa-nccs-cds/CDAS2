@@ -13,6 +13,11 @@ class ProcessManager( serverConfiguration: Map[String,String] ) extends Loggable
     throw new NotAcceptableException(msg)
   }
 
+  def shutdown(service: String) = {
+    val serviceProvider = apiManager.getServiceProvider(service)
+    serviceProvider.shutdown()
+  }
+
   def describeProcess(service: String, name: String): xml.Elem = {
     val serviceProvider = apiManager.getServiceProvider(service)
     //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))
@@ -27,7 +32,7 @@ class ProcessManager( serverConfiguration: Map[String,String] ) extends Loggable
 
   def executeProcess(service: String, process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
     val serviceProvider = apiManager.getServiceProvider(service)
-        //        logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))
+    logger.info("Executing Service %s, Service provider = %s ".format( service, serviceProvider.getClass.getName ))
     serviceProvider.executeProcess(process_name, datainputs, runargs)
   }
 

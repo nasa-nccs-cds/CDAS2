@@ -1,6 +1,7 @@
 import java.net.URI
 
 import nasa.nccs.cdapi.tensors.CDFloatArray
+import nasa.nccs.cdas.workers.python.PythonWorkerPortal
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import nasa.nccs.utilities.Loggable
@@ -74,6 +75,10 @@ class TestSuite( val level_index: Int, val time_index: Int,   val lat_value: Flo
     val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
     webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
     response
+  }
+
+  def cleanup() = {
+    webProcessManager.shutdown( service )
   }
 
   def getCapabilities( identifier: String="", async: Boolean = false ): xml.Elem = {

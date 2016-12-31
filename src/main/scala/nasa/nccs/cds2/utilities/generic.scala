@@ -1,5 +1,5 @@
 package nasa.nccs.cds2.utilities
-import org.apache.log4j.Logger
+import nasa.nccs.utilities.Logger
 import ucar.nc2
 
 object runtime {
