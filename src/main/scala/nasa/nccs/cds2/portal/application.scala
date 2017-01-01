@@ -1,9 +1,10 @@
 package nasa.nccs.cds2.portal
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import nasa.nccs.cdas.portal.CDASPortal
+import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode._
 import nasa.nccs.utilities.Loggable
 
-class CDASapp( request_port: Int, response_port: Int, appConfiguration: Map[String,String] ) extends CDASPortal( request_port, response_port ) {
+class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port: Int, appConfiguration: Map[String,String] ) extends CDASPortal( mode, request_port, response_port ) {
   val processManager = new ProcessManager( appConfiguration )
   val process = "cdas"
 
@@ -46,9 +47,11 @@ class CDASapp( request_port: Int, response_port: Int, appConfiguration: Map[Stri
 
 object CDASApplication extends App with Loggable {
   logger.info( "Executing CDAS with args: " + args.mkString(",") )
-  val request_port = args(0).toInt
-  val response_port = args(1).toInt
+  val connect_mode = if( args.length > 0 ) args(0) else "bind"
+  val request_port = if( args.length > 1 ) args(1).toInt else 0
+  val response_port = if( args.length > 2 ) args(2).toInt else 0
   val appConfiguration =  Map.empty[String,String]
-  val app = new CDASapp( request_port, response_port, appConfiguration )
+  val cmode = if( connect_mode.toLowerCase.startsWith("c") ) CONNECT else BIND
+  val app = new CDASapp( cmode, request_port, response_port, appConfiguration )
   app.run()
 }

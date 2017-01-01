@@ -4,27 +4,47 @@ from pycdas.cdasArray import npArray
 from subprocess import Popen
 import shlex
 
-def bindSocket( socket, init_port ):
-    test_port = init_port
-    while( True ):
-        try:
-            socket.bind( "tcp://*:{0}".format(test_port) )
-            return test_port
-        except Exception as err:
-            test_port = test_port + 1
+class ConnectionMode():
+    BIND = 1
+    CONNECT = 2
+    DefaultPort = 4336
 
+    @classmethod
+    def bindSocket( cls, socket, port ):
+        if port > 0:
+            socket.bind("tcp://*:{0}".format(port))
+        else:
+            test_port = cls.DefaultPort
+            while( True ):
+                try:
+                    socket.bind( "tcp://*:{0}".format(test_port) )
+                    return test_port
+                except Exception as err:
+                    test_port = test_port + 1
+
+    @classmethod
+    def connectSocket( cls, socket, port ):
+        socket.connect("tcp://localhost:{0}".format(port))
+        return port
 
 class CDASPortal:
 
-    def __init__( self ):
+    def __init__( self, connectionMode = ConnectionMode.BIND, request_port=0, response_port=0 ):
         try:
             self.logger =  logging.getLogger("portal")
             self.context = zmq.Context()
             self.request_socket = self.context.socket(zmq.PUSH)
-            self.request_port = bindSocket( self.request_socket, 4336 )
-            self.logger.info( "Started request socket on port: {0}".format( self.request_port ) )
-            self.response_thread = ResponseThread(self.request_port + 1)
+            if( connectionMode == ConnectionMode.BIND ):
+                self.request_port = ConnectionMode.bindSocket( self.request_socket, request_port )
+                self.logger.info( "Binding request socket to port: {0}".format( self.request_port ) )
+            else:
+                self.request_port = ConnectionMode.connectSocket(self.request_socket, request_port)
+                self.logger.info("Connected request socket on port: {0}".format(self.request_port))
+
+            self.response_thread = ResponseThread( connectionMode, response_port )
             self.response_thread.start()
+            self.application_thread = None
+
         except Exception as err:
             err_msg =  "\n-------------------------------\nWorker Init error: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() )
             self.logger.error(err_msg)
@@ -42,7 +62,8 @@ class CDASPortal:
         self.sendMessage("shutdown")
         try: self.request_socket.close()
         except Exception: pass
-        self.application_thread.term()
+        if( self.application_thread ):
+            self.application_thread.term()
         self.response_thread.term()
 
     def sendMessage( self, type, msgStrs = [""] ):
@@ -68,7 +89,7 @@ class AppThread(Thread):
         self._request_port = request_port
 
     def run(self):
-        cdas_startup = "cdas2 {0} {1} -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M".format( self._request_port, self._response_port )
+        cdas_startup = "cdas2 connect {0} {1} -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M".format( self._request_port, self._response_port )
         self.process = Popen( shlex.split( cdas_startup ) )
         self.logger.info( "Staring CDAS with command: {0}\n".format( cdas_startup ) )
 
@@ -79,14 +100,17 @@ class AppThread(Thread):
         self.process.wait()
 
 class ResponseThread(Thread):
-    def __init__(self, init_port ):
+    def __init__(self, connectionMode, port ):
         Thread.__init__(self)
         self.logger = logging.getLogger("portal")
         self.context = zmq.Context()
         self.cached_results = []
         self.cached_arrays = {}
         self.socket = self.context.socket(zmq.PULL)
-        self.port = bindSocket( self.socket, init_port )
+        if (connectionMode == ConnectionMode.BIND):
+            self.port = ConnectionMode.bindSocket( self.socket, port )
+        else:
+            self.port = ConnectionMode.connectSocket(self.socket, port)
         self.active = True
         self.setName('CDAS Response Thread')
         self.logger.info( "Started response socket on port: {0}".format( self.port ) )

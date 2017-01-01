@@ -3,10 +3,10 @@ import nasa.nccs.cdas.workers.python.PythonWorkerPortal;
 import nasa.nccs.utilities.Logger;
 import org.zeromq.ZMQ;
 import nasa.nccs.utilities.CDASLogManager;
-
 import java.util.Arrays;
 
 public abstract class CDASPortal {
+    public enum ConnectionMode { BIND, CONNECT };
     protected ZMQ.Context zmqContext = null;
     protected ZMQ.Socket request_socket = null;
     protected ZMQ.Socket response_socket = null;
@@ -15,17 +15,24 @@ public abstract class CDASPortal {
     protected Logger logger = CDASLogManager.getCurrentLogger();
     private boolean active = true;
 
-    protected CDASPortal( int _request_port, int _response_port ) {
+    protected CDASPortal( ConnectionMode mode, int _request_port, int _response_port ) {
         try {
             request_port = _request_port;
             response_port = _response_port;
             zmqContext = ZMQ.context(1);
             request_socket = zmqContext.socket(ZMQ.PULL);
-            request_socket.connect(String.format("tcp://localhost:%d", request_port));
-            logger.info(String.format("Connected request socket on port: %d", request_port));
             response_socket = zmqContext.socket(ZMQ.PUSH);
-            response_socket.connect(String.format("tcp://localhost:%d", response_port));
-            logger.info(String.format("Connected response socket on port: %d", response_port));
+            if( mode == ConnectionMode.CONNECT ) {
+                request_socket.connect(String.format("tcp://localhost:%d", request_port));
+                logger.info(String.format("Connected request socket on port: %d", request_port));
+                response_socket.connect(String.format("tcp://localhost:%d", response_port));
+                logger.info(String.format("Connected response socket on port: %d", response_port));
+            } else {
+                request_socket.bind(String.format("tcp://*:%d", request_port));
+                logger.info(String.format("Bound request socket to port: %d", request_port));
+                response_socket.bind(String.format("tcp://*:%d", response_port));
+                logger.info(String.format("Bound response socket to port: %d", response_port));
+            }
         } catch (Exception err ) {
             logger.error( String.format("\n-------------------------------\nCDAS Init error: %s -------------------------------\n", err ) );
         }
