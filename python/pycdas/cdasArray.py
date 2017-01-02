@@ -43,7 +43,6 @@ class npArray(CDArray):
 
     @classmethod
     def createInput(cls, header, data):
-        self.logger.info(" *** Creating data array, nbytes = : " + str(len(data)))
         header_toks = header.split('|')
         id = header_toks[1]
         origin = mParse.s2it(header_toks[2])
@@ -101,7 +100,6 @@ class cdmsArray(CDArray):
 
     @classmethod
     def createInput( cls, cdVariable ):
-        self.logger.info(" *** Creating input cdms array, size = : " + str( cdVariable.size ) )
         id = cdVariable.id
         origin = cdVariable.attributes.get("origin")
         shape = cdVariable.shape

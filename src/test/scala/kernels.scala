@@ -1,12 +1,14 @@
 import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
-import nasa.nccs.cdapi.cdm.Collection
+import nasa.nccs.cdapi.cdm.{Collection, NCMLCollection}
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.esgf.wps.wpsObjectParser
 import nasa.nccs.cdas.workers.python.PythonWorkerPortal
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import nasa.nccs.utilities.{Loggable, cdsutils}
+
 import scala.xml.PrettyPrinter
 import org.scalatest.Ignore
 import ucar.ma2
@@ -119,6 +121,30 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     } finally { cleanup() }
   }
 
+  test("pyMaximum-cache") {
+    try {
+      val nco_verified_result = 309.7112
+      val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.max","input":"v1","domain":"d0","axes":"xy"}]]"""
+      val result_node = executeTest(datainputs)
+      val result_value = getResultValue(result_node)
+      println( "Op Result:       " + result_value )
+      println( "Verified Result: " + nco_verified_result )
+      assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
+    } finally { cleanup() }
+  }
+
+  test("pyMaximum-dap") {
+    try {
+      val nco_verified_result = 309.7112
+      val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.max","input":"v1","domain":"d0","axes":"xy"}]]"""
+      val result_node = executeTest(datainputs)
+      val result_value = getResultValue(result_node)
+      println( "Op Result:       " + result_value )
+      println( "Verified Result: " + nco_verified_result )
+      assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
+    } finally { cleanup() }
+  }
+
   test("Maximum1") {
     try {
       val nco_verified_result: CDFloatArray = CDFloatArray( Array( 277.8863, 279.0432, 280.0728, 280.9739, 282.2123, 283.7078, 284.6707, 285.4793, 286.259, 286.9836, 287.6983 ).map(_.toFloat), Float.MaxValue )
@@ -128,18 +154,6 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       println( "Op Result:       " + result_data.mkDataString(", ") )
       println( "Verified Result: " + nco_verified_result.mkDataString(", ") )
       assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Subset")
-    } finally { PythonWorkerPortal.getInstance().quit() }
-  }
-
-  test("pyMaximum1") {
-    try {
-      val nco_verified_result: CDFloatArray = CDFloatArray(Array(277.8863, 279.0432, 280.0728, 280.9739, 282.2123, 283.7078, 284.6707, 285.4793, 286.259, 286.9836, 287.6983).map(_.toFloat), Float.MaxValue)
-      val datainputs = s"""[domain=[{"name":"d0","time":{"start":50,"end":150,"system":"indices"},"lon":{"start":100,"end":100,"system":"indices"},"lat":{"start":10,"end":20,"system":"indices"} }],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.max","input":"v1","domain":"d0","axes":"t"}]]"""
-      val result_node = executeTest(datainputs)
-      val result_data = getResultData(result_node)
-      println("Op Result:       " + result_data.mkDataString(", "))
-      println("Verified Result: " + nco_verified_result.mkDataString(", "))
-      assert(result_data.maxScaledDiff(nco_verified_result) < eps, s" Incorrect value computed for Subset")
     } finally { PythonWorkerPortal.getInstance().quit() }
   }
 
@@ -336,7 +350,7 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   }
 
   def getTimeseriesData( collId: String, varName: String, lon_index: Int, lat_index: Int, lev_index: Int): CDFloatArray = {
-    val collection = new Collection( "aggregation", collId.replace('/','_'), "" )
+    val collection = new NCMLCollection( "aggregation", collId.replace('/','_'), "" )
     val cdvar = collection.getVariable(varName)
     val nTimesteps = cdvar.shape(0)
     val section: ma2.Section = new ma2.Section( Array(0,lev_index,lat_index,lon_index), Array(nTimesteps,1,1,1) )

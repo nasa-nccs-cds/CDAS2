@@ -52,7 +52,7 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
   def getDataSources: Map[String, Option[DataFragmentSpec]] = inputs
   def getInputSpec( uid: String ): Option[DataFragmentSpec] = inputs.get( uid ).flatten
   def getInputSpec(): Option[DataFragmentSpec] = inputs.head._2
-  def getCollection( serverContext: ServerContext, uid: String = "" ): Option[Collection] = inputs.get( uid ) match {
+  def getCollection( serverContext: ServerContext, uid: String = "" ): Option[NCMLCollection] = inputs.get( uid ) match {
     case Some(optInputSpec) => optInputSpec map { inputSpec => inputSpec.getCollection }
     case None =>inputs.head._2 map { inputSpec => inputSpec.getCollection }
   }

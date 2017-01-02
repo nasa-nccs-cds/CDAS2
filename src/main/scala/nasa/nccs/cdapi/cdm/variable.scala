@@ -30,8 +30,8 @@ object CDSVariable extends Loggable {
   def empty = new CDSVariable( null, null )
 }
 
-class CDSVariable( val name: String, val collection: Collection ) extends Loggable with Serializable {
-  val attributes: Map[String,nc2.Attribute] = nc2.Attribute.makeMap( collection.grid.getVariableMetadata( name ) ).toMap
+class CDSVariable( val name: String, val collection: NCMLCollection ) extends Loggable with Serializable {
+  val attributes: Map[String,nc2.Attribute] = nc2.Attribute.makeMap( collection.getVariableMetadata( name ) ).toMap
   val missing = getAttributeValue( "missing_value", "" ) match { case "" => Float.MaxValue; case s => s.toFloat }
   val description = getAttributeValue( "description", "" )
   val units = getAttributeValue( "units", "" )
