@@ -12,7 +12,8 @@ datainputs = """[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indi
 
 portal.sendMessage("execute", [ "CDSpark.max", datainputs, ""] )
 
-portal.waitForResponse()
+response = portal.waitForResponse()
 
-portal.shutdown()
+print "Received response: " + response
+
 

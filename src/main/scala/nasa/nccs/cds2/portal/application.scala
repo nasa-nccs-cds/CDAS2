@@ -7,6 +7,7 @@ import nasa.nccs.utilities.Loggable
 class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port: Int, appConfiguration: Map[String,String] ) extends CDASPortal( mode, request_port, response_port ) {
   val processManager = new ProcessManager( appConfiguration )
   val process = "cdas"
+  Runtime.getRuntime().addShutdownHook( new Thread() { override def run() { term() } } )
 
   override def postArray(header: String, data: Array[Byte]) = {
 

@@ -78,7 +78,7 @@ class CDASPortal:
             response = self.response_thread.popResponse()
             if response:
                 self.logger.info(" Received response: " + response )
-                break
+                return response
             else: time.sleep(0.25)
 
 class AppThread(Thread):
