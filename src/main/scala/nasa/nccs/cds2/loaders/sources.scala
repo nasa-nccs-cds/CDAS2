@@ -234,7 +234,9 @@ object Collections extends XmlResource {
               val collection = getCollection(node, scope)
               datasets.put(id.toString.toLowerCase, collection)
               logger.info("Loading collection: " + id.toString.toLowerCase)
-            } catch { case err: Exception => logger.warn( "Skipping collection " + id.toString + " due to error: " + err.toString ) }
+            } catch { case err: Exception =>
+              logger.warn( "Skipping collection " + id.toString + " due to error: " + err.toString )
+            }
           })
         } catch {
           case err: Exception => throw new Exception("Error opening collection data file {%s}: %s".format(filePath, err.getMessage))
@@ -250,7 +252,9 @@ object Collections extends XmlResource {
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
-  def getCollection( n: xml.Node, scope: String ): Collection = { Collection( attr(n,"id"), attr(n,"path"), attr(n,"fileFilter"), scope, attr(n,"title"), n.text.split(";").toList )}
+  def getCollection( n: xml.Node, scope: String ): Collection = {
+    Collection( attr(n,"id"), attr(n,"path"), attr(n,"fileFilter"), scope, attr(n,"title"), n.text.split(";").toList )
+  }
 
   def findCollection( collectionId: String ): Option[Collection] = Option( datasets.get( collectionId ) )
 

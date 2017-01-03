@@ -1,7 +1,7 @@
 package nasa.nccs.esgf.process
 
 import nasa.nccs.caching.{CDASPartitioner, JobRecord}
-import nasa.nccs.cdapi.cdm.{CDSVariable, Collection, NCMLCollection, PartitionedFragment}
+import nasa.nccs.cdapi.cdm.{CDSVariable, Collection, PartitionedFragment}
 import nasa.nccs.cdapi.kernels.AxisIndices
 import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt
 import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray}
@@ -332,7 +332,7 @@ object SectionMerge {
   def incommensurate( s0: ma2.Section, s1: ma2.Section ) = { "Attempt to combine incommensurate sections: %s vs %s".format( s0.toString, s1.toString ) }
 }
 
-class DataFragmentSpec( val uid: String="", val varname: String="", val collection: NCMLCollection = new NCMLCollection("empty","",""), val fragIdOpt: Option[String]=None,
+class DataFragmentSpec( val uid: String="", val varname: String="", val collection: Collection = new Collection("empty","",""), val fragIdOpt: Option[String]=None,
                         val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
                         val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section],
                         val missing_value: Float, val mask: Option[String] = None ) extends Loggable with Serializable {
@@ -477,7 +477,7 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
   }
 
   def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = collection.getDatasetMetadata()
-  def getCollection: NCMLCollection = collection
+  def getCollection: Collection = collection
 
   def reduceSection( dimensions: Int*  ): DataFragmentSpec = {
     var newSection = roi;
@@ -612,9 +612,11 @@ object DataContainer extends ContainerBase {
       collectionOpt match {
         case None =>
           val var_names: Array[String] = fullname.toString.split (',')
+          val dataPath = metadata.getOrElse("uri", metadata.getOrElse("url",uid) ).toString
+          val collection = Collection( uid.toString, dataPath )
           for ((name, index) <- var_names.zipWithIndex) yield {
             val name_items = name.split(Array(':', '|'))
-            val dsource = new DataSource(stripQuotes(name_items.head), Collection(uid.toString,uid.toString), normalize(domain))
+            val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain))
             val vid = stripQuotes(name_items.last)
             val vname = normalize(name_items.head)
             val dcid = if (vid.isEmpty) uid + s"c-$base_index$index" else if (vname.isEmpty) vid else uid + vid

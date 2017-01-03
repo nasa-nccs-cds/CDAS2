@@ -54,7 +54,6 @@ public abstract class WorkerPortal {
         }
         while( !busyWorkers.isEmpty() ) { busyWorkers.poll().quit(); }
         try { Thread.sleep(2000); } catch ( Exception ex ) {;}
-        printPythonLog( "portal" );
     }
 
     private void printPythonLog( String ltype ) {

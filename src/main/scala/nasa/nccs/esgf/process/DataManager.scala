@@ -52,7 +52,7 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
   def getDataSources: Map[String, Option[DataFragmentSpec]] = inputs
   def getInputSpec( uid: String ): Option[DataFragmentSpec] = inputs.get( uid ).flatten
   def getInputSpec(): Option[DataFragmentSpec] = inputs.head._2
-  def getCollection( serverContext: ServerContext, uid: String = "" ): Option[NCMLCollection] = inputs.get( uid ) match {
+  def getCollection( serverContext: ServerContext, uid: String = "" ): Option[Collection] = inputs.get( uid ) match {
     case Some(optInputSpec) => optInputSpec map { inputSpec => inputSpec.getCollection }
     case None =>inputs.head._2 map { inputSpec => inputSpec.getCollection }
   }
@@ -167,7 +167,7 @@ class GridCoordSpec( val index: Int, val grid: CDGrid, val coordAxis: Coordinate
 
   def getTimeAxis: CoordinateAxis1DTime = grid.getTimeCoordinateAxis match {
     case Some(coordAxis1DTime: CoordinateAxis1DTime) => coordAxis1DTime
-    case x => throw new IllegalStateException("CDS2-CDSVariable: Can't create time axis from type type: %s ".format(coordAxis.getClass.getName))
+    case x => throw new IllegalStateException("CDS2-CDSVariable: Can't create time axis from type: %s ".format(coordAxis.getClass.getName))
   }
 
   def getTimeCoordIndex( tval: String, role: BoundsRole.Value, strict: Boolean = false): Option[Int] = {
@@ -478,7 +478,7 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
   def createTargetGrid( dataContainer: DataContainer, domainContainerOpt: Option[DomainContainer] ): TargetGrid = {
     val roiOpt: Option[List[DomainAxis]] = domainContainerOpt.map( domainContainer => domainContainer.axes )
     val t0 = System.nanoTime
-    val variable: CDSVariable = dataContainer.getVariable
+    lazy val variable: CDSVariable = dataContainer.getVariable
     val t1 = System.nanoTime
     val rv = new TargetGrid( variable, roiOpt )
     val t2 = System.nanoTime

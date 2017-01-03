@@ -1,10 +1,9 @@
 package nasa.nccs.cdapi.cdm
 
 import java.nio.channels.{FileChannel, NonReadableChannelException, ReadableByteChannel}
-
 import nasa.nccs.caching.collectionDataCache
 import ucar.{ma2, nc2}
-import java.nio.file.{Files, Paths}
+import java.nio.file.{ Files, Paths, Path }
 import java.io.{FileWriter, _}
 import java.nio._
 import java.util.Formatter
@@ -35,15 +34,13 @@ import scala.concurrent.Future
 object Collection extends Loggable {
   def apply( id: String,  dataPath: String, fileFilter: String = "", scope: String="", title: String= "", vars: List[String] = List() ) = {
     val ctype = dataPath match {
-      case url if(url.startsWith("http:")) => "opendap"
+      case url if(url.startsWith("http:")) => "dap"
+      case url if(url.startsWith("file:")) => "file"
       case dpath if(dpath.toLowerCase.endsWith(".csv")) => "csv"
-      case dpath if(dpath.toLowerCase.endsWith(".ncml")) => "ncml"
       case fpath if(new File(fpath).isFile) => "file"
-      case dpath if(new File(dpath).isDirectory) => "aggregation"
-      case _ => ""
+      case _ => throw new Exception( "Unrecognized Collection type, dataPath = " + dataPath )
     }
-    if( (ctype == "ncml") || (ctype == "csv") ) new NCMLCollection( ctype, id, dataPath, fileFilter, scope, title, vars )
-    else new Collection( ctype, id, dataPath, fileFilter, scope, title, vars )
+    new Collection( ctype, id, dataPath, fileFilter, scope, title, vars )
   }
 
   def aggregate( dsource: DataSource ): xml.Elem = {
@@ -64,14 +61,14 @@ object Collection extends Loggable {
 }
 
 object CDGrid extends Loggable {
-  def apply( name: String, ncmlFile: File ): CDGrid = {
-    val gridFile: File = NCMLWriter.getCachePath("NCML").resolve( Collections.idToFile( name,".nc" ) ).toFile
-    ensureGridFile( gridFile, ncmlFile )
-    CDGrid.create( name, gridFile )
+  def apply( name: String, datfilePath: String ): CDGrid = {
+    val gridFilePath: String = NCMLWriter.getCachePath("NCML").resolve( Collections.idToFile( name,".nc" ) ).toString
+    createGridFile( gridFilePath, datfilePath )
+    CDGrid.create( name, gridFilePath )
   }
 
-  def create( name: String, gridFile: File ): CDGrid = {
-    val gridDS = NetcdfDataset.acquireDataset( gridFile.toString, null)
+  def create( name: String, gridFilePath: String ): CDGrid = {
+    val gridDS = NetcdfDataset.acquireDataset( gridFilePath, null)
     try {
       val coordSystems: List[CoordinateSystem] = gridDS.getCoordinateSystems.toList
       val dset_attributes: List[nc2.Attribute] = gridDS.getGlobalAttributes.map(a => { new nc2.Attribute( name + "--" + a.getFullName, a ) }).toList
@@ -79,40 +76,44 @@ object CDGrid extends Loggable {
       for (variable <- gridDS.getVariables; if variable.isCoordinateVariable ) { variable match { case cvar: VariableDS => gridDS.addCoordinateAxis(variable.asInstanceOf[VariableDS]) } }
       val coordAxes: List[CoordinateAxis] = gridDS.getCoordinateAxes.toList
       val dimensions = gridDS.getDimensions.toList
-      new CDGrid( name, gridFile, coordAxes, coordSystems, dimensions, dset_attributes )
+      new CDGrid( name, gridFilePath, coordAxes, coordSystems, dimensions, dset_attributes )
     } finally {
       gridDS.close()
     }
   }
   
-  def ensureGridFile( gridFile: File, ncmlFile: File  ) =  if( !gridFile.exists() ) {
-    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( ncmlFile.toString, null )
-    logger.info( "Creating Grid File at: " + gridFile )
-    val gridWriter = NetcdfFileWriter.createNew( NetcdfFileWriter.Version.netcdf4, gridFile.toString, null )
+  def createGridFile( gridFilePath: String, datfilePath: String  ) = {
+    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( datfilePath, null )
+    logger.info( "Creating Grid File at: " + gridFilePath )
+    val gridWriter = NetcdfFileWriter.createNew( NetcdfFileWriter.Version.netcdf4, gridFilePath, null )
     val dimMap = Map( ncDataset.getDimensions.map( d => d.getShortName -> gridWriter.addDimension( null, d.getShortName, d.getLength ) ): _* )
     val varTups = for( cvar <- ncDataset.getVariables ) yield {
       val newVar = gridWriter.addVariable( null, cvar.getShortName, cvar.getDataType, cvar.getDimensionsString )
       cvar.getAttributes.map( attr => gridWriter.addVariableAttribute( newVar, attr ) )
       cvar -> newVar
     }
-    ncDataset.getGlobalAttributes.map( attr => gridWriter.addGroupAttribute( null, attr ) )
+    val globalAttrs = Map( ncDataset.getGlobalAttributes.map( attr => attr.getShortName -> attr ): _*)
+    globalAttrs.mapValues( attr => gridWriter.addGroupAttribute( null, attr ) )
     gridWriter.create()
     for( ( cvar, newVar ) <- varTups; if cvar.isCoordinateVariable ) gridWriter.write( newVar, cvar.read() )
     gridWriter.close()
   }
 }
 
-class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis], val coordSystems: List[CoordinateSystem], val dimensions: List[Dimension], val attributes: List[nc2.Attribute] ) extends Loggable {
+class CDGrid( name: String,  val gridFilePath: String, coordAxes: List[CoordinateAxis], val coordSystems: List[CoordinateSystem], val dimensions: List[Dimension], val attributes: List[nc2.Attribute] ) extends Loggable {
 
-  def deleteAggregation = if( gridFile.exists() ) { gridFile.delete() }
-  override def toString = gridFile.toString
+  def gridFileExists(): Boolean = try {
+    val file = new File(gridFilePath)
+    val path = file.toPath()
+    ( Files.exists(path) && Files.isRegularFile(path) )
+  } catch { case err: Exception => false }
 
+  def deleteAggregation = if( gridFileExists ) new File(gridFilePath).delete()
+  override def toString = gridFilePath
   def getCoordinateAxes: List[CoordinateAxis] = coordAxes
 
-  def createGridFile( ncmlFile: File ) = CDGrid.ensureGridFile( gridFile, ncmlFile )
-
   def findCoordinateAxis(name: String): Option[CoordinateAxis] = {
-    val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
+    val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
     try {
       Option( gridDS.findCoordinateAxis( name ) ).map( axis => { axis.setCaching(true); axis.read(); axis } )
     } catch {
@@ -121,7 +122,7 @@ class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis]
   }
 
   def getTimeCoordinateAxis: Option[CoordinateAxis1DTime] = {
-    val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
+    val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
     try {
       Option( gridDS.findCoordinateAxis( AxisType.Time ) ) map { coordAxis =>
         coordAxis.setCaching(true);
@@ -135,7 +136,7 @@ class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis]
 
 
   def findCoordinateAxis( atype: AxisType ): Option[CoordinateAxis] = {
-    val gridDS = NetcdfDataset.acquireDataset(gridFile.toString, null)
+    val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
     try {
       Option( gridDS.findCoordinateAxis( atype ) ).map( axis => { axis.setCaching(true); axis.read(); axis } )
     } catch {
@@ -144,7 +145,7 @@ class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis]
   }
 
   def getVariable( varName: String ): Option[nc2.Variable] = {
-    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( gridFile.toString, null )
+    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( gridFilePath, null )
     try {
       Option( ncDataset.findVariable(varName) )
     } catch {
@@ -153,7 +154,7 @@ class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis]
   }
 
   def getVariableMetadata( varName: String ): List[nc2.Attribute] = {
-    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( gridFile.toString, null )
+    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( gridFilePath, null )
     try {
       Option(ncDataset.findVariable(varName)) match {
         case Some( ncVariable ) =>
@@ -169,70 +170,28 @@ class CDGrid( name: String,  val gridFile: File, coordAxes: List[CoordinateAxis]
   }
 }
 
-class Collection( val ctype: String, val id: String,  val dataPath: String, val fileFilter: String = "", val scope: String="local", val title: String= "", val vars: List[String] = List() ) extends Serializable with Loggable {
+class Collection( val ctype: String, val id: String, val uri: String, val fileFilter: String = "", val scope: String="local", val title: String= "", val vars: List[String] = List() ) extends Serializable with Loggable {
   val collId = Collections.idToFile(id)
+  val dataPath = getDataFilePath(uri,collId)
   val variables = new ConcurrentLinkedHashMap.Builder[String, CDSVariable].initialCapacity(10).maximumWeightedCapacity(500).build()
   override def toString = "Collection( id=%s, ctype=%s, path=%s, title=%s, fileFilter=%s )".format(id, ctype, dataPath, title, fileFilter)
   def isEmpty = dataPath.isEmpty
   lazy val varNames = vars.map(varStr => varStr.split(Array(':', '|')).head)
+  val grid = CDGrid(id, dataPath)
 
-  def getVariableMetadata(varName: String): List[nc2.Attribute] = throw new Exception( "Improper call to getVariableMetadata for collection of type: " + ctype )
-  def getVariable(varName: String): CDSVariable = throw new Exception( "Improper call to getVariable for collection of type: " + ctype )
-  def deleteAggregation() = {}
+  def deleteAggregation() = grid.deleteAggregation
+  def getVariableMetadata(varName: String): List[nc2.Attribute] = grid.getVariableMetadata(varName)
+  def getGridFilePath = grid.gridFilePath
+  def getVariable(varName: String): CDSVariable = variables.getOrElseUpdate(varName, new CDSVariable(varName, this))
 
   def getDatasetMetadata(): List[nc2.Attribute] = List(
       new nc2.Attribute("variables", varNames),
       new nc2.Attribute("path", dataPath),
       new nc2.Attribute("ctype", ctype)
-    )
-  def generateAggregation(): xml.Elem = throw new Exception( "Improper call to generateAggregation for collection of type: " + ctype )
+    ) ++ grid.attributes
 
-
-
-  def url(varName: String = "") = ctype match {
-    case "http" => dataPath
-    case _ => "file:/" + dataPath
-  }
-
-  def toXml: xml.Elem = {
-    val varData = vars.mkString(";")
-    if (fileFilter.isEmpty) {
-      <collection id={id} ctype={ctype} path={dataPath} title={title}>
-        {varData}
-      </collection>
-    } else {
-      <collection id={id} ctype={ctype} path={dataPath} fileFilter={fileFilter} title={title}>
-        {varData}
-      </collection>
-    }
-  }
-
-  def toFilePath(path: String): String = {
-    if (path.startsWith("file:/")) path.substring(6)
-    else path
-  }
-}
-
-class NCMLCollection( ctype: String, id: String, dataPath: String, fileFilter: String = "", scope: String="local", title: String= "", vars: List[String] = List() ) extends Collection( ctype, id,  dataPath, fileFilter, scope, title, vars) {
-  private val dataFile: File = initDataFile
-  val grid = CDGrid(id, dataFile)
-
-  override def getVariableMetadata(varName: String): List[nc2.Attribute] = grid.getVariableMetadata(varName)
-
-  def getGridFilePath = grid.gridFile.toString
-  override def getVariable(varName: String): CDSVariable = variables.getOrElseUpdate(varName, new CDSVariable(varName, this))
-
-  override def deleteAggregation = {
-    if (dataFile.exists()) {
-      dataFile.delete()
-    }
-    grid.deleteAggregation
-  }
-
-  override def getDatasetMetadata(): List[nc2.Attribute] = grid.attributes ++ super.getDatasetMetadata()
-
-  override def generateAggregation(): xml.Elem = {
-    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset(dataFile.toString, null)
+  def generateAggregation(): xml.Elem = {
+    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset(grid.gridFilePath, null)
     try {
       _aggCollection(ncDataset)
     } catch {
@@ -242,21 +201,8 @@ class NCMLCollection( ctype: String, id: String, dataPath: String, fileFilter: S
     }
   }
 
-  override def toXml: xml.Elem = {
-    val varData = vars.mkString(";")
-    if (fileFilter.isEmpty) {
-      <collection id={id} ctype={ctype} ncml={dataFile.toString} grid={grid.toString} path={dataPath} title={title}>
-        {varData}
-      </collection>
-    } else {
-      <collection id={id} ctype={ctype} ncml={dataFile.toString} grid={grid.toString} path={dataPath} fileFilter={fileFilter} title={title}>
-        {varData}
-      </collection>
-    }
-  }
-
   def readVariableData(varName: String, section: ma2.Section): ma2.Array = {
-    val ncDataset: NetcdfDataset = NetcdfDataset.openDataset(dataFile.toString)
+    val ncDataset: NetcdfDataset = NetcdfDataset.openDataset(dataPath)
     try {
       val variable = ncDataset.findVariable(null, varName)
       variable.read(section)
@@ -274,10 +220,27 @@ class NCMLCollection( ctype: String, id: String, dataPath: String, fileFilter: S
     Collections.updateCollection(newCollection)
     newCollection.toXml
   }
+  def url(varName: String = "") = ctype match {
+    case "http" => dataPath
+    case _ => "file:/" + dataPath
+  }
 
-  def initDataFile: File = ctype match {
-    case "ncml" =>
-      val _ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collId).toFile
+  def toXml: xml.Elem = {
+    val varData = vars.mkString(";")
+    if (fileFilter.isEmpty) {
+      <collection id={id} ctype={ctype} grid={grid.toString} path={dataPath} title={title}>
+        {varData}
+      </collection>
+    } else {
+      <collection id={id} ctype={ctype} grid={grid.toString} path={dataPath} fileFilter={fileFilter} title={title}>
+        {varData}
+      </collection>
+    }
+  }
+
+  def getDataFilePath( uri: String, collectionId: String ) : String = ctype match {
+    case "csv" =>
+      val _ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collectionId).toFile
       val recreate = appParameters.bool("ncml.recreate", false)
       if (!_ncmlFile.exists || recreate) {
         if (dataPath.isEmpty) {
@@ -289,10 +252,15 @@ class NCMLCollection( ctype: String, id: String, dataPath: String, fileFilter: S
           ncmlWriter.writeNCML(_ncmlFile)
         }
       }
-      _ncmlFile
-    case "file" => new File( toFilePath(dataPath) )
-    case "csv" => new File( toFilePath(dataPath) )
+      _ncmlFile.toString
+    case "file" => toFilePath(uri)
+    case "dap" => uri
     case _ => throw new Exception( "Unexpected attempt to create Collection data file from ctype " + ctype )
+  }
+
+  def toFilePath(path: String): String = {
+    if (path.startsWith("file:")) path.substring(5)
+    else path
   }
 }
 
@@ -701,4 +669,12 @@ class ncWriteTest extends Loggable {
       logger.error("Something went wrong while reading %s".format(url))
       throw ex
   }
+}
+
+object readTest extends App {
+  val ncDataset: NetcdfDataset = NetcdfDataset.openDataset("/usr/local/web/CDAS2/target/scala-2.11/test-classes/data/MERRA-sample-t.nc")
+  val variable = ncDataset.findVariable(null, "t")
+  val section = new ma2.Section( Array(0,0,0,0), Array(1,1,100,100) )
+  val data = variable.read()
+  print( "." )
 }
