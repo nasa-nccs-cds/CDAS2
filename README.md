@@ -36,10 +36,11 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
 
     1) Install Anaconda: https://github.com/UV-CDAT/uvcdat/wiki/Install-using-Anaconda
     
-    2) Install packages using conda:
+    2) Create environment:
         
-        >> conda create -n uvcdat-2.8  -c conda-forge -c uvcdat nco pyzmq uvcdat
-        >> source activate uvcdat-2.8
+        >> conda create -n cdas -c conda-forge -c uvcdat/label/nightly -c uvcdat uvcdat nco pyzmq
+	>> source <prefix>/CDAS2/bin/setup_runtime.sh
+        >> source activate cdas
 
 ####  Code development:
 
