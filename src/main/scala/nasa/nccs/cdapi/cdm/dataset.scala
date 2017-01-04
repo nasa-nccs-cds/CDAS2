@@ -672,6 +672,7 @@ class ncWriteTest extends Loggable {
   }
 }
 
+/*
 object readTest extends App {
   val ncDataset: NetcdfDataset = NetcdfDataset.openDataset("/usr/local/web/WPS/CDAS2/src/test/resources/data/GISS-r1i1p1-sample.nc")
   val variable = ncDataset.findVariable(null, "tas")
@@ -696,4 +697,5 @@ object writeTest extends App {
   gridWriter.create()
   for( ( cvar, newVar ) <- varTups; if cvar.isCoordinateVariable ) gridWriter.write( newVar, cvar.read() )
   gridWriter.close()
-}
+
+}*/

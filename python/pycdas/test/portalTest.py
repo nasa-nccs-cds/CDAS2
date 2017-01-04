@@ -2,6 +2,8 @@ from pycdas.portal.cdas import CDASPortal
 import time
 
 portal = CDASPortal()
+
+# Stage the CDAS app using the "{CDAS_HOME}>> sbt stage" command.
 portal.start_CDAS()
 
 time.sleep(4)
