@@ -9,4 +9,4 @@ datafile1="/Users/tpmaxwel/Dropbox/Tom/Data/atmos_ta.nc"
 
 # ncks -O -v tas -d lat,10,15 -d lon,5,10 -d time,10,10 ${datafile} subset.nc
 
-ncks -O -v ta  -d time,10,10 ${datafile1} subset.nc
+ncks -O -v tas  -d time,0,10 ${datafile} GISS-r1i1p1-sample.nc

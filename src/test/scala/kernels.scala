@@ -133,16 +133,16 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     } finally { cleanup() }
   }
 
-  test("Minimum-file") {
+  test("Maximum-file") {
     try {
-      val nco_verified_result = 230.7738
-      val uri=getClass.getResource("/data/MERRA-sample-t.nc")
-      val datainputs = s"""[domain=[{"name":"d0","time":{"start":4,"end":4,"system":"indices"},"lev":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"$uri","name":"t:v1","domain":"d0"}],operation=[{"name":"CDSpark.min","input":"v1","domain":"d0","axes":"xy"}]]"""
+      val nco_verified_result = 309.7112
+      val uri=getClass.getResource("/data/GISS-r1i1p1-sample.nc")
+      val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"$uri","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
       val result_node = executeTest(datainputs)
       val result_value = getResultValue(result_node)
       println( "Op Result:       " + result_value )
       println( "Verified Result: " + nco_verified_result )
-      assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Min")
+      assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
     } finally { cleanup() }
   }
 
