@@ -1,15 +1,16 @@
 from abc import ABCMeta, abstractmethod
 
 class KernelSpec:
-    def __init__( self, name, title, description, inputs=[] ):
+    def __init__( self, name, title, description, reduceOp="", inputs=[] ):
         self._name = name
         self._title = title
         self._description = description
         self._inputs = inputs
+        self._reduceOp = reduceOp
 
     def name(self): return self._name
 
-    def __str__(self): return ";".join( [ self._name, self.getTitle(), self.getDescription(), ",".join(self._inputs) ] )
+    def __str__(self): return ";".join( [ self._name, self.getTitle(), self.getDescription(), self._reduceOp, ",".join(self._inputs) ] )
 
     def getDescription(self): return self._description.translate(None, ";,|!~^")
     def getTitle(self): return self._title.translate(None, ";,|!~^")

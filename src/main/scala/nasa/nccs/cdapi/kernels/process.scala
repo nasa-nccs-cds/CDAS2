@@ -208,7 +208,7 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
     RDDPartition(rdd0.iPart, new_elements, rdd0.mergeMetadata(context.operation.name, rdd1))
   }
 
-  def mergeRDD(rdd0: RDDPartition, rdd1: RDDPartition ): RDDPartition = {
+  def mergeRDD(rdd0: RDDPartition, rdd1: RDDPartition, context: KernelContext ): RDDPartition = {
     val t0 = System.nanoTime
     logger.info("&MERGE: start (%d <-> %d)".format( rdd0.iPart, rdd1.iPart  ) )
     val ascending = rdd0.iPart < rdd1.iPart
@@ -605,6 +605,33 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     } finally {
       workerManager.releaseWorker( worker )
     }
+  }
+
+  override def mergeRDD(rdd0: RDDPartition, rdd1: RDDPartition, context: KernelContext ): RDDPartition = {
+    val t0 = System.nanoTime
+    logger.info("&MERGE: start (%d <-> %d)".format( rdd0.iPart, rdd1.iPart  ) )
+    val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance();
+    val worker: PythonWorker = workerManager.getPythonWorker();
+    val ascending = rdd0.iPart < rdd1.iPart
+    val op_metadata = indexAxisConf( context.getConfiguration, context.grid.axisIndexMap )
+    rdd0.elements.map {
+      case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> {
+        val (array0, array1) = if (ascending) (element0, element1) else (element1, element0)
+        val byte_data0 = array0.toUcarFloatArray.getDataAsByteBuffer().array()
+        worker.sendArrayData(array0.uid, array0.origin, array0.shape, byte_data0, array0.metadata)
+        val byte_data1 = array1.toUcarFloatArray.getDataAsByteBuffer().array()
+        worker.sendArrayData(array1.uid, array1.origin, array1.shape, byte_data1, array1.metadata)
+        worker.sendRequest("MERGE:" + context.operation.identifier, Array(array0.uid,array1.uid), op_metadata )
+      })
+    }
+    val resultItems = rdd0.elements.map {
+      case (key, element0) =>
+        val tvar = worker.getResult()
+        val result = HeapFltArray( tvar, element0.missing )
+        context.operation.rid + ":" + element0.uid -> result
+    }
+    logger.info("&MERGE: finish (%d <-> %d), time = %.4f s".format( rdd0.iPart, rdd1.iPart, (System.nanoTime - t0) / 1.0E9 ) )
+    RDDPartition( rdd0.iPart, resultItems, rdd0.mergeMetadata("merge", rdd1) )
   }
 
   def indexAxisConf( metadata: Map[String,String], axisIndexMap: Map[String,Int] ): Map[String,String] = {

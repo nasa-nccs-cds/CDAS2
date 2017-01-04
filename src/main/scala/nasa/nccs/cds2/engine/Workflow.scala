@@ -40,7 +40,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
       val results: Seq[(Int, RDDPartition)] =  mapresult.collect().toSeq.sortWith(_._1 < _._1)
       val t1 = System.nanoTime()
       logger.info( "REDUCE STAGES >>>===> Collect: %.3f sec".format( (t1 - t0) / 1.0E9 ))
-      results.tail.foldLeft( results.head._2 )( { case (r0,(index,r1)) => kernel.mergeRDD(r0,r1) } )
+      results.tail.foldLeft( results.head._2 )( { case (r0,(index,r1)) => kernel.mergeRDD(r0,r1,context) } )
     }
     logger.info( "\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format( context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
     result
