@@ -240,9 +240,9 @@ class DataSource(val name: String, val collection: Collection, val domain: Strin
   val debug = 1
   def this( dsource: DataSource ) = this( dsource.name, dsource.collection, dsource.domain )
   override def toString =  s"DataSource { name = $name, collection = %s, domain = $domain, %s }".format(collection.toString,fragIdOpt.map(", fragment = "+_).getOrElse("") )
-  def toXml = <dataset name={name} domain={domain}>{ collection.toXml }</dataset>
-  def isDefined = ( !collection.isEmpty && !name.isEmpty )
-  def isReadable = ( !collection.isEmpty && !name.isEmpty && !domain.isEmpty )
+  def toXml =  <dataset name={name} domain={domain}> {collection.toXml} </dataset>
+  def isDefined =  ( !collection.isEmpty && !name.isEmpty )
+  def isReadable =  ( !collection.isEmpty && !name.isEmpty && !domain.isEmpty )
   def getKey: Option[DataFragmentKey] = fragIdOpt.map( DataFragmentKey.apply(_) )
 }
 
@@ -332,7 +332,7 @@ object SectionMerge {
   def incommensurate( s0: ma2.Section, s1: ma2.Section ) = { "Attempt to combine incommensurate sections: %s vs %s".format( s0.toString, s1.toString ) }
 }
 
-class DataFragmentSpec( val uid: String="", val varname: String="", val collection: Collection = Collection("empty",""), val fragIdOpt: Option[String]=None,
+class DataFragmentSpec( val uid: String="", val varname: String="", val collection: Collection = new Collection("empty","",""), val fragIdOpt: Option[String]=None,
                         val targetGridOpt: Option[TargetGrid]=None, val dimensions: String="", val units: String="",
                         val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section],
                         val missing_value: Float, val mask: Option[String] = None ) extends Loggable with Serializable {
@@ -568,7 +568,7 @@ object DataContainer extends ContainerBase {
     else idItems.head
   }
 
-  def getCollection(metadata: Map[String, Any]): ( Collection, Option[String] ) = {
+  def getCollection(metadata: Map[String, Any]): ( Option[Collection], Option[String] ) = {
     val uri = metadata.getOrElse("uri","").toString
     val varsList: List[String] =
       if(metadata.keySet.contains("id")) metadata.getOrElse("id","").toString.split(",").map( item => stripQuotes( vid(item,false) ) ).toList
@@ -587,14 +587,18 @@ object DataContainer extends ContainerBase {
     val fragIdOpt = if(uri.startsWith("fragment")) Some(id) else None
     Collections.findCollection( colId ) match {
       case Some(collection) =>
-        if(!path.isEmpty) { assert( absPath(path).equals(absPath(collection.dataPath)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id,collection.dataPath,path) ) }
-        ( collection, fragIdOpt )
+        if (!path.isEmpty) {
+          assert(absPath(path).equals(absPath(collection.dataPath)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id, collection.dataPath, path))
+        }
+        (Some(collection), fragIdOpt)
       case None =>
-        if( path.isEmpty && !collection.isEmpty ) {
-          (Collections.addCollection( colId, path, title, varsList), fragIdOpt)
+        if( colId.equals("") ) {
+          ( None, None )
+        } else if( path.isEmpty && !collection.isEmpty ) {
+          ( Some(Collections.addCollection( colId, path, title, varsList)), fragIdOpt)
         } else {
           if (path.isEmpty) throw new Exception(s"Unrecognized collection: '$colId', current collections: " + Collections.idSet.mkString(", "))
-          (Collections.addCollection(colId, path, fileFilter, title, varsList), fragIdOpt)
+          ( Some(Collections.addCollection(colId, path, fileFilter, title, varsList)), fragIdOpt)
         }
     }
   }
@@ -603,24 +607,38 @@ object DataContainer extends ContainerBase {
     try {
       val fullname = if(metadata.keySet.contains("id"))  metadata.getOrElse("id", "").toString else metadata.getOrElse("name", "").toString
       val domain = metadata.getOrElse("domain", "").toString
-      val (collection, fragIdOpt) = getCollection(metadata)
-      val var_names: Array[String] = if (fullname.equals("*")) collection.varNames.toArray else fullname.toString.split(',')
-      val base_index = random.nextInt(Integer.MAX_VALUE)
-
-      fragIdOpt match {
-        case Some(fragId) =>
-          val name_items = var_names.head.split(Array(':','|'))
-          val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain), fragIdOpt )
-          val vid = normalize(name_items.last)
-          Array( new DataContainer(if (vid.isEmpty) uid+s"c-$base_index" else uid+vid, source = Some(dsource)) )
+      val (collectionOpt, fragIdOpt) = getCollection(metadata)
+      val base_index = random.nextInt (Integer.MAX_VALUE)
+      collectionOpt match {
         case None =>
+          val var_names: Array[String] = fullname.toString.split (',')
+          val dataPath = metadata.getOrElse("uri", metadata.getOrElse("url",uid) ).toString
+          val collection = Collection( uid.toString, dataPath )
           for ((name, index) <- var_names.zipWithIndex) yield {
-            val name_items = name.split(Array(':','|'))
+            val name_items = name.split(Array(':', '|'))
             val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain))
             val vid = stripQuotes(name_items.last)
             val vname = normalize(name_items.head)
-            val dcid = if (vid.isEmpty) uid+s"c-$base_index$index" else if (vname.isEmpty) vid else uid+vid
-            new DataContainer( dcid, source = Some(dsource))
+            val dcid = if (vid.isEmpty) uid + s"c-$base_index$index" else if (vname.isEmpty) vid else uid + vid
+            new DataContainer(dcid, source = Some(dsource))
+          }
+        case Some( collection ) =>
+          val var_names: Array[String] = if (fullname.equals ("*") ) collection.varNames.toArray else fullname.toString.split (',')
+          fragIdOpt match {
+            case Some (fragId) =>
+              val name_items = var_names.head.split (Array (':', '|') )
+              val dsource = new DataSource (stripQuotes (name_items.head), collection, normalize (domain), fragIdOpt)
+              val vid = normalize (name_items.last)
+              Array (new DataContainer (if (vid.isEmpty) uid + s"c-$base_index" else uid + vid, source = Some (dsource) ) )
+            case None =>
+              for ((name, index) <- var_names.zipWithIndex) yield {
+                val name_items = name.split (Array (':', '|') )
+                val dsource = new DataSource (stripQuotes (name_items.head), collection, normalize (domain) )
+                val vid = stripQuotes (name_items.last)
+                val vname = normalize (name_items.head)
+                val dcid = if (vid.isEmpty) uid + s"c-$base_index$index" else if (vname.isEmpty) vid else uid + vid
+                new DataContainer (dcid, source = Some (dsource) )
+              }
           }
       }
     } catch {

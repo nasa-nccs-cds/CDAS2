@@ -34,6 +34,8 @@ trait ServiceProvider extends Loggable {
     new WPSExceptionReport(err)
   }
 
+  def shutdown()
+
 }
 
 object cds2ServiceProvider extends ServiceProvider {
@@ -42,6 +44,8 @@ object cds2ServiceProvider extends ServiceProvider {
 
   val cds2ExecutionManager = new CDS2ExecutionManager()
 
+  def shutdown() = { cds2ExecutionManager.shutdown(); }
+
   def datainputs2Str( datainputs: Map[String, Seq[Map[String, Any]]] ): String = {
     datainputs.map { case ( key:String, value:Seq[Map[String, Any]] ) =>
       key  + ": " + value.map( _.map { case (k1:String, v1:Any) => k1 + "=" + v1.toString  }.mkString(", ") ).mkString("{ ",", "," }")  }.mkString("{ ",", "," }")
@@ -49,6 +53,7 @@ object cds2ServiceProvider extends ServiceProvider {
 
   override def executeProcess(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Elem = {
     try {
+      logger.info( " @@cds2ServiceProvider: exec process: " + process_name )
       cdsutils.time(logger, "\n\n-->> Process %s, datainputs: %s \n\n".format(process_name, datainputs2Str(datainputs))) {
         if (runargs.getOrElse("async", "false").toBoolean) {
           val result = cds2ExecutionManager.asyncExecute(TaskRequest(process_name, datainputs), runargs)
@@ -78,15 +83,4 @@ object cds2ServiceProvider extends ServiceProvider {
   override def getResult( resultId: String ): xml.Node = cds2ExecutionManager.getResult( resultId )
   override def getResultStatus( resultId: String ): xml.Node = cds2ExecutionManager.getResultStatus( resultId )
 
-}
-
-
-object resourceTest extends App {
-  import nasa.nccs.cds2.engine.CDS2ExecutionManager
-  val serverConfiguration: Map[String,String] = Map()
-
-  val cds2ExecutionManager = new CDS2ExecutionManager()
-
-  val resourcePath = cds2ExecutionManager.getResourcePath("/collections.xml")
-  println( resourcePath )
 }

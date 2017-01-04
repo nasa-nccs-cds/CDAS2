@@ -21,6 +21,10 @@ resolvers += "spray repo" at "http://repo.spray.io"
 resolvers += "Artima Maven Repository" at "http://repo.artima.com/releases"
 resolvers += "Geotoolkit" at "http://maven.geotoolkit.org/"
 
+enablePlugins(JavaAppPackaging)
+
+mainClass in (Compile, run) := Some("nasa.nccs.cdas.portal.CDASApplication")
+mainClass in (Compile, packageBin) := Some("nasa.nccs.cdas.portal.CDASApplication")
 
 libraryDependencies ++= Dependencies.scala
 
@@ -58,6 +62,11 @@ lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultpropertie
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val uvcdat_prefix = settingKey[File]("The UVCDAT env directory.")
+
+unmanagedResourceDirectories in Test += baseDirectory.value / "src" / "universal" / "conf"
+unmanagedResourceDirectories in (Compile, runMain) += baseDirectory.value / "src" / "universal" / "conf"
+unmanagedClasspath in Test += baseDirectory.value / "src" / "universal" / "conf"
+unmanagedClasspath in (Compile, runMain) += baseDirectory.value / "src" / "universal" / "conf"
 
 // lazy val cdasGlobalCollectionsFile = settingKey[File]("The cdas global Collections file")
 

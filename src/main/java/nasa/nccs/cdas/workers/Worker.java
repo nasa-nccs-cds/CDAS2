@@ -1,7 +1,8 @@
 package nasa.nccs.cdas.workers;
 import org.zeromq.ZMQ;
-import org.slf4j.Logger;
+import nasa.nccs.utilities.Logger;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -118,6 +119,9 @@ public abstract class Worker {
         logger.info( String.format("Starting Worker, ports: %d %d",  request_port, result_port ) );
     }
 
+    @Override
+    public void finalize() { quit(); }
+
     public void sendDataPacket( String header, byte[] data ) {
         request_socket.send(header);
         request_socket.send(data);
@@ -136,14 +140,14 @@ public abstract class Worker {
     public void sendArrayData( String id, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
         List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata) );
         String header = String.join("|", slist);
-        System.out.println("Sending header: " + header);
+        logger.info("Sending header: " + header);
         sendDataPacket( header, data );
     }
 
     public void sendRequest( String operation, String[] inputs, Map<String, String> metadata ) {
         List<String> slist = Arrays.asList(  "task", operation, sa2s(inputs), m2s(metadata)  );
         String header = String.join("|", slist);
-        System.out.println( "Sending Task Request: " + header );
+        logger.info( "Sending Task Request: " + header );
         request_socket.send(header);
         isValid = true;
     }
@@ -151,8 +155,9 @@ public abstract class Worker {
     public void sendUtility( String request ) {
         List<String> slist = Arrays.asList(  "util", request );
         String header = String.join("|", slist);
-        System.out.println( "Sending Utility Request: " + header );
+        logger.info( "Sending Utility Request: " + header );
         request_socket.send(header);
+        logger.info( "Utility Request Sent!" );
     }
 
     public String getCapabilities() {

@@ -38,6 +38,25 @@ object wpsObjectParser extends ObjectNotationParser with Loggable {
 
   def cdata(obj: Any): String = "<![CDATA[\n " + obj.toString + "\n]]>"
 
+  def parseMap(args_input: String): Map[String, Any] = {
+    try {
+      CDSecurity.sanitize( args_input )
+      parseAll(omap, args_input) match {
+        case result: Success[_] => result.get.asInstanceOf[Map[String, Any]]
+        case err: Error =>
+          logger.error("Error Parsing '%s'".format(args_input) )
+          throw new BadRequestException(err.toString)
+        case err: Failure =>
+          logger.error("Error Parsing '%s'".format(args_input) )
+          throw new BadRequestException(err.toString)
+      }
+    } catch {
+      case e: Exception =>
+        logger.error("Error[%s] Parsing '%s': %s".format( e.getClass.getName, args_input, e.getMessage ) )
+        throw new BadRequestException(e.getMessage, e)
+    }
+  }
+
   def parseDataInputs(data_input: String): Map[String, Seq[Map[String, Any]]] = {
     try {
       CDSecurity.sanitize( data_input )

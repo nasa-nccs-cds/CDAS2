@@ -9,7 +9,6 @@ import scala.collection.JavaConversions._
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
-import nasa.nccs.cdapi.cdm.ncReadTest._
 import nasa.nccs.cdapi.cdm.{Collection, DiskCacheFileMgr, NCMLWriter}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.dataset.NetcdfDataset
@@ -235,7 +234,9 @@ object Collections extends XmlResource {
               val collection = getCollection(node, scope)
               datasets.put(id.toString.toLowerCase, collection)
               logger.info("Loading collection: " + id.toString.toLowerCase)
-            } catch { case err: Exception => logger.warn( "Skipping collection " + id.toString + " due to error: " + err.toString ) }
+            } catch { case err: Exception =>
+              logger.warn( "Skipping collection " + id.toString + " due to error: " + err.toString )
+            }
           })
         } catch {
           case err: Exception => throw new Exception("Error opening collection data file {%s}: %s".format(filePath, err.getMessage))
@@ -251,7 +252,9 @@ object Collections extends XmlResource {
   }
 
   def getVarList( var_list_data: String  ): List[String] = var_list_data.filter(!List(' ','(',')').contains(_)).split(',').toList
-  def getCollection( n: xml.Node, scope: String ): Collection = { Collection( attr(n,"id"), attr(n,"path"), attr(n,"fileFilter"), scope, attr(n,"title"), n.text.split(";").toList )}
+  def getCollection( n: xml.Node, scope: String ): Collection = {
+    Collection( attr(n,"id"), attr(n,"path"), attr(n,"fileFilter"), scope, attr(n,"title"), n.text.split(";").toList )
+  }
 
   def findCollection( collectionId: String ): Option[Collection] = Option( datasets.get( collectionId ) )
 
@@ -285,11 +288,7 @@ object Collections extends XmlResource {
   def getCollectionKeys(): Array[String] = datasets.keys.toArray
 }
 
-object UpdateCollectionVars extends App {
-  Collections.updateVars
-}
-
-object netcdfTestApp extends App {
+class netcdfTestApp {
   import ucar.nc2.dataset.NetcdfDataset
   val origin = Array(1404,0,0)
   val shape = Array(234,90,144)

@@ -5,7 +5,6 @@ import nasa.nccs.cdapi.tensors.{CDArray, CDCoordMap, CDFloatArray, CDTimeCoordMa
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.esgf.process._
 import org.apache.spark.rdd.RDD
-import org.slf4j.LoggerFactory
 import java.io._
 import java.nio.{ByteBuffer, FloatBuffer}
 
@@ -46,7 +45,7 @@ class Port( val name: String, val cardinality: String, val description: String, 
   }
 }
 
-class KernelContext( val operation: OperationContext, val grid: GridContext, val sectionMap: Map[String,Option[CDSection]], private val configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
+class KernelContext( val operation: OperationContext, val grid: GridContext, val sectionMap: Map[String,Option[CDSection]], val configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
   def getConfiguration = configuration ++ operation.getConfiguration
   def getAxes: AxisIndices = grid.getAxisIndices( config("axes", "") )
   def getContextStr = getConfiguration map { case ( key, value ) => key + ":" + value } mkString (";")
@@ -112,10 +111,6 @@ object Kernel {
     }
   }
 
-}
-
-object pathTest extends App {
-  println( System.getProperty("user.home") )
 }
 
 object KernelUtilities extends Loggable {
@@ -638,12 +633,7 @@ class TransientFragment( val dataFrag: DataFragment, val request: RequestContext
   def delete() = {;}
 }
 
-//object classTest extends App {
-//  import nasa.nccs.cds2.modules.CDSpark._
-//  printf( Kernel.getClass.isAssignableFrom( CDSpark. ).toString )
-//}
-
-object SerializeTest extends App {
+class SerializeTest {
   val input_array: CDFloatArray = CDFloatArray.const( Array(4), 2.5f )
   val ucar_array = CDFloatArray.toUcarArray( input_array )
   val byte_data = ucar_array.getDataAsByteBuffer().array()
@@ -653,7 +643,7 @@ object SerializeTest extends App {
   println( "Float data: %f %f %f %f".format( result.data(0), result.data(1), result.data(2), result.data(3) ))
 }
 
-object zmqSerializeTest extends App {
+class zmqSerializeTest {
   import nasa.nccs.cdas.workers.test.floatClient
   val input_array: CDFloatArray = CDFloatArray.const( Array(4), 2.5f )
   val ucar_array = CDFloatArray.toUcarArray( input_array )

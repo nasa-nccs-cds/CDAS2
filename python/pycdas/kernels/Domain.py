@@ -1,7 +1,6 @@
 from pycdas.utilities import  *
 from pycdas.json import  *
-import re, traceback
-from kernels.Kernel import logger
+import re, traceback, logging
 
 class RegionContainer(JSONObjectContainer):
 
@@ -35,6 +34,7 @@ class CDAxis(JSONObject):
 
     def init( self, axis, values, **args ):
         JSONObject.__init__( self )
+        self.logger =  logging.getLogger("worker")
         self.tolerance=0.001
         self.items['config'] = {}
         self.items['bounds'] = {}
@@ -87,28 +87,29 @@ class CDAxis(JSONObject):
                             if start is None:
                                start =  values.get('value',None)
                                if start is None:
-                                   logger.error( "Warning, no bounds specified for axis: %s " % str(values) )
+                                   self.logger.error( "Warning, no bounds specified for axis: %s " % str(values) )
                             self['bounds'] = [ float(start) ]
                         else:
                             self['bounds'] = [ float(start), float(end) ]
                         self['config'] = filter_attributes( values, ['start','end','value'], False )
                     except KeyError:
-                        logger.error( "Error, can't recognize region values keys: %s " % values.keys() )
+                        self.logger.error( "Error, can't recognize region values keys: %s " % values.keys() )
                     except TypeError, err:
-                        logger.error( "\n !!!TypeError processing axis bounds: %s %s \n" % ( start, end ) )
+                        self.logger.error( "\n !!!TypeError processing axis bounds: %s %s \n" % ( start, end ) )
             else:
                 self['bounds'] = [ float(v) for v in values ] if self['axis'] <> CDAxis.TIME else values
         else:
             try:
                 self['bounds'] = [ float(values) ] if self['axis'] <> CDAxis.TIME else [ values ]
             except Exception, err:
-                logger.error( "Error, unknown region axis value: %s, axis: %s " % ( str(values), self['axis'] )  )
+                self.logger.error( "Error, unknown region axis value: %s, axis: %s " % ( str(values), self['axis'] )  )
                 axis_bounds = values
 
 class Region(JSONObject):
 
     def __init__( self, region={}, **args ):
         JSONObject.__init__( self, region, **args )
+        self.logger =  logging.getLogger("worker")
 
     def getAxisRange( self, axis_name ):
         try:
@@ -120,7 +121,7 @@ class Region(JSONObject):
             return bounds
 #            if (len(bounds) == 0) or (system == axis_system): return bounds
         except Exception, err:
-            logger.error( "Error in getAxisRange( %s ): %s" % ( axis_name, str(err) ) )
+            self.logger.error( "Error in getAxisRange( %s ): %s" % ( axis_name, str(err) ) )
             return None
 
     def getIndexedAxisSize(self, axis_name, axis ):
@@ -230,13 +231,14 @@ class Region(JSONObject):
                             else:
                                     kargs[str(k)] = slice(int(v[0]),int(v[1])) if ( len( v ) > 1 ) else slice(int(v[0]),int(v[0])+1)
                 except Exception, err:
-                    logger.error( "Error processing axis '%s' spec '%s': %s\n %s " % ( k, str(axis_spec), str(err), traceback.format_exc() ) )
+                    self.logger.error( "Error processing axis '%s' spec '%s': %s\n %s " % ( k, str(axis_spec), str(err), traceback.format_exc() ) )
 
         return kargs
 
 class DomainSpec:
 
     def __init__( self, variable_spec,  region_spec ):
+        self.logger =  logging.getLogger("worker")
         self.variable_spec = variable_spec
         self.region_spec = region_spec
         self.stat = {}
@@ -287,6 +289,7 @@ class Domain(Region):
     COMPLETE = 1
 
     def __init__( self, region=None,  **args ):
+        self.logger =  logging.getLogger("worker")
         self.stat = args.get( 'region_spec', { 'persist_id':None } )
         Region.__init__( self, region )
         self._variable = None
@@ -400,6 +403,7 @@ class Domain(Region):
 class DomainManager:
 
     def __init__( self ):
+        self.logger =  logging.getLogger("worker")
         self.domains = []
 
     def persist( self, **args ):
@@ -448,8 +452,8 @@ class DomainManager:
            if wid: wids.append( wid )
            domain.release()
            self.domains.remove( domain )
-           logger.error( "\n  ****uncache**** Removing domain from cache: %s " % str(domain) )
-        logger.error( " ----> Remaining domains: %s " % str(self.domains) )
+           self.logger.error( "\n  ****uncache**** Removing domain from cache: %s " % str(domain) )
+        self.logger.error( " ----> Remaining domains: %s " % str(self.domains) )
         return wids
 
     def findSmallestDomain(self, domain_list ):

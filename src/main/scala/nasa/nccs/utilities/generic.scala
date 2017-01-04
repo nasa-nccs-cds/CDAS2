@@ -1,25 +1,74 @@
 package nasa.nccs.utilities
 
-import java.io.File
+import java.io.{File, PrintWriter}
 import java.util.jar.JarFile
 
 import com.joestelmach.natty
 import ucar.nc2.time.CalendarDate
+import java.nio.file.Paths
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import org.slf4j.{Logger, LoggerFactory}
+
+object log4jInit {
+  import org.apache.log4j._
+  val console: ConsoleAppender = new ConsoleAppender();
+  val PATTERN = "%d [%p|%c|%C{1}] %m%n";
+  console.setLayout(new PatternLayout(PATTERN));
+  console.setThreshold(Level.FATAL);
+  console.activateOptions();
+  Logger.getRootLogger().addAppender(console);
+
+  val fa = new FileAppender();
+  fa.setName("FileLogger");
+  fa.setFile("${user.home}/.cdas/wps.log");
+  fa.setLayout(new PatternLayout("%d %-5p [%c{1}] %m%n"));
+  fa.setThreshold(Level.DEBUG);
+  fa.setAppend(true);
+  fa.activateOptions();
+  Logger.getRootLogger().addAppender(fa);
+}
+
+class Logger( val name: String ) extends Serializable {
+  val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", "cdas.log" ).toString
+  val writer = new PrintWriter(logFilePath)
+  def log( level: String, msg: String  ) = {
+    val output = name + "-" + level + ": " + msg
+    writer.print( output )
+    println( output )
+    writer.flush()
+  }
+  def info( msg: String ) = { log( "info", msg ) }
+  def debug( msg: String ) = { log( "debug", msg ) }
+  def error( msg: String ) = { log( "error", msg ) }
+  def warn( msg: String ) = { log( "warn", msg ) }
+}
 
 object CDASLogManager extends Serializable {
-  val logger = getLogger
+  val logger: Logger = new Logger("cdas")
 
   def getCurrentLogger() = { logger }
 
-  def getLogger = {
-    val _logger = LoggerFactory.getLogger("debug")
-    _logger
-  }
+//  def getLogger( name: String ) = {
+//    val console = new ConsoleAppender();
+//    val PATTERN = "%d [%p|%c|%C{1}] %m%n";
+//    console.setLayout(new PatternLayout(PATTERN));
+//    console.setThreshold(Level.DEBUG);
+//    console.activateOptions();
+//    Logger.getRootLogger().addAppender(console);
+//
+//    val fa = new FileAppender();
+//    fa.setName("FileLogger");
+//    fa.setFile(  );
+//    fa.setLayout(new PatternLayout("%d %-5p [%c{1}] %m%n"));
+//    fa.setThreshold(Level.DEBUG);
+//    fa.setAppend(true);
+//    fa.activateOptions();
+//    Logger.getRootLogger().addAppender(fa);
+//
+//    Logger.getLogger( name )
+//  }
 }
 
 trait Loggable extends Serializable {
@@ -143,99 +192,3 @@ object cdsutils {
   //
   //  }
 }
-
-object stringFixer extends App {
-  val instr = """ 295.6538,295.7205,295.9552,295.3324,293.0879,291.5541,289.6255,288.7875,289.7614,290.5001,292.3553,
-                |  293.8378,296.7862,296.6005,
-                |  295.6378,
-                |  294.9304,
-                |  293.6324,
-                |  292.1851,
-                |  290.8981,
-                |  290.5262,290.5347,
-                |  291.6595,
-                |  292.8715,
-                |  294.0839,
-                |  295.4386,
-                |  296.1736,
-                |  296.4382,
-                |  294.7264,
-                |  293.0489,
-                |  291.6237,
-                |  290.5149,
-                |  290.1141,
-                |  289.8373,
-                |  290.8802,
-                |  292.615,
-                |  294.0024,
-                |  295.5854,
-                |  296.5497,
-                |  296.4013,
-                |  295.1263,
-                |  293.2203,
-                |  292.2885,
-                |  291.0839,
-                |  290.281,
-                |  290.1516,
-                |  290.7351,
-                |  292.7598,
-                |  294.1442,
-                |  295.8959,
-                |  295.8112,
-                |  296.1058,
-                |  294.8028,
-                |  292.7733,
-                |  291.7613,
-                |  290.7009,
-                |  290.7226,
-                |  290.1038,
-                |  290.6277,
-                |  292.1299,
-                |  294.4099,
-                |  296.1226,
-                |  296.5852,
-                |  296.4395,
-                |  294.7828,
-                |  293.7856,
-                |  291.9353,
-                |  290.2696,
-                |  289.8393,
-                |  290.3558,
-                |  290.162,
-                |  292.2701,
-                |  294.3617,
-                |  294.6855,
-                |  295.9736,
-                |  295.9881,
-                |  294.853,
-                |  293.4628,
-                |  292.2583,
-                |  291.2488,
-                |  290.84,
-                |  289.9593,
-                |  290.8045,
-                |  291.5576,
-                |  293.0114,
-                |  294.7605,
-                |  296.3679,
-                |  295.6986,
-                |  293.4995,
-                |  292.2574,
-                |  290.9722,
-                |  289.9694,
-                |  290.1006,
-                |  290.2442,
-                |  290.7669,
-                |  292.0513,
-                |  294.2266,
-                |  295.9346,
-                |  295.6064,
-                |  295.4227,
-                |  294.3889,
-                |  292.8391 """
-  val newStr = instr.replace('\n',' ').replace('|',' ').replace(" ","")
-  print(newStr)
-
-
-}
-

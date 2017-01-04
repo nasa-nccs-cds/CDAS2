@@ -19,6 +19,7 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
 
         >> cd CDAS2
         >> sbt publish
+        >> sbt stage
 
      3) Run unit tests:
 
@@ -36,11 +37,13 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
 
     1) Install Anaconda: https://github.com/UV-CDAT/uvcdat/wiki/Install-using-Anaconda
     
-    2) Create environment:
+    2) Create cdas2 conda environment:
         
-        >> conda create -n cdas -c conda-forge -c uvcdat/label/nightly -c uvcdat uvcdat nco pyzmq
-	>> source <prefix>/CDAS2/bin/setup_runtime.sh
-        >> source activate cdas
+        >> conda create -n cdas2  -c conda-forge -c uvcdat/label/nightly -c uvcdat uvcdat nco pyzmq
+        
+    3) Initialize shell enviromnment for cdas:
+    
+        >> source <prefix>/CDAS2/bin/setup_runtime.sh
 
 ####  Code development:
 

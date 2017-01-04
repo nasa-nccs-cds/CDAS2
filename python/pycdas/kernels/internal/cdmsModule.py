@@ -1,4 +1,4 @@
-from pycdas.kernels.Kernel import Kernel, InputMode, KernelSpec, logger
+from pycdas.kernels.Kernel import Kernel, InputMode, KernelSpec
 from pycdas.cdasArray import CDArray
 import cdms2, time
 from pycdas.messageParser import mParse

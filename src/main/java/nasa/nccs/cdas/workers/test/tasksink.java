@@ -9,7 +9,7 @@ import org.zeromq.ZMQ;
 //
 public class tasksink {
 
-    public static void main (String[] args) throws Exception {
+    public static void run (String[] args) throws Exception {
 
         //  Prepare our context and socket
         ZMQ.Context context = ZMQ.context(1);

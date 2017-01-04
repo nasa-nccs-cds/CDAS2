@@ -1,7 +1,7 @@
 package nasa.nccs.cds2.utilities
 
 import org.nd4j.linalg.api.ndarray.INDArray
-import org.slf4j.Logger
+import org.apache.log4j.Logger
 import ucar.ma2
 import ucar.nc2.{Variable, NetcdfFile}
 import ucar.nc2.dataset.NetcdfDataset
@@ -16,7 +16,7 @@ import scala.language.implicitConversions
 object NetCDFUtils {
 
   // Class logger
-  val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
+  val logger = Logger.getLogger(this.getClass)
 
   def getArrayShape( array: ucar.ma2.Array ): List[Int] = {
     var shape = mutable.ListBuffer[Int]()

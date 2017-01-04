@@ -1,17 +1,17 @@
-import sys, inspect
-from Kernel import Kernel, logger
+import sys, inspect, logging
 from abc import ABCMeta, abstractmethod
 
 class OperationModule:
     __metaclass__ = ABCMeta
 
     def __init__( self, name ):
+        self.logger =  logging.getLogger("worker")
         self._name = name
 
     def getName(self): return self._name
 
     def executeTask( self, task, inputs ):
-        logger.error( "Executing Unimplemented method on abstract base class: " + self.getName() )
+        self.logger.error( "Executing Unimplemented method on abstract base class: " + self.getName() )
         return []
 
     @abstractmethod
@@ -26,6 +26,7 @@ class OperationModule:
 class KernelModule(OperationModule):
 
     def __init__( self, name, kernels ):
+        self.logger =  logging.getLogger("worker")
         self._kernels = {}
         for kernel in kernels: self._kernels[ kernel.name() ] = kernel
         OperationModule.__init__( self, name )
@@ -36,7 +37,7 @@ class KernelModule(OperationModule):
     def executeTask( self, task, inputs ):
         kernel = self._kernels.get( task.op )
         if( kernel == None ): raise Exception( "Unrecognized kernel name: "+ task.op +", registered kernels = " + ", ".join( self._kernels.keys() ) )
-        logger.info( "Executing Kernel: " + kernel.name() )
+        self.logger.info( "Executing Kernel: " + kernel.name() )
         return kernel.executeTask(task, inputs)
 
     def getCapabilities(self): return [ kernel.getCapabilities() for kernel in self._kernels.values() ]

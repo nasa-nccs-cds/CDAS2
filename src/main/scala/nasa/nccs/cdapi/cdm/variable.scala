@@ -31,7 +31,7 @@ object CDSVariable extends Loggable {
 }
 
 class CDSVariable( val name: String, val collection: Collection ) extends Loggable with Serializable {
-  val attributes: Map[String,nc2.Attribute] = nc2.Attribute.makeMap( collection.grid.getVariableMetadata( name ) ).toMap
+  val attributes: Map[String,nc2.Attribute] = nc2.Attribute.makeMap( collection.getVariableMetadata( name ) ).toMap
   val missing = getAttributeValue( "missing_value", "" ) match { case "" => Float.MaxValue; case s => s.toFloat }
   val description = getAttributeValue( "description", "" )
   val units = getAttributeValue( "units", "" )
@@ -250,9 +250,3 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
   }
 }
 
-object sectionTest1 extends App {
-  val offset = new ma2.Section( Array( 20, 0, 0 ), Array( 0, 0, 0 ) )
-  val section = new ma2.Section( Array( 20, 50, 30 ), Array( 100, 100, 100 ) )
-  val section1 = section.compose( offset )
-  println( section1.toString )
-}

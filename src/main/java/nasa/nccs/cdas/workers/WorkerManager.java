@@ -1,7 +1,7 @@
 package nasa.nccs.cdas.workers;
 import nasa.nccs.utilities.CDASLogManager;
 import org.zeromq.ZMQ;
-import org.slf4j.Logger;
+import nasa.nccs.utilities.Logger;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -11,7 +11,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class WorkerManager {
     int BASE_PORT = 2335;
-    ZMQ.Socket responder = null;
     ResponderThread responderThread = null;
 
     private WorkerManager() {

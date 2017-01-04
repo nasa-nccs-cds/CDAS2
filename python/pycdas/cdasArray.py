@@ -1,7 +1,6 @@
 import numpy as np
-import time, traceback
+import time, traceback, logging
 from messageParser import mParse
-from kernels.Kernel import logger
 IO_DType = np.dtype( np.float32 ).newbyteorder('>')
 from abc import ABCMeta, abstractmethod
 
@@ -9,14 +8,15 @@ class CDArray:
     __metaclass__ = ABCMeta
 
     def __init__(self, _id, _origin, _shape, _metadata ):
+        self.logger = logging.getLogger("worker")
         self.id = _id
         self.origin = _origin
         self.shape = _shape
         self.metadata = _metadata
-        logger.debug("Created Array: {0}".format(self.id))
-        logger.debug(" >> Array Metadata: {0}".format(self.metadata))
-        logger.debug(" >> Array Shape: [{0}]".format(', '.join(map(str, self.shape))))
-        logger.debug(" >> Array Origin: [{0}]".format(', '.join(map(str, self.origin))))
+        self.logger.debug("Created Array: {0}".format(self.id))
+        self.logger.debug(" >> Array Metadata: {0}".format(self.metadata))
+        self.logger.debug(" >> Array Shape: [{0}]".format(', '.join(map(str, self.shape))))
+        self.logger.debug(" >> Array Origin: [{0}]".format(', '.join(map(str, self.origin))))
 
     @classmethod
     @abstractmethod
@@ -43,7 +43,6 @@ class npArray(CDArray):
 
     @classmethod
     def createInput(cls, header, data):
-        logger.info(" *** Creating data array, nbytes = : " + str(len(data)))
         header_toks = header.split('|')
         id = header_toks[1]
         origin = mParse.s2it(header_toks[2])
@@ -54,7 +53,7 @@ class npArray(CDArray):
 
     def __init__(self, _id, _origin, _shape, _metadata, _ndarray ):
         super(npArray, self).__init__(_id,_origin,_shape,_metadata)
-        logger.info(" *** Creating data array, nbytes = " + str( _ndarray.nbytes ) )
+        self.logger.info(" *** Creating data array, nbytes = " + str( _ndarray.nbytes ) )
         self.gridFilePath = self.metadata["gridfile"]
         self.name = self.metadata["name"]
         self.collection = self.metadata["collection"]
@@ -73,7 +72,7 @@ class npArray(CDArray):
         variable.createattribute("gridfile", self.gridFilePath)
         variable.createattribute("origin", mParse.ia2s(self.origin))
         t1 = time.time()
-        logger.info(" >> Created CDMS Variable: {0} ({1} in time {2}".format(variable.id, self.name, (t1 - t0)))
+        self.logger.info(" >> Created CDMS Variable: {0} ({1} in time {2}".format(variable.id, self.name, (t1 - t0)))
         return variable
 
     def subsetAxes( self, dimensions, gridfile, origin, shape ):
@@ -85,9 +84,9 @@ class npArray(CDArray):
                 dim = dimensions[index]
                 axis = gridfile.axes.get(dim)
                 subAxes.append( axis.subAxis( start, start + length ) )
-                logger.info( " >> Axis: {0}, length: {1} ".format( dim, length ) )
+                self.logger.info( " >> Axis: {0}, length: {1} ".format( dim, length ) )
         except Exception as err:
-            logger.info( "\n-------------------------------\nError subsetting Axes: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
+            self.logger.info( "\n-------------------------------\nError subsetting Axes: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
             raise err
         return subAxes
 
@@ -101,7 +100,6 @@ class cdmsArray(CDArray):
 
     @classmethod
     def createInput( cls, cdVariable ):
-        logger.info(" *** Creating input cdms array, size = : " + str( cdVariable.size ) )
         id = cdVariable.id
         origin = cdVariable.attributes.get("origin")
         shape = cdVariable.shape
@@ -111,7 +109,7 @@ class cdmsArray(CDArray):
 
     def __init__(self, _id, _origin, _shape, _metadata, cdVariable ):
         super(cdmsArray, self).__init__(_id,_origin,_shape,_metadata)
-        logger.info(" *** Creating input cdms array, size = " + str( cdVariable.size ) )
+        self.logger.info(" *** Creating input cdms array, size = " + str( cdVariable.size ) )
         self.name = cdVariable.name_in_file
         self.grid = cdVariable.getGrid()
         self.dimensions = self.metadata["dimensions"].split(",")
@@ -128,8 +126,8 @@ class cdmsArray(CDArray):
                 dim = dimensions[index]
                 axis = gridfile.axes.get(dim)
                 subAxes.append( axis.subAxis( start, start + length ) )
-                logger.info( " >> Axis: {0}, length: {1} ".format( dim, length ) )
+                self.logger.info( " >> Axis: {0}, length: {1} ".format( dim, length ) )
         except Exception as err:
-            logger.info( "\n-------------------------------\nError subsetting Axes: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
+            self.logger.info( "\n-------------------------------\nError subsetting Axes: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
             raise err
         return subAxes
