@@ -42,7 +42,7 @@ class CDASPortal:
                 self.request_port = ConnectionMode.connectSocket(self.request_socket, self.app_host, request_port)
                 self.logger.info("Connected request socket to server {0} on port: {1}".format( self.app_host, self.request_port ) )
 
-            self.response_thread = ResponseThread( connectionMode, host, response_port )
+            self.response_thread = ResponseThread( connectionMode, self.app_host, response_port )
             self.response_thread.start()
             self.application_thread = None
 

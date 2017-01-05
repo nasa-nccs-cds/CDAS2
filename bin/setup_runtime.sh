@@ -10,7 +10,7 @@ export CDAS_STAGE_DIR=${CDAS_HOME_DIR}/target/universal/stage
 export CLASSPATH=${CDAS_SCALA_DIR}:${CDAS_CACHE_DIR}:${CDAS_STAGE_DIR}/conf:${CDAS_STAGE_DIR}/lib:${CLASSPATH}
 export UVCDAT_ANONYMOUS_LOG=no
 export WPS_CMD="$CDWPS_HOME_DIR/target/universal/cdwps-1.1-SNAPSHOT/bin/cdwps -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M"
-export PYTHONPATH=${PYTHONPATH}:${CDAS_HOME_DIR}/python
+# export PYTHONPATH=${PYTHONPATH}:${CDAS_HOME_DIR}/python
 export PATH=${CDAS_STAGE_DIR}/bin:${CDAS_BIN_DIR}:${PATH}
 
 alias cdas='cd $CDAS_HOME_DIR'
