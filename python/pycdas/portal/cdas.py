@@ -23,25 +23,26 @@ class ConnectionMode():
                     test_port = test_port + 1
 
     @classmethod
-    def connectSocket( cls, socket, port ):
-        socket.connect("tcp://localhost:{0}".format(port))
+    def connectSocket( cls, socket, host, port ):
+        socket.connect("tcp://{0}:{1}".format( host, port ) )
         return port
 
 class CDASPortal:
 
-    def __init__( self, connectionMode = ConnectionMode.BIND, request_port=0, response_port=0 ):
+    def __init__( self, connectionMode = ConnectionMode.BIND, host="localhost", request_port=0, response_port=0 ):
         try:
             self.logger =  logging.getLogger("portal")
             self.context = zmq.Context()
             self.request_socket = self.context.socket(zmq.PUSH)
+            self.app_host = host
             if( connectionMode == ConnectionMode.BIND ):
                 self.request_port = ConnectionMode.bindSocket( self.request_socket, request_port )
                 self.logger.info( "Binding request socket to port: {0}".format( self.request_port ) )
             else:
-                self.request_port = ConnectionMode.connectSocket(self.request_socket, request_port)
-                self.logger.info("Connected request socket on port: {0}".format(self.request_port))
+                self.request_port = ConnectionMode.connectSocket(self.request_socket, self.app_host, request_port)
+                self.logger.info("Connected request socket to server {0} on port: {1}".format( self.app_host, self.request_port ) )
 
-            self.response_thread = ResponseThread( connectionMode, response_port )
+            self.response_thread = ResponseThread( connectionMode, host, response_port )
             self.response_thread.start()
             self.application_thread = None
 
@@ -54,7 +55,7 @@ class CDASPortal:
     def __del__(self): self.shutdown()
 
     def start_CDAS(self):  # Stage the CDAS app using the "{CDAS_HOME}>> sbt stage" command.
-        self.application_thread = AppThread( self.request_port, self.response_thread.port )
+        self.application_thread = AppThread( self.app_host, self.request_port, self.response_thread.port )
         self.application_thread.start()
 
     def shutdown(self):
@@ -82,11 +83,12 @@ class CDASPortal:
             else: time.sleep(0.25)
 
 class AppThread(Thread):
-    def __init__(self, request_port, response_port):
+    def __init__(self, host, request_port, response_port):
         Thread.__init__(self)
         self.logger = logging.getLogger("portal")
         self._response_port = response_port
         self._request_port = request_port
+        self._host = host
 
     def run(self):
         cdas_startup = "cdas2 connect {0} {1} -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M".format( self._request_port, self._response_port )
@@ -100,7 +102,7 @@ class AppThread(Thread):
         self.process.wait()
 
 class ResponseThread(Thread):
-    def __init__(self, connectionMode, port ):
+    def __init__(self, connectionMode, host, port ):
         Thread.__init__(self)
         self.logger = logging.getLogger("portal")
         self.context = zmq.Context()
@@ -110,7 +112,7 @@ class ResponseThread(Thread):
         if (connectionMode == ConnectionMode.BIND):
             self.port = ConnectionMode.bindSocket( self.socket, port )
         else:
-            self.port = ConnectionMode.connectSocket(self.socket, port)
+            self.port = ConnectionMode.connectSocket(self.socket, host, port)
         self.active = True
         self.setName('CDAS Response Thread')
         self.logger.info( "Started response socket on port: {0}".format( self.port ) )
