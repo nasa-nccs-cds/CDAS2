@@ -19,6 +19,7 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
 
         >> cd CDAS2
         >> sbt publish
+        >> sbt stage
 
      3) Run unit tests:
 
@@ -38,7 +39,7 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
     
     2) Create cdas environment:
         
-        >> conda create -n cdas  -c conda-forge -c uvcdat/label/nightly -c uvcdat uvcdat nco pyzmq
+        >> conda create -n cdas2  -c conda-forge -c uvcdat/label/nightly -c uvcdat uvcdat nco pyzmq
 
 ####  Code development:
 

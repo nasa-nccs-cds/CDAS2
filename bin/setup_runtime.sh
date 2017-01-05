@@ -25,4 +25,4 @@ alias cdshr='export CDAS_SERVER_ADDRESS=localhost; export CDAS_SERVER_PORT=9001;
 alias cdup='cd $CDAS_HOME_DIR; git fetch; git pull; sbt compile'
 
 umask 002
-source activate cdas
+source activate cdas2

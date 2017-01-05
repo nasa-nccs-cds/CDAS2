@@ -1,9 +1,10 @@
 package nasa.nccs.cdapi.cdm
 
 import java.nio.channels.{FileChannel, NonReadableChannelException, ReadableByteChannel}
+
 import nasa.nccs.caching.collectionDataCache
 import ucar.{ma2, nc2}
-import java.nio.file.{ Files, Paths, Path }
+import java.nio.file.{Files, Path, Paths}
 import java.io.{FileWriter, _}
 import java.nio._
 import java.util.Formatter
@@ -671,10 +672,30 @@ class ncWriteTest extends Loggable {
   }
 }
 
+/*
 object readTest extends App {
-  val ncDataset: NetcdfDataset = NetcdfDataset.openDataset("/usr/local/web/CDAS2/target/scala-2.11/test-classes/data/MERRA-sample-t.nc")
-  val variable = ncDataset.findVariable(null, "t")
-  val section = new ma2.Section( Array(0,0,0,0), Array(1,1,100,100) )
-  val data = variable.read()
-  print( "." )
+  val ncDataset: NetcdfDataset = NetcdfDataset.openDataset("/usr/local/web/WPS/CDAS2/src/test/resources/data/GISS-r1i1p1-sample.nc")
+  val variable = ncDataset.findVariable(null, "tas")
+  val section = new ma2.Section(Array(0, 0, 0), Array(1, 50, 50))
+  val data = variable.read(section)
+  print(data.getShape.mkString(","))
 }
+
+object writeTest extends App {
+
+  val ncDataset: NetcdfDataset = NetcdfDataset.openDataset("/usr/local/web/WPS/CDAS2/src/test/resources/data/GISS-r1i1p1-sample.nc")
+  val gridFilePath = "/tmp/gridFile.nc"
+  val gridWriter = NetcdfFileWriter.createNew( NetcdfFileWriter.Version.netcdf4, gridFilePath, null )
+  val dimMap = Map( ncDataset.getDimensions.map( d => d.getShortName -> gridWriter.addDimension( null, d.getShortName, d.getLength ) ): _* )
+  val varTups = for( cvar <- ncDataset.getVariables ) yield {
+    val newVar = gridWriter.addVariable( null, cvar.getShortName, cvar.getDataType, cvar.getDimensionsString )
+    cvar.getAttributes.map( attr => gridWriter.addVariableAttribute( newVar, attr ) )
+    cvar -> newVar
+  }
+  val globalAttrs = Map( ncDataset.getGlobalAttributes.map( attr => attr.getShortName -> attr ): _*)
+  globalAttrs.mapValues( attr => gridWriter.addGroupAttribute( null, attr ) )
+  gridWriter.create()
+  for( ( cvar, newVar ) <- varTups; if cvar.isCoordinateVariable ) gridWriter.write( newVar, cvar.read() )
+  gridWriter.close()
+
+}*/

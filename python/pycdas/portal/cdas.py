@@ -53,7 +53,7 @@ class CDASPortal:
 
     def __del__(self): self.shutdown()
 
-    def start_CDAS(self):
+    def start_CDAS(self):  # Stage the CDAS app using the "{CDAS_HOME}>> sbt stage" command.
         self.application_thread = AppThread( self.request_port, self.response_thread.port )
         self.application_thread.start()
 

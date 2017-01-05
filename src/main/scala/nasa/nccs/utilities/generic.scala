@@ -11,6 +11,25 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
+object log4jInit {
+  import org.apache.log4j._
+  val console: ConsoleAppender = new ConsoleAppender();
+  val PATTERN = "%d [%p|%c|%C{1}] %m%n";
+  console.setLayout(new PatternLayout(PATTERN));
+  console.setThreshold(Level.FATAL);
+  console.activateOptions();
+  Logger.getRootLogger().addAppender(console);
+
+  val fa = new FileAppender();
+  fa.setName("FileLogger");
+  fa.setFile("${user.home}/.cdas/wps.log");
+  fa.setLayout(new PatternLayout("%d %-5p [%c{1}] %m%n"));
+  fa.setThreshold(Level.DEBUG);
+  fa.setAppend(true);
+  fa.activateOptions();
+  Logger.getRootLogger().addAppender(fa);
+}
+
 class Logger( val name: String ) extends Serializable {
   val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", "cdas.log" ).toString
   val writer = new PrintWriter(logFilePath)
