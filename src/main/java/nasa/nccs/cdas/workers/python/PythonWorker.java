@@ -18,18 +18,12 @@ public class PythonWorker extends Worker {
 
     Process startup() throws Exception {
         try {
-            String cdas_home = System.getenv("CDAS_HOME_DIR");
-            Path path = FileSystems.getDefault().getPath(cdas_home, "bin", "run_worker.sh" );
-            Path python_root = FileSystems.getDefault().getPath( cdas_home, "python" );
-            Path exe_dir = FileSystems.getDefault().getPath( cdas_home, "bin" );
             Path log_path = FileSystems.getDefault().getPath( System.getProperty("user.home"), ".cdas", String.format("python-worker-%d.log",request_port) );
-            ProcessBuilder pb = new ProcessBuilder( path.toString(), String.valueOf(request_port), String.valueOf(result_port) );
+            ProcessBuilder pb = new ProcessBuilder( "python", "-m", "pycdas.worker.Worker", String.valueOf(request_port), String.valueOf(result_port) );
             Map<String, String> env = pb.environment();
-            env.put("PYTHONPATH", env.get("PYTHONPATH") + ":" + python_root.toString() );
-            pb.directory( exe_dir.toFile() );
             pb.redirectErrorStream( true );
             pb.redirectOutput( ProcessBuilder.Redirect.appendTo( log_path.toFile() ));
-            logger.info( " *** Starting Python Worker: " + path.toString() + "\n --> request_port = " + String.valueOf(request_port)+ ", result_port = " + String.valueOf(result_port));
+            logger.info( " *** Starting Python Worker: pycdas.worker.Worker --> request_port = " + String.valueOf(request_port)+ ", result_port = " + String.valueOf(result_port));
             return pb.start();
         } catch ( IOException ex ) {
             throw new Exception( "Error starting Python Worker : " + ex.toString() );
