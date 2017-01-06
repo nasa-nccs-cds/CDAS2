@@ -4,11 +4,12 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
 
 ####  To Update python dist:
 
-    1) Push new github tag:
+    1) Push a github tag for version x.x:
     
-        >> git push origin HEAD
-        >> git tag x.x -m "Adds a new tag so we can push this dist to PyPI."
-        >> git push --tags origin master
+        >> git push origin HEAD                   # Push any existing commits
+        >> git push origin :refs/tags/x.x         # Delete the remote tag if it already exists
+        >> git tag -fa x.x                        # Tag the current HEAD
+        >> git push --tags origin master          # Pust the tag to origin
         
     2) Edit <version> and <download_url> in setup.py with new version tag x.x
     

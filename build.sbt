@@ -5,7 +5,7 @@ import sbt._
 val kernelPackages = settingKey[ Seq[String] ]("A list of user-defined Kernel packages")
 
 name := "CDAS2"
-version := "1.2-SNAPSHOT"
+version := "1.2.2-SNAPSHOT"
 scalaVersion := "2.11.7"
 organization := "nasa.nccs"
 
