@@ -56,7 +56,7 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
   test("getCapabilities") {
     try {
       val response = getCapabilities("op")
-      println( response.mkString(",") )
+      println(response.mkString(","))
     } finally { cleanup() }
   }
 

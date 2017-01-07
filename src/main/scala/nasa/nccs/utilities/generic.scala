@@ -35,9 +35,9 @@ class Logger( val name: String ) extends Serializable {
   val writer = new PrintWriter(logFilePath)
   def log( level: String, msg: String  ) = {
     val output = name + "-" + level + ": " + msg
-    writer.print( output )
-    println( output )
+    writer.println( output )
     writer.flush()
+    println( output )
   }
   def info( msg: String ) = { log( "info", msg ) }
   def debug( msg: String ) = { log( "debug", msg ) }
@@ -192,3 +192,12 @@ object cdsutils {
   //
   //  }
 }
+
+/*
+  // Getting past type erasure
+import scala.reflect.runtime.universe._
+def matchList[A: TypeTag](list: List[A]) = list match {
+  case strlist: List[String @unchecked] if typeOf[A] =:= typeOf[String] => println("A list of strings!")
+  case intlist: List[Int @unchecked] if typeOf[A] =:= typeOf[Int] => println("A list of ints!")
+}
+*/

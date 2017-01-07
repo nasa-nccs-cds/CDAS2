@@ -106,10 +106,13 @@ object Kernel {
   def apply( module: String, kernelSpec: String, api: String ): Kernel = {
     val specToks = kernelSpec.split("[;]")
     api match {
-      case "python" => new zmqPythonKernel( module, specToks(0), specToks(1), specToks(2) )
+      case "python" => new zmqPythonKernel( module, specToks(0), specToks(1), specToks(2), str2Map(specToks(3)) )
       case   wtf    => throw new Exception( "Unrecognized kernel api: " + api )
     }
   }
+
+  private def str2Map( metadata: String ): Map[String,String] =
+    Map( metadata.stripPrefix("{").stripSuffix("}").split("[,]").toSeq map { pair => pair.split("[:]") } map { a => ( a(0).replaceAll("[\"' ]",""), a(1).trim ) }: _* )
 
 }
 
@@ -555,12 +558,13 @@ abstract class MultiRDDKernel extends Kernel {
   }
 }
 
-class zmqPythonKernel( _module: String, _operation: String, _title: String, _description: String  ) extends Kernel {
+class zmqPythonKernel( _module: String, _operation: String, _title: String, _description: String, _options: Map[String,String]  ) extends Kernel {
   override def operation: String = _operation
   override def module = _module
-  override def name = _operation
+  override def name = _module.split('.').last + "." + _operation
   override def id = _module + "." + _operation
   override val identifier = name
+  override val options = _options
 
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = _title

@@ -6,7 +6,7 @@ from pycdas.messageParser import mParse
 class RegridKernel(Kernel):
 
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("regrid", "Regridder", "Regrids the inputs using UVCDAT",["input"]) )
+        Kernel.__init__( self, KernelSpec("regrid", "Regridder", "Regrids the inputs using UVCDAT", parallize=True ) )
 
     def executeTask( self, task, inputs ):
         t0 = time.time()

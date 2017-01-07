@@ -45,13 +45,13 @@ class WPSProcessOutput( _id:String,  val mimeType: String, _title: String, _abst
   </wps:Output>
 }
 
-class WPSWorkflowProcess( val identifier: String, val description: String, val title: String, val inputs: List[WPSDataInput],  val outputs: List[WPSProcessOutput] ) extends WPSProcess {
+class WPSWorkflowProcess( val identifier: String, val description: String, val title: String, val inputs: List[WPSDataInput]=List.empty,  val outputs: List[WPSProcessOutput]=List.empty ) extends WPSProcess {
 
 }
 
 trait WPSProcess extends WPSElement {
-//  val inputs: List[WPSDataInput]
   val outputs: List[WPSProcessOutput]
+  val options: Map[String,String]=Map.empty
 
   def GetCapabilities(): xml.Elem = <wps:Process wps:processVersion="1"> {getHeader} </wps:Process>
 

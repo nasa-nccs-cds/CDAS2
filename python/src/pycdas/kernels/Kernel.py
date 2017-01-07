@@ -1,16 +1,15 @@
 from abc import ABCMeta, abstractmethod
 
 class KernelSpec:
-    def __init__( self, name, title, description, reduceOp="", inputs=[] ):
+    def __init__( self, name, title, description, **kwargs ):
         self._name = name
         self._title = title
         self._description = description
-        self._inputs = inputs
-        self._reduceOp = reduceOp
+        self._options = kwargs
 
     def name(self): return self._name
 
-    def __str__(self): return ";".join( [ self._name, self.getTitle(), self.getDescription(), self._reduceOp, ",".join(self._inputs) ] )
+    def __str__(self): return ";".join( [ self._name, self.getTitle(), self.getDescription(), str(self._options) ] )
 
     def getDescription(self): return self._description.translate(None, ";,|!~^")
     def getTitle(self): return self._title.translate(None, ";,|!~^")
@@ -53,7 +52,6 @@ class InputMode:
     def execute(self): pass
 
 if __name__ == "__main__":
-    metadata = { "axes": "13" }
-    axes = metadata.get("axes")
-    if axes == None: print( "None")
-    else: print( [ int(item) for item in axes ] )
+    metadata = { "axes": "13", "index": 0 }
+
+    print( str(metadata) )
