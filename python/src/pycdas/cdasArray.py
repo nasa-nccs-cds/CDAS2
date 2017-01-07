@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.ma as ma
 import time, traceback, logging
 from messageParser import mParse
 IO_DType = np.dtype( np.float32 ).newbyteorder('>')
@@ -48,7 +49,10 @@ class npArray(CDArray):
         origin = mParse.s2it(header_toks[2])
         shape = mParse.s2it(header_toks[3])
         metadata = mParse.s2m(header_toks[4])
-        nparray = np.frombuffer( data, dtype=IO_DType ).reshape(shape).astype(np.float32)
+        raw_data = np.frombuffer( data, dtype=IO_DType ).astype(np.float32)
+        data_array = raw_data[0:-1].reshape(shape)
+        undef_value = raw_data[-1]
+        nparray = ma.masked_equal(data_array,undef_value) if ( undef_value != 0.0 ) else data_array
         return npArray( id, origin, shape, metadata, nparray )
 
     def __init__(self, _id, _origin, _shape, _metadata, _ndarray ):
@@ -131,3 +135,4 @@ class cdmsArray(CDArray):
             self.logger.info( "\n-------------------------------\nError subsetting Axes: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
             raise err
         return subAxes
+

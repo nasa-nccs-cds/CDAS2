@@ -575,6 +575,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
   override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
     val inputs = inputTups._2
     val key = inputTups._1
+    val bb = java.nio.ByteBuffer.allocate(4)
     val t0 = System.nanoTime
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance();
     val worker: PythonWorker = workerManager.getPythonWorker();
@@ -586,7 +587,8 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
 
       for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
         case Some( input_array ) =>
-          val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array()
+          bb.putFloat( 0, input_array.missing.getOrElse(0.0f) )
+          val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array() ++ bb.array()
           logger.info("Kernel part-%d: Sending data to worker for input %s, nbytes=%d".format( inputs.iPart, input_id, byte_data.length ))
           logger.info( "Sample Data: " + input_array.getSampleDataStr( 6, 1000 ) )
 //          logger.info( "Sample Byte Data: " + ( 0 to 10 ) map { i => " %x".format(byte_data[i]) } )

@@ -62,11 +62,16 @@ lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultpropertie
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val uvcdat_prefix = settingKey[File]("The UVCDAT env directory.")
+lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
+lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
 
-unmanagedResourceDirectories in Test += baseDirectory.value / "src" / "universal" / "conf"
-unmanagedResourceDirectories in (Compile, runMain) += baseDirectory.value / "src" / "universal" / "conf"
-unmanagedClasspath in Test += baseDirectory.value / "src" / "universal" / "conf"
-unmanagedClasspath in (Compile, runMain) += baseDirectory.value / "src" / "universal" / "conf"
+cdas_cache_dir := baseDirectory.value / "src" / "universal" / "conf"
+conda_lib_dir := file(System.getenv("CONDA_PREFIX")) / "lib"
+
+unmanagedResourceDirectories in Test ++= Seq( cdas_cache_dir.value, conda_lib_dir.value )
+unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_cache_dir.value, conda_lib_dir.value )
+unmanagedClasspath in Test += cdas_cache_dir.value
+unmanagedClasspath in (Compile, runMain) += cdas_cache_dir.value
 
 // lazy val cdasGlobalCollectionsFile = settingKey[File]("The cdas global Collections file")
 

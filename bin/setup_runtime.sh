@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+source activate cdas2
+
 export CDAS_CACHE_DIR=${CDAS_CACHE_DIR:-${HOME}/.cdas/cache}
 export CDAS_BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export CDAS_HOME_DIR=${CDAS_BIN_DIR}/..
@@ -7,7 +9,7 @@ export CDWPS_HOME_DIR=${CDWPS_HOME_DIR:-${CDAS_HOME_DIR}/../CDWPS}
 export CDSHELL_HOME_DIR=${CDSHELL_HOME_DIR:-${CDAS_HOME_DIR}/../CDASClientConsole}
 export CDAS_SCALA_DIR=${CDAS_BIN_DIR}/../src/main/scala
 export CDAS_STAGE_DIR=${CDAS_HOME_DIR}/target/universal/stage
-export CLASSPATH=${CDAS_SCALA_DIR}:${CDAS_CACHE_DIR}:${CDAS_STAGE_DIR}/conf:${CDAS_STAGE_DIR}/lib:${CLASSPATH}
+export CLASSPATH=${CDAS_SCALA_DIR}:${CDAS_CACHE_DIR}:${CDAS_STAGE_DIR}/conf:${CDAS_STAGE_DIR}/lib:${CONDA_PREFIX}/lib:${CLASSPATH}
 export UVCDAT_ANONYMOUS_LOG=no
 export WPS_CMD="$CDWPS_HOME_DIR/target/universal/cdwps-1.1-SNAPSHOT/bin/cdwps -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M"
 # export PYTHONPATH=${PYTHONPATH}:${CDAS_HOME_DIR}/python
@@ -25,4 +27,4 @@ alias cdshr='export CDAS_SERVER_ADDRESS=localhost; export CDAS_SERVER_PORT=9001;
 alias cdup='cd $CDAS_HOME_DIR; git fetch; git pull; sbt compile'
 
 umask 002
-source activate cdas2
+
