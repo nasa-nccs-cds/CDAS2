@@ -144,19 +144,8 @@ class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase[Float]] ,
   }
   def append( other: RDDPartition ): RDDPartition = {
     val commonElems = elements.keySet.union( other.elements.keySet )
-    val appendedElems = commonElems flatMap  ( key => {
-      val e1op = other.elements.get(key)
-      elements.get(key) match {
-        case Some( e0 ) => e1op match {
-          case Some( e1 ) => Some( key -> e0.append(e1) )
-          case None => Some( key -> e0 )
-        }
-        case None => e1op match {
-          case Some( e1 ) => Some( key -> e1 )
-          case None => None
-        }
-      }
-    } )
+    val appendedElems: Set[(String,ArrayBase[Float])] = commonElems flatMap ( key =>
+      other.elements.get(key).fold  (elements.get(key) map (e => key -> e))  (e1 => Some( key-> elements.get(key).fold (e1) (e0 => e0.append(e1)))))
     new RDDPartition( iPart, Map(appendedElems.toSeq:_*), metadata ++ other.metadata )
   }
   def getShape = elements.head._2.shape
