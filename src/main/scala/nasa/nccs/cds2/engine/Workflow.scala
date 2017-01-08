@@ -26,6 +26,8 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   def getResultId: String = operation.rid
   def getNodeId(): String = operation.identifier
 
+  def getKernelOption( key: String , default: String = ""): String = kernel.options.getOrElse(key,default)
+
   def generateKernelContext( requestCx: RequestContext ): KernelContext = {
     val sectionMap: Map[String, Option[CDSection]] = requestCx.inputs.mapValues(_.map(_.cdsection)).map(identity)
     new KernelContext( operation, GridContext(requestCx.targetGrid), sectionMap, requestCx.getConfiguration)
@@ -34,7 +36,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {
     logger.info( "\n\n ----------------------- BEGIN reduce Operation: %s (%s) ----------------------- \n".format( context.operation.identifier, context.operation.rid ) )
     val t0 = System.nanoTime()
-    val result = if( kernel.reduceCombineOpt.isDefined && context.getAxes.includes(0) ) {
+    val result = if( kernel.reduceCombineOpt.isDefined && context.getAxes.includes(0) && kernel.parallelizable ) {
       mapresult.reduce( kernel.reduceRDDOp(context) _ )._2
     } else {
       val results: Seq[(Int, RDDPartition)] =  mapresult.collect().toSeq.sortWith(_._1 < _._1)
@@ -183,7 +185,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val opSection: Option[ma2.Section] = getOpSectionIntersection( requestCx, node )
     val rdds: Iterable[RDD[(Int,RDDPartition)]] = opInputs.map { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
-          executionMgr.serverContext.spark.getRDD( uid, dataInput, dataInput.partitions, opSection )
+          executionMgr.serverContext.spark.getRDD( uid, dataInput, dataInput.partitions, opSection, node )
         case ( kernelInput: DependencyOperationInput  ) =>
           logger.info( "\n\n ----------------------- Stream DEPENDENCY Node: %s -------\n".format( kernelInput.workflowNode.getNodeId() ))
           kernelInput.workflowNode.stream( requestCx )

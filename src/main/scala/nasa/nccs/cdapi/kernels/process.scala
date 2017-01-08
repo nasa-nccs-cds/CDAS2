@@ -201,8 +201,8 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
           reduceCombineOpt match {
             case Some(combineOp) =>
               if (axes.includes(0)) Some(key -> element0.combine(combineOp, element1))
-              else Some(key -> { if(ascending) element0.merge(element1) else element1.merge(element0) } )
-            case None => Some(key -> { if(ascending) element0.merge(element1) else element1.merge(element0) } )
+              else Some(key -> { if(ascending) element0.append(element1) else element1.append(element0) } )
+            case None => Some(key -> { if(ascending) element0.append(element1) else element1.append(element0) } )
           }
         case None => None
       }
@@ -216,7 +216,7 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
     logger.info("&MERGE: start (%d <-> %d)".format( rdd0.iPart, rdd1.iPart  ) )
     val ascending = rdd0.iPart < rdd1.iPart
     val new_elements = rdd0.elements.flatMap {
-      case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> { if(ascending) element0.merge(element1) else element1.merge(element0) } )
+      case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> { if(ascending) element0.append(element1) else element1.append(element0) } )
     }
     logger.info("&MERGE: finish (%d <-> %d), time = %.4f s".format( rdd0.iPart, rdd1.iPart, (System.nanoTime - t0) / 1.0E9 ) )
     RDDPartition( rdd0.iPart, new_elements, rdd0.mergeMetadata("merge", rdd1) )
@@ -587,7 +587,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
 
       for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
         case Some( input_array ) =>
-          bb.putFloat( 0, input_array.missing.getOrElse(0.0f) )
+          bb.putFloat( 0, input_array.missing.getOrElse(Float.NaN) )
           val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array() ++ bb.array()
           logger.info("Kernel part-%d: Sending data to worker for input %s, nbytes=%d".format( inputs.iPart, input_id, byte_data.length ))
           logger.info( "Sample Data: " + input_array.getSampleDataStr( 6, 1000 ) )

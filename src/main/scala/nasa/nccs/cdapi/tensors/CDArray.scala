@@ -397,7 +397,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
       FloatBuffer.wrap(floatData.toArray)
     }
   }
-  def merge( other: CDFloatArray ): CDFloatArray = {
+  def append( other: CDFloatArray ): CDFloatArray = {
     val newIndex = getIndex.append( other.getIndex )
     val new_storage = FloatBuffer.wrap( getStorageArray ++ other.getStorageArray )
     new CDFloatArray( newIndex, new_storage, invalid )
@@ -635,7 +635,7 @@ class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, pr
   def getSectionArray(maxSize: Int = Int.MaxValue): Array[Double] = CDDoubleArray.toArray( getSectionData(maxSize) )
   def getArrayData(maxSize: Int = Int.MaxValue): Array[Double]  = if( isStorageCongruent ) getStorageArray else getSectionArray(maxSize)
 
-  def merge( other: CDDoubleArray ): CDDoubleArray = {
+  def append( other: CDDoubleArray ): CDDoubleArray = {
     val newIndex = getIndex.append( other.getIndex )
     val new_storage = DoubleBuffer.wrap( getStorageArray ++ other.getStorageArray )
     new CDDoubleArray( newIndex, new_storage, invalid )

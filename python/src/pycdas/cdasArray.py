@@ -52,7 +52,7 @@ class npArray(CDArray):
         raw_data = np.frombuffer( data, dtype=IO_DType ).astype(np.float32)
         data_array = raw_data[0:-1].reshape(shape)
         undef_value = raw_data[-1]
-        nparray = ma.masked_equal(data_array,undef_value) if ( undef_value != 0.0 ) else data_array
+        nparray = ma.masked_equal(data_array,undef_value) if ( undef_value != 1.0 ) else data_array
         return npArray( id, origin, shape, metadata, nparray )
 
     def __init__(self, _id, _origin, _shape, _metadata, _ndarray ):

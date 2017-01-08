@@ -306,13 +306,13 @@ object DataFragment {
     DataFragment( fragSpec, data )
   }
   def combineCoordMaps(a0: DataFragment, a1: DataFragment): Option[CDCoordMap] = a0.optCoordMap.flatMap( coordMap0 => a1.optCoordMap.map( coordMap1 => coordMap0 ++ coordMap1 ))
-  def combineDataMaps(a0: DataFragment, a1: DataFragment): Map[String,CDFloatArray] = a0.dataMap flatMap { case (key, array0) => a1.dataMap.get( key ) map ( array1 =>  ( key -> array0.merge(array1)) ) }
+  def combineDataMaps(a0: DataFragment, a1: DataFragment): Map[String,CDFloatArray] = a0.dataMap flatMap { case (key, array0) => a1.dataMap.get( key ) map ( array1 =>  ( key -> array0.append(array1)) ) }
 }
 
 class DataFragment( val spec: DataFragmentSpec, val dataMap: Map[String,CDFloatArray] = Map.empty[String,CDFloatArray], val optCoordMap: Option[CDCoordMap] = None ) extends Serializable {
   import DataFragment._
   def ++( dfrag: DataFragment ): DataFragment = {
-    new DataFragment( spec.merge(dfrag.spec), combineDataMaps( this, dfrag ), combineCoordMaps( this,dfrag ) )
+    new DataFragment( spec.append(dfrag.spec), combineDataMaps( this, dfrag ), combineCoordMaps( this,dfrag ) )
   }
   def data: CDFloatArray = dataMap.get("value").get
   def weights: Option[CDFloatArray] = dataMap.get("weights")
@@ -485,7 +485,7 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
     reSection( newSection )
   }
 
-  def merge( dfSpec: DataFragmentSpec, dimIndex: Int = 0 ): DataFragmentSpec = {
+  def append( dfSpec: DataFragmentSpec, dimIndex: Int = 0 ): DataFragmentSpec = {
     val combinedRange = roi.getRange(dimIndex).union( dfSpec.roi.getRange(dimIndex) )
     val newSection: ma2.Section = roi.replaceRange( dimIndex, combinedRange )
     reSection( newSection )

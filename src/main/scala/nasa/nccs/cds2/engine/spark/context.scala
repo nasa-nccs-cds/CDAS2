@@ -7,6 +7,7 @@ import nasa.nccs.cdapi.cdm.{CDSVariable, OperationInput, OperationTransientInput
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartSpec, RDDPartition, RDDVariableSpec}
 import nasa.nccs.cdapi.kernels.CDASExecutionContext
 import nasa.nccs.cdapi.tensors.CDFloatArray
+import nasa.nccs.cds2.engine.WorkflowNode
 import nasa.nccs.cds2.utilities.appParameters
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.Loggable
@@ -42,6 +43,7 @@ object CDSparkContext extends Loggable {
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false ) ) )
 
   def merge( rdd0: RDD[(Int,RDDPartition)], rdd1: RDD[(Int,RDDPartition)] ): RDD[(Int,RDDPartition)] = rdd0.join(rdd1).map { case ( index, (r0, r1) ) => ( index, r0 ++ r1) }
+  def append( p0: (Int,RDDPartition), p1: (Int,RDDPartition) ): (Int,RDDPartition) = ( p0._1, p0._2.append(p1._2) )
 
   def getSparkConf( master: String, appName: String, logConf: Boolean  ) = new SparkConf(false)
     .setMaster( master )
@@ -60,6 +62,11 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
 
   def getConf: SparkConf = sparkContext.getConf
 
+  def coalesce( rdd: RDD[(Int,RDDPartition)] ): RDD[(Int,RDDPartition)] = {
+    logger.info( "  **** COALESCE **** ")
+    sparkContext.parallelize(Array(rdd.reduce(CDSparkContext.append)))
+  }
+
   def cacheRDDPartition( partFrag: PartitionedFragment ): RDD[RDDPartition] = {
     val nPart = partFrag.partitions.parts.length
     val indexRDD: RDD[Int] = sparkContext.makeRDD( 0 to nPart-1, nPart )
@@ -74,13 +81,15 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     None
   }
 
-  def getRDD( uid: String, pFrag: PartitionedFragment, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(Int,RDDPartition)] = {
+  def getRDD( uid: String, pFrag: PartitionedFragment, partitions: Partitions, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
     val rddSpecs: Array[RDDPartSpec] = partitions.parts.map( partition =>
       RDDPartSpec( partition, List(pFrag.getRDDVariableSpec(uid, partition, opSection) ) )
     ) filterNot( _.empty(uid) )
     logger.info( "Discarded empty partitions:: Creating RDD with <<%d>> paritions".format( rddSpecs.length ) )
     assert( rddSpecs.length > 0, "Invalid RDD: all partitions are empty: " + uid )
-    sparkContext.parallelize(rddSpecs).map(_.getRDDPartition).keyBy( _.iPart )
+    val partitioned_result = sparkContext.parallelize(rddSpecs).map(_.getRDDPartition).keyBy( _.iPart )
+    val parallelize = node.getKernelOption("parallelize","true").toBoolean
+    if( parallelize ) partitioned_result else coalesce( partitioned_result )
   }
   def getRDD( uid: String, tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(Int,RDDPartition)] = {
     val rddParts: IndexedSeq[(Int,RDDPartition)] = partitions.parts.indices.map( index => index -> RDDPartition( index, tVar.variable.result ) )
@@ -90,6 +99,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
   }
 
 
+/*
   def domainRDDPartition( opInputs: Map[String,OperationInput], context: CDASExecutionContext): RDD[(Int,RDDPartition)] = {
     val opSection: Option[ma2.Section] = context.getOpSectionIntersection
     val rdds: Iterable[RDD[(Int,RDDPartition)]] = getPartitions(opInputs.values) match {
@@ -107,6 +117,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     }
     if( opInputs.size == 1 ) rdds.head else rdds.tail.foldLeft( rdds.head )( CDSparkContext.merge(_,_) )
   }
+  */
 
 }
 
