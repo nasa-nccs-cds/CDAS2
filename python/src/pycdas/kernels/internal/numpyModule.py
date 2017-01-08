@@ -29,7 +29,7 @@ class MeanKernel(Kernel):
 
 class SumKernel(Kernel):
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("sum", "Sum","Computes the sum of the array elements along the given axes.", reduceOp="sum", parallelize=False ) )
+        Kernel.__init__( self, KernelSpec("sum", "Sum","Computes the sum of the array elements along the given axes.", reduceOp="sum" ) )
     def executeOperation( self, task, input ):
         self.logger.info( " ------------------------------- SUM KERNEL: Operating on input '{0}', shape = {1}, origin = {2}".format( input.name, input.shape, input.origin ) )
         return npArray.createResult( task, input, input.array.sum( self.getAxes(task), None, None, True ) )

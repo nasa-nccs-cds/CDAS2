@@ -160,7 +160,6 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
   def module = identifiers.dropRight(1).mkString(".")
   def id = identifiers.mkString(".")
   def name = identifiers.takeRight(2).mkString(".")
-
   val identifier = name
 
   val mapCombineOpt: Option[ReduceOpFlt] = None
@@ -565,7 +564,8 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
   override def id = _module + "." + _operation
   override val identifier = name
   override val options = _options
-
+  override val reduceCombineOpt = getReduceOp(_options)
+  def getReduceOp( options: Map[String,String] ): Option[ReduceOpFlt] = options.get("reduceOp") map (CDFloatArray.getOp(_))
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = _title
   val description = _description
