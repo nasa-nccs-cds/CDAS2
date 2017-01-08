@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+import logging
 
 class KernelSpec:
     def __init__( self, name, title, description, **kwargs ):
@@ -18,6 +19,7 @@ class Kernel:
     __metaclass__ = ABCMeta
 
     def __init__( self, spec ):
+        self.logger = logging.getLogger("worker")
         self._spec = spec
 
     def name(self): return self._spec.name()

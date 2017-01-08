@@ -63,8 +63,9 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
   def getConf: SparkConf = sparkContext.getConf
 
   def coalesce( rdd: RDD[(Int,RDDPartition)] ): RDD[(Int,RDDPartition)] = {
-    logger.info( "  **** COALESCE **** ")
-    sparkContext.parallelize(Array(rdd.reduce(CDSparkContext.append)))
+    val agg_parts: (Int,RDDPartition) = rdd.collect().toIndexedSeq.sortWith( _._1 < _._1 ).fold((0,RDDPartition.empty))(CDSparkContext.append)
+    logger.info( "  **** COALESCE **** shape = (%s) origin = (%s) ".format( agg_parts._2.getShape.mkString(","), agg_parts._2.getOrigin.mkString(",") ) )
+    sparkContext.parallelize( Array(agg_parts) )
   }
 
   def cacheRDDPartition( partFrag: PartitionedFragment ): RDD[RDDPartition] = {

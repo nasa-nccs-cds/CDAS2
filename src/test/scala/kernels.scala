@@ -133,6 +133,30 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
     } finally { cleanup() }
   }
 
+  test("TimeSum-dap") {
+    try {
+      val nco_verified_result: CDFloatArray = CDFloatArray( Array( 140615.5f, 139952f, 139100.6f, 138552.2f, 137481.9f, 137100.5f ), Float.MaxValue )
+      val datainputs = s"""[domain=[{"name":"d0","lat":{"start":5,"end":5,"system":"indices"},"lon":{"start":5,"end":10,"system":"indices"}}],variable=[{"uri":"http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"t"}]]"""
+      val result_node = executeTest(datainputs)
+      val result_data = getResultData( result_node )
+      println( "Op Result:       " + result_data )
+      println( "Verified Result: " + nco_verified_result )
+      assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Max")
+    } finally { cleanup() }
+  }
+
+  test("pyTimeSum-dap") {
+    try {
+      val nco_verified_result: CDFloatArray = CDFloatArray( Array( 140615.5f, 139952f, 139100.6f, 138552.2f, 137481.9f, 137100.5f ), Float.MaxValue )
+      val datainputs = s"""[domain=[{"name":"d0","lat":{"start":5,"end":5,"system":"indices"},"lon":{"start":5,"end":10,"system":"indices"}}],variable=[{"uri":"http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.sum","input":"v1","domain":"d0","axes":"t"}]]"""
+      val result_node = executeTest(datainputs)
+      val result_data = getResultData( result_node )
+      println( "Op Result:       " + result_data )
+      println( "Verified Result: " + nco_verified_result )
+      assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Max")
+    } finally { cleanup() }
+  }
+
   test("Maximum-file") {
     try {
       val nco_verified_result = 309.7112

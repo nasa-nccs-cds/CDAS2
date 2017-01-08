@@ -30,7 +30,7 @@ object MetadataOps {
   }
 }
 
-abstract class MetadataCarrier( val metadata: Map[String,String] = Map.empty ) extends Serializable {
+abstract class MetadataCarrier( val metadata: Map[String,String] = Map.empty ) extends Serializable with Loggable {
   def mergeMetadata( opName: String, other: MetadataCarrier ): Map[String,String] = MetadataOps.mergeMetadata( opName )( metadata, other.metadata )
   def toXml: xml.Elem
   def attr(id:String): String = metadata.getOrElse(id,"")
@@ -77,7 +77,7 @@ abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray
 }
 
 class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, private val _data:  Array[Float]=Array.emptyFloatArray, _missing: Option[Float]=None,
-                    metadata: Map[String,String]=Map.empty, private val _optWeights: Option[Array[Float]]=None, indexMaps: List[CDCoordMap] = List.empty ) extends ArrayBase[Float](shape,origin,_missing,metadata,indexMaps) {
+                    metadata: Map[String,String]=Map.empty, private val _optWeights: Option[Array[Float]]=None, indexMaps: List[CDCoordMap] = List.empty ) extends ArrayBase[Float](shape,origin,_missing,metadata,indexMaps) with Loggable {
   def data: Array[Float] = _data
   def weights: Option[Array[Float]] = _optWeights
   override def toCDWeightsArray: Option[CDFloatArray] = _optWeights.map( CDFloatArray( shape, _, missing() ) )
@@ -86,7 +86,16 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, missing(), indexMaps )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), missing() )
 
-  def append( other: ArrayBase[Float] ): ArrayBase[Float] = HeapFltArray( toCDFloatArray.append( other.toCDFloatArray ), origin, mergeMetadata("merge",other), toCDWeightsArray.map( _.append( other.toCDWeightsArray.get ) ) )
+  def append( other: ArrayBase[Float] ): ArrayBase[Float] = {
+    logger.info( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
+    if( origin(0) < other.origin(0) ) {
+      assert( origin(0) + shape(0) == other.origin(0), "Appending non-contiguous arrays" )
+      HeapFltArray(toCDFloatArray.append(other.toCDFloatArray), origin, mergeMetadata("merge", other), toCDWeightsArray.map(_.append(other.toCDWeightsArray.get)))
+    } else {
+      assert( other.origin(0) + other.shape(0) == origin(0), "Appending non-contiguous arrays" )
+      HeapFltArray(other.toCDFloatArray.append(toCDFloatArray), other.origin, mergeMetadata("merge", other), other.toCDWeightsArray.map(_.append(toCDWeightsArray.get)))
+    }
+  }
   def combine( combineOp: CDArray.ReduceOp[Float], other: ArrayBase[Float] ): ArrayBase[Float] = HeapFltArray( CDFloatArray.combine( combineOp, toCDFloatArray, other.toCDFloatArray ), origin, mergeMetadata("merge",other), toCDWeightsArray.map( _.append( other.toCDWeightsArray.get ) ) )
   def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={missing().toString}> {_data.mkString(",")} </array> % metadata
 }
@@ -104,13 +113,22 @@ object HeapFltArray {
   def empty(rank:Int) = HeapFltArray( CDFloatArray.empty, Array.fill(rank)(0), Map.empty[String,String], None )
 }
 
-class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, val _data_ : Array[Double]=Array.emptyDoubleArray, _missing: Option[Double]=None, metadata: Map[String,String]=Map.empty ) extends ArrayBase[Double](shape,origin,_missing,metadata) {
+class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, val _data_ : Array[Double]=Array.emptyDoubleArray, _missing: Option[Double]=None, metadata: Map[String,String]=Map.empty ) extends ArrayBase[Double](shape,origin,_missing,metadata)  {
   def data: Array[Double] = _data_
   def missing( default: Double = Double.MaxValue ): Double = _missing.getOrElse(default)
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), missing().toFloat )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data, missing() )
 
-  def append( other: ArrayBase[Double] ): ArrayBase[Double] = HeapDblArray( toCDDoubleArray.append( other.toCDDoubleArray ), origin, mergeMetadata("merge",other) )
+  def append( other: ArrayBase[Double] ): ArrayBase[Double]  = {
+    logger.info( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
+    if( origin(0) < other.origin(0) ) {
+      assert( origin(0) + shape(0) == other.origin(0), "Appending non-contiguous arrays" )
+      HeapDblArray(toCDDoubleArray.append(other.toCDDoubleArray), origin, mergeMetadata("merge", other))
+    } else {
+      assert( other.origin(0) + other.shape(0) == origin(0), "Appending non-contiguous arrays" )
+      HeapDblArray(other.toCDDoubleArray.append(toCDDoubleArray), other.origin, mergeMetadata("merge", other))
+    }
+  }
   def combine( combineOp: CDArray.ReduceOp[Double], other: ArrayBase[Double] ): ArrayBase[Double] = HeapDblArray( CDDoubleArray.combine( combineOp, toCDDoubleArray, other.toCDDoubleArray ), origin, mergeMetadata("merge",other) )
   def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={missing().toString} > {_data_.mkString(",")} </array> % metadata
 }
@@ -125,10 +143,24 @@ class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase[Float]] ,
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
   }
   def append( other: RDDPartition ): RDDPartition = {
-    val commonElems = elements.keySet.intersect( other.elements.keySet )
-    val appendedElens = commonElems map ( key => key -> elements.get(key).get.append(other.elements.get(key).get) )
-    new RDDPartition( iPart, Map(appendedElens.toSeq:_*), metadata ++ other.metadata )
+    val commonElems = elements.keySet.union( other.elements.keySet )
+    val appendedElems = commonElems flatMap  ( key => {
+      val e1op = other.elements.get(key)
+      elements.get(key) match {
+        case Some( e0 ) => e1op match {
+          case Some( e1 ) => Some( key -> e0.append(e1) )
+          case None => Some( key -> e0 )
+        }
+        case None => e1op match {
+          case Some( e1 ) => Some( key -> e1 )
+          case None => None
+        }
+      }
+    } )
+    new RDDPartition( iPart, Map(appendedElems.toSeq:_*), metadata ++ other.metadata )
   }
+  def getShape = elements.head._2.shape
+  def getOrigin = elements.head._2.origin
   def element( id: String ): Option[ArrayBase[Float]] = ( elements find { case (key,array) => key.split(':')(0).equals(id) } ) map ( _._2 )
   def findElements( id: String ): Iterable[ArrayBase[Float]] = ( elements filter { case (key,array) => key.split(':')(0).equals(id) } ) values
   def empty( id: String ) = { element(id).isEmpty }
@@ -139,11 +171,11 @@ class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase[Float]] ,
   }
 }
 
-
 object RDDPartition {
   def apply ( iPart: Int = -1, elements: Map[String,ArrayBase[Float]] = Map.empty,  metadata: Map[String,String] = Map.empty ) = new RDDPartition( iPart, elements, metadata )
   def apply ( iPart: Int, rdd: RDDPartition ) = new RDDPartition( iPart, rdd.elements, rdd.metadata )
   def merge( rdd_parts: Seq[RDDPartition] ) = rdd_parts.foldLeft( RDDPartition() )( _ ++ _ )
+  def empty: RDDPartition = { new RDDPartition(0, Map.empty[String,ArrayBase[Float]], Map.empty[String,String] ) }
 }
 
 object RDDPartSpec {

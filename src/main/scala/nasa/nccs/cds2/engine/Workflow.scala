@@ -50,6 +50,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
 
   def mapReduce( kernelContext: KernelContext, requestCx: RequestContext ): RDDPartition = {
     val inputs = prepareInputs( kernelContext, requestCx )
+    logger.info( "MAP_REDUCE on RDD, nparts = " + inputs.getNumPartitions )
     val mapresult = map( inputs, kernelContext, kernel )
     reduce( mapresult, kernelContext, kernel )
   }
