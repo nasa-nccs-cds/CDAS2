@@ -47,7 +47,6 @@ public abstract class WorkerPortal {
 
     public void shutdown() {
         logger.info( "\t   *** WorkerPortal SHUTDOWN *** " );
-        printPythonLog( "worker" );
         while( !availableWorkers.isEmpty() ) {
             Worker worker = availableWorkers.poll();
             worker.quit();

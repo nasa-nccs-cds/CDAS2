@@ -136,7 +136,7 @@ class ICDAS(object):
     def getLogger( self, index ):
         logger = logging.getLogger('ICDAS')
         handler = logging.FileHandler( self.getLogFile(index) )
-        formatter = logging.Formatter('\t\t%(asctime)s %(levelname)s %(message)s')
+        formatter = logging.Formatter('\t\t %(message)s')
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         logger.setLevel(logging.DEBUG)

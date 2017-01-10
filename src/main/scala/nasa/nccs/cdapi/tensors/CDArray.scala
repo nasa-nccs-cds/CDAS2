@@ -77,8 +77,8 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   def getSizeBytes: Int =  cdIndexMap.getSize * getElementSize
   def getRangeIterator(ranges: List[ma2.Range] ): CDIterator = section(ranges).getIterator
   def getStorage: Buffer = { storage }
-  def copySectionData( maxSize: Int = Int.MaxValue ): Buffer
-  def getSectionData( maxSize: Int = Int.MaxValue ): Buffer = if( isStorageCongruent ) getStorage else copySectionData(maxSize)
+  def copySectionData( maxCopySize: Int = Int.MaxValue ): Buffer
+  def getSectionData(maxCopySize: Int = Int.MaxValue): Buffer = if( isStorageCongruent ) getStorage else copySectionData(maxCopySize)
   def section( subsection: ma2.Section ): CDArray[T] = section( subsection.getRanges.toList )
   def section(ranges: List[ma2.Range]): CDArray[T] = createView(cdIndexMap.section(ranges))
   def valid( value: T ): Boolean
@@ -209,7 +209,9 @@ object CDFloatArray extends Loggable with Serializable {
     case x if x.startsWith("mul") => multiplyOp
     case x if x.startsWith("div") => divideOp
     case x if x.startsWith("max") => maxOp
-    case x if x.startsWith("min") => minOp
+    case "min" => minOp
+    case _ =>
+      throw new Exception( "Unrecognized Op: " + opName )
   }
 
   def apply( cdIndexMap: CDIndexMap, floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( cdIndexMap, FloatBuffer.wrap(floatData),  invalid )
@@ -332,13 +334,19 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def this( shape: Array[Int], storage: FloatBuffer, invalid: Float ) = this( CDIndexMap(shape, List.empty), storage, invalid )
   def this( storage: FloatBuffer, invalid: Float ) = this( CDIndexMap( Array( storage.capacity()), List.empty ), storage, invalid )
   protected def getData: FloatBuffer = floatStorage
-  override def getSectionData( maxSize: Int = Int.MaxValue ): FloatBuffer = if( getSize > 0 ) { super.getSectionData(maxSize).asInstanceOf[FloatBuffer] } else FloatBuffer.allocate(0)
+  override def getSectionData(maxCopySize: Int = Int.MaxValue): FloatBuffer = if( getSize > 0 ) { super.getSectionData(maxCopySize).asInstanceOf[FloatBuffer] } else FloatBuffer.allocate(0)
   def getStorageData: FloatBuffer = floatStorage
   def isMapped: Boolean = !floatStorage.hasArray
   def getCoordMaps = cdIndexMap.getCoordMaps
   def getStorageArray: Array[Float] = CDFloatArray.toArray( floatStorage )
-  def getSectionArray( maxSize: Int = Int.MaxValue ): Array[Float] = CDFloatArray.toArray( getSectionData(maxSize) )
-  def getArrayData( maxSize: Int = Int.MaxValue ): Array[Float]  = if( isStorageCongruent ) getStorageArray else getSectionArray( maxSize )
+  def getSectionArray( maxSize: Int = Int.MaxValue ): Array[Float] = {
+    val data = CDFloatArray.toArray( getSectionData(maxSize) )
+    if( maxSize < data.length ) { data.slice(0,maxSize) } else { data }
+  }
+  def getArrayData( maxSize: Int = Int.MaxValue ): Array[Float]  = {
+    val data = if( isStorageCongruent ) getStorageArray else getSectionArray()
+    if( maxSize < data.length ) { data.slice(0,maxSize) } else { data }
+  }
   override def dup(): CDFloatArray = new CDFloatArray( cdIndexMap.getShape, this.getSectionData(), invalid )
   def valid( value: Float ) = ( value != invalid )
   def toCDFloatArray( target: CDArray[Float] ) = new CDFloatArray( target.getIndex, target.getStorage.asInstanceOf[FloatBuffer], invalid )
@@ -613,11 +621,11 @@ class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, pr
   def setStorageValue( index: StorageIndex, value: Double ): Unit = doubleStorage.put( index, value )
 
   def this( shape: Array[Int], storage: DoubleBuffer, invalid: Double ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage, invalid )
-  def toUcarArray: ma2.Array = ma2.Array.factory(ma2.DataType.DOUBLE, getShape, getSectionData())
+  def toUcarArray: ma2.Array = ma2.Array.factory(ma2.DataType.DOUBLE, getShape, getSectionData() )
 
   def valid( value: Double ) = ( value != invalid )
 
-  override def dup(): CDDoubleArray = new CDDoubleArray( cdIndexMap.getShape, this.getSectionData().asInstanceOf[DoubleBuffer] , getInvalid )
+  override def dup(): CDDoubleArray = new CDDoubleArray( cdIndexMap.getShape, this.getSectionData(), getInvalid )
   def spawn( shape: Array[Int], fillval: Double ): CDArray[Double] = CDArray( shape, DoubleBuffer.wrap(Array.fill[Double]( shape.product )(fillval)), getInvalid )
   def spawn( index: CDIndexMap, fillval: Double ): CDArray[Double] = CDArray( index, DoubleBuffer.wrap(Array.fill[Double]( index.getStorageShape.product )(fillval)), getInvalid )
 
@@ -629,11 +637,17 @@ class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, pr
   def zeros: CDDoubleArray = new CDDoubleArray( getShape, DoubleBuffer.wrap(Array.fill[Double]( getSize )(0)), invalid )
   def invalids: CDDoubleArray = new CDDoubleArray( getShape, DoubleBuffer.wrap(Array.fill[Double]( getSize )(invalid)), invalid )
 
-  override def getSectionData(maxSize: Int = Int.MaxValue): DoubleBuffer = super.getSectionData(maxSize).asInstanceOf[DoubleBuffer]
+  override def getSectionData(maxCopySize: Int = Int.MaxValue): DoubleBuffer = super.getSectionData(maxCopySize).asInstanceOf[DoubleBuffer]
   def getStorageData: DoubleBuffer = doubleStorage
   def getStorageArray: Array[Double] = CDDoubleArray.toArray( doubleStorage )
-  def getSectionArray(maxSize: Int = Int.MaxValue): Array[Double] = CDDoubleArray.toArray( getSectionData(maxSize) )
-  def getArrayData(maxSize: Int = Int.MaxValue): Array[Double]  = if( isStorageCongruent ) getStorageArray else getSectionArray(maxSize)
+  def getSectionArray(maxSize: Int = Int.MaxValue): Array[Double] = {
+    val data = CDDoubleArray.toArray( getSectionData(maxSize) )
+    if( maxSize < data.length ) { data.slice(0,maxSize) } else { data }
+  }
+  def getArrayData(maxSize: Int = Int.MaxValue): Array[Double]  = {
+    val data = if( isStorageCongruent ) getStorageArray else getSectionArray(maxSize)
+    if( maxSize < data.length ) { data.slice(0,maxSize) } else { data }
+  }
 
   def append( other: CDDoubleArray ): CDDoubleArray = {
     val newIndex = getIndex.append( other.getIndex )

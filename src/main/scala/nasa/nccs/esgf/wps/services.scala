@@ -42,9 +42,15 @@ object cds2ServiceProvider extends ServiceProvider {
   import nasa.nccs.cds2.engine.CDS2ExecutionManager
   import nasa.nccs.esgf.process.TaskRequest
 
-  val cds2ExecutionManager = new CDS2ExecutionManager()
+  val cds2ExecutionManager = try { new CDS2ExecutionManager() } catch {
+    case err: Throwable =>
+      logger.error( "  *** ERROR initializing CDS2ExecutionManager: " + err.toString );
+      err.printStackTrace();
+      shutdown()
+      throw err
+    }
 
-  def shutdown() = { cds2ExecutionManager.shutdown(); }
+  def shutdown() = { CDS2ExecutionManager.shutdown(); }
 
   def datainputs2Str( datainputs: Map[String, Seq[Map[String, Any]]] ): String = {
     datainputs.map { case ( key:String, value:Seq[Map[String, Any]] ) =>

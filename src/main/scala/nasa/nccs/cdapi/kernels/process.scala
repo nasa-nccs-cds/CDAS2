@@ -112,7 +112,7 @@ object Kernel {
   }
 
   private def str2Map( metadata: String ): Map[String,String] =
-    Map( metadata.stripPrefix("{").stripSuffix("}").split("[,]").toSeq map { pair => pair.split("[:]") } map { a => ( a(0).replaceAll("[\"' ]",""), a(1).trim ) }: _* )
+    Map( metadata.stripPrefix("{").stripSuffix("}").split("[,]").toSeq map { pair => pair.split("[:]") } map { a => ( a(0).replaceAll("[\"' ]",""), a(1).replaceAll("[\"' ]","") ) }: _* )
 
 }
 
@@ -154,27 +154,27 @@ object KernelUtilities extends Loggable {
   }
 }
 
-abstract class Kernel extends Loggable with Serializable with WPSProcess {
+abstract class Kernel( val options: Map[String,String] ) extends Loggable with Serializable with WPSProcess {
   val identifiers = this.getClass.getName.split('$').flatMap(_.split('.'))
   def operation: String = identifiers.last.toLowerCase
   def module = identifiers.dropRight(1).mkString(".")
   def id = identifiers.mkString(".")
   def name = identifiers.takeRight(2).mkString(".")
+  def parallelizable: Boolean = options.getOrElse("parallelizable","true").toBoolean
   val identifier = name
 
-  val mapCombineOpt: Option[ReduceOpFlt] = None
+  val mapCombineOp: Option[ReduceOpFlt] = options.get("mapOp").fold (options.get("mapreduceOp")) (Some(_)) map ( CDFloatArray.getOp(_) )
   val mapCombineNOp: Option[ReduceNOpFlt] = None
   val mapCombineWNOp: Option[ReduceWNOpFlt] = None
-  val reduceCombineOpt: Option[ReduceOpFlt] = None
+  val reduceCombineOp: Option[ReduceOpFlt] = options.get("reduceOp").fold (options.get("mapreduceOp")) (Some(_)) map ( CDFloatArray.getOp(_) )
   val initValue: Float = 0f
   def cleanUp() = {}
 
   def getOpName(context: KernelContext): String = "%s(%s)".format(name, context.operation.inputs.mkString(","))
-
   def map(partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext): Option[DataFragment] = inputs.head
   def map(inputs: (Int,RDDPartition), context: KernelContext): (Int,RDDPartition) = inputs
 
-  def combine(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices): DataFragment = reduceCombineOpt match {
+  def combine(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices): DataFragment = reduceCombineOp match {
     case Some(combineOp) =>
       if (axes.includes(0)) DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))
       else {
@@ -197,7 +197,7 @@ abstract class Kernel extends Loggable with Serializable with WPSProcess {
     val new_elements = rdd0.elements.flatMap { case (key, element0) =>
       rdd1.elements.get(key) match {
         case Some(element1) =>
-          reduceCombineOpt match {
+          reduceCombineOp match {
             case Some(combineOp) =>
               if (axes.includes(0)) Some(key -> element0.combine(combineOp, element1))
               else Some(key -> { if(ascending) element0.append(element1) else element1.append(element0) } )
@@ -482,7 +482,7 @@ abstract class DualOperationKernel extends Kernel {
 //  }
 //}
 
-abstract class SingularRDDKernel extends Kernel {
+abstract class SingularRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
   override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
     val inputs = inputTups._2
     val key = inputTups._1
@@ -496,7 +496,7 @@ abstract class SingularRDDKernel extends Kernel {
     }
     val elem = inputs.findElements(inputId).headOption match {
       case Some( input_array ) =>
-        mapCombineOpt match {
+        mapCombineOp match {
           case Some(combineOp) =>
             val result = CDFloatArray(input_array.toCDFloatArray.reduce(combineOp, axes.args, initValue))
             logger.info(" ##### KERNEL [%s]: Map Op: combine, axes = %s, result shape = %s".format( name, axes, result.getShape.mkString(",") ) )
@@ -512,7 +512,7 @@ abstract class SingularRDDKernel extends Kernel {
   }
 }
 
-abstract class DualRDDKernel extends Kernel {
+abstract class DualRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
   override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
     val inputs = inputTups._2
     val key = inputTups._1
@@ -523,7 +523,7 @@ abstract class DualRDDKernel extends Kernel {
     assert( input_arrays.size > 1, "Missing input(s) to dual input operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
     val i0 = input_arrays(0).toCDFloatArray
     val i1 = input_arrays(1).toCDFloatArray
-    val result_array: CDFloatArray = mapCombineOpt match {
+    val result_array: CDFloatArray = mapCombineOp match {
       case Some( combineOp ) => CDFloatArray.combine( combineOp, i0, i1 )
       case None => i0
     }
@@ -533,7 +533,7 @@ abstract class DualRDDKernel extends Kernel {
   }
 }
 
-abstract class MultiRDDKernel extends Kernel {
+abstract class MultiRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
 
   override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
     val inputs = inputTups._2
@@ -557,21 +557,17 @@ abstract class MultiRDDKernel extends Kernel {
   }
 }
 
-class zmqPythonKernel( _module: String, _operation: String, _title: String, _description: String, _options: Map[String,String]  ) extends Kernel {
+class zmqPythonKernel( _module: String, _operation: String, _title: String, _description: String, options: Map[String,String]  ) extends Kernel(options) {
   override def operation: String = _operation
   override def module = _module
   override def name = _module.split('.').last + "." + _operation
   override def id = _module + "." + _operation
   override val identifier = name
-  override val options = _options
-  override val reduceCombineOpt = getReduceOp(_options)
-  def getReduceOp( options: Map[String,String] ): Option[ReduceOpFlt] = options.get("reduceOp") map (CDFloatArray.getOp(_))
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = _title
   val description = _description
 
   override def cleanUp() = PythonWorkerPortal.getInstance().shutdown()
-
   override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
     val inputs = inputTups._2
     val key = inputTups._1
@@ -590,8 +586,6 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
           bb.putFloat( 0, input_array.missing.getOrElse(Float.NaN) )
           val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array() ++ bb.array()
           logger.info("Kernel part-%d: Sending data to worker for input %s, nbytes=%d".format( inputs.iPart, input_id, byte_data.length ))
-          logger.info( "Sample Data: " + input_array.getSampleDataStr( 6, 1000 ) )
-//          logger.info( "Sample Byte Data: " + ( 0 to 10 ) map { i => " %x".format(byte_data[i]) } )
           worker.sendArrayData( input_array.uid, input_array.origin, input_array.shape, byte_data, input_array.metadata )
           logger.info( "Kernel part-%d: Finished Sending data to worker" )
         case None =>

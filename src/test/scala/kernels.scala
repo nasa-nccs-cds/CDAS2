@@ -1,38 +1,36 @@
-import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
-import nasa.nccs.cdapi.cdm.Collection
-import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.loaders.Collections
-import nasa.nccs.esgf.wps.wpsObjectParser
-import nasa.nccs.cdas.workers.python.PythonWorkerPortal
-
+import nasa.nccs.utilities.{CDASLogManager, Loggable}
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import nasa.nccs.utilities.{Loggable, cdsutils}
+import org.scalatest.{BeforeAndAfter, FunSuite, Ignore}
 
-import scala.xml.PrettyPrinter
-import org.scalatest.Ignore
-import ucar.ma2
-
-class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
+class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
+  CDASLogManager.testing
+  import nasa.nccs.cdapi.tensors.CDFloatArray
+  import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
+  import ucar.nc2.dataset.NetcdfDataset
+  val serverConfiguration = Map[String,String]()
+  val webProcessManager = new ProcessManager( serverConfiguration )
+  val eps = 0.0002
+  val service = "cds2"
+  val run_args = Map("async" -> "false")
+  val printer = new scala.xml.PrettyPrinter(200, 3)
+  after { cleanup() }
 
   ignore("Aggregate") {
-    try {
-      val model = "GISS-E2-R"
-      val nExp = 6
-      ( 1 to nExp ) map { index =>
-        val collection = s"${model}_r${index}i1p1"
-        val location = s"/collections/${model}/$collection.csv"
-        val url = getClass.getResource(location)
-        val collection_path = url.getFile
-        val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
-        val agg_result_node = executeTest(datainputs, false, "util.agg")
-        logger.info(s"Agg collection $collection Result: " + printer.format(agg_result_node))
-      }
-    } finally { cleanup() }
+    val model = "GISS-E2-R"
+    val nExp = 6
+    ( 1 to nExp ) map { index =>
+      val collection = s"${model}_r${index}i1p1"
+      val location = s"/collections/${model}/$collection.csv"
+      val url = getClass.getResource(location)
+      val collection_path = url.getFile
+      val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
+      val agg_result_node = executeTest(datainputs, false, "util.agg")
+      logger.info(s"Agg collection $collection Result: " + printer.format(agg_result_node))
+    }
   }
 
   ignore("Cache") {
-    try {
       val model = "GISS-E2-R"
       val nExp = 6
       ( 1 to nExp ) map { index =>
@@ -41,43 +39,34 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
         val cache_result_node = executeTest(datainputs, false, "util.cache")
         logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
       }
-    } finally { cleanup() }
   }
 
   test("subsetTestXY") {
-    try {
       val nco_verified_result: CDFloatArray = CDFloatArray( Array( 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 245.2, 244.904, 244.6914, 244.5297, 244.2834, 244.0234, 245.4426, 245.1731, 244.9478, 244.6251, 244.2375, 244.0953, 248.4837, 247.4268, 246.4957, 245.586, 245.4244, 244.8213, 249.7772, 248.7458, 247.5331, 246.8871, 246.0183, 245.8848, 248.257, 247.3562, 246.3798, 245.3962, 244.6091, 243.6039 ).map(_.toFloat), Float.MaxValue )
       val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":5,"system":"indices"},"lon":{"start":0,"end":5,"system":"indices"},"time":{"start":0,"end":0,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
       val result_node = executeTest(datainputs)
       assert( getResultData( result_node ).maxScaledDiff( nco_verified_result ) < eps, s" Incorrect value computed for Sum")
-    } finally { cleanup() }
   }
 
   test("getCapabilities") {
-    try {
       val response = getCapabilities("op")
-      println(response.mkString(","))
-    } finally { cleanup() }
+      assert(true)
   }
 
   test("regridTest") {
-    try {
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":1000,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.regrid","input":"v1","domain":"d0","crs":"gaussian~128"}]]"""
       val result_node = executeTest(datainputs)
-    } finally { cleanup() }
+      assert(true)
   }
 
   test("subsetTestT") {
-    try {
       val nco_verified_result: CDFloatArray = CDFloatArray( Array( 295.6538,295.7205,295.9552,295.3324,293.0879,291.5541,289.6255,288.7875,289.7614,290.5001,292.3553,293.8378,296.7862,296.6005,295.6378,294.9304,293.6324,292.1851,290.8981,290.5262,290.5347,291.6595,292.8715,294.0839,295.4386,296.1736,296.4382,294.7264,293.0489,291.6237,290.5149,290.1141,289.8373,290.8802,292.615,294.0024,295.5854,296.5497,296.4013,295.1263,293.2203,292.2885,291.0839,290.281,290.1516,290.7351,292.7598,294.1442,295.8959,295.8112,296.1058,294.8028,292.7733,291.7613,290.7009,290.7226,290.1038,290.6277,292.1299,294.4099,296.1226,296.5852,296.4395,294.7828,293.7856,291.9353,290.2696,289.8393,290.3558,290.162,292.2701,294.3617,294.6855,295.9736,295.9881,294.853,293.4628,292.2583,291.2488,290.84,289.9593,290.8045,291.5576,293.0114,294.7605,296.3679,295.6986,293.4995,292.2574,290.9722,289.9694,290.1006,290.2442,290.7669,292.0513,294.2266,295.9346,295.6064,295.4227,294.3889,292.8391 ).map(_.toFloat), Float.MaxValue )
       val datainputs = s"""[domain=[{"name":"d0","lat":{"start":30,"end":30,"system":"indices"},"lon":{"start":30,"end":30,"system":"indices"},"time":{"start":0,"end":100,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
       val result_node = executeTest(datainputs)
       assert( getResultData( result_node ).maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Subset")
-    } finally { cleanup() }
   }
 
   test("EnsembleAve") {
-    try {
       val model = "GISS"
       val nExp = 2
       val variables = (1 to nExp) map { index => s"""{"uri":"collection:/${model}_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
@@ -86,11 +75,10 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       val result_node = executeTest(datainputs)
       val result_data = getResultData(result_node)
       println("Completed EnsembleAve, result shape = [%s], result sample = %s".format( result_data.getShape.mkString(","), result_data.mkBoundedDataString(", ",10)))
-    } finally { cleanup() }
+      assert(true)
   }
 
   test("ESGF_Demo") {
-    try {
       val GISS_H_vids = ( 1 to 3 ) map { index => s"vH$index" }
       val GISS_R_vids = ( 1 to 3 ) map { index => s"vR$index" }
       val GISS_variables = ( ( 1 to 3 ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
@@ -106,23 +94,20 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
                  ]
           ]""".replaceAll("\\s", "")
       val result_node = executeTest(datainputs)
-    } finally { cleanup() }
+      assert(true)
   }
 
   test("Maximum") {
-    try {
       val nco_verified_result = 309.7112
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
       val result_node = executeTest(datainputs)
       val result_value = getResultValue(result_node)
-      println( "Op Result:       " + result_value )
-      println( "Verified Result: " + nco_verified_result )
-      assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
-    } finally { cleanup() }
+      println("Op Result:       " + result_value)
+      println("Verified Result: " + nco_verified_result)
+      assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
   }
 
   test("Maximum-dap") {
-    try {
       val nco_verified_result = 309.7112
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
       val result_node = executeTest(datainputs)
@@ -130,11 +115,9 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       println( "Op Result:       " + result_value )
       println( "Verified Result: " + nco_verified_result )
       assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
-    } finally { cleanup() }
   }
 
   test("TimeSum-dap") {
-    try {
       val nco_verified_result: CDFloatArray = CDFloatArray( Array( 140615.5f, 139952f, 139100.6f, 138552.2f, 137481.9f, 137100.5f ), Float.MaxValue )
       val datainputs = s"""[domain=[{"name":"d0","lat":{"start":5,"end":5,"system":"indices"},"lon":{"start":5,"end":10,"system":"indices"}}],variable=[{"uri":"http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"t"}]]"""
       val result_node = executeTest(datainputs)
@@ -142,11 +125,9 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       println( "Op Result:       " + result_data )
       println( "Verified Result: " + nco_verified_result )
       assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Max")
-    } finally { cleanup() }
   }
 
   test("pyTimeSum-dap") {
-    try {
       val nco_verified_result: CDFloatArray = CDFloatArray( Array( 140615.5f, 139952f, 139100.6f, 138552.2f, 137481.9f, 137100.5f ), Float.MaxValue )
       val datainputs = s"""[domain=[{"name":"d0","lat":{"start":5,"end":5,"system":"indices"},"lon":{"start":5,"end":10,"system":"indices"}}],variable=[{"uri":"http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.sum","input":"v1","domain":"d0","axes":"t"}]]"""
       val result_node = executeTest(datainputs)
@@ -154,11 +135,9 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       println( "Op Result:       " + result_data )
       println( "Verified Result: " + nco_verified_result )
       assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Max")
-    } finally { cleanup() }
   }
 
   test("Maximum-file") {
-    try {
       val nco_verified_result = 309.7112
       val uri=getClass.getResource("/data/GISS-r1i1p1-sample.nc")
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"$uri","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
@@ -167,12 +146,10 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       println( "Op Result:       " + result_value )
       println( "Verified Result: " + nco_verified_result )
       assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
-    } finally { cleanup() }
   }
 
 
   test("pyMaximum-cache") {
-    try {
       val nco_verified_result = 309.7112
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"},";levels":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.max","input":"v1","domain":"d0","axes":"xy"}]]"""
       val result_node = executeTest(datainputs)
@@ -180,11 +157,9 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       println( "Op Result:       " + result_value )
       println( "Verified Result: " + nco_verified_result )
       assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
-    } finally { cleanup() }
   }
 
   test("pyMaximum-dap") {
-    try {
       val nco_verified_result = 309.7112
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.max","input":"v1","domain":"d0","axes":"xy"}]]"""
       val result_node = executeTest(datainputs)
@@ -192,11 +167,9 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       println( "Op Result:       " + result_value )
       println( "Verified Result: " + nco_verified_result )
       assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
-    } finally { cleanup() }
   }
 
   test("Maximum1") {
-    try {
       val nco_verified_result: CDFloatArray = CDFloatArray( Array( 277.8863, 279.0432, 280.0728, 280.9739, 282.2123, 283.7078, 284.6707, 285.4793, 286.259, 286.9836, 287.6983 ).map(_.toFloat), Float.MaxValue )
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":50,"end":150,"system":"indices"},"lon":{"start":100,"end":100,"system":"indices"},"lat":{"start":10,"end":20,"system":"indices"} }],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"t"}]]"""
       val result_node = executeTest(datainputs)
@@ -204,11 +177,9 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       println( "Op Result:       " + result_data.mkDataString(", ") )
       println( "Verified Result: " + nco_verified_result.mkDataString(", ") )
       assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Subset")
-    } finally { PythonWorkerPortal.getInstance().quit() }
   }
 
   test("Minimum") {
-    try {
       val nco_verified_result: CDFloatArray = CDFloatArray( Array( 214.3339, 215.8409, 205.9775, 208.0006, 206.4181, 202.4724, 202.9022, 206.9719, 217.8426, 215.4173, 216.0199, 217.2311, 231.4988, 231.5838, 232.7329, 232.5641 ).map(_.toFloat), Float.MaxValue )
       val datainputs = s"""[domain=[{"name":"d0","lat":{"start":5,"end":8,"system":"indices"},"lon":{"start":5,"end":8,"system":"indices"},"time":{"start":50,"end":150,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.min","input":"v1","domain":"d0","axes":"t"}]]"""
       val result_node = executeTest(datainputs)
@@ -216,11 +187,9 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       println( "Op Result:       " + result_data.mkDataString(", ") )
       println( "Verified Result: " + nco_verified_result.mkDataString(", ") )
       assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Min")
-    } finally { PythonWorkerPortal.getInstance().quit() }
   }
 
   test("subsetTestXY1") {
-    try {
       val nco_verified_result: CDFloatArray = CDFloatArray( Array(   271.8525, 271.9948, 271.9691, 271.9805, 272.0052, 272.2418, 272.7861, 272.9485, 273.25, 273.4908, 273.5451, 273.45, 272.7733, 273.0835, 273.3886, 273.6199, 273.7051, 273.7632, 272.2565, 272.7566, 273.1762, 273.5975, 273.8943, 274.075, 272.4098, 272.8103, 273.2189, 273.6471, 273.8576, 274.0239, 273.3904, 273.5003, 273.667, 273.8236, 273.9353, 274.1161  ).map(_.toFloat), Float.MaxValue )
       val datainputs = s"""[domain=[{"name":"d0","lat":{"start":10,"end":15,"system":"indices"},"lon":{"start":5,"end":10,"system":"indices"},"time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
       val result_node = executeTest(datainputs)
@@ -228,11 +197,9 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       println( "Op Result:       " + result_data.mkDataString(", ") )
       println( "Verified Result: " + nco_verified_result.mkDataString(", ") )
       assert( result_data.maxScaledDiff( nco_verified_result ) < eps, s" Incorrect value computed for Sum")
-    } finally { PythonWorkerPortal.getInstance().quit() }
   }
 
   test("Max") {
-    try {
       val nco_verified_result = 284.8936
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"},"lat":{"start":10,"end":20,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
       val result_node = executeTest(datainputs)
@@ -240,11 +207,9 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       println( "Op Result:       " + result_value )
       println( "Verified Result: " + nco_verified_result )
       assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
-    } finally { PythonWorkerPortal.getInstance().quit() }
   }
 
   test("Max3") {
-    try {
       val nco_verified_result: CDFloatArray = CDFloatArray( Array( 296.312, 294.3597, 293.7058, 292.8994, 291.9226, 291.0488 ).map(_.toFloat), Float.MaxValue )
       val datainputs = s"""[domain=[{"name":"d0","lat":{"start":30,"end":40,"system":"values"},"time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"x"}]]"""
       val result_node = executeTest(datainputs)
@@ -252,10 +217,85 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
       println( "Op Result:       " + result_data.mkDataString(", ") )
       println( "Verified Result: " + nco_verified_result.mkDataString(", ") )
       assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Min")
-    } finally { PythonWorkerPortal.getInstance().quit() }
   }
 
+  def readVerificationData( fileResourcePath: String, varName: String ): Option[CDFloatArray] = {
+    try {
+      val url = getClass.getResource( fileResourcePath ).toString
+      logger.info( "Opening NetCDF dataset at url: " + url )
+      val ncDataset: NetcdfDataset = NetcdfDataset.openDataset(url)
+      val ncVariable = ncDataset.findVariable(varName)
+      Some( CDFloatArray.factory(ncVariable.read(), Float.NaN) )
+    } catch {
+      case err: Exception =>
+        println( "Error Reading VerificationData: " + err.getMessage )
+        None
+    }
+  }
+
+  def computeCycle( tsdata: CDFloatArray, cycle_period: Int ): CDFloatArray = {
+    val values: CDFloatArray = CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )
+    val counts: CDFloatArray = CDFloatArray( Array(cycle_period), Array.fill[Float](cycle_period)(0f), Float.NaN )
+    for (index <- (0 until tsdata.getSize); val0 = tsdata.getFlatValue(index); if tsdata.valid(val0) ) {
+      values.augment( Array(index % cycle_period), val0 )
+      counts.augment( Array(index % cycle_period),  1f )
+    }
+    values / counts
+  }
+
+  def computeSeriesAverage( tsdata: CDFloatArray, ave_period: Int, offset: Int = 0, mod: Int = Int.MaxValue ): CDFloatArray = {
+    val npts = tsdata.getSize / ave_period + 1
+    val values: CDFloatArray = CDFloatArray( Array(npts), Array.fill[Float](npts)(0f), Float.NaN )
+    val counts: CDFloatArray = CDFloatArray( Array(npts), Array.fill[Float](npts)(0f), Float.NaN )
+    for (index <- (0 until tsdata.getSize); val0 = tsdata.getFlatValue(index); if tsdata.valid(val0) ) {
+      val op_offset = (ave_period-offset) % ave_period
+      val bin_index = ( ( index + op_offset ) / ave_period ) % mod
+      values.augment( Array(bin_index), val0 )
+      counts.augment( Array(bin_index), 1f )
+    }
+    values / counts
+  }
+
+  def getResultData( result_node: xml.Elem ): CDFloatArray = {
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue )
+  }
+
+  def getResultValue( result_node: xml.Elem ): Float = {
+    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    data_nodes.head.text.toFloat
+  }
+
+  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
+    val t0 = System.nanoTime()
+    val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString, "unitTest" -> "true" )
+    val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
+    val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
+    webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+    response
+  }
+
+  def cleanup() = {
+    webProcessManager.shutdown( service )
+  }
+
+  def getCapabilities( identifier: String="", async: Boolean = false ): xml.Elem = {
+    val t0 = System.nanoTime()
+    val response: xml.Elem = webProcessManager.getCapabilities(service, identifier )
+    webProcessManager.logger.info("Completed GetCapabilities '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+    webProcessManager.logger.info( printer.format(response) )
+    response
+  }
+
+  def describeProcess( identifier: String, async: Boolean = false ): xml.Elem = {
+    val t0 = System.nanoTime()
+    val response: xml.Elem = webProcessManager.describeProcess(service, identifier )
+    webProcessManager.logger.info("Completed DescribeProcess '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+    webProcessManager.logger.info( printer.format(response) )
+    response
+  }
 }
+/*
 
 @Ignore class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 //  Collections.addCollection( "merra.test", merra_data, "MERRA data", List("ta") )
@@ -640,4 +680,4 @@ class CurrentTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
 //    webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
 //    response
 //  }
-//}
+//}*/

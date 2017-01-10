@@ -36,7 +36,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {
     logger.info( "\n\n ----------------------- BEGIN reduce Operation: %s (%s) ----------------------- \n".format( context.operation.identifier, context.operation.rid ) )
     val t0 = System.nanoTime()
-    val result = if( kernel.reduceCombineOpt.isDefined && context.getAxes.includes(0) && kernel.parallelizable ) {
+    val result = if( kernel.reduceCombineOp.isDefined && context.getAxes.includes(0) && kernel.parallelizable ) {
       mapresult.reduce( kernel.reduceRDDOp(context) _ )._2
     } else {
       val results: Seq[(Int, RDDPartition)] =  mapresult.collect().toSeq.sortWith(_._1 < _._1)

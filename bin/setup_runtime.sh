@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-source activate cdas2
-
 export CDAS_CACHE_DIR=${CDAS_CACHE_DIR:-${HOME}/.cdas/cache}
 export CDAS_BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export CDAS_HOME_DIR=${CDAS_BIN_DIR}/..

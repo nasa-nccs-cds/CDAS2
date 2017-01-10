@@ -1,29 +1,32 @@
 from pycdas.kernels.Kernel import Kernel, KernelSpec
 from pycdas.cdasArray import npArray
+import os
 
 class StdKernel(Kernel):
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("std", "Standard Deviation", "Computes the standard deviation of the array elements along the given axes.", parallelize=False ) )
+        Kernel.__init__( self, KernelSpec("std", "Standard Deviation", "Computes the standard deviation of the array elements along the given axes.", parallelize=False ) )  # Temporarily forcing some python kernels to run in serial mode
+
     def executeOperation( self, task, input ):
         result = input.array.std( self.getAxes(task), None, None, True )
         return npArray.createResult( task, input, result )
 
 class MaxKernel(Kernel):
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("max", "Maximum", "Computes the maximun of the array elements along the given axes.", reduceOp="max", parallelize=False ) )   # Temporarily forcing all python kernels to run in serial mode
+        Kernel.__init__( self, KernelSpec("max", "Maximum", "Computes the maximun of the array elements along the given axes.", reduceOp="max" ) )
 
     def executeOperation( self, task, input ):
         return npArray.createResult( task, input, input.array.max( self.getAxes(task), None, None, True ) )
 
 class MinKernel(Kernel):
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("min", "Minimum", "Computes the minimun of the array elements along the given axes.", reduceOp="min", parallelize=False ) )
+        Kernel.__init__( self, KernelSpec("min", "Minimum", "Computes the minimun of the array elements along the given axes.", reduceOp="min" ) )
     def executeOperation( self, task, input ):
         return npArray.createResult( task, input, input.array.min( self.getAxes(task), None, None, True ) )
 
 class MeanKernel(Kernel):
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("mean", "Mean","Computes the mean of the array elements along the given axes.", reduceOp="mean", parallelize=False ) )
+        Kernel.__init__( self, KernelSpec("mean", "Mean","Computes the mean of the array elements along the given axes.", parallelize=False ) )
+
     def executeOperation( self, task, input ):
         return npArray.createResult( task, input, input.array.mean( self.getAxes(task), None, None, True ) )
 
@@ -36,7 +39,7 @@ class SumKernel(Kernel):
 
 class PtpKernel(Kernel):
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("ptp", "Peak to Peak","Computes the peak to peak (maximum - minimum) value the along given axes.", reduceOp="p2p", parallelize=False ) )
+        Kernel.__init__( self, KernelSpec("ptp", "Peak to Peak","Computes the peak to peak (maximum - minimum) value the along given axes.", parallelize=False ) )
     def executeOperation( self, task, input ):
         return npArray.createResult( task, input, input.array.ptp( self.getAxes(task), None, None, True ) )
 

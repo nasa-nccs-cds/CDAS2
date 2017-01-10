@@ -51,9 +51,6 @@ class WPSWorkflowProcess( val identifier: String, val description: String, val t
 
 trait WPSProcess extends WPSElement {
   val outputs: List[WPSProcessOutput]
-  val options: Map[String,String]=Map.empty
-
-  def parallelizable: Boolean = options.getOrElse("parallelizable","true").toBoolean
 
   def GetCapabilities(): xml.Elem = <wps:Process wps:processVersion="1"> {getHeader} </wps:Process>
 

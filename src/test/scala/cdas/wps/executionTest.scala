@@ -18,7 +18,7 @@ import org.scalatest.Tag
 // Define frag id in ~/.cdas/test_config.txt
 // sample test_config.txt:
 // fragment=t|merra/daily|0,0,0,0|248,42,144,288
-
+/*
 @Ignore     // casues this suite to be ignored by "sbt test".
 class wpsSuite extends LocalExecutionTestSuite {
   val fragment = appParameters("sample.local.input")
@@ -154,3 +154,4 @@ class LocalExecutionTestSuite extends FunSuite with Matchers {
     }
   }
 }
+*/

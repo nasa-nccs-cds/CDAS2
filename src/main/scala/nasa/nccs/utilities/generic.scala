@@ -30,14 +30,15 @@ object log4jInit {
   Logger.getRootLogger().addAppender(fa);
 }
 
-class Logger( val name: String ) extends Serializable {
-  val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", "cdas.log" ).toString
+class Logger( val name: String, val test: Boolean ) extends Serializable {
+  val logid = if( test ) name + "-test" else name
+  val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", logid + ".log" ).toString
   val writer = new PrintWriter(logFilePath)
   def log( level: String, msg: String  ) = {
-    val output = name + "-" + level + ": " + msg
+    val output = logid + "-" + level + ": " + msg
     writer.println( output )
     writer.flush()
-    println( output )
+    if(!test) { println( output ) }
   }
   def info( msg: String ) = { log( "info", msg ) }
   def debug( msg: String ) = { log( "debug", msg ) }
@@ -45,10 +46,12 @@ class Logger( val name: String ) extends Serializable {
   def warn( msg: String ) = { log( "warn", msg ) }
 }
 
-object CDASLogManager extends Serializable {
-  val logger: Logger = new Logger("cdas")
 
-  def getCurrentLogger() = { logger }
+object CDASLogManager extends Serializable {
+  private var _test = false
+  lazy private val _logger: Logger = new Logger("cdas",_test)
+  def testing = { _test = true }
+  def getCurrentLogger() = { _logger }
 
 //  def getLogger( name: String ) = {
 //    val console = new ConsoleAppender();
@@ -72,15 +75,13 @@ object CDASLogManager extends Serializable {
 }
 
 trait Loggable extends Serializable {
-
-  def logger = CDASLogManager.logger
+  def logger = CDASLogManager.getCurrentLogger()
 
   def logError( err: Throwable, msg: String ) = {
     logger.error(msg)
     logger.error(err.getMessage)
     logger.error( err.getStackTrace.mkString("\n") )
   }
-
 }
 
 object cdsutils {

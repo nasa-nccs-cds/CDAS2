@@ -51,7 +51,11 @@ object CDS2ExecutionManager extends Loggable {
 
   def apply(): CDS2ExecutionManager = { new CDS2ExecutionManager }
 
-//    appParameters( handler_type_key, "spark" ) match {
+  def shutdown() = {
+    PythonWorkerPortal.getInstance().quit()
+  }
+
+  //    appParameters( handler_type_key, "spark" ) match {
 //      case exeMgr if exeMgr.toLowerCase.startsWith("future") =>
 //        throw new Exception( "CDFuturesExecutionManager no currently supported.")
 ////        import nasa.nccs.cds2.engine.futures.CDFuturesExecutionManager
@@ -72,14 +76,12 @@ object CDS2ExecutionManager extends Loggable {
 }
 
 class CDS2ExecutionManager extends WPSServer with Loggable {
+  import CDS2ExecutionManager._
   val serverContext = new ServerContext( collectionDataCache, CDSparkContext() )
   val kernelManager = new KernelMgr()
   private val counter = new Counter
   val nprocs: Int = CDASPartitioner.nProcessors
 
-  def shutdown() = {
-    PythonWorkerPortal.getInstance().quit()
-  }
 
   def getOperationInputs( context: CDASExecutionContext ): Map[String,OperationInput] = {
     val items = for (uid <- context.operation.inputs) yield {

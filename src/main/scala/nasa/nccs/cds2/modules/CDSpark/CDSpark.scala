@@ -18,13 +18,11 @@ import scala.reflect.runtime.{universe => u}
 //  val contact = "thomas.maxwell@nasa.gov"
 //}
 
-class max extends SingularRDDKernel {
+class max extends SingularRDDKernel(Map("mapreduceOp" -> "max")) {
 //  val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Space/Time Maximum"
   val description = "Computes maximum element value from input variable data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(maxOp)
-  override val reduceCombineOpt = mapCombineOpt
   override val initValue: Float = -Float.MaxValue
 }
 
@@ -48,81 +46,67 @@ class max extends SingularRDDKernel {
 //    }
 //  }
 
-class min2 extends DualRDDKernel {
+class min2 extends DualRDDKernel(Map("mapOp" -> "min")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Minimum"
   val description = "Computes element-wise minimum values for a pair of input variables data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(minOp)
 }
 
-class max2 extends DualRDDKernel {
+class max2 extends DualRDDKernel(Map("mapOp" -> "max")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Maximum"
   val description = "Computes element-wise maximum values for a pair of input variables data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(maxOp)
 }
 
-class sum2 extends DualRDDKernel {
+class sum2 extends DualRDDKernel(Map("mapOp" -> "sum")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Maximum"
   val description = "Computes element-wise sums for a pair of input variables data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(addOp)
 }
 
-class diff2 extends DualRDDKernel {
+class diff2 extends DualRDDKernel(Map("mapOp" -> "subt")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Difference"
   val description = "Computes element-wise diffs for a pair of input variables data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(subtractOp)
 }
 
-class mult2 extends DualRDDKernel {
+class mult2 extends DualRDDKernel(Map("mapOp" -> "mult")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Product"
   val description = "Computes element-wise products for a pair of input variables data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(multiplyOp)
 }
 
-class div2 extends DualRDDKernel {
+class div2 extends DualRDDKernel(Map("mapOp" -> "divide")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Division"
   val description = "Computes element-wise divisions for a pair of input variables data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some(divideOp)
 }
 
 
-class min extends SingularRDDKernel {
+class min extends SingularRDDKernel(Map("mapreduceOp" -> "min")) {
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Space/Time Minimum"
   val description = "Computes minimum element value from input variable data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some((x, y) => {
-    math.min(x, y)
-  })
-  override val reduceCombineOpt = mapCombineOpt
   override val initValue: Float = Float.MaxValue
 
 }
 
-class sum extends SingularRDDKernel {
+class sum extends SingularRDDKernel(Map("mapreduceOp" -> "sum")) {
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Space/Time Sum"
   val description = "Computes sums of element values from input variable data over specified axes and roi"
-  override val mapCombineOpt: Option[ReduceOpFlt] = Some((x, y) => {
-    x + y
-  })
-  override val reduceCombineOpt = mapCombineOpt
   override val initValue: Float = 0f
 }
 
-class multiAverage extends MultiRDDKernel {
+class multiAverage extends MultiRDDKernel(Map.empty) {
   val inputs = List( WPSDataInput("input variable", 2, Integer.MAX_VALUE ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Ensemble Mean"
@@ -130,7 +114,7 @@ class multiAverage extends MultiRDDKernel {
   override val mapCombineNOp: Option[ReduceNOpFlt] = Some(aveOpN)
 }
 
-class average extends SingularRDDKernel {
+class average extends SingularRDDKernel(Map.empty) {
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Space/Time Mean"
@@ -158,14 +142,14 @@ class average extends SingularRDDKernel {
   override def postRDDOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = weightedValueSumRDDPostOp( pre_result, context )
 }
 
-class subset extends Kernel {
+class subset extends Kernel(Map.empty) {
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Space/Time Subset"
   val description = "Extracts a subset of element values from input variable data over the specified axes and roi"
 }
 
-class timeBin extends Kernel {
+class timeBin extends Kernel(Map.empty) {
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Time Binning"
