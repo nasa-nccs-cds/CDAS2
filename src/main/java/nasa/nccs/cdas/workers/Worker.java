@@ -44,6 +44,7 @@ public abstract class Worker {
     }
 
     private void invalidateRequest( ) {
+        logger.info( "\n\n &&&&&&&& &&&&&&&& &&&&&&&& invalidateRequest &&&&&&&& &&&&&&&& &&&&&&&&\n\n");
         isValid = false;
     }
 

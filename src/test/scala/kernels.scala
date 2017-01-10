@@ -41,16 +41,6 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
       }
   }
 
-  test("pyMaximum-cache") {
-    val nco_verified_result = 309.7112
-    val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"},";levels":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.max","input":"v1","domain":"d0","axes":"xy"}]]"""
-    val result_node = executeTest(datainputs)
-    val result_value = getResultValue(result_node)
-    println( "Op Result:       " + result_value )
-    println( "Verified Result: " + nco_verified_result )
-    assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
-  }
-
   test("subsetTestXY") {
       val nco_verified_result: CDFloatArray = CDFloatArray( Array( 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 245.2, 244.904, 244.6914, 244.5297, 244.2834, 244.0234, 245.4426, 245.1731, 244.9478, 244.6251, 244.2375, 244.0953, 248.4837, 247.4268, 246.4957, 245.586, 245.4244, 244.8213, 249.7772, 248.7458, 247.5331, 246.8871, 246.0183, 245.8848, 248.257, 247.3562, 246.3798, 245.3962, 244.6091, 243.6039 ).map(_.toFloat), Float.MaxValue )
       val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":5,"system":"indices"},"lon":{"start":0,"end":5,"system":"indices"},"time":{"start":0,"end":0,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.subset","input":"v1","domain":"d0"}]]"""
@@ -107,7 +97,17 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
       assert(true)
   }
 
-  test("Maximum") {
+  test("pyMaximum-cache") {
+    val nco_verified_result = 309.7112
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.max","input":"v1","domain":"d0","axes":"xy"}]]"""
+    val result_node = executeTest(datainputs)
+    val result_value = getResultValue(result_node)
+    println( "Op Result:       " + result_value )
+    println( "Verified Result: " + nco_verified_result )
+    assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
+  }
+
+  test("Maximum-cache") {
       val nco_verified_result = 309.7112
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
       val result_node = executeTest(datainputs)
@@ -115,6 +115,23 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
       println("Op Result:       " + result_value)
       println("Verified Result: " + nco_verified_result)
       assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
+  }
+
+  test("Maximum-cache-twice") {
+    val nco_verified_result = 309.7112
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
+    val result_node = executeTest(datainputs)
+    val result_value = getResultValue(result_node)
+    println("Op Result:       " + result_value)
+    println("Verified Result: " + nco_verified_result)
+    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
+
+    val datainputs1 = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.max","input":"v1","domain":"d0","axes":"xy"}]]"""
+    val result_node1 = executeTest(datainputs1)
+    val result_value1 = getResultValue(result_node1)
+    println( "Op Result:       " + result_value1 )
+    println( "Verified Result: " + nco_verified_result )
+    assert(Math.abs( result_value1 - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
   }
 
   test("Maximum-dap") {
