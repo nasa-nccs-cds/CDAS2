@@ -6,16 +6,19 @@ import time
 request_port = 4356
 response_port = 4357
 
-portal = CDASPortal( ConnectionMode.CONNECT, "localhost", request_port, response_port )
+try:
+    portal = CDASPortal( ConnectionMode.CONNECT, "localhost", request_port, response_port )
+    response_manager = portal.createResponseManager()
 
-datainputs = """[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
+    datainputs = """[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
 
-portal.sendMessage("execute", [ "CDSpark.max", datainputs, ""] )
+    portal.sendMessage("execute", [ "CDSpark.max", datainputs, ""] )
 
-response = portal.waitForResponse()
+    response = response_manager.waitForResponse()
 
-print "Received response: " + response
+    print "Received response: " + response
 
-portal.shutdown()
+finally:
+    portal.shutdown()
 
 

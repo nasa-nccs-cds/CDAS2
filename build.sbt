@@ -61,7 +61,6 @@ lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
-lazy val uvcdat_prefix = settingKey[File]("The UVCDAT env directory.")
 lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
 lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
 
@@ -70,15 +69,14 @@ conda_lib_dir := file(System.getenv("CONDA_PREFIX")) / "lib"
 
 unmanagedResourceDirectories in Test ++= Seq( cdas_cache_dir.value, conda_lib_dir.value )
 unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_cache_dir.value, conda_lib_dir.value )
-unmanagedClasspath in Test += cdas_cache_dir.value
-unmanagedClasspath in (Compile, runMain) += cdas_cache_dir.value
+unmanagedClasspath in Test ++= Seq( cdas_cache_dir.value, conda_lib_dir.value )
+unmanagedClasspath in (Compile, runMain) ++= Seq( cdas_cache_dir.value, conda_lib_dir.value )
 
 // lazy val cdasGlobalCollectionsFile = settingKey[File]("The cdas global Collections file")
 
 cdas_cache_dir := { val cache_dir = getCacheDir();  cache_dir.mkdirs();  cache_dir  }
 cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
-uvcdat_prefix := getUvcdatEnv
 
 // try{ IO.write( cdasProperties.value, "", cdasPropertiesFile.value ) } catch { case err: Exception => println("Error writing to properties file: " + err.getMessage ) }
 
@@ -103,13 +101,6 @@ def getCacheDir(): File =
     case None =>  { val cache_dir = file(System.getProperty("user.home")) / ".cdas" / "cache"; cache_dir.mkdirs(); cache_dir }
   }
 
-def getUvcdatEnv(): File =
-  sys.env.get("CONDA_PREFIX") match {
-    case Some(uvcdat_dir) => file(uvcdat_dir)
-    case None => file( System.getProperty("user.home") )
-  }
-
-
 cdasLocalCollectionsFile :=  {
   val collections_file = cdas_cache_dir.value / "local_collections.xml"
   if( !collections_file.exists ) { xml.XML.save( collections_file.getAbsolutePath, <collections></collections> ) }
@@ -122,12 +113,6 @@ cdasLocalCollectionsFile :=  {
 //  if( !collections_install_path.exists() ) { copy( collections_file.toPath, collections_install_path.toPath ) }
 //  collections_install_path
 //}
-
-unmanagedClasspath in Compile += cdas_cache_dir.value
-unmanagedClasspath in Runtime += cdas_cache_dir.value
-unmanagedClasspath in Runtime +=  uvcdat_prefix.value / "lib"
-unmanagedClasspath in Test += cdas_cache_dir.value
-unmanagedClasspath in Test +=  uvcdat_prefix.value / "lib"
 
 publishTo := Some(Resolver.file( "file",  sys.env.get("SBT_PUBLISH_DIR") match {
   case Some(pub_dir) => { val pdir = file(pub_dir); pdir.mkdirs(); pdir }
