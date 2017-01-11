@@ -274,12 +274,12 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
 
   def getResultData( result_node: xml.Elem ): CDFloatArray = {
     val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
-    CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue )
+    try{  CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue ) } catch { case err: Exception => CDFloatArray.empty }
   }
 
   def getResultValue( result_node: xml.Elem ): Float = {
     val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
-    data_nodes.head.text.toFloat
+    try{ data_nodes.head.text.toFloat } catch { case err: Exception => Float.NaN }
   }
 
   def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {

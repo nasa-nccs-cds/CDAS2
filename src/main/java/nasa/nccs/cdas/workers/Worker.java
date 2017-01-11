@@ -16,7 +16,7 @@ public abstract class Worker {
     protected Logger logger = null;
     protected int result_port = -1;
     protected int request_port = -1;
-    private boolean isValid = true;
+    private String errorCondition = null;
 
     static int bindSocket( ZMQ.Socket socket, int init_port ) {
         int test_port = init_port;
@@ -43,24 +43,21 @@ public abstract class Worker {
         results.add( new TransVar( result_header, data ) );
     }
 
-    private void invalidateRequest( ) {
-        logger.info( "\n\n &&&&&&&& &&&&&&&& &&&&&&&& invalidateRequest &&&&&&&& &&&&&&&& &&&&&&&&\n\n");
-        isValid = false;
-    }
+    private void invalidateRequest( String errorMsg ) { errorCondition = errorMsg; }
 
-    public TransVar getResult() {
+    public TransVar getResult() throws Exception {
         logger.info( "Waiting for result to appear from worker");
-        while( isValid ) {
+        while( true ) {
+            if( errorCondition != null ) { throw new Exception( errorCondition ); }
             TransVar result = results.poll();
             if( result == null ) try { Thread.sleep(100); } catch( Exception err ) { return null; }
             else { return result; }
         }
-        return null;
     }
 
     public String getMessage() {
         logger.info( "Waiting for message to be posted from worker");
-        while( isValid ) {
+        while( errorCondition == null ) {
             String message = messages.poll();
             if( message == null ) try { Thread.sleep(100); } catch( Exception err ) { return null; }
             else { return message; }
@@ -89,7 +86,7 @@ public abstract class Worker {
                     postInfo( parts[1] );
                 } else if( parts[0].equals("error") ) {
                     logger.error("Python worker signaled error:\n" + parts[1] );
-                    invalidateRequest();
+                    invalidateRequest(parts[1]);
                 } else {
                     logger.info( "Unknown result header type: " + parts[0] );
                 }
@@ -150,7 +147,7 @@ public abstract class Worker {
         String header = String.join("|", slist);
         logger.info( "Sending Task Request: " + header );
         request_socket.send(header);
-        isValid = true;
+        errorCondition = null;
     }
 
     public void sendUtility( String request ) {

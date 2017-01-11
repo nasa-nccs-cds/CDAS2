@@ -71,7 +71,7 @@ class Worker(object):
         self.result_socket.send(result_data)
 
     def sendError( self, err ):
-        msg = "\n-------------------------------\nWorker Error: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() )
+        msg = "Worker Error {0}: {1}".format(err, traceback.format_exc() )
         self.logger.error( msg  )
         header = "|".join( [ "error", msg ] )
         self.result_socket.send( header )

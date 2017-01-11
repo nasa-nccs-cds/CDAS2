@@ -28,8 +28,11 @@ class Kernel:
         results = []
         for inputId in task.inputs:
             input = inputs.get( inputId )
-            result = self.executeOperation( task, input )
-            results.append( result )
+            if( input != None ):
+                result = self.executeOperation( task, input )
+                results.append( result )
+            else:
+                raise Exception( "ExecuteTask ERROR: required input {0} not available in task inputs: {1}".format( task.inputs, inputs.keys() ))
         return results
 
     @abstractmethod

@@ -586,7 +586,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
           bb.putFloat( 0, input_array.missing.getOrElse(Float.NaN) )
           val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array() ++ bb.array()
           logger.info("Kernel part-%d: Sending data to worker for input %s, nbytes=%d".format( inputs.iPart, input_id, byte_data.length ))
-          worker.sendArrayData( input_array.uid, input_array.origin, input_array.shape, byte_data, input_array.metadata )
+          worker.sendArrayData( input_id, input_array.origin, input_array.shape, byte_data, input_array.metadata )
           logger.info( "Kernel part-%d: Finished Sending data to worker" )
         case None =>
           worker.sendUtility( List( "input", input_id ).mkString(";") )
