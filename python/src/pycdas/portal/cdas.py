@@ -2,7 +2,7 @@ import zmq, traceback, time, logging
 from threading import Thread
 from pycdas.cdasArray import npArray
 from subprocess import Popen
-import shlex
+import shlex, random, string
 
 class ConnectionMode():
     BIND = 1
@@ -143,9 +143,15 @@ class CDASPortal:
         if self.response_manager != None:
             self.response_manager.term()
 
+    def randomId(length):
+        sample = string.lowercase+string.digits+string.uppercase
+        return ''.join(random.choice(sample) for i in range(length))
+
     def sendMessage( self, type, msgStrs = [""] ):
+        msgId = self.randomId(8)
         self.logger.info( "Sending {0} request {1} on port {2}.".format( type, msgStrs, self.request_port )  )
-        self.request_socket.send( "!".join( [type] + msgStrs ) )
+        self.request_socket.send( "!".join( [msgId,type] + msgStrs ) )
+        return msgId
 
 class AppThread(Thread):
     def __init__(self, host, request_port, response_port):
@@ -167,5 +173,8 @@ class AppThread(Thread):
         self.process.wait()
 
 if __name__ == "__main__":
-    env_test = "echo $CLASSPATH"
-    process = Popen( env_test, shell=True, executable="/bin/bash" )
+#    env_test = "echo $CLASSPATH"
+#    process = Popen( env_test, shell=True, executable="/bin/bash" )
+
+    sample = string.lowercase+string.digits+string.uppercase
+    print ''.join(random.choice(sample) for i in range(8))

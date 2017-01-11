@@ -56,19 +56,19 @@ public abstract class CDASPortal {
             String request_header = new String(request_socket.recv(0)).trim();
             String[] parts = request_header.split("[!]");
             logger.info( String.format( "  ###  Processing %s request: %s",  parts[0], request_header ) );
-            if( parts[0].equals("array") ) {
+            if( parts[1].equals("array") ) {
                 logger.info("Waiting for result data ");
                 byte[] data = request_socket.recv(0);
                 postArray(request_header, data);
-            } else if( parts[0].equals("execute") ) {
+            } else if( parts[1].equals("execute") ) {
                 execute( parts );
-            } else if( parts[0].equals("util") ) {
+            } else if( parts[1].equals("util") ) {
                 execUtility( parts );
-            }else if( parts[0].equals("quit") || parts[0].equals("shutdown") ) {
+            }else if( parts[1].equals("quit") || parts[0].equals("shutdown") ) {
                 term();
-            } else if( parts[0].equals("getCapabilities") ) {
+            } else if( parts[1].equals("getCapabilities") ) {
                 getCapabilities( parts );
-            } else if( parts[0].equals("describeProcess") ) {
+            } else if( parts[1].equals("describeProcess") ) {
                 describeProcess( parts );
             } else {
                 logger.info( "Unknown request header type: " + parts[0] );

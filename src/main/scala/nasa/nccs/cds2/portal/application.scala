@@ -24,30 +24,30 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
   }
 
   def getResult( resultSpec: Array[String] ) = {
-    val result: xml.Node = processManager.getResult( process, elem(resultSpec,1) )
+    val result: xml.Node = processManager.getResult( process, elem(resultSpec,0) )
     sendResponse( result.toString )
   }
 
   def getResultStatus( resultSpec: Array[String] ) = {
-    val result: xml.Node = processManager.getResultStatus( process, elem(resultSpec,1) )
+    val result: xml.Node = processManager.getResultStatus( process, elem(resultSpec,0) )
     sendResponse( result.toString )
   }
 
   override def execute( taskSpec: Array[String] ) = {
-    val process_name = elem(taskSpec,1)
-    val datainputs = if( taskSpec.length > 2 ) wpsObjectParser.parseDataInputs( taskSpec(2) ) else Map.empty[String, Seq[Map[String, Any]]]
-    val runargs = if( taskSpec.length > 3 ) wpsObjectParser.parseMap( taskSpec(3) ) else Map.empty[String, Any]
+    val process_name = elem(taskSpec,2)
+    val datainputs = if( taskSpec.length > 3 ) wpsObjectParser.parseDataInputs( taskSpec(3) ) else Map.empty[String, Seq[Map[String, Any]]]
+    val runargs = if( taskSpec.length > 4 ) wpsObjectParser.parseMap( taskSpec(4) ) else Map.empty[String, Any]
     val response = processManager.executeProcess( process, process_name, datainputs, runargs.mapValues(_.toString) ).toString
     sendResponse( response )
   }
 
   override def getCapabilities(utilSpec: Array[String]) = {
-    val result: xml.Elem = processManager.getCapabilities( process, elem(utilSpec,1) )
+    val result: xml.Elem = processManager.getCapabilities( process, elem(utilSpec,2) )
     sendResponse( result.toString )
   }
 
   override def describeProcess(procSpec: Array[String]) = {
-    val result: xml.Elem = processManager.describeProcess( process, elem(procSpec,1) )
+    val result: xml.Elem = processManager.describeProcess( process, elem(procSpec,2) )
     sendResponse( result.toString  )
   }
 }
