@@ -56,6 +56,22 @@ object Dependencies {
   val netcdf = Seq( cdm, clcommon, netcdf4, opendap )
 }
 
+object cdas2Patch {
+  def apply( filePath: sbt.File ) = {
+    import scala.io.Source
+    import java.io
+    val old_lines = Source.fromFile(filePath).getLines.toList
+    val new_lines = old_lines map { line =>
+      val pos = line.indexOfSlice("app_classpath=")
+      if (pos == -1) line else { line.slice(0, pos + 15) + "$CLASSPATH:" + line.slice(pos + 15, line.length) }
+    }
+    val pw = new io.PrintWriter( new File(filePath.toString) )
+    pw.write(new_lines.mkString("\n"))
+    pw.close
+    println( "Patched executable: " + filePath )
+  }
+}
+
 //<groupId>com.googlecode.concurrentlinkedhashmap</groupId>
 //  <artifactId>concurrentlinkedhashmap-lru</artifactId>
 //  <version>1.4.2</version>

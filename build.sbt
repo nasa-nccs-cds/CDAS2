@@ -67,11 +67,15 @@ lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
 cdas_cache_dir := baseDirectory.value / "src" / "universal" / "conf"
 conda_lib_dir := file(System.getenv("CONDA_PREFIX")) / "lib"
 
-unmanagedResourceDirectories in Test ++= Seq( cdas_cache_dir.value, conda_lib_dir.value )
-unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_cache_dir.value, conda_lib_dir.value )
-unmanagedClasspath in Test ++= Seq( cdas_cache_dir.value, conda_lib_dir.value )
-unmanagedClasspath in (Compile, runMain) ++= Seq( cdas_cache_dir.value, conda_lib_dir.value )
+unmanagedResourceDirectories in Test ++= Seq( cdas_cache_dir.value )
+unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_cache_dir.value )
+unmanagedClasspath in Test ++= Seq( conda_lib_dir.value )
+unmanagedClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value )
+dependencyClasspath in Test ++= Seq( conda_lib_dir.value )
+dependencyClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value )
+classpathTypes += "dylib"
 
+stage ~= { (file: File) => cdas2Patch( file / "bin" / "cdas2" ); file }
 // lazy val cdasGlobalCollectionsFile = settingKey[File]("The cdas global Collections file")
 
 cdas_cache_dir := { val cache_dir = getCacheDir();  cache_dir.mkdirs();  cache_dir  }
@@ -124,6 +128,8 @@ lazy val md = taskKey[Unit]("Prints 'Hello World'")
 //md := {
 //  import nasa.nccs.cds2.engine.MetadataPrinter
 //}
+
+
 
 
 

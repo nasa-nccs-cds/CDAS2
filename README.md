@@ -51,10 +51,5 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
     
     2) Start IDEA and import the CDAS2 Project from Version Control (github) using the address https://github.com/nasa-nccs-cds/CDAS2.git.
     
-####  Known Issues:
-    
-    1) Due to a bug in the scala sbt application, the cdas2 executable may generate an error stating that the Netcdf libraries can't be found.  
-       One fix is to insert $CLASSPATH in the app_classpath declaration in the cdas2 script (in target/universal/stage/bin).
-
     
 

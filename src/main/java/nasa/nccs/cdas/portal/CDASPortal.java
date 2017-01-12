@@ -38,8 +38,8 @@ public abstract class CDASPortal {
         }
     }
 
-    public void sendResponse( String response  ) {
-        response_socket.send( String.join("!","response", response ) );
+    public void sendResponse( String rId, String response  ) {
+        response_socket.send( String.join("!", rId, "response", response ) );
         logger.info( " Sent response: " + response );
     }
 
@@ -55,7 +55,7 @@ public abstract class CDASPortal {
             logger.info( String.format( "Listening for requests on port: %d",  request_port ) );
             String request_header = new String(request_socket.recv(0)).trim();
             String[] parts = request_header.split("[!]");
-            logger.info( String.format( "  ###  Processing %s request: %s",  parts[0], request_header ) );
+            logger.info( String.format( "  ###  Processing %s request: %s",  parts[1], request_header ) );
             if( parts[1].equals("array") ) {
                 logger.info("Waiting for result data ");
                 byte[] data = request_socket.recv(0);
@@ -64,7 +64,7 @@ public abstract class CDASPortal {
                 execute( parts );
             } else if( parts[1].equals("util") ) {
                 execUtility( parts );
-            }else if( parts[1].equals("quit") || parts[0].equals("shutdown") ) {
+            } else if( parts[1].equals("quit") || parts[1].equals("shutdown") ) {
                 term();
             } else if( parts[1].equals("getCapabilities") ) {
                 getCapabilities( parts );

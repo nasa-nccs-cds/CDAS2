@@ -1,8 +1,7 @@
 import zmq, traceback, time, logging
 from threading import Thread
 from pycdas.cdasArray import npArray
-from subprocess import Popen
-import shlex, random, string
+import random, string
 
 class ConnectionMode():
     BIND = 1
@@ -35,8 +34,20 @@ class ResponseManager(Thread):
         self.logger = cdasPortal.logger
         self.active = True
         self.setName('CDAS Response Thread')
-        self.cached_results = []
+        self.cached_results = {}
         self.cached_arrays = {}
+
+    def cacheResult(self, id, result ):
+        self.getResults(id).append(result)
+
+    def getResults(self, id ):
+        return self.cached_results.setdefault(id,[])
+
+    def cacheArray(self, id, array ):
+        self.getArrays(id).append(array)
+
+    def getArrays(self, id ):
+        return self.cached_arrays.setdefault(id,[])
 
     def run(self):
         while( self.active ):
@@ -69,28 +80,27 @@ class ResponseManager(Thread):
         try:
             response = self.socket.recv()
             toks = response.split('!')
-            type = toks[0]
+            rId = toks[0]
+            type = toks[1]
             if type == "array":
-                header = toks[1]
+                header = toks[2]
                 data = self.request_socket.recv()
                 array = npArray.createInput(header,data)
-                self.cached_arrays[array.id] = array
+                self.cacheArray( rId, array )
 
             elif type == "response":
-                self.cached_results.append( toks[1] )
-                self.logger.info("Received result: {0}".format(toks[1]))
+                self.cacheResult( rId, toks[2] )
+                self.logger.info("Received result: {0}".format(toks[2]))
             else:
                 self.logger.error("CDASPortal.ResponseThread-> Received unrecognized message type: {0}".format(type))
 
         except Exception as err:
             self.logger.error( "CDAS error: {0}\n{1}\n".format(err, traceback.format_exc() ) )
 
-    def waitForResponse(self):
+    def getResponses( self, rId, wait=True ):
         while( True ):
-            response = self.popResponse()
-            if response:
-                self.logger.info(" Received response: " + response )
-                return response
+            results = self.getResults(rId)
+            if( (len(results) > 0) or not wait): return results
             else: time.sleep(0.25)
 
 class CDASPortal:
@@ -143,7 +153,7 @@ class CDASPortal:
         if self.response_manager != None:
             self.response_manager.term()
 
-    def randomId(length):
+    def randomId(self, length):
         sample = string.lowercase+string.digits+string.uppercase
         return ''.join(random.choice(sample) for i in range(length))
 
@@ -160,21 +170,26 @@ class AppThread(Thread):
         self._response_port = response_port
         self._request_port = request_port
         self._host = host
+        self.process = None
 
     def run(self):
-        cdas_startup = "cdas2 connect {0} {1} -J -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M".format( self._request_port, self._response_port )
-        self.process = Popen( cdas_startup, shell=True, executable="/bin/bash" )
-        self.logger.info( "Staring CDAS with command: {0}\n".format( cdas_startup ) )
+        import subprocess, shlex
+        try:
+            cdas_startup = "cdas2 connect {0} {1} -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M".format( self._request_port, self._response_port)
+            self.process = subprocess.Popen(shlex.split(cdas_startup))
+            print "Staring CDAS with command: {0}\n".format(cdas_startup)
+            self.process.wait()
+        except KeyboardInterrupt as ex:
+            print "  ----------------- CDAS TERM ----------------- "
+            self.process.kill()
 
     def term(self):
-        self.process.terminate()
+        if(self.process != None):
+            self.process.terminate()
 
     def join(self):
         self.process.wait()
 
-if __name__ == "__main__":
+#if __name__ == "__main__":
 #    env_test = "echo $CLASSPATH"
 #    process = Popen( env_test, shell=True, executable="/bin/bash" )
-
-    sample = string.lowercase+string.digits+string.uppercase
-    print ''.join(random.choice(sample) for i in range(8))
