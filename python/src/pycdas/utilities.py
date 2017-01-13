@@ -162,3 +162,7 @@ def region2cdms( region, **args ):
                     kargs[str(k)] = slice(v["start"],v["end"])
     return kargs
 
+if __name__ == "__main__":
+    from kernels.OperationsManager import cdasOpManager
+    capabilities = cdasOpManager.getCapabilitiesStr()
+    print capabilities.replace("|","\n").replace("!","\t")

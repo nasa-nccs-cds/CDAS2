@@ -63,7 +63,7 @@ object cdas2Patch {
     val old_lines = Source.fromFile(filePath).getLines.toList
     val new_lines = old_lines map { line =>
       val pos = line.indexOfSlice("app_classpath=")
-      if (pos == -1) line else { line.slice(0, pos + 15) + "$CLASSPATH:" + line.slice(pos + 15, line.length) }
+      if (pos == -1) line else { line.slice(0, pos + 15) + "${CONDA_PREFIX}/lib:" + line.slice(pos + 15, line.length) }
     }
     val pw = new io.PrintWriter( new File(filePath.toString) )
     pw.write(new_lines.mkString("\n"))

@@ -54,7 +54,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("regridTest") {
-      val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":1000,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.regrid","input":"v1","domain":"d0","crs":"gaussian~128"}]]"""
+      val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.cdmsModule.regrid","input":"v1","domain":"d0","crs":"gaussian~128"}]]"""
       val result_node = executeTest(datainputs)
       assert(true)
   }
