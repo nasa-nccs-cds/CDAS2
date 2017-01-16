@@ -88,8 +88,8 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
            domain=[       {"name":"d0","time":{"start":0,"end":100,"system":"indices"},"lon":{"start":200.0,"end":250.0,"system":"values"},"lat":{"start":0.0,"end":30.0,"system":"values"}}],
            operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
                           {"name":"CDSpark.multiAverage","input":"${GISS_R_vids.mkString(",")}","domain":"d0","id":"eaGISS-R"},
-                          {"name":"CDSpark.regrid","input":"eaGISS-R","domain":"d0","crs":"gaussian~128","id":"rgR"},
-                          {"name":"CDSpark.regrid","input":"eaGISS-H","domain":"d0","crs":"gaussian~128","id":"rgH"},
+                          {"name":"python.cdmsModule.regrid","input":"eaGISS-R","domain":"d0","crs":"gaussian~128","id":"rgR"},
+                          {"name":"python.cdmsModule.regrid","input":"eaGISS-H","domain":"d0","crs":"gaussian~128","id":"rgH"},
                           {"name":"CDSpark.multiAverage","input":"rgR,rgH","domain":"d0","result":"esgfDemo"}
                  ]
           ]""".replaceAll("\\s", "")
@@ -165,14 +165,18 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("Maximum-file") {
-      val nco_verified_result = 309.7112
-      val uri=getClass.getResource("/data/GISS-r1i1p1-sample.nc")
+    val nco_verified_result = 309.7112
+    val data_file = "/data/GISS-r1i1p1-sample.nc"
+    val uri=getClass.getResource(data_file)
+    if( uri == null ) { throw new Exception( "Error locating file resource: " + data_file ) }
+    else {
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"$uri","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
       val result_node = executeTest(datainputs)
       val result_value = getResultValue(result_node)
-      println( "Op Result:       " + result_value )
-      println( "Verified Result: " + nco_verified_result )
-      assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
+      println("Op Result:       " + result_value)
+      println("Verified Result: " + nco_verified_result)
+      assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
+    }
   }
 
   test("pyMaximum-dap") {
