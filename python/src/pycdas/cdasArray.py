@@ -101,6 +101,11 @@ class cdmsArray(CDArray):
     def createResult(cls, task, input, result_array ):
         return cdmsArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array )
 
+    @classmethod
+    def getName(cls, variable ):
+        try:        return variable.name_in_file;
+        except:     return variable.id;
+
 
     @classmethod
     def createInput( cls, cdVariable ):
@@ -114,7 +119,7 @@ class cdmsArray(CDArray):
     def __init__(self, _id, _origin, _shape, _metadata, cdVariable ):
         super(cdmsArray, self).__init__(_id,_origin,_shape,_metadata)
         self.logger.info(" *** Creating input cdms array, size = " + str( cdVariable.size ) )
-        self.name = cdVariable.name_in_file
+        self.name = cdmsArray.getName(cdVariable)
         self.grid = cdVariable.getGrid()
         self.dimensions = self.metadata["dimensions"].split(",")
         self.variable = cdVariable
