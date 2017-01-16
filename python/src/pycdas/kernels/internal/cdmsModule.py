@@ -1,7 +1,6 @@
 from pycdas.kernels.Kernel import Kernel, KernelSpec
-from pycdas.cdasArray import npArray
-import os
-import cdms2, time
+from pycdas.cdasArray import cdmsArray
+import cdms2, time, os
 from pycdas.messageParser import mParse
 
 class RegridKernel(Kernel):
@@ -18,18 +17,19 @@ class RegridKernel(Kernel):
         crs = crsToks[0]
         resolution = int(crsToks[1]) if len(crsToks) > 1 else 128
         if crs == "gaussian":
-            results = []
+            rv = None
             t42 = cdms2.createGaussianGrid( resolution )
             self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( variable.data.flat[i] ) for i in range(20,90) ] ) ) )
-            result = variable.regrid( t42, regridTool=regridder )
-            result.id = result.id  + "-" + task.rId
-            self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( result.data.flat[i] ) for i in range(20,90) ] ) ) )
-            gridFilePath = self.saveGridFile( result.id, result )
-            result.createattribute( "gridfile", gridFilePath )
-            result.createattribute( "origin", variable.attributes[ "origin"] )
+            result_var = variable.regrid( t42, regridTool=regridder )
+            result_var.id = result_var.id  + "-" + task.rId
+            self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( result_var.data.flat[i] ) for i in range(20,90) ] ) ) )
+            gridFilePath = self.saveGridFile( result_var.id, result_var )
+            result_var.createattribute( "gridfile", gridFilePath )
+            result_var.createattribute( "origin", variable.attributes[ "origin"] )
+            result = cdmsArray.createResult( task, _input, result_var )
             if cacheReturn[0]: self.cached_results[ result.id ] = result
-            if cacheReturn[1]: results.append( result )
-            self.logger.info( " >> Regridded variables in time {0}, nresults = {1}".format( (time.time()-t0), len(results) ) )
-            return results
+            if cacheReturn[1]: rv = result
+            self.logger.info( " >> Regridded variable in time {0}".format( (time.time()-t0) ) )
+            return rv
 
 

@@ -81,25 +81,14 @@ class Worker(object):
         header = "|".join( [ "info", msg ] )
         self.result_socket.send( header )
 
-    def saveGridFile( self, resultId, variable  ):
-        axes = variable.getAxisList()
-        grid = variable.getGrid()
-        outdir = os.path.dirname( variable.gridfile )
-        outpath = os.path.join(outdir, resultId + ".nc" )
-        newDataset = cdms2.createDataset( outpath )
-        for axis in axes: newDataset.copyAxis(axis)
-        newDataset.copyGrid(grid)
-        newDataset.close()
-        self.logger.info( "Saved grid file: {0}".format( outpath ) )
-        return outpath
-
     def processTask(self, task ):
         opModule = cdasOpManager.getModule( task )
         self.logger.info( " Processing task: {0}, op module: {1}".format( task, opModule.getName() ) )
         return opModule.executeTask( task, self.cached_inputs )
 
-request_port = mParse.getIntArg( 1, 8200 )
-result_port = mParse.getIntArg( 2, 8201 )
-worker = Worker( request_port, result_port )
-worker.run()
-worker.logger.info(  " ############################## EXITING WORKER ##############################"  )
+if __name__ == "__main__":
+    request_port = mParse.getIntArg( 1, 8200 )
+    result_port = mParse.getIntArg( 2, 8201 )
+    worker = Worker( request_port, result_port )
+    worker.run()
+    worker.logger.info(  " ############################## EXITING WORKER ##############################"  )

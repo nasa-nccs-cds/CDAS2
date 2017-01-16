@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-import logging
+import logging, os, cdms2
 
 class KernelSpec:
     def __init__( self, name, title, description, **kwargs ):
@@ -45,6 +45,18 @@ class Kernel:
         axes = task.metadata.get("axes")
         if axes == None: return None
         else: return tuple( [ int(item) for item in axes ] )
+
+    def saveGridFile( self, resultId, variable  ):
+        axes = variable.getAxisList()
+        grid = variable.getGrid()
+        outdir = os.path.dirname( variable.gridfile )
+        outpath = os.path.join(outdir, resultId + ".nc" )
+        newDataset = cdms2.createDataset( outpath )
+        for axis in axes: newDataset.copyAxis(axis)
+        newDataset.copyGrid(grid)
+        newDataset.close()
+        self.logger.info( "Saved grid file: {0}".format( outpath ) )
+        return outpath
 
 class InputMode:
     __metaclass__ = ABCMeta

@@ -11,9 +11,10 @@ public class PythonWorkerPortal extends WorkerPortal {
     public String[] getCapabilities() {
         try {
             PythonWorker worker = getPythonWorker();
-            String[] response =  worker.getCapabilities().split("[|]");
+            String response =  worker.getCapabilities();
+            logger.info( "GET CAPABILITIES RESPONSE: " + response );
             releaseWorker(worker);
-            return response;
+            return response.split("[|]");
         } catch ( Exception ex ) {
             return null;
         }

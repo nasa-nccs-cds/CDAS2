@@ -83,10 +83,10 @@ public abstract class Worker {
                     byte[] data = result_socket.recv(0);
                     addResult(result_header, data);
                 } else if( parts[0].equals("info") ) {
-                    postInfo( parts[1] );
+                    postInfo( result_header.substring(5) );
                 } else if( parts[0].equals("error") ) {
                     logger.error("Python worker signaled error:\n" + parts[1] );
-                    invalidateRequest(parts[1]);
+                    invalidateRequest(result_header.substring(6));
                 } else {
                     logger.info( "Unknown result header type: " + parts[0] );
                 }
