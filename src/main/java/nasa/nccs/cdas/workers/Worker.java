@@ -1,4 +1,6 @@
 package nasa.nccs.cdas.workers;
+import nasa.nccs.cdapi.data.ArrayBase;
+import nasa.nccs.cdapi.data.HeapFltArray;
 import org.zeromq.ZMQ;
 import nasa.nccs.utilities.Logger;
 
@@ -48,7 +50,9 @@ public abstract class Worker {
     public TransVar getResult() throws Exception {
         logger.info( "Waiting for result to appear from worker");
         while( true ) {
-            if( errorCondition != null ) { throw new Exception( errorCondition ); }
+            if( errorCondition != null ) {
+                throw new Exception( errorCondition );
+            }
             TransVar result = results.poll();
             if( result == null ) try { Thread.sleep(100); } catch( Exception err ) { return null; }
             else { return result; }
@@ -78,17 +82,21 @@ public abstract class Worker {
                 String result_header = new String(result_socket.recv(0)).trim();
                 String[] parts = result_header.split("[|]");
                 logger.info( "Received result header from worker: " + result_header );
-                if( parts[0].equals("array") ) {
+                String[] mtypes = parts[0].split("[-]");
+                String mtype = mtypes[0];
+                int mtlen = parts[0].length();
+                String pid = mtypes[1];
+                if( mtype.equals("array") ) {
                     logger.info("Waiting for result data ");
                     byte[] data = result_socket.recv(0);
                     addResult(result_header, data);
-                } else if( parts[0].equals("info") ) {
-                    postInfo( result_header.substring(5) );
-                } else if( parts[0].equals("error") ) {
-                    logger.error("Python worker signaled error:\n" + parts[1] );
-                    invalidateRequest(result_header.substring(6));
+                } else if( mtype.equals("info") ) {
+                    postInfo( result_header.substring(mtlen+1) );
+                } else if( mtype.equals("error") ) {
+                    logger.error("Python worker {0} signaled error: {1}\n".format( pid, parts[1]) );
+                    invalidateRequest(result_header.substring(mtlen+1));
                 } else {
-                    logger.info( "Unknown result header type: " + parts[0] );
+                    logger.info( "Unknown result message type: " + parts[0] );
                 }
             } catch ( java.nio.channels.ClosedSelectorException ex ) {
                 logger.info( "Result Socket closed." );
@@ -135,7 +143,12 @@ public abstract class Worker {
         request_socket.send("util|capabilities");
     }
 
-    public void sendArrayData( String id, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
+
+    public void sendArrayData( String id, HeapFltArray array ) {
+        sendArrayData( id, array.origin(), array.shape(), array.toByteArray(), array.mdata() );
+    }
+
+    private void sendArrayData( String id, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
         List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata) );
         String header = String.join("|", slist);
         logger.info("Sending header: " + header);

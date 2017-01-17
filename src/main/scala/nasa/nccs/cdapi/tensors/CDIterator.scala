@@ -709,7 +709,8 @@ object MultiArrayIterator {
       if (s0 == s1) s0
       else if (s0 == 1) s1
       else if (s1 == 1) s0
-      else throw new Exception("Attempt to combine incummensurate shapes: (%s) vs (%s)".format(shape0.mkString(","), shape1.mkString(",")))
+      else
+        throw new Exception("Attempt to combine incummensurate shapes: (%s) vs (%s)".format(shape0.mkString(","), shape1.mkString(",")))
     }
   }
 }

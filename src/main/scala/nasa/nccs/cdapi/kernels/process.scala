@@ -571,7 +571,6 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
   override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
     val inputs = inputTups._2
     val key = inputTups._1
-    val bb = java.nio.ByteBuffer.allocate(4)
     val t0 = System.nanoTime
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance();
     val worker: PythonWorker = workerManager.getPythonWorker();

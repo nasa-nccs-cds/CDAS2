@@ -42,7 +42,8 @@ object KernelPackageTools {
 
   def getKernelMap: Map[String,KernelModule] = {
     val internal_kernels: Map[String,KernelModule] = getKernelClasses.map(ClassInfoRec( _ )).groupBy( _.module.toLowerCase ).mapValues( KernelModule(_) )
-    val python_kernels: Array[KernelModule] = PythonWorkerPortal.getInstance().getCapabilities().map( KernelModule(_) )
+    val capabilities_data = PythonWorkerPortal.getInstance().getCapabilities()
+    val python_kernels: Array[KernelModule] = capabilities_data map ( KernelModule(_) )
     val external_kernel_map: Map[String,KernelModule] = Map( python_kernels.map( km => km.getName -> km ): _* )
     internal_kernels ++ external_kernel_map
   }

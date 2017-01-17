@@ -41,15 +41,16 @@ class npArray(CDArray):
     def createResult(cls, task, input, result_array ):
         return npArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array )
 
-
     @classmethod
-    def createInput(cls, header, data):
+    def createInput(self, header, data):
+        logger = logging.getLogger("worker")
         header_toks = header.split('|')
         id = header_toks[1]
         origin = mParse.s2it(header_toks[2])
         shape = mParse.s2it(header_toks[3])
         metadata = mParse.s2m(header_toks[4])
         raw_data = np.frombuffer( data, dtype=IO_DType ).astype(np.float32)
+        logger.info(" *** Creating Input, id = {0}, buffer len = {1}, shape = {2}, undef = {3}".format( id, str(len(raw_data)), str(shape), str(raw_data[-1]) ) )
         data_array = raw_data[0:-1].reshape(shape)
         undef_value = raw_data[-1]
         nparray = ma.masked_equal(data_array,undef_value) if ( undef_value != 1.0 ) else data_array
@@ -76,7 +77,7 @@ class npArray(CDArray):
         variable.createattribute("gridfile", self.gridFilePath)
         variable.createattribute("origin", mParse.ia2s(self.origin))
         t1 = time.time()
-        self.logger.info(" >> Created CDMS Variable: {0} ({1} in time {2}".format(variable.id, self.name, (t1 - t0)))
+        self.logger.info(" >> Created CDMS Variable: {0} ({1}) in time {2}, gridFile = {3}".format(variable.id, self.name, (t1 - t0), self.gridFilePath ))
         return variable
 
     def subsetAxes( self, dimensions, gridfile, origin, shape ):
@@ -98,8 +99,8 @@ class npArray(CDArray):
 class cdmsArray(CDArray):
 
     @classmethod
-    def createResult(cls, task, input, result_array ):
-        return cdmsArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array )
+    def createResult(cls, task, input, cdVariable ):
+        return cdmsArray( task.rId, input.origin, cdVariable.shape, dict( input.metadata, **task.metadata ), cdVariable )
 
     @classmethod
     def getName(cls, variable ):
@@ -115,6 +116,11 @@ class cdmsArray(CDArray):
         metadata = cdVariable.attributes
         return cdmsArray( id, origin, shape, metadata, cdVariable )
 
+    def array(self):
+        return self.variable.data
+
+    def toBytes( self, dtype ):
+        return self.variable.data.astype(dtype).tobytes()
 
     def __init__(self, _id, _origin, _shape, _metadata, cdVariable ):
         super(cdmsArray, self).__init__(_id,_origin,_shape,_metadata)
@@ -140,4 +146,5 @@ class cdmsArray(CDArray):
             self.logger.info( "\n-------------------------------\nError subsetting Axes: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc() ) )
             raise err
         return subAxes
+
 

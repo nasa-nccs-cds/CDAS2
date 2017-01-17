@@ -1,10 +1,7 @@
 import logging, os
 
 lname = "worker"
-log_file = os.path.expanduser('~/.cdas/' + lname + '.log')
-try: os.remove(log_file)
-except Exception: pass
-
+log_file = os.path.expanduser('~/.cdas/' + lname + "-" + str(os.getpid()) +'.log')
 logger = logging.getLogger( lname )
 formatter = logging.Formatter(lname + ': %(asctime)s %(levelname)s %(message)s')
 handler = logging.FileHandler( log_file )

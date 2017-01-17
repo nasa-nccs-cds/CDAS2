@@ -20,6 +20,8 @@ class RegridKernel(Kernel):
             rv = None
             t42 = cdms2.createGaussianGrid( resolution )
             self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( variable.data.flat[i] ) for i in range(20,90) ] ) ) )
+            ingrid = variable.getGrid()
+            self.logger.info( " >> Input Variable Shape: {0}, Grid Shape: {1}".format( str(variable.shape), str([len(ingrid.getLatitude()),len(ingrid.getLongitude())] )))
             result_var = variable.regrid( t42, regridTool=regridder )
             result_var.id = result_var.id  + "-" + task.rId
             self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( result_var.data.flat[i] ) for i in range(20,90) ] ) ) )

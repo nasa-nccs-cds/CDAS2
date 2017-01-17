@@ -35,12 +35,13 @@ class Worker(object):
         return toks[index]
 
     def run(self):
-        self.logger.info( " Worker Running: listening for messages " )
         active = True
         while active:
             try:
+                self.logger.info( " Worker Running: listening for messages " )
                 header = self.request_socket.recv()
                 type = self.getMessageField(header,0)
+                self.logger.info( "Received '{0}' message: {1}".format( type, header ) )
                 if type == "array":
                     data = self.request_socket.recv()
                     array = npArray.createInput(header,data)
@@ -63,22 +64,22 @@ class Worker(object):
             except Exception as err: self.sendError( err )
 
     def sendVariableData( self, resultVar ):
-        header = "|".join( [ "array", resultVar.id,  mParse.ia2s(resultVar.origin), mParse.ia2s(resultVar.shape), mParse.m2s(resultVar.metadata) ] )
+        header = "|".join( [ "array-"+str(os.getpid()), resultVar.id,  mParse.ia2s(resultVar.origin), mParse.ia2s(resultVar.shape), mParse.m2s(resultVar.metadata) ] )
         self.logger.info( "Sending Result, header: {0}".format( header ) )
         self.result_socket.send( header )
-        result_data = resultVar.array.astype( IO_DType ).tobytes()
+        result_data = resultVar.toBytes( IO_DType )
         self.logger.info( "Sending Result data,  nbytes: {0}".format( str(len(result_data) ) ) )
         self.result_socket.send(result_data)
 
     def sendError( self, err ):
         msg = "Worker Error {0}: {1}".format(err, traceback.format_exc() )
         self.logger.error( msg  )
-        header = "|".join( [ "error", msg ] )
+        header = "|".join( [ "error-"+str(os.getpid()), msg ] )
         self.result_socket.send( header )
 
     def sendInfoMessage( self, msg ):
         self.logger.info( "Worker Info: {0}\n".format( msg )  )
-        header = "|".join( [ "info", msg ] )
+        header = "|".join( [ "info-"+str(os.getpid()), msg ] )
         self.result_socket.send( header )
 
     def processTask(self, task ):
