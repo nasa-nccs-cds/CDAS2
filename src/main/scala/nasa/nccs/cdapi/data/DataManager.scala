@@ -70,10 +70,8 @@ abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray
   def toUcarDoubleArray: ucar.ma2.Array = toCDDoubleArray
   def toCDWeightsArray: Option[CDFloatArray] = None
   def getMetadataStr = metadata map { case ( key, value ) => key + ":" + value } mkString (";")
-  def append( other: ArrayBase[T] ): ArrayBase[T]
   def getSampleData( size: Int, start: Int): Array[Float] = toCDFloatArray.getSampleData( size, start )
   def getSampleDataStr( size: Int, start: Int): String = toCDFloatArray.getSampleData( size, start ).mkString( "[ ",", "," ]")
-  def combine( combineOp: CDArray.ReduceOp[T], other: ArrayBase[T] ): ArrayBase[T]
   def uid: String = metadata.getOrElse("uid", metadata.getOrElse("collection","") + ":" + metadata.getOrElse("name",""))
   override def toString = "<array shape=(%s), %s> %s </array>".format( shape.mkString(","), metadata.mkString(","), cdsutils.toString(data.mkString(",")) )
 
@@ -84,13 +82,13 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   val bb = java.nio.ByteBuffer.allocate(4)
   def data: Array[Float] = _data
   def weights: Option[Array[Float]] = _optWeights
-  override def toCDWeightsArray: Option[CDFloatArray] = _optWeights.map( CDFloatArray( shape, _, missing() ) )
-  def missing( default: Float = Float.MaxValue ): Float = _missing.getOrElse(default)
+  override def toCDWeightsArray: Option[CDFloatArray] = _optWeights.map( CDFloatArray( shape, _, getMissing() ) )
+  def getMissing( default: Float = Float.MaxValue ): Float = _missing.getOrElse(default)
 
-  def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, missing(), indexMaps )
-  def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), missing() )
+  def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, getMissing(), indexMaps )
+  def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), getMissing() )
 
-  def append( other: ArrayBase[Float] ): ArrayBase[Float] = {
+  def append( other: HeapFltArray ): HeapFltArray = {
     logger.info( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
     if( origin(0) < other.origin(0) ) {
       assert( origin(0) + shape(0) == other.origin(0), "Appending non-contiguous arrays" )
@@ -104,8 +102,8 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
     bb.putFloat( 0, missing.getOrElse(Float.NaN) )
     toUcarFloatArray.getDataAsByteBuffer().array() ++ bb.array()
   }
-  def combine( combineOp: CDArray.ReduceOp[Float], other: ArrayBase[Float] ): ArrayBase[Float] = HeapFltArray( CDFloatArray.combine( combineOp, toCDFloatArray, other.toCDFloatArray ), origin, mergeMetadata("merge",other), toCDWeightsArray.map( _.append( other.toCDWeightsArray.get ) ) )
-  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={missing().toString}> {_data.mkString(",")} </array> % metadata
+  def combine( combineOp: CDArray.ReduceOp[Float], other: HeapFltArray ): HeapFltArray = HeapFltArray( CDFloatArray.combine( combineOp, toCDFloatArray, other.toCDFloatArray ), origin, mergeMetadata("merge",other), toCDWeightsArray.map( _.append( other.toCDWeightsArray.get ) ) )
+  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={getMissing().toString}> {_data.mkString(",")} </array> % metadata
 }
 object HeapFltArray {
   def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray =
@@ -119,13 +117,17 @@ object HeapFltArray {
     new HeapFltArray( tvar.getShape, tvar.getOrigin, floatArray.getStorageArray, invalidOpt, tvar.getMetaData.asScala.toMap )
   }
   def empty(rank:Int) = HeapFltArray( CDFloatArray.empty, Array.fill(rank)(0), Map.empty[String,String], None )
+  def toHeapFloatArray( fltBaseArray: ArrayBase[Float] ): HeapFltArray = fltBaseArray match {
+    case heapFltArray: HeapFltArray => heapFltArray
+    case wtf => throw new Exception( "HeapFltArray cast error from ArrayBase[Float]" )
+  }
 }
 
 class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, val _data_ : Array[Double]=Array.emptyDoubleArray, _missing: Option[Double]=None, metadata: Map[String,String]=Map.empty ) extends ArrayBase[Double](shape,origin,_missing,metadata)  {
   def data: Array[Double] = _data_
-  def missing( default: Double = Double.MaxValue ): Double = _missing.getOrElse(default)
-  def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), missing().toFloat )
-  def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data, missing() )
+  def getMissing( default: Double = Double.MaxValue ): Double = _missing.getOrElse(default)
+  def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), getMissing().toFloat )
+  def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data, getMissing() )
 
   def append( other: ArrayBase[Double] ): ArrayBase[Double]  = {
     logger.info( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
@@ -138,30 +140,30 @@ class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
     }
   }
   def combine( combineOp: CDArray.ReduceOp[Double], other: ArrayBase[Double] ): ArrayBase[Double] = HeapDblArray( CDDoubleArray.combine( combineOp, toCDDoubleArray, other.toCDDoubleArray ), origin, mergeMetadata("merge",other) )
-  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={missing().toString} > {_data_.mkString(",")} </array> % metadata
+  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={getMissing().toString} > {_data_.mkString(",")} </array> % metadata
 }
 object HeapDblArray {
   def apply( cdarray: CDDoubleArray, origin: Array[Int], metadata: Map[String,String] ): HeapDblArray = new HeapDblArray( cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), metadata )
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], metadata: Map[String,String], missing: Float ): HeapDblArray = HeapDblArray( CDDoubleArray.factory(ucarray,missing), origin, metadata )
 }
 
-class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase[Float]] , metadata: Map[String,String] ) extends MetadataCarrier(metadata) {
+class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray] , metadata: Map[String,String] ) extends MetadataCarrier(metadata) {
   def ++( other: RDDPartition ): RDDPartition = {
     assert( (iPart==other.iPart) || (iPart == -1) || (other.iPart == -1), "Attempt to merge RDDPartitions with incommensurate partition indices: %d vs %d".format(iPart,other.iPart ) )
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
   }
   def append( other: RDDPartition ): RDDPartition = {
     val commonElems = elements.keySet.union( other.elements.keySet )
-    val appendedElems: Set[(String,ArrayBase[Float])] = commonElems flatMap ( key =>
+    val appendedElems: Set[(String,HeapFltArray)] = commonElems flatMap ( key =>
       other.elements.get(key).fold  (elements.get(key) map (e => key -> e))  (e1 => Some( key-> elements.get(key).fold (e1) (e0 => e0.append(e1)))))
     new RDDPartition( iPart, Map(appendedElems.toSeq:_*), metadata ++ other.metadata )
   }
   def getShape = elements.head._2.shape
   def getOrigin = elements.head._2.origin
-  def element( id: String ): Option[ArrayBase[Float]] = ( elements find { case (key,array) => key.split(':')(0).equals(id) } ) map ( _._2 )
-  def findElements( id: String ): Iterable[ArrayBase[Float]] = ( elements filter { case (key,array) => key.split(':')(0).equals(id) } ) values
+  def element( id: String ): Option[HeapFltArray] = ( elements find { case (key,array) => key.split(':')(0).equals(id) } ) map ( _._2 )
+  def findElements( id: String ): Iterable[HeapFltArray] = ( elements filter { case (key,array) => key.split(':')(0).equals(id) } ) values
   def empty( id: String ) = { element(id).isEmpty }
-  def head: ( String, ArrayBase[Float] ) = elements.head
+  def head: ( String, HeapFltArray ) = elements.head
   def toXml: xml.Elem = {
     val values: Iterable[xml.Node] = elements.values.map(_.toXml)
     <partition> {values} </partition>  % metadata
@@ -169,10 +171,10 @@ class RDDPartition( val iPart: Int, val elements: Map[String,ArrayBase[Float]] ,
 }
 
 object RDDPartition {
-  def apply ( iPart: Int = -1, elements: Map[String,ArrayBase[Float]] = Map.empty,  metadata: Map[String,String] = Map.empty ) = new RDDPartition( iPart, elements, metadata )
+  def apply ( iPart: Int = -1, elements: Map[String,HeapFltArray] = Map.empty,  metadata: Map[String,String] = Map.empty ) = new RDDPartition( iPart, elements, metadata )
   def apply ( iPart: Int, rdd: RDDPartition ) = new RDDPartition( iPart, rdd.elements, rdd.metadata )
   def merge( rdd_parts: Seq[RDDPartition] ) = rdd_parts.foldLeft( RDDPartition() )( _ ++ _ )
-  def empty: RDDPartition = { new RDDPartition(0, Map.empty[String,ArrayBase[Float]], Map.empty[String,String] ) }
+  def empty: RDDPartition = { new RDDPartition(0, Map.empty[String,HeapFltArray], Map.empty[String,String] ) }
 }
 
 object RDDPartSpec {

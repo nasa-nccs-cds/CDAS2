@@ -210,6 +210,8 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     RDDPartition(rdd0.iPart, new_elements, rdd0.mergeMetadata(context.operation.name, rdd1))
   }
 
+  def customReduceRDD(rdd0: RDDPartition, rdd1: RDDPartition, context: KernelContext ): RDDPartition = mergeRDD(rdd0, rdd1, context )
+
   def mergeRDD(rdd0: RDDPartition, rdd1: RDDPartition, context: KernelContext ): RDDPartition = {
     val t0 = System.nanoTime
     logger.info("&MERGE: start (%d <-> %d)".format( rdd0.iPart, rdd1.iPart  ) )
@@ -576,16 +578,13 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     val worker: PythonWorker = workerManager.getPythonWorker();
     try {
       logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
-      val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[ArrayBase[Float]]())( _ ++ _ )
+      val input_arrays: List[HeapFltArray] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[HeapFltArray]())( _ ++ _ )
       assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
       val operation_input_arrays = context.operation.inputs.flatMap( input_id => inputs.element( input_id ) )
 
       for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
         case Some( input_array ) =>
-          bb.putFloat( 0, input_array.missing.getOrElse(Float.NaN) )
-          val byte_data = input_array.toUcarFloatArray.getDataAsByteBuffer().array() ++ bb.array()
-          logger.info("Kernel part-%d: Sending data to worker for input %s, nbytes=%d".format( inputs.iPart, input_id, byte_data.length ))
-          worker.sendArrayData( input_id, input_array.origin, input_array.shape, byte_data, input_array.metadata )
+          worker.sendArrayData( inputs.iPart, input_id, input_array )
           logger.info( "Kernel part-%d: Finished Sending data to worker" )
         case None =>
           worker.sendUtility( List( "input", input_id ).mkString(";") )
@@ -606,7 +605,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     }
   }
 
-  override def mergeRDD(rdd0: RDDPartition, rdd1: RDDPartition, context: KernelContext ): RDDPartition = {
+  override def customReduceRDD(rdd0: RDDPartition, rdd1: RDDPartition, context: KernelContext ): RDDPartition = {
     val t0 = System.nanoTime
     logger.info("&MERGE: start (%d <-> %d)".format( rdd0.iPart, rdd1.iPart  ) )
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance();
@@ -616,11 +615,8 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     rdd0.elements.map {
       case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> {
         val (array0, array1) = if (ascending) (element0, element1) else (element1, element0)
-        val byte_data0 = array0.toUcarFloatArray.getDataAsByteBuffer().array()
-        worker.sendArrayData(array0.uid, array0.origin, array0.shape, byte_data0, array0.metadata)
-        val byte_data1 = array1.toUcarFloatArray.getDataAsByteBuffer().array()
-        worker.sendArrayData(array1.uid, array1.origin, array1.shape, byte_data1, array1.metadata)
-        worker.sendRequest("MERGE:" + context.operation.identifier, Array(array0.uid,array1.uid), op_metadata )
+        worker.sendArrayData( rdd0.iPart, array0.uid, array0 )
+        worker.sendArrayData( rdd1.iPart, array1.uid, array1 )
       })
     }
     val resultItems = rdd0.elements.map {

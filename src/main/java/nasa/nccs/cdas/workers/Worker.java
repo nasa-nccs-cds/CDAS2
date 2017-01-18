@@ -144,11 +144,12 @@ public abstract class Worker {
     }
 
 
-    public void sendArrayData( String id, HeapFltArray array ) {
-        sendArrayData( id, array.origin(), array.shape(), array.toByteArray(), array.mdata() );
+    public void sendArrayData( int index, String id, HeapFltArray array ) {
+        _sendArrayData( index, id, array.origin(), array.shape(), array.toByteArray(), array.mdata() );
     }
 
-    private void sendArrayData( String id, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
+    private void _sendArrayData( int index, String id, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
+        logger.info( String.format("Kernel part-%d: Sending data to worker for input %s, nbytes=%d", index, id, data.length ));
         List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata) );
         String header = String.join("|", slist);
         logger.info("Sending header: " + header);
