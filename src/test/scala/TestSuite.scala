@@ -1,4 +1,6 @@
+import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.utilities.{CDASLogManager, Loggable}
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import org.scalatest.{BeforeAndAfter, FunSuite, Ignore}
@@ -11,6 +13,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   val serverConfiguration = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
   val eps = 0.0002
+  val nExp = 3
   val service = "cds2"
   val run_args = Map("async" -> "false")
   val printer = new scala.xml.PrettyPrinter(200, 3)
@@ -18,11 +21,10 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     cleanup()
   }
 
-  ignore("Aggregate") {
-    val model = "GISS-E2-R"
-    val nExp = 6
-    ( 1 to nExp ) map { index =>
-      val collection = s"${model}_r${index}i1p1"
+  test("Aggregate") {
+    val mod_collections = for( model <- List( "GISS", "GISS-E2-R"); iExp <- (1 to nExp) ) yield {  ( model -> s"${model}_r${iExp}i1p1" ) }
+    Collections.removeCollections( mod_collections.map(_._2).toArray )
+    for( (model, collection) <- mod_collections ) {
       val location = s"/collections/${model}/$collection.csv"
       val url = getClass.getResource(location)
       val collection_path = url.getFile
@@ -34,7 +36,6 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
 
   ignore("Cache") {
     val model = "GISS-E2-R"
-    val nExp = 6
     ( 1 to nExp ) map { index =>
       val collection = s"${model}_r${index}i1p1"
       val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
@@ -68,42 +69,15 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     assert( getResultData( result_node ).maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Subset")
   }
 
-  test("EnsembleAve") {
-    val model = "GISS"
-    val nExp = 2
-    val variables = (1 to nExp) map { index => s"""{"uri":"collection:/${model}_r${index}i1p1","name":"tas:v$index","domain":"d0"}""" }
-    val vids = (1 to nExp) map { index => s"v$index" }
-    val datainputs = """[domain=[{"name":"d0","time":{"start":0,"end":100,"system":"indices"},"lon":{"start":200.0,"end":250.0,"system":"values"},"lat":{"start":0.0,"end":30.0,"system":"values"}}],variable=[%s],operation=[{"name":"CDSpark.multiAverage","input":"%s","domain":"d0"}]]""".format(variables.mkString(","), vids.mkString(","))
-    val result_node = executeTest(datainputs)
-    val result_data = getResultData(result_node)
-    println("Completed EnsembleAve, result shape = [%s], result sample = %s".format( result_data.getShape.mkString(","), result_data.mkBoundedDataString(", ",10)))
-    assert(true)
-  }
-
-  test("EnsembleAve1") {
-    val GISS_H_vids = ( 1 to 3 ) map { index => s"vH$index" }
-    val GISS_E2R_vids = ( 1 to 3 ) map { index => s"vR$index" }
-    val GISS_H_variables     = ( ( 1 to 3 ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
-    val GISS_E2R_variables = ( ( 1 to 3 ) map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_E2R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
-    val datainputs = s"""[
-           variable=[$GISS_H_variables,$GISS_E2R_variables],
-           domain=[       {"name":"d0","time":{"start":0,"end":100,"system":"indices"}}],
-           operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
-                          {"name":"CDSpark.multiAverage","input":"${GISS_E2R_vids.mkString(",")}","domain":"d0","id":"eaGISS-E2R"},
-                          {"name":"python.cdmsModule.regrid","input":"eaGISS-E2R","domain":"d0","crs":"gaussian~128","id":"rgE2R"},
-                          {"name":"python.cdmsModule.regrid","input":"eaGISS-H","domain":"d0","crs":"gaussian~128","id":"rgH"} ]
-          ]""".replaceAll("\\s", "")
-    val result_node = executeTest(datainputs)
-  }
 
   test("ESGF_Demo") {
-    val GISS_H_vids = ( 1 to 3 ) map { index => s"vH$index" }
-    val GISS_E2R_vids = ( 1 to 3 ) map { index => s"vR$index" }
-    val GISS_H_variables     = ( ( 1 to 3 ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
-    val GISS_E2R_variables = ( ( 1 to 3 ) map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_E2R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
+    val GISS_H_vids = ( 1 to nExp ) map { index => s"vH$index" }
+    val GISS_E2R_vids = ( 1 to nExp ) map { index => s"vR$index" }
+    val GISS_H_variables     = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
+    val GISS_E2R_variables = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_E2R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
     val datainputs = s"""[
            variable=[$GISS_H_variables,$GISS_E2R_variables],
-           domain=[       {"name":"d0","time":{"start":0,"end":100,"system":"indices"}}],
+           domain=[       {"name":"d0","time":{"start":0,"end":1,"system":"indices"}}],
            operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
                           {"name":"CDSpark.multiAverage","input":"${GISS_E2R_vids.mkString(",")}","domain":"d0","id":"eaGISS-E2R"},
                           {"name":"python.cdmsModule.regrid","input":"eaGISS-E2R","domain":"d0","crs":"gaussian~128","id":"rgE2R"},
@@ -111,7 +85,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
                           {"name":"CDSpark.multiAverage","input":"rgE2R,rgH","domain":"d0","result":"esgfDemo"} ]
           ]""".replaceAll("\\s", "")
     val result_node = executeTest(datainputs)
-    assert(true)
+    println("Op Result: " + result_node.toString() )
   }
 
   test("pyMaximum-cache") {

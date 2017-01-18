@@ -256,10 +256,10 @@ object Collections extends XmlResource {
     Collection( attr(n,"id"), attr(n,"path"), attr(n,"fileFilter"), scope, attr(n,"title"), n.text.split(";").toList )
   }
 
-  def findCollection( collectionId: String ): Option[Collection] = Option( datasets.get( collectionId ) )
+  def findCollection( collectionId: String ): Option[Collection] = Option( datasets.get( collectionId.toLowerCase ) )
 
   def getCollectionXml( collectionId: String ): xml.Elem = {
-    Option( datasets.get( collectionId ) ) match {
+    Option( datasets.get( collectionId.toLowerCase ) ) match {
       case Some( collection: Collection ) => collection.toXml
       case None => <error> { "Invalid collection id:" + collectionId } </error>
     }

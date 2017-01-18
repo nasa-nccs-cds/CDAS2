@@ -52,7 +52,7 @@ class Kernel:
         outdir = os.path.dirname( variable.gridfile )
         outpath = os.path.join(outdir, resultId + ".nc" )
         newDataset = cdms2.createDataset( outpath )
-        for axis in axes: newDataset.copyAxis(axis)
+        for axis in axes: newDataset.copyAxis(axis,axis.id,0,None,axis.getBounds)
         newDataset.copyGrid(grid)
         newDataset.close()
         self.logger.info( "Saved grid file: {0}".format( outpath ) )
@@ -72,3 +72,23 @@ if __name__ == "__main__":
     metadata = { "axes": "13", "index": 0 }
 
     print( str(metadata) )
+
+
+if __name__ == "__main__":
+    from cdms2 import timeslice
+    dsetUri = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_195101-200512.nc"
+    resolution = 128
+    dset = cdms2.open(dsetUri)
+    variable = dset["tas"](timeslice(0,1))
+    ingrid = variable.getGrid()
+    axes = variable.getAxisList()
+    grid = variable.getGrid()
+    outdir = os.path.dirname( variable.gridfile )
+    outpath = os.path.expanduser('~/.cdas/debug_grid_file.nc' )
+    newDataset = cdms2.createDataset( outpath )
+    for axis in axes: newDataset.copyAxis(axis)
+    newDataset.copyGrid(grid)
+
+
+
+#     newDataset.close()

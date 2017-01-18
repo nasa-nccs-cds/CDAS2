@@ -71,13 +71,15 @@ class npArray(CDArray):
         gridfile = cdms2.open(self.gridFilePath)
         var = gridfile[self.name]
         grid = gridfile.grids.values()[0]
+        grid1 = var.getGrid()
         partition_axes = self.subsetAxes(self.dimensions, gridfile, self.origin, self.shape)
         variable = cdms2.createVariable(self.array, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.getMissing(),
                                         grid=grid, axes=partition_axes, attributes=self.metadata, id=self.collection + "-" + self.name)
         variable.createattribute("gridfile", self.gridFilePath)
         variable.createattribute("origin", mParse.ia2s(self.origin))
         t1 = time.time()
-        self.logger.info(" >> Created CDMS Variable: {0} ({1}) in time {2}, gridFile = {3}".format(variable.id, self.name, (t1 - t0), self.gridFilePath ))
+        inlatBounds, inlonBounds = grid1.getBounds()
+        self.logger.info(" >> Created CDMS Variable: {0} ({1}) in time {2}, gridFile = {3}, lat bounds = {4}".format(variable.id, self.name, (t1 - t0), self.gridFilePath, str(inlatBounds) ))
         return variable
 
     def subsetAxes( self, dimensions, gridfile, origin, shape ):

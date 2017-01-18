@@ -62,41 +62,60 @@ object Collection extends Loggable {
 }
 
 object CDGrid extends Loggable {
-  def apply( name: String, datfilePath: String ): CDGrid = {
-    val gridFilePath: String = NCMLWriter.getCachePath("NCML").resolve( Collections.idToFile( name,".nc" ) ).toString
-    createGridFile( gridFilePath, datfilePath )
-    CDGrid.create( name, gridFilePath )
+  def apply(name: String, datfilePath: String): CDGrid = {
+    val gridFilePath: String = NCMLWriter.getCachePath("NCML").resolve(Collections.idToFile(name, ".nc")).toString
+    createGridFile(gridFilePath, datfilePath)
+    CDGrid.create(name, gridFilePath)
   }
 
-  def create( name: String, gridFilePath: String ): CDGrid = {
-    val gridDS = NetcdfDataset.acquireDataset( gridFilePath, null)
+  def create(name: String, gridFilePath: String): CDGrid = {
+    val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
     try {
       val coordSystems: List[CoordinateSystem] = gridDS.getCoordinateSystems.toList
-      val dset_attributes: List[nc2.Attribute] = gridDS.getGlobalAttributes.map(a => { new nc2.Attribute( name + "--" + a.getFullName, a ) }).toList
+      val dset_attributes: List[nc2.Attribute] = gridDS.getGlobalAttributes.map(a => {
+        new nc2.Attribute(name + "--" + a.getFullName, a)
+      }).toList
 
-      for (variable <- gridDS.getVariables; if variable.isCoordinateVariable ) { variable match { case cvar: VariableDS => gridDS.addCoordinateAxis(variable.asInstanceOf[VariableDS]) } }
+      for (variable <- gridDS.getVariables; if variable.isCoordinateVariable) {
+        variable match {
+          case cvar: VariableDS => gridDS.addCoordinateAxis(variable.asInstanceOf[VariableDS])
+        }
+      }
       val coordAxes: List[CoordinateAxis] = gridDS.getCoordinateAxes.toList
       val dimensions = gridDS.getDimensions.toList
-      new CDGrid( name, gridFilePath, coordAxes, coordSystems, dimensions, dset_attributes )
+      new CDGrid(name, gridFilePath, coordAxes, coordSystems, dimensions, dset_attributes)
     } finally {
       gridDS.close()
     }
   }
-  
-  def createGridFile( gridFilePath: String, datfilePath: String  ) = {
-    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( datfilePath, null )
-    logger.info( "Creating Grid File at: " + gridFilePath )
-    val gridWriter = NetcdfFileWriter.createNew( NetcdfFileWriter.Version.netcdf4, gridFilePath, null )
-    val dimMap = Map( ncDataset.getDimensions.map( d => d.getShortName -> gridWriter.addDimension( null, d.getShortName, d.getLength ) ): _* )
-    val varTups = for( cvar <- ncDataset.getVariables ) yield {
-      val newVar = gridWriter.addVariable( null, cvar.getShortName, cvar.getDataType, cvar.getDimensionsString )
-      cvar.getAttributes.map( attr => gridWriter.addVariableAttribute( newVar, attr ) )
-      cvar -> newVar
+
+  def createGridFile(gridFilePath: String, datfilePath: String) = {
+    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset(datfilePath, null)
+    val gridWriter = NetcdfFileWriter.createNew(NetcdfFileWriter.Version.netcdf4, gridFilePath, null)
+    logger.info("Creating Grid File at: " + gridFilePath)
+    val dimMap = Map(ncDataset.getDimensions.map(d => d.getShortName -> gridWriter.addDimension(null, d.getShortName, d.getLength)): _*)
+    val varTups = for (cvar <- ncDataset.getVariables) yield {
+      val newVar = gridWriter.addVariable(null, cvar.getShortName, cvar.getDataType, cvar.getDimensionsString)
+      logger.info("Add Varible: " + cvar.getShortName)
+      cvar.getAttributes.map(attr => gridWriter.addVariableAttribute(newVar, attr))
+      cvar.getShortName -> (cvar -> newVar)
     }
-    val globalAttrs = Map( ncDataset.getGlobalAttributes.map( attr => attr.getShortName -> attr ): _*)
-    globalAttrs.mapValues( attr => gridWriter.addGroupAttribute( null, attr ) )
+    val varMap = Map(varTups.toList: _*)
+    val globalAttrs = Map(ncDataset.getGlobalAttributes.map(attr => attr.getShortName -> attr): _*)
+    globalAttrs.mapValues(attr => gridWriter.addGroupAttribute(null, attr))
     gridWriter.create()
-    for( ( cvar, newVar ) <- varTups; if cvar.isCoordinateVariable ) gridWriter.write( newVar, cvar.read() )
+    val boundsVars = for ((cvar, newVar) <- varMap.values; if cvar.isCoordinateVariable) yield {
+      logger.info(" ** Write Variable: " + cvar.getShortName)
+      gridWriter.write(newVar, cvar.read())
+      Option(cvar.findAttribute("bounds"))
+    }
+    boundsVars.flatten.map( bndsAttr => varMap.get(bndsAttr.getStringValue(0) ) match {
+      case Some((cvar, newVar)) =>
+        logger.info(" ** Write Bounds Variable: " + cvar.getShortName)
+        gridWriter.write(newVar, cvar.read())
+      case None =>
+        logger.error(" ** Can't find Bounds Variable: " + bndsAttr.toString)
+    })
     gridWriter.close()
   }
 }
@@ -672,6 +691,7 @@ class ncWriteTest extends Loggable {
   }
 }
 
+
 /*
 object readTest extends App {
   val ncDataset: NetcdfDataset = NetcdfDataset.openDataset("/usr/local/web/WPS/CDAS2/src/test/resources/data/GISS-r1i1p1-sample.nc")
@@ -682,20 +702,34 @@ object readTest extends App {
 }
 
 object writeTest extends App {
-
-  val ncDataset: NetcdfDataset = NetcdfDataset.openDataset("/usr/local/web/WPS/CDAS2/src/test/resources/data/GISS-r1i1p1-sample.nc")
+  val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset("/usr/local/web/WPS/CDAS2/src/test/resources/data/GISS-r1i1p1-sample.nc", null)
   val gridFilePath = "/tmp/gridFile.nc"
+  println( "Creating Grid File at: " + gridFilePath )
   val gridWriter = NetcdfFileWriter.createNew( NetcdfFileWriter.Version.netcdf4, gridFilePath, null )
   val dimMap = Map( ncDataset.getDimensions.map( d => d.getShortName -> gridWriter.addDimension( null, d.getShortName, d.getLength ) ): _* )
   val varTups = for( cvar <- ncDataset.getVariables ) yield {
     val newVar = gridWriter.addVariable( null, cvar.getShortName, cvar.getDataType, cvar.getDimensionsString )
+    println( "Add Varible: " + cvar.getShortName )
     cvar.getAttributes.map( attr => gridWriter.addVariableAttribute( newVar, attr ) )
-    cvar -> newVar
+    cvar.getShortName -> (cvar -> newVar)
   }
+  val varMap = Map(varTups.toList:_*)
   val globalAttrs = Map( ncDataset.getGlobalAttributes.map( attr => attr.getShortName -> attr ): _*)
   globalAttrs.mapValues( attr => gridWriter.addGroupAttribute( null, attr ) )
   gridWriter.create()
-  for( ( cvar, newVar ) <- varTups; if cvar.isCoordinateVariable ) gridWriter.write( newVar, cvar.read() )
+  val boundsVars = for( ( cvar, newVar ) <- varMap.values; if cvar.isCoordinateVariable ) yield {
+    println( " ** Write Variable: " + cvar.getShortName )
+    gridWriter.write( newVar, cvar.read() )
+    Option( cvar.findAttribute("bounds") )
+  }
+  boundsVars.flatten.map( bndsAttr => varMap.get(bndsAttr.getStringValue(0)) match {
+    case Some( ( cvar, newVar ) ) =>
+      println( " ** Write Bounds Variable: " + cvar.getShortName )
+      gridWriter.write( newVar, cvar.read() )
+    case None =>
+      println( " ** Can't find Bounds Variable: " + bndsAttr.toString )
+  })
   gridWriter.close()
 
-}*/
+}
+*/

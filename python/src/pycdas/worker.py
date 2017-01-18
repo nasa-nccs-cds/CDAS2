@@ -36,8 +36,8 @@ class Worker(object):
 
     def run(self):
         active = True
-        while active:
-            try:
+        try:
+            while active:
                 self.logger.info( " Worker Running: listening for messages " )
                 header = self.request_socket.recv()
                 type = self.getMessageField(header,0)
@@ -61,7 +61,8 @@ class Worker(object):
                         self.logger.info(  " Quitting main thread. " )
                         active = False
 
-            except Exception as err: self.sendError( err )
+        except Exception as err:
+            self.sendError( err )
 
     def sendVariableData( self, resultVar ):
         header = "|".join( [ "array-"+str(os.getpid()), resultVar.id,  mParse.ia2s(resultVar.origin), mParse.ia2s(resultVar.shape), mParse.m2s(resultVar.metadata) ] )

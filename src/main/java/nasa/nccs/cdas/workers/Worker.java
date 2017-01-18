@@ -95,6 +95,7 @@ public abstract class Worker {
                 } else if( mtype.equals("error") ) {
                     logger.error("Python worker {0} signaled error: {1}\n".format( pid, parts[1]) );
                     invalidateRequest(result_header.substring(mtlen+1));
+                    quit();
                 } else {
                     logger.info( "Unknown result message type: " + parts[0] );
                 }
