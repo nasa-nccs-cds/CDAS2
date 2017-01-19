@@ -89,7 +89,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   def sameShape[R <: AnyVal]( array: CDArray[R] ): Boolean = sameShape( array.getIndex )
   def sameStorage[R <: AnyVal]( array: CDArray[R] ): Boolean = sameStorage( array.getIndex )
   def getAccumulationIndex( reduceDims: Array[Int], coordMaps: List[CDCoordMap] = List.empty ): CDIndexMap = this.cdIndexMap.getAccumulator( reduceDims, coordMaps )
-
+  def getSectionArray( maxSize: Int = Int.MaxValue ): Array[T]
   def getAccumulator( reduceDims: Array[Int], fillval: T, coordMapOpt: Option[CDCoordMap] = None ): CDArray[T] =
     spawn( cdIndexMap.getAccumulator( reduceDims, coordMapOpt ), fillval )
 
@@ -147,11 +147,11 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   def section(origin: Array[Int], shape: Array[Int], strideOpt: Option[Array[Int]]=None): CDArray[T] =
     createView(cdIndexMap.section(createRanges(origin,shape,strideOpt)))
 
-  def slice(dim: Int, value: Int): CDArray[T] = {
+  def slice(dim: Int, value: Int, size: Int=1): CDArray[T] = {
     val origin: Array[Int] = new Array[Int](rank)
     val shape: Array[Int] = getShape
     origin(dim) = value
-    shape(dim) = 1
+    shape(dim) = size
     section(origin, shape)
   }
 
@@ -179,6 +179,12 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 
 
   override def toString: String = "Index: " + this.cdIndexMap.toString
+
+  def toDataString: String = "Index: " + this.cdIndexMap.toString + "\n Data = " + mkDataString("[ ",", "," ]")
+  def mkDataString( sep: String ): String = getSectionArray().map( _.toString ).mkString( sep )
+  def mkDataString( start: String, sep: String, end: String ): String = getSectionArray().map( _.toString ).mkString( start, sep, end )
+  def mkBoundedDataString( sep: String, maxSize: Int ): String = getSectionArray(maxSize).map( _.toString ).mkString( sep )
+  def mkBoundedDataString( start: String, sep: String, end: String, maxSize: Int ): String = getSectionArray(maxSize).map( _.toString ).mkString( start, sep, end )
 
 }
 
@@ -318,7 +324,6 @@ object CDFloatArray extends Loggable with Serializable {
       else reductionOp(v0,fval)
     new CDFloatArray( input0.getShape, FloatBuffer.wrap(result.toArray), input0.invalid )
   }
-
 }
 
 class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, protected val invalid: Float ) extends CDArray[Float](cdIndexMap,floatStorage) {
@@ -493,11 +498,6 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
       case x => throw new NoSuchElementException( "Can't recognize weighting method: %s".format( x ))
     }
   }
-  def toDataString: String = "Index: " + this.cdIndexMap.toString + "\n Data = " + mkDataString("[ ",", "," ]")
-  def mkDataString( sep: String ): String = getSectionArray().map( _.toString ).mkString( sep )
-  def mkDataString( start: String, sep: String, end: String ): String = getSectionArray().map( _.toString ).mkString( start, sep, end )
-  def mkBoundedDataString( sep: String, maxSize: Int ): String = getSectionArray(maxSize).map( _.toString ).mkString( sep )
-  def mkBoundedDataString( start: String, sep: String, end: String, maxSize: Int ): String = getSectionArray(maxSize).map( _.toString ).mkString( start, sep, end )
 }
 
 object CDByteArray {
@@ -505,6 +505,7 @@ object CDByteArray {
   val bFalse: Byte = 0
   def apply( cdIndexMap: CDIndexMap, bytetData: Array[Byte] ): CDByteArray = new CDByteArray(cdIndexMap, ByteBuffer.wrap(bytetData))
   def apply( shape: Array[Int], bytetData: Array[Byte] ): CDByteArray = new CDByteArray( shape, ByteBuffer.wrap(bytetData) )
+  def toArray(buffer: ByteBuffer): Array[Byte] = if (buffer.hasArray) buffer.array else { val data = for (index: Int <- (0 until buffer.capacity)) yield buffer.get(index); data.toArray }
 }
 
 class CDByteArray( cdIndexMap: CDIndexMap, val byteStorage: ByteBuffer ) extends CDArray[Byte](cdIndexMap,byteStorage) {
@@ -526,6 +527,14 @@ class CDByteArray( cdIndexMap: CDIndexMap, val byteStorage: ByteBuffer ) extends
     val array_data_iter = for (index <- getIterator; if( index<maxSize); value = getStorageValue(index)) yield value
     ByteBuffer.wrap(array_data_iter.toArray)
   }
+  def getSectionArray( maxSize: Int = Int.MaxValue ): Array[Byte] = {
+    val data = CDByteArray.toArray( getSectionData(maxSize).asInstanceOf[ByteBuffer] )
+    if( maxSize < data.length ) { data.slice(0,maxSize) } else { data }
+  }
+}
+
+object CDIntArray {
+  def toArray(buffer: IntBuffer): Array[Int] = if (buffer.hasArray) buffer.array else { val data = for (index: Int <- (0 until buffer.capacity)) yield buffer.get(index); data.toArray }
 }
 
 class CDIntArray( cdIndexMap: CDIndexMap, val intStorage: IntBuffer ) extends CDArray[Int](cdIndexMap,intStorage) {
@@ -546,6 +555,13 @@ class CDIntArray( cdIndexMap: CDIndexMap, val intStorage: IntBuffer ) extends CD
     val array_data_iter = for ( index <- getIterator; if( index<maxSize); value = getStorageValue(index) ) yield value
     IntBuffer.wrap(array_data_iter.toArray)
   }
+  def getSectionArray( maxSize: Int = Int.MaxValue ): Array[Int] = {
+    val data = CDIntArray.toArray( getSectionData(maxSize).asInstanceOf[IntBuffer] )
+    if( maxSize < data.length ) { data.slice(0,maxSize) } else { data }
+  }
+}
+object CDShortArray {
+  def toArray(buffer: ShortBuffer): Array[Short] = if (buffer.hasArray) buffer.array else { val data = for (index: Int <- (0 until buffer.capacity)) yield buffer.get(index); data.toArray }
 }
 
 class CDShortArray( cdIndexMap: CDIndexMap, val shortStorage: ShortBuffer ) extends CDArray[Short](cdIndexMap,shortStorage) {
@@ -565,6 +581,10 @@ class CDShortArray( cdIndexMap: CDIndexMap, val shortStorage: ShortBuffer ) exte
   def copySectionData(maxSize: Int = Int.MaxValue): ShortBuffer = {
     val array_data_iter = for ( index <- getIterator; if( index<maxSize); value = getStorageValue(index) ) yield value
     ShortBuffer.wrap(array_data_iter.toArray)
+  }
+  def getSectionArray( maxSize: Int = Int.MaxValue ): Array[Short] = {
+    val data = CDShortArray.toArray( getSectionData(maxSize).asInstanceOf[ShortBuffer] )
+    if( maxSize < data.length ) { data.slice(0,maxSize) } else { data }
   }
 }
 

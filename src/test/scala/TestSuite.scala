@@ -1,3 +1,4 @@
+import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.loaders.Collections
 import nasa.nccs.utilities.{CDASLogManager, Loggable}
 
@@ -70,6 +71,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
 
 
   test("ESGF_Demo") {
+    val unverified_result: CDFloatArray = CDFloatArray(  Array( 237.50804f, 237.50804f, 237.50803f, 237.50804f, 237.50804f, 237.50803f, 237.50804f, 237.50803f, 237.50804f, 237.50803f ), Float.MaxValue )
     val GISS_H_vids = ( 1 to nExp ) map { index => s"vH$index" }
     val GISS_E2R_vids = ( 1 to nExp ) map { index => s"vR$index" }
     val GISS_H_variables     = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
@@ -84,9 +86,20 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
                           {"name":"CDSpark.multiAverage","input":"rgE2R,rgH","domain":"d0","result":"esgfDemo"} ]
           ]""".replaceAll("\\s", "")
     val result_node = executeTest(datainputs)
-    println("Op Result: " + result_node.toString() )
+    val result_data = CDFloatArray( getResultData( result_node ).slice(0,0,10) )
+    println( " ** Op Result:       " + result_data.mkDataString(", ") )
+    assert( result_data.maxScaledDiff( unverified_result )  < eps, s" Incorrect value computed for Max")
   }
 
+  test("TimeSum-dap") {
+    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 140615.5f, 139952f, 139100.6f, 138552.2f, 137481.9f, 137100.5f ), Float.MaxValue )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":5,"end":5,"system":"indices"},"lon":{"start":5,"end":10,"system":"indices"}}],variable=[{"uri":"http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"t"}]]"""
+    val result_node = executeTest(datainputs)
+    val result_data = getResultData( result_node )
+    println( "Op Result:       " + result_data )
+    println( "Verified Result: " + nco_verified_result )
+    assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Max")
+  }
   test("pyMaximum-cache") {
     val nco_verified_result = 309.7112
     val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.max","input":"v1","domain":"d0","axes":"xy"}]]"""
@@ -132,16 +145,6 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     println( "Op Result:       " + result_value )
     println( "Verified Result: " + nco_verified_result )
     assert(Math.abs( result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
-  }
-
-  test("TimeSum-dap") {
-    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 140615.5f, 139952f, 139100.6f, 138552.2f, 137481.9f, 137100.5f ), Float.MaxValue )
-    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":5,"end":5,"system":"indices"},"lon":{"start":5,"end":10,"system":"indices"}}],variable=[{"uri":"http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.sum","input":"v1","domain":"d0","axes":"t"}]]"""
-    val result_node = executeTest(datainputs)
-    val result_data = getResultData( result_node )
-    println( "Op Result:       " + result_data )
-    println( "Verified Result: " + nco_verified_result )
-    assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Max")
   }
 
   test("pyTimeSum-dap") {
