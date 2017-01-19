@@ -13,8 +13,9 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   import ucar.nc2.dataset.NetcdfDataset
   val serverConfiguration = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
-  val eps = 0.0002
   val nExp = 3
+  val mod_collections = for (model <- List("GISS", "GISS-E2-R"); iExp <- (1 to nExp)) yield { (model -> s"${model}_r${iExp}i1p1") }
+  val eps = 0.0002
   val service = "cds2"
   val run_args = Map("async" -> "false")
   val printer = new scala.xml.PrettyPrinter(200, 3)
@@ -22,9 +23,16 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     cleanup()
   }
 
+  test("RemoveCollections") {
+    Collections.removeCollections(mod_collections.map(_._2).toArray)
+    for( (model, collection) <- mod_collections ) Collections.findCollection( collection ) match {
+      case Some(c) => fail( "Error, failed to delete collection " + collection )
+      case None => Unit
+    }
+    logger.info( "Successfully deleted all test collections" )
+  }
+
   test("Aggregate") {
-    val mod_collections = for( model <- List( "GISS", "GISS-E2-R"); iExp <- (1 to nExp) ) yield {  ( model -> s"${model}_r${iExp}i1p1" ) }
-    Collections.removeCollections( mod_collections.map(_._2).toArray )
     for( (model, collection) <- mod_collections ) {
       val location = s"/collections/${model}/$collection.csv"
       val url = getClass.getResource(location)
@@ -36,7 +44,6 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("Cache") {
-    val mod_collections = for( model <- List( "GISS", "GISS-E2-R"); iExp <- (1 to nExp) ) yield {  ( model -> s"${model}_r${iExp}i1p1" ) }
     for( (model, collection) <- mod_collections ) {
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":150,"system":"indices"}}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
       val cache_result_node = executeTest(datainputs, false, "util.cache")

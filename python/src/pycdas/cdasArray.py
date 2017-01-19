@@ -33,6 +33,8 @@ class CDArray:
     @abstractmethod
     def subsetAxes(self): pass
 
+    @abstractmethod
+    def toBytes( self, dtype ): pass
 
 
 class npArray(CDArray):
@@ -40,6 +42,9 @@ class npArray(CDArray):
     @classmethod
     def createResult(cls, task, input, result_array ):
         return npArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array )
+
+    def toBytes( self, dtype ):
+        return self.array.astype(dtype).tobytes()
 
     @classmethod
     def createInput(self, header, data):

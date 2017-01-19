@@ -112,7 +112,9 @@ object HeapFltArray {
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], metadata: Map[String,String], missing: Float ): HeapFltArray = HeapFltArray( CDArray(ucarray,missing), origin, metadata, None )
 
   def apply( tvar: TransVar, invalidOpt: Option[Float] ): HeapFltArray = {
-    val ucarray: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, tvar.getShape, tvar.getDataBuffer() )
+    val buffer = tvar.getDataBuffer()
+    val buff_size = buffer.capacity()
+    val ucarray: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, tvar.getShape, buffer )
     val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter(CDArray[Float](ucarray, Float.MaxValue ) )
     new HeapFltArray( tvar.getShape, tvar.getOrigin, floatArray.getStorageArray, invalidOpt, tvar.getMetaData.asScala.toMap )
   }

@@ -151,16 +151,16 @@ object Collections extends XmlResource {
   def idToFile( id: String, ext: String = ".xml" ): String = id.replaceAll("[-/]","_").replaceAll("[^a-zA-Z0-9_.]", "X") + ext
 
   def removeCollections( collectionIds: Array[String] ): Array[String] = {
-    val removedCids = collectionIds.flatMap( collectionId =>
-      findCollection(collectionId: String) match {
+    val removedCids = collectionIds.flatMap( collectionId  => {
+      findCollection(collectionId) match {
         case Some(collection) =>
-          logger.info( "Removing collection: " + collectionId )
-          datasets.remove(collectionId)
+          logger.info("Removing collection: " + collection.id )
+          datasets.remove( collection.id )
           collection.deleteAggregation
           Some(collection.id)
-        case None => logger.error("Attempt to delete collection that does not exist: " + collectionId); None
+        case None => logger.error("Attempt to delete collection that does not exist: " + collectionId ); None
       }
-    )
+    } )
     persistLocalCollections()
     removedCids
   }
