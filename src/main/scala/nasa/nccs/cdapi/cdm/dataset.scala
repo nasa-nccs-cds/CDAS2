@@ -263,14 +263,10 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
       val _ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collectionId).toFile
       val recreate = appParameters.bool("ncml.recreate", false)
       if (!_ncmlFile.exists || recreate) {
-        if (dataPath.isEmpty) {
-          throw new Exception("Attempt to create NCML from empty data path for collection: " + id)
-        } else {
-          val pathFile = new File(toFilePath(dataPath))
-          _ncmlFile.getParentFile.mkdirs
-          val ncmlWriter = NCMLWriter(pathFile)
-          ncmlWriter.writeNCML(_ncmlFile)
-        }
+        val pathFile = new File(toFilePath(uri))
+        _ncmlFile.getParentFile.mkdirs
+        val ncmlWriter = NCMLWriter(pathFile)
+        ncmlWriter.writeNCML(_ncmlFile)
       }
       _ncmlFile.toString
     case "file" => toFilePath(uri)
