@@ -38,7 +38,6 @@ class Worker(object):
         active = True
         try:
             while active:
-                self.logger.info( " Worker Running: listening for messages " )
                 header = self.request_socket.recv()
                 type = self.getMessageField(header,0)
                 self.logger.info( "Received '{0}' message: {1}".format( type, header ) )
@@ -60,6 +59,8 @@ class Worker(object):
                     elif utype == "quit":
                         self.logger.info(  " Quitting main thread. " )
                         active = False
+                    elif utype == "exception":
+                        raise Exception("Test Exception")
 
         except Exception as err:
             self.sendError( err )

@@ -1,4 +1,4 @@
-import logging, os
+import logging, os, cdms2
 
 lname = "worker"
 log_file = os.path.expanduser('~/.cdas/' + lname + "-" + str(os.getpid()) +'.log')
@@ -8,3 +8,5 @@ handler = logging.FileHandler( log_file )
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
+
+cdms2.setAutoBounds('on')

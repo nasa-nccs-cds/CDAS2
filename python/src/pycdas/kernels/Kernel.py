@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
-import logging, os, cdms2
+import logging, os, cdms2, time
+from pycdas.messageParser import mParse
 
 class KernelSpec:
     def __init__( self, name, title, description, **kwargs ):
@@ -21,16 +22,20 @@ class Kernel:
     def __init__( self, spec ):
         self.logger = logging.getLogger("worker")
         self._spec = spec
+        self.cacheReturn = [ False, True ]
 
     def name(self): return self._spec.name()
 
     def executeTask( self, task, inputs ):
         results = []
+        self.cacheReturn = [ mParse.s2b(s) for s in task.metadata.get( "cacheReturn", "ft" ) ]
         for inputId in task.inputs:
             input = inputs.get( inputId )
             if( input != None ):
+                t0 = time.time()
                 result = self.executeOperation( task, input )
-                results.append( result )
+                self.logger.info( " >> Executed {0} operation in time {1}".format( self._spec.name(), (time.time()-t0) ) )
+                if( result != None ): results.append( result )
             else:
                 raise Exception( "ExecuteTask ERROR: required input {0} not available in task inputs: {1}".format( task.inputs, inputs.keys() ))
         return results
@@ -47,15 +52,17 @@ class Kernel:
         else: return tuple( [ int(item) for item in axes ] )
 
     def saveGridFile( self, resultId, variable  ):
-        axes = variable.getAxisList()
         grid = variable.getGrid()
-        outdir = os.path.dirname( variable.gridfile )
-        outpath = os.path.join(outdir, resultId + ".nc" )
-        newDataset = cdms2.createDataset( outpath )
-        for axis in axes: newDataset.copyAxis(axis,axis.id,0,None,axis.getBounds)
-        newDataset.copyGrid(grid)
-        newDataset.close()
-        self.logger.info( "Saved grid file: {0}".format( outpath ) )
+        outpath = None
+        if( grid != None ):
+            axes = variable.getAxisList()
+            outdir = os.path.dirname( variable.gridfile )
+            outpath = os.path.join(outdir, resultId + ".nc" )
+            newDataset = cdms2.createDataset( outpath )
+            for axis in axes: newDataset.copyAxis(axis,axis.id,0,None,axis.getBounds)
+            newDataset.copyGrid(grid)
+            newDataset.close()
+            self.logger.info( "Saved grid file: {0}".format( outpath ) )
         return outpath
 
 class InputMode:
