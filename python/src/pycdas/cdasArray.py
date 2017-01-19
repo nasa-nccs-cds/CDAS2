@@ -84,7 +84,7 @@ class npArray(CDArray):
         variable.createattribute("origin", mParse.ia2s(self.origin))
         t1 = time.time()
         inlatBounds, inlonBounds = grid1.getBounds()
-        self.logger.info(" >> Created CDMS Variable: {0} ({1}) in time {2}, gridFile = {3}, lat bounds = {4}".format(variable.id, self.name, (t1 - t0), self.gridFilePath, str(inlatBounds) ))
+        self.logger.info(" >> Created CDMS Variable: {0} ({1}) in time {2}, gridFile = {3}".format(variable.id, self.name, (t1 - t0), self.gridFilePath ))
         return variable
 
     def subsetAxes( self, dimensions, gridfile, origin, shape ):

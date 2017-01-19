@@ -63,7 +63,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     assert(true)
   }
 
-  test("regridTest") {
+  test("pyRegridTest") {
     val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.cdmsModule.regrid","input":"v1","domain":"d0","crs":"gaussian~128"}]]"""
     val result_node = executeTest(datainputs)
     assert(true)
@@ -74,9 +74,9 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.cdmsModule.ave","input":"v1","domain":"d0","axes":"xy"}]]"""
     val result_node = executeTest(datainputs)
     val result_data = CDFloatArray( getResultData( result_node ) )
-    println( " ** Op Result:       " + result_data.mkDataString(", ") )
-    println( " ** Nco Result:       " + nco_result.mkDataString(", ") )
-    assert( result_data.maxScaledDiff( nco_result )  < eps, s" UVCDAT result (with generated weights) does not match Nco result (with cosine weighting)")
+    println( " ** CDMS Result:       " + result_data.mkDataString(", ") )
+    println( " ** NCO Result:       " + nco_result.mkDataString(", ") )
+    assert( result_data.maxScaledDiff( nco_result )  < eps, s" UVCDAT result (with generated weights) does not match NCO result (with cosine weighting)")
   }
 
   test("subsetTestT") {
