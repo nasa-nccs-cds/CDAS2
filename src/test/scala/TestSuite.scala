@@ -34,11 +34,10 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     }
   }
 
-  ignore("Cache") {
-    val model = "GISS-E2-R"
-    ( 1 to nExp ) map { index =>
-      val collection = s"${model}_r${index}i1p1"
-      val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
+  test("Cache") {
+    val mod_collections = for( model <- List( "GISS", "GISS-E2-R"); iExp <- (1 to nExp) ) yield {  ( model -> s"${model}_r${iExp}i1p1" ) }
+    for( (model, collection) <- mod_collections ) {
+      val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":150,"system":"indices"}}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
       val cache_result_node = executeTest(datainputs, false, "util.cache")
       logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
     }
