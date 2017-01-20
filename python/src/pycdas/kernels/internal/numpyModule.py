@@ -17,6 +17,13 @@ class MaxKernel(Kernel):
     def executeOperation( self, task, input ):
         return npArray.createResult( task, input, input.array.max( self.getAxes(task), None, None, True ) )
 
+class MaxKernelSerial(Kernel):
+    def __init__( self ):
+        Kernel.__init__( self, KernelSpec("maxSer", "Maximum (Serial)", "Computes the maximun of the array elements along the given axes without parallelization (for testing).", parallelize=False  ) )
+
+    def executeOperation( self, task, input ):
+        return npArray.createResult( task, input, input.array.max( self.getAxes(task), None, None, True ) )
+
 class MinKernel(Kernel):
     def __init__( self ):
         Kernel.__init__( self, KernelSpec("min", "Minimum", "Computes the minimun of the array elements along the given axes.", reduceOp="min" ) )

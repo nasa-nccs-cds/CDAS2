@@ -9,7 +9,7 @@ import nasa.nccs.esgf.process._
 import nasa.nccs.esgf.process.OperationContext.{OpResultType, ResultType}
 import nasa.nccs.utilities.{DAGNode, Loggable}
 import nasa.nccs.wps._
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{RangePartitioner, SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
 import ucar.ma2
 import ucar.ma2.Section
@@ -55,9 +55,10 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
 
   def mapReduce( kernelContext: KernelContext, requestCx: RequestContext ): RDDPartition = {
     val inputs = prepareInputs( kernelContext, requestCx )
-    logger.info( "MAP_REDUCE on RDD, nparts = " + inputs.getNumPartitions )
+    val nparts = inputs.getNumPartitions
+    logger.info( "MAP_REDUCE on RDD, nparts = " + nparts )
     val mapresult = map( inputs, kernelContext, kernel )
-    reduce( mapresult, kernelContext, kernel )
+    if(nparts == 1) { mapresult.collect()(0)._2 } else { reduce( mapresult, kernelContext, kernel ) }
   }
 
   def stream( requestCx: RequestContext ): RDD[(Int,RDDPartition)] = {
@@ -229,17 +230,20 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   def getOpCDSectionIntersection(request: RequestContext, node: WorkflowNode): Option[ CDSection ] = getOpSectionIntersection(request, node).map( CDSection( _ ) )
 }
 
-/*
-object SparkTestApp extends App {
-  def _reduce( rdd: RDD[(Int,Float)], combiner: (Float,Float)=>Float ): RDD[(Int,Float)] = {
-    val mod_rdd = rdd map { case (i,x) => (i/2,x) }
-    val reduced_rdd = mod_rdd.reduceByKey( combiner )
-    if( reduced_rdd.count() > 1 ) _reduce( reduced_rdd, combiner ) else reduced_rdd
-  }
-  val conf = new SparkConf(false).setMaster( "local[4]" ).setAppName( "SparkTestApp" )
-  val sc = new SparkContext(conf)
-  val rdd: RDD[(Int,Float)] = sc.parallelize( (20 to 0 by -1) map ( i => (i,i.toFloat) ) )
-  val result = _reduce( rdd, (a, b) => a + b ).collect()
-  println( "\n\n" + result.mkString(", ") + "\n\n" )
-}
-*/
+
+//object SparkTestApp extends App {
+//  val nparts = 4
+//  def _reduce( rdd: RDD[(Int,Float)], combiner: (Float,Float)=>Float ): RDD[(Int,Float)] = {
+//    val mod_rdd = rdd map { case (i,x) => (i/2,x) }
+//    val reduced_rdd = mod_rdd.reduceByKey( combiner )
+//    if( reduced_rdd.count() > 1 ) _reduce( reduced_rdd, combiner ) else reduced_rdd
+//  }
+//  val conf = new SparkConf(false).setMaster( s"local[$nparts]" ).setAppName( "SparkTestApp" )
+//  val sc = new SparkContext(conf)
+//  val rdd: RDD[(Int,Float)] = sc.parallelize( (20 to 0 by -1) map ( i => (i,i.toFloat) ) )
+//  val partitioner = new RangePartitioner(nparts,rdd)
+//  val ordereddRdd = rdd.partitionBy(partitioner).sortByKey(true)
+//  val result = ordereddRdd.collect()
+//  println( "\n\n" + result.mkString(", ") + "\n\n" )
+//}
+

@@ -172,6 +172,7 @@ class AppThread(Thread):
         self._request_port = request_port
         self._host = host
         self.process = None
+        self.setDaemon(True)
 
     def run(self):
         import subprocess, shlex

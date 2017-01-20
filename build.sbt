@@ -78,7 +78,7 @@ classpathTypes += "dylib"
 stage ~= { (file: File) => cdas2Patch( file / "bin" / "cdas2" ); file }
 // lazy val cdasGlobalCollectionsFile = settingKey[File]("The cdas global Collections file")
 
-cdas_cache_dir := { val cache_dir = getCacheDir();  cache_dir.mkdirs();  cache_dir  }
+cdas_cache_dir := getCacheDir()
 cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
 
@@ -99,11 +99,15 @@ cdasProperties := {
   prop
 }
 
-def getCacheDir(): File =
-  sys.env.get("CDAS_CACHE_DIR") match {
+def getCacheDir(): File = {
+  val cache_dir = sys.env.get("CDAS_CACHE_DIR") match {
     case Some(cache_dir) => file(cache_dir)
-    case None =>  { val cache_dir = file(System.getProperty("user.home")) / ".cdas" / "cache"; cache_dir.mkdirs(); cache_dir }
+    case None => file(System.getProperty("user.home")) / ".cdas" / "cache";
   }
+  val ncml_dir = cache_dir / "collections" / "NCML";
+  ncml_dir.mkdirs();
+  cache_dir
+}
 
 cdasLocalCollectionsFile :=  {
   val collections_file = cdas_cache_dir.value / "local_collections.xml"
