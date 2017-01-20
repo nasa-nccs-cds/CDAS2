@@ -25,16 +25,12 @@ import nasa.nccs.cds2.utilities.{GeoTools, appParameters, runtime}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import java.util.concurrent._
 
-import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdas.workers.python.PythonWorkerPortal
 import nasa.nccs.cds2.engine.spark.CDSparkContext
 import nasa.nccs.esgf.process.OperationContext.ResultType
 import nasa.nccs.wps._
-import org.apache.spark.{SparkConf, SparkContext}
 import ucar.nc2.Attribute
-import ucar.nc2.dataset.NetcdfDataset
 
 import scala.xml.Elem
 

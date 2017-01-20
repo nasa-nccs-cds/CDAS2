@@ -36,6 +36,7 @@ class ResponseManager(Thread):
         self.setName('CDAS Response Thread')
         self.cached_results = {}
         self.cached_arrays = {}
+        self.setDaemon(True)
 
     def cacheResult(self, id, result ):
         self.getResults(id).append(result)
@@ -144,11 +145,11 @@ class CDASPortal:
         return self.response_manager
 
     def shutdown(self):
-        self.logger.info(  " ############################## SHUT DOWN DATA SOCKET ##############################"  )
-        self.sendMessage("shutdown")
+        self.logger.info(  " ############################## SHUT DOWN CDAS PORTAL ##############################"  )
         try: self.request_socket.close()
         except Exception: pass
         if( self.application_thread ):
+            self.sendMessage("shutdown")
             self.application_thread.term()
         if self.response_manager != None:
             self.response_manager.term()

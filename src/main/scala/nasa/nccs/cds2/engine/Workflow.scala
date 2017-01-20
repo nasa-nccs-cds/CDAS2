@@ -7,8 +7,9 @@ import nasa.nccs.cdapi.kernels.{CDASExecutionContext, Kernel, KernelContext}
 import nasa.nccs.cds2.engine.spark.CDSparkContext
 import nasa.nccs.esgf.process._
 import nasa.nccs.esgf.process.OperationContext.{OpResultType, ResultType}
-import nasa.nccs.utilities.{ Loggable, DAGNode }
+import nasa.nccs.utilities.{DAGNode, Loggable}
 import nasa.nccs.wps._
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
 import ucar.ma2
 import ucar.ma2.Section
@@ -227,3 +228,18 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
   def getOpCDSectionIntersection(request: RequestContext, node: WorkflowNode): Option[ CDSection ] = getOpSectionIntersection(request, node).map( CDSection( _ ) )
 }
+
+/*
+object SparkTestApp extends App {
+  def _reduce( rdd: RDD[(Int,Float)], combiner: (Float,Float)=>Float ): RDD[(Int,Float)] = {
+    val mod_rdd = rdd map { case (i,x) => (i/2,x) }
+    val reduced_rdd = mod_rdd.reduceByKey( combiner )
+    if( reduced_rdd.count() > 1 ) _reduce( reduced_rdd, combiner ) else reduced_rdd
+  }
+  val conf = new SparkConf(false).setMaster( "local[4]" ).setAppName( "SparkTestApp" )
+  val sc = new SparkContext(conf)
+  val rdd: RDD[(Int,Float)] = sc.parallelize( (20 to 0 by -1) map ( i => (i,i.toFloat) ) )
+  val result = _reduce( rdd, (a, b) => a + b ).collect()
+  println( "\n\n" + result.mkString(", ") + "\n\n" )
+}
+*/
