@@ -22,9 +22,11 @@ class IndexPartitioner( val nItems: Int, val numParts: Int ) extends Partitioner
 }
 
 
+/*
 object partTest extends App {
   val nParts = 17
   val nItems = 20
   val partitioner = new IndexPartitioner( nItems, nParts )
   (0 until nItems) foreach  { index => println( s" $index -> ${partitioner.getPartition(index)}" ) }
 }
+*/
