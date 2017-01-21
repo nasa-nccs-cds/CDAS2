@@ -3,16 +3,13 @@ package nasa.nccs.cds2.engine
 import nasa.nccs.caching.{RDDTransientVariable, collectionDataCache}
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.RDDPartition
-import nasa.nccs.cdapi.kernels.{CDASExecutionContext, Kernel, KernelContext}
+import nasa.nccs.cdapi.kernels.{Kernel, KernelContext}
 import nasa.nccs.cds2.engine.spark.CDSparkContext
 import nasa.nccs.esgf.process._
-import nasa.nccs.esgf.process.OperationContext.{OpResultType, ResultType}
 import nasa.nccs.utilities.{DAGNode, Loggable}
 import nasa.nccs.wps._
-import org.apache.spark.{RangePartitioner, SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
 import ucar.ma2
-import ucar.ma2.Section
 
 import scala.util.Try
 

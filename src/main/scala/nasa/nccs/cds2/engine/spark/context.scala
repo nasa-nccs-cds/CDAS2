@@ -62,12 +62,12 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
 
   def getConf: SparkConf = sparkContext.getConf
 
-  def coalesce( rdd: RDD[(Int,RDDPartition)] ): RDD[(Int,RDDPartition)] = {
+  def coalesce( rdd: RDD[(Int,RDDPartition)], nItems: Int ): RDD[(Int,RDDPartition)] = {
     val t0 = System.nanoTime()
-    var repart_rdd = rdd repartitionAndSortWithinPartitions new RangePartitioner ( 1, rdd )
+    var repart_rdd = rdd repartitionAndSortWithinPartitions new IndexPartitioner ( nItems, 1 )
     val result_rdd = repart_rdd glom() map ( _.fold ((0,RDDPartition.empty)) ((x,y) => (x._1,x._2.append(y._2))) )
     val t1 = System.nanoTime()
-    logger.info( "\nCOALESCE TIME: %f".format( (t1-t0)/1.0E9 ) )
+    println( "\nCOALESCE TIME: %f".format( (t1-t0)/1.0E9 ) )
     result_rdd
   }
 
@@ -85,17 +85,30 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     None
   }
 
+//  def getRDD1( uid: String, pFrag: PartitionedFragment, partitions: Partitions, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
+//    val rddSpecs: Array[RDDPartSpec] = partitions.parts map ( partition =>
+//      RDDPartSpec( partition, List(pFrag.getRDDVariableSpec(uid, partition, opSection) ) )
+//    ) filterNot( _.empty(uid) )
+//    logger.info( "Discarded empty partitions:: Creating RDD with <<%d>> paritions".format( rddSpecs.length ) )
+//    assert( rddSpecs.length > 0, "Invalid RDD: all partitions are empty: " + uid )
+//    val parallelized_rddspecs = sparkContext parallelize(rddSpecs) keyBy ( _.partition.index )
+//    val partitioner = new RangePartitioner( sparkContext.defaultParallelism, parallelized_rddspecs )
+//    val parallelized_result =  parallelized_rddspecs partitionBy(partitioner) sortByKey(true) mapValues ( spec => spec.getRDDPartition )
+//    val parallelize = node.getKernelOption("parallelize","true").toBoolean
+//    if( parallelize ) { parallelized_result persist } else { coalesce (parallelized_result) persist }
+//  }
+
   def getRDD( uid: String, pFrag: PartitionedFragment, partitions: Partitions, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
     val rddSpecs: Array[RDDPartSpec] = partitions.parts map ( partition =>
       RDDPartSpec( partition, List(pFrag.getRDDVariableSpec(uid, partition, opSection) ) )
-    ) filterNot( _.empty(uid) )
-    logger.info( "Discarded empty partitions:: Creating RDD with <<%d>> paritions".format( rddSpecs.length ) )
-    assert( rddSpecs.length > 0, "Invalid RDD: all partitions are empty: " + uid )
-    val parallelized_rddspecs = sparkContext parallelize(rddSpecs) keyBy ( _.partition.index )
-    val partitioner = new RangePartitioner( sparkContext.defaultParallelism, parallelized_rddspecs )
-    val parallelized_result =  parallelized_rddspecs partitionBy(partitioner) sortByKey(true) map { case (index,partSpec) => (index,partSpec.getRDDPartition) }
+      ) filterNot( _.empty(uid) )
+    val nItems = rddSpecs.length
+    logger.info( "Discarded empty partitions:: Creating RDD with <<%d>> items".format( nItems ) )
+    assert( nItems > 0, "Invalid RDD: all partitions are empty: " + uid )
+    val parallelized_rddspecs = sparkContext parallelize(rddSpecs) keyBy ( _.partition.index ) partitionBy( new IndexPartitioner( nItems, nItems ) )
+    val parallelized_result =  parallelized_rddspecs sortByKey(true) mapValues ( spec => spec.getRDDPartition )
     val parallelize = node.getKernelOption("parallelize","true").toBoolean
-    if( parallelize ) { parallelized_result persist } else { coalesce (parallelized_result) persist }
+    if( parallelize ) { parallelized_result persist } else { coalesce (parallelized_result,nItems) persist }
   }
 
   def getRDD( uid: String, tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(Int,RDDPartition)] = {
