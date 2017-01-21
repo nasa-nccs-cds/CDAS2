@@ -62,8 +62,13 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
 
   def getConf: SparkConf = sparkContext.getConf
 
-  def repartition( rdd: RDD[(Int,RDDPartition)], nParts: Int ): RDD[(Int,RDDPartition)] = {
-    rdd partitionBy new RangePartitioner( nParts, rdd ) sortByKey(true) reduceByKey( _ append _ )
+  def coalesce( rdd: RDD[(Int,RDDPartition)] ): RDD[(Int,RDDPartition)] = {
+    val t0 = System.nanoTime()
+    var repart_rdd = rdd repartitionAndSortWithinPartitions new RangePartitioner ( 1, rdd )
+    val result_rdd = repart_rdd glom() map ( _.fold ((0,RDDPartition.empty)) ((x,y) => (x._1,x._2.append(y._2))) )
+    val t1 = System.nanoTime()
+    logger.info( "\nCOALESCE TIME: %f".format( (t1-t0)/1.0E9 ) )
+    result_rdd
   }
 
   def cacheRDDPartition( partFrag: PartitionedFragment ): RDD[RDDPartition] = {
@@ -86,11 +91,11 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     ) filterNot( _.empty(uid) )
     logger.info( "Discarded empty partitions:: Creating RDD with <<%d>> paritions".format( rddSpecs.length ) )
     assert( rddSpecs.length > 0, "Invalid RDD: all partitions are empty: " + uid )
-    val parallelized_specs = sparkContext.parallelize(rddSpecs) keyBy ( _.partition.index )
-    val partitioner = new RangePartitioner( sparkContext.defaultParallelism, parallelized_specs )
-    val parallelized_result =  parallelized_specs partitionBy(partitioner) sortByKey(true) map { case (index,partSpec) => (index,partSpec.getRDDPartition) }
+    val parallelized_rddspecs = sparkContext parallelize(rddSpecs) keyBy ( _.partition.index )
+    val partitioner = new RangePartitioner( sparkContext.defaultParallelism, parallelized_rddspecs )
+    val parallelized_result =  parallelized_rddspecs partitionBy(partitioner) sortByKey(true) map { case (index,partSpec) => (index,partSpec.getRDDPartition) }
     val parallelize = node.getKernelOption("parallelize","true").toBoolean
-    if( parallelize ) { parallelized_result } else { repartition( parallelized_result, 1 ) }
+    if( parallelize ) { parallelized_result persist } else { coalesce (parallelized_result) persist }
   }
 
   def getRDD( uid: String, tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(Int,RDDPartition)] = {
