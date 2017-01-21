@@ -74,7 +74,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
 
   def map( input: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDD[(Int,RDDPartition)] = {
     val t0 = System.nanoTime()
-    val result = input.map( rdd_part => kernel.map( rdd_part, context ) )
+    val result = input.mapValues( rdd_part => kernel.map( rdd_part, context ) )
     logger.info( "FINISHED defining map Operation, time = %.3f sec".format((System.nanoTime() - t0) / 1.0E9))
     result
   }

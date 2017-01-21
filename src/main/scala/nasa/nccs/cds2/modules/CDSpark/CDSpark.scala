@@ -120,9 +120,8 @@ class average extends SingularRDDKernel(Map.empty) {
   val title = "Space/Time Mean"
   val description = "Computes (weighted) means of element values from input variable data over specified axes and roi"
 
-  override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
-    val inputs = inputTups._2
-    val key = inputTups._1
+  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+    val key = inputs.iPart
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
@@ -136,7 +135,7 @@ class average extends SingularRDDKernel(Map.empty) {
       case None => throw new Exception( "Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
     })
     logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
-    key -> RDDPartition( inputs.iPart, Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+    RDDPartition( key, Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
   override def combineRDD(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices ): RDDPartition =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
   override def postRDDOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = weightedValueSumRDDPostOp( pre_result, context )
@@ -155,9 +154,8 @@ class timeBin extends Kernel(Map.empty) {
   val title = "Time Binning"
   override val description = "Aggregates data into bins over time using specified reduce function and binning specifications"
 
-  override def map( inputTups: (Int,RDDPartition), context: KernelContext  ): (Int,RDDPartition) = {
-    val inputs = inputTups._2
-    val key = inputTups._1
+  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+    val key = inputs.iPart
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val period = context.config("period", "1" ).toInt
@@ -170,7 +168,7 @@ class timeBin extends Kernel(Map.empty) {
     val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index )
     val result_array = HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), Some( weights_sum_masked ) )
     logger.info("Executed Kernel %s[%d] map op, input = %s, index=%s, time = %.4f s".format(name, inputs.iPart, id, result_array.toCDFloatArray.getIndex.toString , (System.nanoTime - t0) / 1.0E9))
-    key -> RDDPartition( inputs.iPart, Map( context.operation.rid -> result_array ), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+    RDDPartition( key, Map( context.operation.rid -> result_array ), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
   override def combineRDD(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices ): RDDPartition =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
   override def postRDDOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = weightedValueSumRDDPostOp( pre_result, context )
