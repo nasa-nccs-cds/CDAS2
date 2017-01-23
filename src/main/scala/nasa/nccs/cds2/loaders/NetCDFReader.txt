@@ -72,7 +72,7 @@ object NetCDFReader {
   }
 
   def loadNetCDFFile(name: String, file: Array[Byte]): NetcdfDataset = {
-    new NetcdfDataset(NetcdfFile.openInMemory(name, file))
+    new NetcdfDatdef customaset(NetcdfFile.openInMemory(name, file))
   }
 }
 

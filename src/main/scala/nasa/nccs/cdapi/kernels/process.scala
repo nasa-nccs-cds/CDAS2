@@ -210,9 +210,13 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     RDDPartition(rdd0.iPart, new_elements, rdd0.mergeMetadata(context.operation.name, rdd1))
   }
 
-  def customReduceRDD(rdd0: RDDPartition, rdd1: RDDPartition, context: KernelContext ): RDDPartition = mergeRDD(rdd0, rdd1, context )
+  def customReduceRDD(context: KernelContext)( a0: ( Int, RDDPartition ), a1: ( Int, RDDPartition ) ): ( Int, RDDPartition ) = {
+    logger.warn( s"No reducer defined for parallel op '$name', executing simple merge." )
+    mergeRDD(context)( a0, a1 )
+  }
 
-  def mergeRDD(rdd0: RDDPartition, rdd1: RDDPartition, context: KernelContext ): RDDPartition = {
+  def mergeRDD(context: KernelContext)( a0: ( Int, RDDPartition ), a1: ( Int, RDDPartition ) ): ( Int, RDDPartition ) = {
+    val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
     val t0 = System.nanoTime
     logger.info("&MERGE: start (%d <-> %d)".format( rdd0.iPart, rdd1.iPart  ) )
     val ascending = rdd0.iPart < rdd1.iPart
@@ -220,7 +224,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
       case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> { if(ascending) element0.append(element1) else element1.append(element0) } )
     }
     logger.info("&MERGE: finish (%d <-> %d), time = %.4f s".format( rdd0.iPart, rdd1.iPart, (System.nanoTime - t0) / 1.0E9 ) )
-    RDDPartition( rdd0.iPart, new_elements, rdd0.mergeMetadata("merge", rdd1) )
+    a0._1 -> RDDPartition( rdd0.iPart, new_elements, rdd0.mergeMetadata("merge", rdd1) )
   }
 
   def postOp(result: DataFragment, context: KernelContext): DataFragment = result
@@ -601,7 +605,8 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     }
   }
 
-  override def customReduceRDD(rdd0: RDDPartition, rdd1: RDDPartition, context: KernelContext ): RDDPartition = {
+  override def customReduceRDD(context: KernelContext)( a0: ( Int, RDDPartition ), a1: ( Int, RDDPartition ) ): ( Int, RDDPartition ) = {
+    val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
     val t0 = System.nanoTime
     logger.info("&MERGE: start (%d <-> %d)".format( rdd0.iPart, rdd1.iPart  ) )
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance();
@@ -613,6 +618,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
         val (array0, array1) = if (ascending) (element0, element1) else (element1, element0)
         worker.sendArrayData( rdd0.iPart, array0.uid, array0 )
         worker.sendArrayData( rdd1.iPart, array1.uid, array1 )
+        worker.sendRequest( identifier +":REDUCE", Array(array0.uid,array1.uid), Map.empty[String,String] )
       })
     }
     val resultItems = rdd0.elements.map {
@@ -622,7 +628,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
         context.operation.rid + ":" + element0.uid -> result
     }
     logger.info("&MERGE: finish (%d <-> %d), time = %.4f s".format( rdd0.iPart, rdd1.iPart, (System.nanoTime - t0) / 1.0E9 ) )
-    RDDPartition( rdd0.iPart, resultItems, rdd0.mergeMetadata("merge", rdd1) )
+    a0._1 -> RDDPartition( rdd0.iPart, resultItems, rdd0.mergeMetadata("merge", rdd1) )
   }
 
   def indexAxisConf( metadata: Map[String,String], axisIndexMap: Map[String,Int] ): Map[String,String] = {
