@@ -22,7 +22,7 @@ alias pcdas='cd $CDAS_HOME_DIR; git fetch; git pull; sbt publish'
 alias cdshd='unset CDAS_SERVER_ADDRESS; unset CDAS_SERVER_PORT; cd $CDSHELL_HOME_DIR; sbt run'
 alias cdshw='export CDAS_SERVER_ADDRESS=localhost; unset CDAS_SERVER_PORT; cd $CDSHELL_HOME_DIR; sbt run'
 alias cdshr='export CDAS_SERVER_ADDRESS=localhost; export CDAS_SERVER_PORT=9001; cd $CDSHELL_HOME_DIR; sbt run'
-alias cdup='cd $CDAS_HOME_DIR; git fetch; git pull; sbt compile'
+alias cdup='cd $CDAS_HOME_DIR; ./bin/update.sh; rm ~/.cdas/*.log; python ./python/src/pycdas/shutdown.py'
 
 umask 002
 

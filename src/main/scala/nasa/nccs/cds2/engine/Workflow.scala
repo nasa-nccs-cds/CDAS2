@@ -4,10 +4,11 @@ import nasa.nccs.caching.{RDDTransientVariable, collectionDataCache}
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.kernels.{Kernel, KernelContext}
-import nasa.nccs.cds2.engine.spark.CDSparkContext
+import nasa.nccs.cds2.engine.spark.{CDSparkContext, IndexPartitioner}
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.{DAGNode, Loggable}
 import nasa.nccs.wps._
+import org.apache.spark.RangePartitioner
 import org.apache.spark.rdd.RDD
 import ucar.ma2
 
@@ -34,10 +35,11 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {
     logger.info( "\n\n ----------------------- BEGIN reduce Operation: %s (%s) ----------------------- \n".format( context.operation.identifier, context.operation.rid ) )
     val t0 = System.nanoTime()
+    var repart_mapresult = mapresult repartitionAndSortWithinPartitions new RangePartitioner ( 1, mapresult )
     val result = if( context.getAxes.includes(0) && kernel.parallelizable ) {
-      if( kernel.reduceCombineOp.isDefined )  mapresult.reduce( kernel.reduceRDDOp(context) _ )._2
-      else {                                  mapresult.reduce( kernel.customReduceRDD(context) _ )._2 }
-    } else {                                  mapresult.reduce( kernel.mergeRDD(context) _ )._2 }
+      if( kernel.reduceCombineOp.isDefined )  repart_mapresult.reduce( kernel.reduceRDDOp(context) _ )._2
+      else {                                  repart_mapresult.reduce( kernel.customReduceRDD(context) _ )._2 }
+    } else {                                  repart_mapresult.reduce( kernel.mergeRDD(context) _ )._2 }
     logger.info( "\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format( context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
     result
   }

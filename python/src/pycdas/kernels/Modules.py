@@ -28,15 +28,16 @@ class KernelModule(OperationModule):
     def __init__( self, name, kernels ):
         self.logger =  logging.getLogger("worker")
         self._kernels = {}
-        for kernel in kernels: self._kernels[ kernel.name() ] = kernel
+        for kernel in kernels: self._kernels[ kernel.name().lower() ] = kernel
         OperationModule.__init__( self, name )
 
     def isLocal( self, obj ):
         str(obj).split('\'')[1].split('.')[0] == "__main__"
 
     def executeTask( self, task, inputs ):
-        kernel = self._kernels.get( task.op )
-        if( kernel == None ): raise Exception( "Unrecognized kernel name: "+ task.op +", registered kernels = " + ", ".join( self._kernels.keys() ) )
+        key = task.op.lower()
+        kernel = self._kernels.get( key )
+        if( kernel == None ): raise Exception( "Unrecognized kernel key: "+ key +", registered kernels = " + ", ".join( self._kernels.keys() ) )
         self.logger.info( "Executing Kernel: " + kernel.name() )
         return kernel.executeTask(task, inputs)
 

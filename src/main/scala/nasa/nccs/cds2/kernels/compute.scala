@@ -39,7 +39,7 @@ object KernelModule extends Loggable {
     val module_name = (api + "." + specToks(0)).toLowerCase()
     val kernelSpecs = specToks(2).split("[~]")
     val kernels = kernelSpecs.map(kspec => Kernel( module_name, kspec, api ) )
-    new KernelModule( module_name, Map( kernels.map( kernel => kernel.operation -> Some(kernel)): _*) )
+    new KernelModule( module_name, Map( kernels.map( kernel => kernel.operation.toLowerCase -> Some(kernel)): _*) )
   }
 
   def toXml( moduleSpec: String ): xml.Elem = {

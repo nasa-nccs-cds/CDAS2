@@ -223,7 +223,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     val new_elements = rdd0.elements.flatMap {
       case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> { if(ascending) element0.append(element1) else element1.append(element0) } )
     }
-    logger.info("&MERGE: finish (%d <-> %d), time = %.4f s".format( rdd0.iPart, rdd1.iPart, (System.nanoTime - t0) / 1.0E9 ) )
+    logger.info("&MERGE: complete in time = %.4f s".format( (System.nanoTime - t0) / 1.0E9 ) )
     a0._1 -> RDDPartition( rdd0.iPart, new_elements, rdd0.mergeMetadata("merge", rdd1) )
   }
 

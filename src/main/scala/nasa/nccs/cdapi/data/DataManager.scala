@@ -91,10 +91,10 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def append( other: HeapFltArray ): HeapFltArray = {
     logger.info( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
     if( origin(0) < other.origin(0) ) {
-      assert( origin(0) + shape(0) == other.origin(0), "Appending non-contiguous arrays" )
+      if( origin(0) + shape(0) != other.origin(0) ) throw new Exception( "Appending non-contiguous arrays" )
       HeapFltArray(toCDFloatArray.append(other.toCDFloatArray), origin, mergeMetadata("merge", other), toCDWeightsArray.map(_.append(other.toCDWeightsArray.get)))
     } else {
-      assert( other.origin(0) + other.shape(0) == origin(0), "Appending non-contiguous arrays" )
+      if( other.origin(0) + other.shape(0) != origin(0) ) throw new Exception( "Appending non-contiguous arrays" )
       HeapFltArray(other.toCDFloatArray.append(toCDFloatArray), other.origin, mergeMetadata("merge", other), other.toCDWeightsArray.map(_.append(toCDWeightsArray.get)))
     }
   }
@@ -151,10 +151,11 @@ object HeapDblArray {
 
 class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray] , metadata: Map[String,String] ) extends MetadataCarrier(metadata) {
   def ++( other: RDDPartition ): RDDPartition = {
-    assert( (iPart==other.iPart) || (iPart == -1) || (other.iPart == -1), "Attempt to merge RDDPartitions with incommensurate partition indices: %d vs %d".format(iPart,other.iPart ) )
+    if( (iPart!=other.iPart) && ! ( (iPart == -1) || (other.iPart == -1) ) ) throw new Exception( "Attempt to merge RDDPartitions with incommensurate partition indices: %d vs %d".format(iPart,other.iPart ) )
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
   }
   def append( other: RDDPartition ): RDDPartition = {
+    logger.info( s"Append Arrays: $iPart +--> ${other.iPart}")
     val commonElems = elements.keySet.union( other.elements.keySet )
     val appendedElems: Set[(String,HeapFltArray)] = commonElems flatMap ( key =>
       other.elements.get(key).fold  (elements.get(key) map (e => key -> e))  (e1 => Some( key-> elements.get(key).fold (e1) (e0 => e0.append(e1)))))
