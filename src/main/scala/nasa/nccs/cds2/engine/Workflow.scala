@@ -35,12 +35,17 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {
     logger.info( "\n\n ----------------------- BEGIN reduce Operation: %s (%s) ----------------------- \n".format( context.operation.identifier, context.operation.rid ) )
     val t0 = System.nanoTime()
-    var repart_mapresult = mapresult repartitionAndSortWithinPartitions new RangePartitioner ( 1, mapresult )
+    var repart_mapresult = mapresult repartitionAndSortWithinPartitions new RangePartitioner( 1, mapresult )
     val result = if( context.getAxes.includes(0) && kernel.parallelizable ) {
-      if( kernel.reduceCombineOp.isDefined )  repart_mapresult.reduce( kernel.reduceRDDOp(context) _ )._2
-      else {                                  repart_mapresult.reduce( kernel.customReduceRDD(context) _ )._2 }
-    } else {                                  repart_mapresult.reduce( kernel.mergeRDD(context) _ )._2 }
-    logger.info( "\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format( context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
+      if( kernel.reduceCombineOp.isDefined )
+        repart_mapresult.reduce( kernel.reduceRDDOp(context) _ )._2
+      else {
+        repart_mapresult.reduce( kernel.customReduceRDD(context) _ )._2
+      }
+    } else {
+      repart_mapresult.reduce( kernel.mergeRDD(context) _ )._2
+    }
+    println( "\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format( context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
     result
   }
 

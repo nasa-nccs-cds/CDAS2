@@ -40,6 +40,10 @@ class Kernel:
                 raise Exception( "ExecuteTask ERROR: required input {0} not available in task inputs: {1}".format( task.inputs, inputs.keys() ))
         return results
 
+    def reduce( self, task, inputs ):
+        results = []
+        return results
+
     @abstractmethod
     def executeOperation( self, task, input ): pass
 

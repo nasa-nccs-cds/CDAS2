@@ -206,7 +206,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
         case None => None
       }
     }
-    logger.info("&COMBINE: finish OP %s (%d <-> %d), time = %.4f s".format( context.operation.name, rdd0.iPart, rdd1.iPart, (System.nanoTime - t0) / 1.0E9 ) )
+    println("&COMBINE: finish OP %s (%d <-> %d), time = %.4f s".format( context.operation.name, rdd0.iPart, rdd1.iPart, (System.nanoTime - t0) / 1.0E9 ) )
     RDDPartition(rdd0.iPart, new_elements, rdd0.mergeMetadata(context.operation.name, rdd1))
   }
 
@@ -618,7 +618,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
         val (array0, array1) = if (ascending) (element0, element1) else (element1, element0)
         worker.sendArrayData( rdd0.iPart, array0.uid, array0 )
         worker.sendArrayData( rdd1.iPart, array1.uid, array1 )
-        worker.sendRequest( identifier +":REDUCE", Array(array0.uid,array1.uid), Map.empty[String,String] )
+        worker.sendRequest( context.operation.identifier, Array(array0.uid,array1.uid), Map( "action" -> "reduce" ) )
       })
     }
     val resultItems = rdd0.elements.map {
