@@ -67,11 +67,8 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
   def getConf: SparkConf = sparkContext.getConf
 
   def coalesce( rdd: RDD[(Int,RDDPartition)], nItems: Int ): RDD[(Int,RDDPartition)] = {
-    val t0 = System.nanoTime()
     var repart_rdd = rdd repartitionAndSortWithinPartitions new IndexPartitioner ( nItems, 1 )
     val result_rdd = repart_rdd glom() map ( _.fold ((0,RDDPartition.empty)) ((x,y) => { println(s"\n${x._1} -- ${y._1}"); (x._1,x._2.append(y._2)) } ) )
-    val t1 = System.nanoTime()
-    println( "\nCOALESCE TIME: %f".format( (t1-t0)/1.0E9 ) )
     result_rdd
   }
 
