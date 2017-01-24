@@ -98,6 +98,14 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
       HeapFltArray(other.toCDFloatArray.append(toCDFloatArray), other.origin, mergeMetadata("merge", other), other.toCDWeightsArray.map(_.append(toCDWeightsArray.get)))
     }
   }
+  def split( index_offset: Int ): ( HeapFltArray, HeapFltArray ) = toCDFloatArray.split(index_offset) match {
+      case (a0, a1) =>
+        val ( fa0, fa1 ) = ( CDFloatArray(a0), CDFloatArray(a1) )
+        val origin1 = origin.zipWithIndex.map{ case (o,i) => if( i == 0 ) ( origin(0) + index_offset ) else o }
+        ( new HeapFltArray( fa0.getShape, origin, fa0.getArrayData(), Some(a0.getInvalid), metadata, _optWeights, fa0.getCoordMaps ),
+          new HeapFltArray( fa1.getShape, origin1, fa1.getArrayData(), Some(a1.getInvalid), metadata, _optWeights, fa1.getCoordMaps ) )    // TODO: split weights and coord maps?
+    }
+
   def toByteArray() = {
     bb.putFloat( 0, missing.getOrElse(Float.NaN) )
     toUcarFloatArray.getDataAsByteBuffer().array() ++ bb.array()
@@ -160,6 +168,9 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray] , met
     val appendedElems: Set[(String,HeapFltArray)] = commonElems flatMap ( key =>
       other.elements.get(key).fold  (elements.get(key) map (e => key -> e))  (e1 => Some( key-> elements.get(key).fold (e1) (e0 => e0.append(e1)))))
     new RDDPartition( iPart, Map(appendedElems.toSeq:_*), metadata ++ other.metadata )
+  }
+  def split( index: Int ): (RDDPartition,RDDPartition) = {
+
   }
   def getShape = elements.head._2.shape
   def getOrigin = elements.head._2.origin

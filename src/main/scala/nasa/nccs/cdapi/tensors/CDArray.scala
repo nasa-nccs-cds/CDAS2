@@ -93,6 +93,15 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   def getAccumulator( reduceDims: Array[Int], fillval: T, coordMapOpt: Option[CDCoordMap] = None ): CDArray[T] =
     spawn( cdIndexMap.getAccumulator( reduceDims, coordMapOpt ), fillval )
 
+  def split( index_offset: Int ): ( CDArray[T], CDArray[T] ) = {
+    val shape = cdIndexMap.getShape
+    val shape0 = shape.zipWithIndex.map{ case (s,i) => if( i == 0 ) index_offset else s }
+    val origin0 = Array.fill[Int](shape0.length)(0)
+    val shape1 = shape.zipWithIndex.map{ case (s,i) => if( i == 0 ) ( shape(0) - index_offset ) else s }
+    val origin1 = origin0.zipWithIndex.map{ case (o,i) => if( i == 0 ) index_offset else o }
+    ( section( new ma2.Section(origin0,shape0) ), section( new ma2.Section(origin1,shape1) ) )
+  }
+
   def getReducedArray: CDArray[T] = CDArray[T]( getStorageShape, storage, getInvalid, cdIndexMap.getCoordMap )
 
 //  def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T, coordMapOpt: Option[CDCoordMap] = None ): CDArray[T] = {
