@@ -14,13 +14,14 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   val serverConfiguration = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
   val nExp = 3
+  val shutdown_after = false
   val mod_collections = for (model <- List("GISS", "GISS-E2-R"); iExp <- (1 to nExp)) yield { (model -> s"${model}_r${iExp}i1p1") }
-  val eps = 0.0002
+  val eps = 0.00001
   val service = "cds2"
   val run_args = Map("async" -> "false")
   val printer = new scala.xml.PrettyPrinter(200, 3)
   after {
-    cleanup()
+    if(shutdown_after) { cleanup() }
   }
 
   test("RemoveCollections") {
@@ -63,12 +64,6 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     assert(true)
   }
 
-  test("pyRegridTest") {
-    val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.cdmsModule.regrid","input":"v1","domain":"d0","crs":"gaussian~128"}]]"""
-    val result_node = executeTest(datainputs)
-    assert(true)
-  }
-
   test("pyWeightedAveTest") {
     val nco_result: CDFloatArray = CDFloatArray( Array( 286.2326, 286.5537, 287.2408, 288.1576, 288.9455, 289.5202, 289.6924, 289.5549, 288.8497, 287.8196, 286.8923 ).map(_.toFloat), Float.MaxValue )
     val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.cdmsModule.ave","input":"v1","domain":"d0","axes":"xy"}]]"""
@@ -77,6 +72,12 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     println( " ** CDMS Result:       " + result_data.mkDataString(", ") )
     println( " ** NCO Result:       " + nco_result.mkDataString(", ") )
     assert( result_data.maxScaledDiff( nco_result )  < eps, s" UVCDAT result (with generated weights) does not match NCO result (with cosine weighting)")
+  }
+
+  test("pyRegridTest") {
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.cdmsModule.regrid","input":"v1","domain":"d0","crs":"gaussian~128"}]]"""
+    val result_node = executeTest(datainputs)
+    assert(true)
   }
 
   test("subsetTestT") {
@@ -346,7 +347,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString, "unitTest" -> "true" )
     val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
     val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
-    webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+    println("Completed test '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
     response
   }
 
