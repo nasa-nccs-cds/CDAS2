@@ -40,18 +40,18 @@ class Kernel:
                 raise Exception( "ExecuteTask ERROR: required input {0} not available in task inputs: {1}".format( task.inputs, inputs.keys() ))
         return results
 
-    def reduce( self, task, inputs ):
-        results = []
-        return results
+    def executeReduceOp( self, task, inputs ):
+        return [ self.reduce( inputs[task.inputs[0]], inputs[task.inputs[1]], task ) ]
 
-    @abstractmethod
-    def executeOperation( self, task, input ): pass
+    def reduce( self, input0, input1, metadata, rId ): raise Exception( "Parallelizable kernel with undefined reduce method operating on T axis")
+
+    def executeOperation( self, task, input ): raise Exception( "Attempt to execute Kernel with undefined executeOperation method")
 
     def getCapabilities(self): return self._spec
     def getCapabilitiesStr(self): return str(self._spec)
 
-    def getAxes( self, task ):
-        axes = task.metadata.get("axes")
+    def getAxes( self, metadata ):
+        axes = metadata.get("axes")
         if axes == None: return None
         else: return tuple( [ int(item) for item in axes ] )
 

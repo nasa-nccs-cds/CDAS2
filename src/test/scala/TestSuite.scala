@@ -209,6 +209,21 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Subset")
   }
 
+  test("Maximum2") {
+    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 277.8863, 279.0432, 280.0728, 280.9739, 282.2123, 283.7078, 284.6707, 285.4793, 286.259, 286.9836, 287.6983 ).map(_.toFloat), Float.MaxValue )
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":50,"end":150,"system":"indices"},"lon":{"start":100,"end":100,"system":"indices"},"lat":{"start":10,"end":20,"system":"indices"} }],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"t"}]]"""
+    val result_node = executeTest(datainputs)
+    val result_data = getResultData( result_node )
+    println( "Completed first execution, Result:       " + result_data.mkDataString(", ") )
+
+    val result_node1 = executeTest(datainputs)
+    val result_data1 = getResultData( result_node1 )
+    println( "Completed second execution, Op Result:       " + result_data1.mkDataString(", ") )
+    println( "Verified Result: " + nco_verified_result.mkDataString(", ") )
+    assert( result_data1.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Subset")
+
+  }
+
   test("pyMaxT") {
     val nco_verified_result: CDFloatArray = CDFloatArray( Array( 277.8863, 279.0432, 280.0728, 280.9739, 282.2123, 283.7078, 284.6707, 285.4793, 286.259, 286.9836, 287.6983 ).map(_.toFloat), Float.MaxValue )
     val datainputs = s"""[domain=[{"name":"d0","time":{"start":50,"end":150,"system":"indices"},"lon":{"start":100,"end":100,"system":"indices"},"lat":{"start":10,"end":20,"system":"indices"} }],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.max","input":"v1","domain":"d0","axes":"t"}]]"""

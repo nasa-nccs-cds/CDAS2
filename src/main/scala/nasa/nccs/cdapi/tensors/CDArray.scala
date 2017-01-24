@@ -188,6 +188,8 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 
 }
 
+class CustomException( msg: String ) extends Exception(msg)
+
 object CDFloatArray extends Loggable with Serializable {
   type ReduceOpFlt = CDArray.ReduceOp[Float]
   type ReduceWNOpFlt = CDArray.ReduceWNOp[Float]
@@ -204,6 +206,7 @@ object CDFloatArray extends Loggable with Serializable {
   val multiplyOp: ReduceOpFlt = (x:Float, y:Float) => ( x * y )
   val divideOp: ReduceOpFlt = (x:Float, y:Float) => ( x / y )
   val maxOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x > y ) x else y )
+  val customOp: ReduceOpFlt = (x:Float, y:Float) => throw new CustomException( "Failover to custom OP")
   val minOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x < y ) x else y )
   val maxMagOp: ReduceOpFlt = (x:Float, y:Float) => { val xm = Math.abs(x); val ym = Math.abs(y); if( xm > ym ) xm else ym }
   val minMagOp: ReduceOpFlt = (x:Float, y:Float) => { val xm = Math.abs(x); val ym = Math.abs(y); if( xm < ym ) xm else ym }
@@ -216,6 +219,7 @@ object CDFloatArray extends Loggable with Serializable {
     case x if x.startsWith("div") => divideOp
     case x if x.startsWith("max") => maxOp
     case "min" => minOp
+    case "custom" => customOp
     case _ =>
       throw new Exception( "Unrecognized Op: " + opName )
   }
@@ -402,7 +406,6 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def copySectionData( maxValue: Int = Int.MaxValue ): FloatBuffer =  {
 //    printf( " >>>> copySectionData: cap=%d, maxval=%d index=%s".format( floatStorage.capacity(), maxValue, cdIndexMap.toString ) )
     val size = getSize
-    logger.info( s" **copySectionData** >>>>>------> Size = $size" )
     if( size == 0 ) {
       FloatBuffer.allocate(0)
     }  else {

@@ -185,10 +185,13 @@ object RDDPartSpec {
 }
 
 class RDDPartSpec( val partition: Partition, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
-  logger.info( "RDDPartSpec: partition = " + partition.toString + ", varSpecs = " + varSpecs.map(_.toString ).mkString(",") )
+
   def getRDDPartition: RDDPartition = {
+    val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition)) ): _* )
-    RDDPartition( partition.index, elements, Map.empty )
+    val rv = RDDPartition( partition.index, elements, Map.empty )
+    logger.info( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
+    rv
   }
   def empty( uid: String ): Boolean = varSpecs.find( _.uid == uid ) match {
     case Some( varSpec ) => varSpec.empty
@@ -198,7 +201,7 @@ class RDDPartSpec( val partition: Partition, val varSpecs: List[ RDDVariableSpec
 }
 
 class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val missing: Float, val section: CDSection  ) extends Serializable with Loggable {
-  override def toString = s"RDDVariableSpec($uid)[" + section.toString + "]"
+
   def toHeapArray( partition: Partition ) = {
     logger.info( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
     HeapFltArray( partition.dataSection(section, missing), section.getOrigin, metadata, None )

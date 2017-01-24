@@ -4,6 +4,7 @@ import nasa.nccs.caching.{RDDTransientVariable, collectionDataCache}
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.kernels.{Kernel, KernelContext}
+import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cds2.engine.spark.{CDSparkContext, IndexPartitioner}
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.{DAGNode, Loggable}
@@ -35,18 +36,25 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {
     logger.info( "\n\n ----------------------- BEGIN reduce Operation: %s (%s) ----------------------- \n".format( context.operation.identifier, context.operation.rid ) )
     val t0 = System.nanoTime()
-    var repart_mapresult = mapresult repartitionAndSortWithinPartitions new RangePartitioner( 1, mapresult )
-    val result = if( context.getAxes.includes(0) && kernel.parallelizable ) {
-      if( kernel.reduceCombineOp.isDefined )
-        repart_mapresult.reduce( kernel.reduceRDDOp(context) _ )._2
-      else {
-        repart_mapresult.reduce( kernel.customReduceRDD(context) _ )._2
+    if( ! kernel.parallelizable ) { mapresult.collect()(0)._2 }
+    else {
+      var repart_mapresult = mapresult repartitionAndSortWithinPartitions new RangePartitioner(1, mapresult)
+      val result = if( context.getAxes.includes(0) ) {
+        kernel.reduceCombineOp match {
+          case Some( redOp ) =>  redOp match {
+            case CDFloatArray.customOp  =>
+              repart_mapresult.reduce(kernel.customReduceRDD(context) _)._2
+            case op =>
+              repart_mapresult.reduce(kernel.reduceRDDOp(context) _)._2
+          }
+          case None =>  throw new Exception("Undefined reduce operation for parallelizable kernel")
+        }
+      } else {
+        repart_mapresult.reduce(kernel.mergeRDD(context) _)._2
       }
-    } else {
-      repart_mapresult.reduce( kernel.mergeRDD(context) _ )._2
+      logger.info("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
+      result
     }
-    println( "\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format( context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
-    result
   }
 
   def mapReduce( kernelContext: KernelContext, requestCx: RequestContext ): RDDPartition = {
@@ -64,18 +72,12 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   }
 
   def prepareInputs( kernelContext: KernelContext, requestCx: RequestContext ): RDD[(Int,RDDPartition)] = {
-    val t0 = System.nanoTime()
     val opInputs = workflow.getNodeInputs( requestCx, this )
-    val inputs: RDD[(Int,RDDPartition)] = workflow.domainRDDPartition( opInputs, kernelContext, requestCx, this )
-    logger.info( " FINISHED defining prepare Inputs, time = %.3f sec".format((System.nanoTime() - t0) / 1.0E9))
-    inputs
+    workflow.domainRDDPartition( opInputs, kernelContext, requestCx, this )
   }
 
   def map( input: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDD[(Int,RDDPartition)] = {
-    val t0 = System.nanoTime()
-    val result = input.mapValues( rdd_part => kernel.map( rdd_part, context ) )
-    logger.info( "FINISHED defining map Operation, time = %.3f sec".format((System.nanoTime() - t0) / 1.0E9))
-    result
+    input.mapValues( rdd_part => kernel.map( rdd_part, context ) )
   }
 }
 

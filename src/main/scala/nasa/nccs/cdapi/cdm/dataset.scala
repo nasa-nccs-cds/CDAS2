@@ -64,7 +64,7 @@ object Collection extends Loggable {
 object CDGrid extends Loggable {
   def apply(name: String, datfilePath: String): CDGrid = {
     val gridFilePath: String = NCMLWriter.getCachePath("NCML").resolve(Collections.idToFile(name, ".nc")).toString
-    createGridFile(gridFilePath, datfilePath)
+    if( !Files.exists( Paths.get(gridFilePath) ) ) { createGridFile(gridFilePath, datfilePath) }
     CDGrid.create(name, gridFilePath)
   }
 

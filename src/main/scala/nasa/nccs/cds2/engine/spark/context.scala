@@ -23,12 +23,12 @@ object CDSparkContext extends Loggable {
   val kyro_buffer_max_mb = 300
   val default_master = "local[%d]".format(CDASPartitioner.nProcessors)
 
-  def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = false ) : CDSparkContext = {
+  def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = false, enableMetrics: Boolean = false ) : CDSparkContext = {
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  NEW CDSparkContext Created  **** ")
     logger.info( "--------------------------------------------------------\n\n")
 
-    val sparkContext = new SparkContext( getSparkConf(master, appName, logConf) )
+    val sparkContext = new SparkContext( getSparkConf(master, appName, logConf, enableMetrics) )
     sparkContext.setLogLevel("WARN")
     val rv = new CDSparkContext( sparkContext )
 
@@ -40,18 +40,22 @@ object CDSparkContext extends Loggable {
 
   def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
-  def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false ) ) )
+  def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false, false ) ) )
 
   def merge( rdd0: RDD[(Int,RDDPartition)], rdd1: RDD[(Int,RDDPartition)] ): RDD[(Int,RDDPartition)] = rdd0.join(rdd1).map { case ( index, (r0, r1) ) => ( index, r0 ++ r1) }
   def append( p0: (Int,RDDPartition), p1: (Int,RDDPartition) ): (Int,RDDPartition) = ( p0._1, p0._2.append(p1._2) )
 
-  def getSparkConf( master: String, appName: String, logConf: Boolean  ) = new SparkConf(false)
-    .setMaster( master )
-    .setAppName( appName )
-    .set("spark.logConf", logConf.toString )
-    .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer") //
-    .set("spark.kryoserializer.buffer",kyro_buffer_mb.toString)
-    .set("spark.kryoserializer.buffer.max",kyro_buffer_max_mb.toString)
+  def getSparkConf( master: String, appName: String, logConf: Boolean, enableMetrics: Boolean  ) = {
+    val sc = new SparkConf(false)
+      .setMaster( master )
+      .setAppName( appName )
+      .set("spark.logConf", logConf.toString )
+      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer") //
+      .set("spark.kryoserializer.buffer",kyro_buffer_mb.toString)
+      .set("spark.kryoserializer.buffer.max",kyro_buffer_max_mb.toString)
+    if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
+    sc
+  }
 }
 
 class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggable {
