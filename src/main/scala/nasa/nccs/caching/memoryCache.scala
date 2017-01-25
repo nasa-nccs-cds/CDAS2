@@ -9,7 +9,7 @@ import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EntryWeigher, EvictionListener}
 import nasa.nccs.utilities.{Loggable, Timestamp}
 import nasa.nccs.cdapi.cdm.DiskCacheFileMgr
-import nasa.nccs.cds2.utilities.appParameters
+import nasa.nccs.cdas.utilities.appParameters
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConversions._

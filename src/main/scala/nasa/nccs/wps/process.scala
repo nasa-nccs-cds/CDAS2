@@ -1,7 +1,7 @@
 package nasa.nccs.wps
 
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.utilities.appParameters
+import nasa.nccs.cdas.utilities.appParameters
 
 trait WPSElement extends Serializable {
   val identifier: String

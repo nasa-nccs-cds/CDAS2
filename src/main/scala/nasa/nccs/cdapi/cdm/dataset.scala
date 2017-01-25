@@ -11,8 +11,8 @@ import java.util.Formatter
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.loaders.XmlResource
-import nasa.nccs.cds2.utilities.appParameters
+import nasa.nccs.cdas.loaders.XmlResource
+import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset._
@@ -26,7 +26,7 @@ import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import scala.xml.XML
 import org.apache.commons.io.IOUtils
-import nasa.nccs.cds2.loaders.Collections
+import nasa.nccs.cdas.loaders.Collections
 import nasa.nccs.esgf.process.DataSource
 import ucar.nc2.{Dimension, Group, NetcdfFileWriter, Variable}
 
@@ -498,7 +498,7 @@ object TestType {
 
 class ncReadTest extends Loggable {
 
-  import nasa.nccs.cds2.utilities.runtime
+  import nasa.nccs.cdas.utilities.runtime
   import java.nio.channels.FileChannel
   import java.nio.file.StandardOpenOption._
   import TestType._
@@ -593,7 +593,7 @@ class ncReadTest extends Loggable {
 }
 
 class ncWriteTest extends Loggable {
-  import nasa.nccs.cds2.utilities.runtime
+  import nasa.nccs.cdas.utilities.runtime
   import java.nio.channels.FileChannel
   import java.nio.file.StandardOpenOption._
   val testType = TestType.Buffer

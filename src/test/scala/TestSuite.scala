@@ -1,5 +1,5 @@
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.loaders.Collections
+import nasa.nccs.cdas.loaders.Collections
 import nasa.nccs.utilities.{CDASLogManager, Loggable}
 
 import scala.collection.JavaConversions._

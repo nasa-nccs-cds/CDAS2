@@ -1,5 +1,4 @@
-package nasa.nccs.cds2.kernels
-import nasa.nccs.cdapi.kernels.Kernel
+package nasa.nccs.cdas.kernels
 import nasa.nccs.cdas.workers.python.PythonWorkerPortal
 
 import scala.collection.JavaConversions._

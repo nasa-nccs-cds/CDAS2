@@ -7,8 +7,8 @@ import java.nio.file.{FileSystems, Path, Paths}
 import java.util.Formatter
 
 import nasa.nccs.cdapi.tensors.CDDoubleArray
-import nasa.nccs.cds2.loaders.Collections
-import nasa.nccs.cds2.utilities.runtime
+import nasa.nccs.cdas.loaders.Collections
+import nasa.nccs.cdas.utilities.runtime
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.utilities.cdsutils
 import ucar.nc2.{FileWriter2, Group, NetcdfFile, NetcdfFileWriter}

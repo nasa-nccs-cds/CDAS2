@@ -1,4 +1,4 @@
-package nasa.nccs.cds2.modules
+package nasa.nccs.cdas.modules
 
 
 package object CDS {

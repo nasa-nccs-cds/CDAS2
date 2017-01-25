@@ -1,4 +1,4 @@
-package nasa.nccs.cds2.utilities
+package nasa.nccs.cdas.utilities
 import nasa.nccs.utilities.Logger
 import ucar.nc2
 

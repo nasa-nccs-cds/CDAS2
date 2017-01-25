@@ -1,7 +1,7 @@
 package nasa.nccs.esgf.wps
 
 package servers
-import nasa.nccs.cds2.utilities.appParameters
+import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.utilities.Loggable
 
 class APIManager( serverConfiguration: Map[String,String] ) extends Loggable {

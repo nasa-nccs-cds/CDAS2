@@ -2,7 +2,7 @@ package nasa.nccs.wps
 
 import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.utilities.appParameters
+import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.process.{DataFragmentSpec, TargetGrid}
 import nasa.nccs.utilities.Loggable
 

@@ -1,32 +1,21 @@
-package nasa.nccs.cdapi.kernels
+package nasa.nccs.cdas.kernels
 
-import nasa.nccs.cdapi.data.{HeapFltArray, _}
-import nasa.nccs.cdapi.tensors.{CDArray, CDCoordMap, CDFloatArray, CDTimeCoordMap}
-import nasa.nccs.cdapi.cdm._
-import nasa.nccs.esgf.process._
-import org.apache.spark.rdd.RDD
 import java.io._
-import java.nio.{ByteBuffer, FloatBuffer}
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import nasa.nccs.caching.collectionDataCache
+import nasa.nccs.cdapi.cdm._
+import nasa.nccs.cdapi.data.{HeapFltArray, _}
 import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
+import nasa.nccs.cdapi.tensors.{CDArray, CDCoordMap, CDFloatArray, CDTimeCoordMap}
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
-import nasa.nccs.cds2.utilities.appParameters
+import nasa.nccs.cdas.utilities.appParameters
+import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.wps.{WPSProcess, WPSProcessOutput}
-import org.apache.commons.io.{FileUtils, IOUtils}
 import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
-import scala.util.{Failure, Random, Success}
 import scala.collection.JavaConversions._
-import scala.collection.JavaConverters._
-import scala.collection.mutable
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
-import scala.util.control.NonFatal
 
 object Port {
   def apply( name: String, cardinality: String, description: String="", datatype: String="", identifier: String="" ) = {

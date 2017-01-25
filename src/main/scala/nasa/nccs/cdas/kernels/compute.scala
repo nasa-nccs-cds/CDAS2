@@ -1,6 +1,5 @@
-package nasa.nccs.cds2.kernels
+package nasa.nccs.cdas.kernels
 import com.google.common.reflect.ClassPath
-import nasa.nccs.cdapi.kernels.Kernel
 import nasa.nccs.utilities.Loggable
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._

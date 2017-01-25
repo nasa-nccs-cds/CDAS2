@@ -1,12 +1,10 @@
-package nasa.nccs.cds2.modules.CDSpark
+package nasa.nccs.cdas.modules.CDSpark
 
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition}
-import nasa.nccs.cdapi.kernels._
 import nasa.nccs.cdapi.tensors.CDFloatArray._
-import nasa.nccs.cdapi.tensors.{CDCoordMap, CDFloatArray, CDIndexMap, CDTimeCoordMap}
-import nasa.nccs.cdas.workers.python.PythonWorkerPortal
+import nasa.nccs.cdapi.tensors.{CDFloatArray, CDIndexMap}
+import nasa.nccs.cdas.kernels._
 import nasa.nccs.wps.{WPSDataInput, WPSProcessOutput}
-import org.apache.spark.rdd.RDD
 
 import scala.reflect.runtime.{universe => u}
 

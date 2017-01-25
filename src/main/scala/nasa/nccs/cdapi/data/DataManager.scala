@@ -169,9 +169,7 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray] , met
       other.elements.get(key).fold  (elements.get(key) map (e => key -> e))  (e1 => Some( key-> elements.get(key).fold (e1) (e0 => e0.append(e1)))))
     new RDDPartition( iPart, Map(appendedElems.toSeq:_*), metadata ++ other.metadata )
   }
-  def split( index: Int ): (RDDPartition,RDDPartition) = {
-
-  }
+//  def split( index: Int ): (RDDPartition,RDDPartition) = { }
   def getShape = elements.head._2.shape
   def getOrigin = elements.head._2.origin
   def element( id: String ): Option[HeapFltArray] = ( elements find { case (key,array) => key.split(':')(0).equals(id) } ) map ( _._2 )

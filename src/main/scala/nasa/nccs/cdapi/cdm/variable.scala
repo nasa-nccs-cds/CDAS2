@@ -2,9 +2,9 @@ package nasa.nccs.cdapi.cdm
 
 import nasa.nccs.caching.{Partition, Partitions, RDDTransientVariable}
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition, RDDVariableSpec}
-import nasa.nccs.cdapi.kernels.CDASExecutionContext
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
-import nasa.nccs.cds2.engine.WorkflowNode
+import nasa.nccs.cdas.engine.WorkflowNode
+import nasa.nccs.cdas.kernels.CDASExecutionContext
 import nasa.nccs.esgf.process._
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}

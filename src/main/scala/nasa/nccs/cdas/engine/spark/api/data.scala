@@ -1,8 +1,8 @@
-package nasa.nccs.cds2.engine.spark.api
+package nasa.nccs.cdas.engine.spark.api
 
 import nasa.nccs.cdapi.data.{RDDPartition, RDDataManager}
-import nasa.nccs.cds2.engine.CDS2ExecutionManager
-import nasa.nccs.cds2.loaders.Collections
+import nasa.nccs.cdas.engine.CDS2ExecutionManager
+import nasa.nccs.cdas.loaders.Collections
 import org.apache.spark.rdd.RDD
 import ucar.nc2
 import ucar.nc2.constants.AxisType

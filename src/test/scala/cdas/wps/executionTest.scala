@@ -5,7 +5,7 @@ import java.nio.file.Paths
 import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
 import nasa.nccs.cdapi.cdm.{CDSVariable, Collection}
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.utilities.appParameters
+import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import org.scalatest._
 import ucar.ma2

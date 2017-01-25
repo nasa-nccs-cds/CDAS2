@@ -1,4 +1,4 @@
-package nasa.nccs.cds2.engine.spark
+package nasa.nccs.cdas.engine.spark
 import nasa.nccs.utilities.Loggable
 import org.apache.spark.Partitioner
 

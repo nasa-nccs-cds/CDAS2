@@ -1,6 +1,5 @@
-package nasa.nccs.cds2.portal
+package nasa.nccs.cdas.portal
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
-import nasa.nccs.cdas.portal.CDASPortal
 import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode._
 import nasa.nccs.utilities.Loggable
 

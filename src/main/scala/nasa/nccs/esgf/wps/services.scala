@@ -39,7 +39,7 @@ trait ServiceProvider extends Loggable {
 }
 
 object cds2ServiceProvider extends ServiceProvider {
-  import nasa.nccs.cds2.engine.CDS2ExecutionManager
+  import nasa.nccs.cdas.engine.CDS2ExecutionManager
   import nasa.nccs.esgf.process.TaskRequest
 
   val cds2ExecutionManager = try { new CDS2ExecutionManager() } catch {

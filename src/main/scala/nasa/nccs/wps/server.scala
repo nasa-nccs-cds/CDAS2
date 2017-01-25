@@ -1,6 +1,6 @@
 package nasa.nccs.wps
 
-import nasa.nccs.cds2.utilities.appParameters
+import nasa.nccs.cdas.utilities.appParameters
 
 trait WPSServer {
   def getProcesses: Map[String,WPSProcess]

@@ -1,4 +1,4 @@
-package nasa.nccs.cds2.utilities
+package nasa.nccs.cdas.utilities
 import java.nio.file.Paths
 import nasa.nccs.utilities.Loggable
 import scala.io.Source

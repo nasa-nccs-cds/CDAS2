@@ -1,14 +1,14 @@
-package nasa.nccs.cds2.engine.spark
+package nasa.nccs.cdas.engine.spark
 
 import java.nio.file.Paths
 
 import nasa.nccs.caching.{CDASPartitioner, Partition, Partitions}
 import nasa.nccs.cdapi.cdm.{CDSVariable, OperationInput, OperationTransientInput, PartitionedFragment}
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartSpec, RDDPartition, RDDVariableSpec}
-import nasa.nccs.cdapi.kernels.CDASExecutionContext
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cds2.engine.WorkflowNode
-import nasa.nccs.cds2.utilities.appParameters
+import nasa.nccs.cdas.engine.WorkflowNode
+import nasa.nccs.cdas.kernels.CDASExecutionContext
+import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.Loggable
 import org.apache.spark.rdd.RDD

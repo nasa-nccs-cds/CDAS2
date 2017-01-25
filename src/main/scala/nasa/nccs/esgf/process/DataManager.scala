@@ -7,10 +7,10 @@ import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime,
 import java.util.Formatter
 
 import nasa.nccs.cdapi.data.{ArrayBase, HeapDblArray, HeapFltArray}
-import nasa.nccs.cdapi.kernels.AxisIndices
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDDoubleArray, CDFloatArray}
-import nasa.nccs.cds2.engine.spark.CDSparkContext
-import nasa.nccs.cds2.utilities.appParameters
+import nasa.nccs.cdas.engine.spark.CDSparkContext
+import nasa.nccs.cdas.kernels.AxisIndices
+import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.nc2.time.{CalendarDate, CalendarDateRange}

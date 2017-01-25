@@ -1,4 +1,4 @@
-package nasa.nccs.cds2.utilities
+package nasa.nccs.cdas.utilities
 
 import com.vividsolutions.jts.geom
 import nasa.nccs.cdapi.tensors.CDByteArray

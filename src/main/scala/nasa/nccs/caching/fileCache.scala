@@ -9,12 +9,12 @@ import java.util.concurrent.TimeUnit
 import java.util.{Calendar, Comparator}
 
 import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EntryWeigher, EvictionListener}
-import nasa.nccs.cds2.utilities.{GeoTools, appParameters, runtime}
+import nasa.nccs.cdas.utilities.{GeoTools, appParameters, runtime}
 import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
 import nasa.nccs.cdapi.data.RDDPartition
-import nasa.nccs.cdapi.kernels.TransientFragment
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
-import nasa.nccs.cds2.loaders.Masks
+import nasa.nccs.cdas.kernels.TransientFragment
+import nasa.nccs.cdas.loaders.Masks
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.Loggable
 import org.apache.commons.io.{FileUtils, IOUtils}
@@ -29,7 +29,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
 import scala.util.{Failure, Success, Try}
-import nasa.nccs.cds2.loaders.Collections
+import nasa.nccs.cdas.loaders.Collections
 
 object MaskKey {
   def apply(bounds: Array[Double],

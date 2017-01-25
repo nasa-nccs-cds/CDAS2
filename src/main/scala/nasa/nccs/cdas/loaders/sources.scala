@@ -1,4 +1,4 @@
-package nasa.nccs.cds2.loaders
+package nasa.nccs.cdas.loaders
 import java.io.{File, FileNotFoundException, FileOutputStream}
 import java.net.URL
 import java.nio.channels.Channels
