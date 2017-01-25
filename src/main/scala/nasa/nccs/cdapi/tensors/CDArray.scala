@@ -2,9 +2,12 @@
 
 package nasa.nccs.cdapi.tensors
 import java.nio._
+
+import nasa.nccs.cdapi.cdm.RemapElem
 import nasa.nccs.cdapi.tensors.CDArray.{FlatIndex, StorageIndex}
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.ma2
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
@@ -346,6 +349,11 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
       case ex: Exception =>
         Float.NaN
     }
+  }
+
+  def reinterp( weights: Map[Int,RemapElem] ): CDFloatArray = {
+    val slices = for ( (i,elem) <- weights ) yield { slice(0,elem.index,1) * elem.weight0 + slice(0,elem.index+1,1) * elem.weight1 }
+    slices.fold ( CDFloatArray.empty )( _ append _ )
   }
   def getSampleData( size: Int, start: Int): Array[Float] = ( ( start to (start+size) ) map { index => floatStorage.get(index) } ).toArray
   def setStorageValue( index: StorageIndex, value: Float ): Unit = floatStorage.put( index, value )

@@ -14,6 +14,7 @@ import nasa.nccs.utilities.Loggable
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{RangePartitioner, SparkConf, SparkContext}
 import ucar.ma2
+import ucar.nc2.dataset.CoordinateAxis1DTime
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -86,12 +87,13 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     None
   }
 
-  def getRDD( uid: String, pFrag: PartitionedFragment, partitions: Partitions, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
+  def getRDD( uid: String, pFrag: PartitionedFragment, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
+    val partitions = pFrag.partitions
     val rddSpecs: Array[RDDPartSpec] = partitions.parts map ( partition =>
       RDDPartSpec( partition, List(pFrag.getRDDVariableSpec(uid, partition, opSection) ) )
       ) filterNot( _.empty(uid) )
     val nItems = rddSpecs.length
-    logger.info( "Discarded empty partitions:: Creating RDD with <<%d>> items".format( nItems ) )
+    logger.info( "Discarded empty partitions: Creating RDD with <<%d>> items".format( nItems ) )
     if( nItems == 0 ) throw new Exception( "Invalid RDD: all partitions are empty: " + uid )
     val startIndex = rddSpecs.map( _.partition.index ).reduceLeft( _ min _ )
     val parallelized_rddspecs = sparkContext parallelize(rddSpecs) keyBy ( _.partition.index - startIndex ) partitionBy( new IndexPartitioner( nItems, nItems ) )
@@ -99,6 +101,18 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     val parallelize = node.getKernelOption("parallelize","true").toBoolean
     if( parallelize ) { parallelized_result persist } else { coalesce (parallelized_result,nItems) persist }
   }
+
+ /* def inputConversion( dataInput: PartitionedFragment, targetGrid: TargetGrid ): PartitionedFragment = {
+    dataInput.fragmentSpec.targetGridOpt match {
+      case Some(inputTargetGrid) =>
+        val inputTimeAxis: CoordinateAxis1DTime = inputTargetGrid.grid.getAxisSpec( 0 ).getTimeAxis
+        val timeAxis: CoordinateAxis1DTime = targetGrid.grid.getAxisSpec( 0 ).getTimeAxis
+        if( inputTimeAxis.equals(timeAxis) ) dataInput
+        else dataInput.timeConversion( timeAxis )
+      case None =>
+        throw new Exception("Missing target grid for fragSpec: " + dataInput.fragmentSpec.toString)
+    }
+  }*/
 
   def getRDD( uid: String, tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(Int,RDDPartition)] = {
     val rddParts: IndexedSeq[(Int,RDDPartition)] = partitions.parts.indices.map( index => index -> RDDPartition( index, tVar.variable.result ) )

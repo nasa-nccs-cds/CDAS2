@@ -12,6 +12,7 @@ import nasa.nccs.wps._
 import org.apache.spark.RangePartitioner
 import org.apache.spark.rdd.RDD
 import ucar.ma2
+import ucar.nc2.dataset.CoordinateAxis1DTime
 
 import scala.util.Try
 
@@ -190,7 +191,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val opSection: Option[ma2.Section] = getOpSectionIntersection( requestCx, node )
     val rdds: Iterable[RDD[(Int,RDDPartition)]] = opInputs.map { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
-          executionMgr.serverContext.spark.getRDD( uid, dataInput, dataInput.partitions, opSection, node )
+          executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node )
         case ( kernelInput: DependencyOperationInput  ) =>
           logger.info( "\n\n ----------------------- Stream DEPENDENCY Node: %s -------\n".format( kernelInput.workflowNode.getNodeId() ))
           kernelInput.workflowNode.stream( requestCx )

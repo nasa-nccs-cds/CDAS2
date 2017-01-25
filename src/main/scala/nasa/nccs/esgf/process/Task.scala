@@ -345,6 +345,7 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
       case Some(maskId) => <input uid={uid} varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
+
   def readData( section: ma2.Section ) = collection.readVariableData( varname, section )
   def getVariableMetadata: Map[String,nc2.Attribute] = nc2.Attribute.makeMap( collection.getVariableMetadata(varname) ).toMap
   def getMetadata: Map[String,String] = Map( "name" -> varname, "collection" -> collection.id, "gridfile" -> collection.getGridFilePath, "fragment" -> fragIdOpt.getOrElse(""), "dimensions" -> dimensions, "units" -> units, "longname" -> longname, "uid" -> uid, "roi" -> roi.toString )
