@@ -127,36 +127,37 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
     err.getMessage
   }
 
-  def createTargetGrid( request: TaskRequest ): TargetGrid = {
-    request.metadata.get("id") match {
-      case Some(varId) => request.variableMap.get(varId) match {
-        case Some(dataContainer: DataContainer) => serverContext.createTargetGrid( dataContainer, request.getDomain(dataContainer.getSource) )
-        case None => throw new Exception( "Unrecognized variable id in Grid spec: " + varId )
-      }
-      case None => throw new Exception("Target grid specification method has not yet been implemented: " + request.metadata.toString)
-    }
-  }
+//  def createTargetGrid( request: TaskRequest ): TargetGrid = {
+//    request.metadata.get("id") match {
+//      case Some(varId) => request.variableMap.get(varId) match {
+//        case Some(dataContainer: DataContainer) =>
+//          serverContext.createTargetGrid( dataContainer, request.getDomain(dataContainer.getSource) )
+//        case None => throw new Exception( "Unrecognized variable id in Grid spec: " + varId )
+//      }
+//      case None => throw new Exception("Target grid specification method has not yet been implemented: " + request.metadata.toString)
+//    }
+//  }
 
-  def loadInputData( request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String,String] ): RequestContext = {
+  def loadInputData( request: TaskRequest, run_args: Map[String,String] ): RequestContext = {
     val t0 = System.nanoTime
     val sourceContainers = request.variableMap.values.filter(_.isSource)
     val t1 = System.nanoTime
     val sources = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
-      yield serverContext.createInputSpec(data_container, domainOpt, targetGrid )
+      yield serverContext.createInputSpec( data_container, domainOpt, request )
     val t2 = System.nanoTime
     val sourceMap: Map[String,Option[DataFragmentSpec]] = Map(sources.toSeq:_*)
-    val rv = new RequestContext (request.domainMap, sourceMap, targetGrid, run_args)
+    val rv = new RequestContext (request.domainMap, sourceMap, request, run_args )
     val t3 = System.nanoTime
     logger.info( " LoadInputDataT: %.4f %.4f %.4f, MAXINT: %.2f G".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, Int.MaxValue/1.0E9 ) )
     rv
   }
 
-  def cacheInputData(request: TaskRequest, targetGrid: TargetGrid, run_args: Map[String, String]): Iterable[Option[(DataFragmentKey, Future[PartitionedFragment])]] = {
+  def cacheInputData(request: TaskRequest, run_args: Map[String, String]): Iterable[Option[(DataFragmentKey, Future[PartitionedFragment])]] = {
     val sourceContainers = request.variableMap.values.filter(_.isSource)
     for (data_container: DataContainer <- request.variableMap.values;
          if data_container.isSource;
          domainOpt = request.getDomain(data_container.getSource))
-      yield serverContext.cacheInputData(data_container, domainOpt, targetGrid)
+      yield serverContext.cacheInputData(data_container, domainOpt, request.getTargetGrid(data_container) )
   }
 
   def deleteFragments( fragIds: Iterable[String] ) = {
@@ -259,7 +260,7 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
       val fragIds = clearCache
       new WPSMergedEventReport( List( new UtilityExecutionResult( "clearCache", <deleted fragments={fragIds.mkString(",")}/> ) ) )
     case "cache" =>
-      val cached_data: Iterable[(DataFragmentKey,Future[PartitionedFragment])] = cacheInputData(request, createTargetGrid(request), run_args).flatten
+      val cached_data: Iterable[(DataFragmentKey,Future[PartitionedFragment])] = cacheInputData(request, run_args).flatten
       FragmentPersistence.close()
       new WPSMergedEventReport( cached_data.map( cache_result => new UtilityExecutionResult( cache_result._1.toStrRep, <cache/> ) ).toList )
     case "dcol" =>
@@ -280,12 +281,11 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
 
   def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[WPSResponse] = Future {
     logger.info("ASYNC Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
-    val targetGrid: TargetGrid = createTargetGrid(request)
-    val requestContext = loadInputData(request, targetGrid, run_args)
+    val requestContext = loadInputData(request, run_args)
     executeWorkflows(request, requestContext)
   }
 
-  def getRequestContext( request: TaskRequest, run_args: Map[String,String] ): RequestContext = loadInputData( request, createTargetGrid( request ), run_args )
+  def getRequestContext( request: TaskRequest, run_args: Map[String,String] ): RequestContext = loadInputData( request, run_args )
 
   def blockingExecute( request: TaskRequest, run_args: Map[String,String] ): WPSResponse =  {
     logger.info("Blocking Execute { runargs: " + run_args.toString + ", request: " + request.toString + " }")
@@ -299,9 +299,8 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
           executeUtilityRequest( req_ids(1), request, run_args )
         case _ =>
           logger.info("Executing task request " + request.name )
-          val targetGrid: TargetGrid = createTargetGrid (request)
           val t1 = System.nanoTime
-          val requestContext = loadInputData (request, targetGrid, run_args)
+          val requestContext = loadInputData (request, run_args)
           val t2 = System.nanoTime
           val rv = executeWorkflows (request, requestContext)
           val t3 = System.nanoTime

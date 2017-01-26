@@ -46,7 +46,7 @@ trait ScopeContext {
   def config( key: String ): Option[String] = __configuration__.get(key)
 }
 
-class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[String, Option[DataFragmentSpec]], val targetGrid: TargetGrid, private val configuration: Map[String,String] ) extends ScopeContext {
+class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[String, Option[DataFragmentSpec]], request: TaskRequest, private val configuration: Map[String,String] ) extends ScopeContext {
   val test = 1
   def getConfiguration = configuration.map(identity)
   def missing_variable(uid: String) = throw new Exception("Can't find Variable '%s' in uids: [ %s ]".format(uid, inputs.keySet.mkString(", ")))
@@ -65,7 +65,7 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
     case Some(domain_container) => domain_container
     case None => throw new Exception("Undefined domain in ExecutionContext: " + domain_id)
   }
-  def getAxisIndices( axisConf: String ): AxisIndices = targetGrid.getAxisIndices( axisConf  )
+//  def getAxisIndices( axisConf: String ): AxisIndices = targetGrid.getAxisIndices( axisConf  )
 }
 
 class GridCoordSpec( val index: Int, val grid: CDGrid, val coordAxis: CoordinateAxis1D, val domainAxisOpt: Option[DomainAxis] )  extends Serializable with Loggable {
@@ -476,16 +476,16 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
     )
   }
 
-  def createTargetGrid( dataContainer: DataContainer, domainContainerOpt: Option[DomainContainer] ): TargetGrid = {
-    val roiOpt: Option[List[DomainAxis]] = domainContainerOpt.map( domainContainer => domainContainer.axes )
-    val t0 = System.nanoTime
-    lazy val variable: CDSVariable = dataContainer.getVariable
-    val t1 = System.nanoTime
-    val rv = new TargetGrid( variable, roiOpt )
-    val t2 = System.nanoTime
-    logger.info( " CreateTargetGridT: %.4f %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9 ) )
-    rv
-  }
+//  def createTargetGrid( dataContainer: DataContainer, domainContainerOpt: Option[DomainContainer] ): TargetGrid = {
+//    val roiOpt: Option[List[DomainAxis]] = domainContainerOpt.map( domainContainer => domainContainer.axes )
+//    val t0 = System.nanoTime
+//    lazy val variable: CDSVariable = dataContainer.getVariable
+//    val t1 = System.nanoTime
+//    val rv = new TargetGrid( variable, roiOpt )
+//    val t2 = System.nanoTime
+//    logger.info( " CreateTargetGridT: %.4f %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9 ) )
+//    rv
+//  }
 
 //  def getAxes( fragSpec: DataFragmentSpec ) = {
 //    val variable: CDSVariable = dataLoader.getVariable( fragSpec.collection, fragSpec.varname )
@@ -516,10 +516,11 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
 //    rv
 //  }
 
-  def createInputSpec( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid ): (String, Option[DataFragmentSpec]) = {
+  def createInputSpec( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer],  request: TaskRequest ): (String, Option[DataFragmentSpec]) = {
     val t0 = System.nanoTime
     val data_source: DataSource = dataContainer.getSource
     val variable: CDSVariable = dataContainer.getVariable
+    val targetGrid = request.getTargetGrid( dataContainer )
     val t1 = System.nanoTime
     val maskOpt: Option[String] = domain_container_opt.flatMap( domain_container => domain_container.mask )
     val fragRoiOpt = data_source.fragIdOpt.map( fragId => DataFragmentKey(fragId).getRoi )

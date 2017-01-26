@@ -15,7 +15,8 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   val webProcessManager = new ProcessManager( serverConfiguration )
   val nExp = 3
   val shutdown_after = false
-  val mod_collections = for (model <- List("GISS", "GISS-E2-R"); iExp <- (1 to nExp)) yield { (model -> s"${model}_r${iExp}i1p1") }
+  val mod_collections = for (model <- List( "GISS", "GISS-E2-R" ); iExp <- (1 to nExp)) yield (model -> s"${model}_r${iExp}i1p1")
+  val cip_collections = for ( model <- List( "CIP_CFSR_6hr", "CIP_MERRA2_mon" ) ) yield (model -> s"${model}_ta")
   val eps = 0.00001
   val service = "cds2"
   val run_args = Map("async" -> "false")
@@ -36,12 +37,30 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   test("Aggregate") {
     for( (model, collection) <- mod_collections ) {
       val location = s"/collections/${model}/$collection.csv"
-      val url = getClass.getResource(location)
-      val collection_path = url.getFile
-      val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
-      val agg_result_node = executeTest(datainputs, false, "util.agg")
-      logger.info(s"Agg collection $collection Result: " + printer.format(agg_result_node))
+      Option(getClass.getResource(location)) match {
+        case Some( url ) =>
+          val collection_path = url.getFile
+          val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
+          val agg_result_node = executeTest (datainputs, false, "util.agg")
+          logger.info (s"Agg collection $collection Result: " + printer.format (agg_result_node) )
+        case None => throw new Exception( s"Can't find collection $collection for model  $model")
+      }
     }
+  }
+
+  test("Aggregate1") {
+    for( (model, collection) <- cip_collections ) {
+      val location = s"/collections/${model}/$collection.csv"
+      Option(getClass.getResource(location)) match {
+        case Some( url ) =>
+          val collection_path = url.getFile
+          val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
+          val agg_result_node = executeTest (datainputs, false, "util.agg")
+          logger.info (s"Agg collection $collection Result: " + printer.format (agg_result_node) )
+        case None => throw new Exception( s"Can't find collection $collection for model  $model")
+      }
+    }
+
   }
 
   test("Cache") {
@@ -50,6 +69,20 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
       val cache_result_node = executeTest(datainputs, false, "util.cache")
       logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
     }
+    for( (collection, variable) <- cip_collections ) {
+      val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":40,"system":"values"},"lon":{"start":0,"end":40,"system":"values"},"time":{"start":"2000-01-01","end":"2005-01-01","system":"values"}}],variable=[{"uri":"collection:/$collection","name":"ta:v1","domain":"d0"}]]"""
+      val cache_result_node = executeTest(datainputs, false, "util.cache")
+      logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
+    }
+  }
+
+  test("TimeConvertedDiff") {
+    val CFSR_6hr_variable = s"""{"uri":"collection:/cfsr.monthly.ta.2000_2005","name":"ta:v0","domain":"d0"}"""
+    val MERRA2_mon_variable = s"""{"uri":"collection:/merra2.6hr.ta.2000_2005","name":"ta:v1","domain":"d0"}"""
+    val datainputs = s"""[variable=[$CFSR_6hr_variable,$MERRA2_mon_variable],domain=[{"name":"d0"}],operation=[{"name":"CDSpark.diff2","input":"v0,v1","domain":"d0"}]]""".replaceAll("\\s", "")
+    val result_node = executeTest(datainputs)
+    val result_data = CDFloatArray( getResultData( result_node ).slice(0,0,10) )
+    println( " ** Op Result:       " + result_data.mkDataString(", ") )
   }
 
   test("subsetTestXY") {

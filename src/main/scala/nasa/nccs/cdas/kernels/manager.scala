@@ -30,7 +30,7 @@ class KernelMgr(  ) {
 
 object KernelPackageTools {
   import com.google.common.reflect.ClassPath
-  val internalKernelsPackage = "nasa.nccs.cds2.modules"
+  val internalKernelsPackage = "nasa.nccs.cdas.modules"
   val externalKernelPackages = cdsutils.envList("CDAS_KERNEL_PACKAGES")
   val classpath = ClassPath.from( getClass.getClassLoader )
   val kernelPackagePaths: List[String] = List( internalKernelsPackage ) ++ externalKernelPackages

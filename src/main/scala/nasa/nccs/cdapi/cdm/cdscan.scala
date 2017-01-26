@@ -30,7 +30,7 @@ object NCMLWriter extends Loggable {
 
   def apply( path: File ): NCMLWriter = { new NCMLWriter( Array(path).iterator ) }
 
-  def isNcFileName( fName: String ): Boolean = { val fname = fName.toLowerCase; fname.endsWith(".nc4") || fname.endsWith(".nc") || fname.endsWith(".hdf") }
+  def isNcFileName( fName: String ): Boolean = { val fname = fName.toLowerCase; fname.endsWith(".nc4") || fname.endsWith(".nc") || fname.endsWith(".hdf") || fname.endsWith(".ncml") }
 
   def isNcFile( file: File ): Boolean = { file.isFile && isNcFileName( file.getName.toLowerCase ) }
 

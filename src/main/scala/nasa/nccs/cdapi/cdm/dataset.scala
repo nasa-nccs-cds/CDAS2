@@ -39,6 +39,7 @@ object Collection extends Loggable {
       case url if(url.startsWith("file:")) => "file"
       case dpath if(dpath.toLowerCase.endsWith(".csv")) => "csv"
       case fpath if(new File(fpath).isFile) => "file"
+      case dir if(new File(dir).isDirectory) => "file"
       case _ => throw new Exception( "Unrecognized Collection type, dataPath = " + dataPath )
     }
     new Collection( ctype, id, dataPath, fileFilter, scope, title, vars )

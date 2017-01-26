@@ -48,42 +48,42 @@ class min2 extends DualRDDKernel(Map("mapOp" -> "min")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Minimum"
-  val description = "Computes element-wise minimum values for a pair of input variables data over specified axes and roi"
+  val description = "Computes element-wise minimum values for a pair of input variables data over specified roi"
 }
 
 class max2 extends DualRDDKernel(Map("mapOp" -> "max")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Maximum"
-  val description = "Computes element-wise maximum values for a pair of input variables data over specified axes and roi"
+  val description = "Computes element-wise maximum values for a pair of input variables data over specified roi"
 }
 
 class sum2 extends DualRDDKernel(Map("mapOp" -> "sum")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Maximum"
-  val description = "Computes element-wise sums for a pair of input variables data over specified axes and roi"
+  val description = "Computes element-wise sums for a pair of input variables data over specified roi"
 }
 
 class diff2 extends DualRDDKernel(Map("mapOp" -> "subt")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Difference"
-  val description = "Computes element-wise diffs for a pair of input variables data over specified axes and roi"
+  val description = "Computes element-wise diffs for a pair of input variables over specified roi"
 }
 
 class mult2 extends DualRDDKernel(Map("mapOp" -> "mult")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Product"
-  val description = "Computes element-wise products for a pair of input variables data over specified axes and roi"
+  val description = "Computes element-wise products for a pair of input variables data over specified roi"
 }
 
 class div2 extends DualRDDKernel(Map("mapOp" -> "divide")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Division"
-  val description = "Computes element-wise divisions for a pair of input variables data over specified axes and roi"
+  val description = "Computes element-wise divisions for a pair of input variables data over specified roi"
 }
 
 

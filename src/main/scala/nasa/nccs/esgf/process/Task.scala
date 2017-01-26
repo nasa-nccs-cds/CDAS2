@@ -41,6 +41,7 @@ case class ErrorReport(severity: String, message: String) {
 
 class TaskRequest( val id: UID, val name: String, val variableMap : Map[String,DataContainer], val domainMap: Map[String,DomainContainer], val operations: List[OperationContext] = List(), val metadata: Map[String,String]=Map("id"->"#META") ) extends Loggable {
   val errorReports = new ListBuffer[ErrorReport]()
+  val targetGridMap = scala.collection.mutable.HashMap.empty[String,TargetGrid]
   validate()
   logger.info( s"TaskRequest: name= $name, workflows= " + operations.mkString(",") + ", variableMap= " + variableMap.toString + ", domainMap= " + domainMap.toString )
   val workflow = Workflow( this, cds2ServiceProvider.cds2ExecutionManager );
@@ -49,6 +50,19 @@ class TaskRequest( val id: UID, val name: String, val variableMap : Map[String,D
     val error_rep = ErrorReport(severity, message)
     logger.error(error_rep.toString)
     errorReports += error_rep
+  }
+  def getTargetGrid( dataContainer: DataContainer ): TargetGrid = targetGridMap.getOrElseUpdate( dataContainer.uid, createTargetGrid(dataContainer) )
+
+  private def createTargetGrid( dataContainer: DataContainer ): TargetGrid = {
+    val domainContainerOpt: Option[DomainContainer] = getDomain(dataContainer.getSource)
+    val roiOpt: Option[List[DomainAxis]] = domainContainerOpt.map( domainContainer => domainContainer.axes )
+    val t0 = System.nanoTime
+    lazy val variable: CDSVariable = dataContainer.getVariable
+    val t1 = System.nanoTime
+    val rv = new TargetGrid( variable, roiOpt )
+    val t2 = System.nanoTime
+    logger.info( " CreateTargetGridT: %.4f %.4f ".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9 ) )
+    rv
   }
 
   def getProcess: WPSWorkflowProcess = new WPSWorkflowProcess( id.toString, getDescription, "Workflow " + name, getInputs, getOutputs )
