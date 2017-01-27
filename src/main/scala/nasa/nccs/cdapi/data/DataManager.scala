@@ -180,6 +180,7 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray] , met
     val values: Iterable[xml.Node] = elements.values.map(_.toXml)
     <partition> {values} </partition>  % metadata
   }
+  def configure( key: String, value: String ): RDDPartition = new RDDPartition( iPart, elements, metadata + ( key -> value ) )
 }
 
 object RDDPartition {

@@ -10,7 +10,7 @@ import org.slf4j.{Logger, LoggerFactory}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.utilities.{Loggable, cdsutils}
-import nasa.nccs.cdas.kernels.{CDASExecutionContext, Kernel, KernelMgr, KernelModule}
+import nasa.nccs.cdas.kernels.{Kernel, KernelMgr, KernelModule}
 import nasa.nccs.cdas.kernels._
 
 import scala.concurrent.duration.Duration
@@ -78,22 +78,22 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
   val nprocs: Int = CDASPartitioner.nProcessors
 
 
-  def getOperationInputs( context: CDASExecutionContext ): Map[String,OperationInput] = {
-    val items = for (uid <- context.operation.inputs) yield {
-      context.request.getInputSpec(uid) match {
-        case Some(inputSpec) =>
-          logger.info("getInputSpec: %s -> %s ".format(uid, inputSpec.longname))
-          uid -> context.server.getOperationInput(inputSpec)
-        case None => collectionDataCache.getExistingResult(uid) match {
-          case Some(tVar: RDDTransientVariable) =>
-            logger.info("getExistingResult: %s -> %s ".format(uid, tVar.result.elements.values.head.metadata.mkString(",")))
-            uid -> new OperationTransientInput(tVar)
-          case None => throw new Exception("Unrecognized input id: " + uid)
-        }
-      }
-    }
-    Map(items:_*)
-  }
+//  def getOperationInputs( context: CDASExecutionContext ): Map[String,OperationInput] = {
+//    val items = for (uid <- context.operation.inputs) yield {
+//      context.request.getInputSpec(uid) match {
+//        case Some(inputSpec) =>
+//          logger.info("getInputSpec: %s -> %s ".format(uid, inputSpec.longname))
+//          uid -> context.server.getOperationInput(inputSpec)
+//        case None => collectionDataCache.getExistingResult(uid) match {
+//          case Some(tVar: RDDTransientVariable) =>
+//            logger.info("getExistingResult: %s -> %s ".format(uid, tVar.result.elements.values.head.metadata.mkString(",")))
+//            uid -> new OperationTransientInput(tVar)
+//          case None => throw new Exception("Unrecognized input id: " + uid)
+//        }
+//      }
+//    }
+//    Map(items:_*)
+//  }
 
   def describeWPSProcess( process: String ): xml.Elem = DescribeProcess( process )
 
@@ -138,7 +138,7 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
 //    }
 //  }
 
-  def loadInputData( request: TaskRequest, run_args: Map[String,String] ): RequestContext = {
+  def createRequestContext(request: TaskRequest, run_args: Map[String,String] ): RequestContext = {
     val t0 = System.nanoTime
     val sourceContainers = request.variableMap.values.filter(_.isSource)
     val t1 = System.nanoTime
@@ -187,9 +187,9 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
     }
   }
 
-  def saveResultToFile( resultId: String, maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, varMetadata: Map[String,String], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
+  def saveResultToFile( resultId: String, gridUid: String, maskedTensor: CDFloatArray, request: RequestContext, server: ServerContext, varMetadata: Map[String,String], dsetMetadata: List[nc2.Attribute] ): Option[String] = {
     val optInputSpec: Option[DataFragmentSpec] = request.getInputSpec()
-    val targetGrid = request.targetGrid
+    val targetGrid = request.getTargetGrid( gridUid ).getOrElse( throw new Exception( "Undefined Target Grid when saving result " + resultId ))
     request.getCollection(server) map { collection =>
       val varname = searchForValue(varMetadata, List("varname", "fullname", "standard_name", "original_name", "long_name"), "Nd4jMaskedTensor")
       val resultFile = Kernel.getResultFile( resultId, true )
@@ -281,11 +281,11 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
 
   def futureExecute( request: TaskRequest, run_args: Map[String,String] ): Future[WPSResponse] = Future {
     logger.info("ASYNC Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
-    val requestContext = loadInputData(request, run_args)
+    val requestContext = createRequestContext(request, run_args)
     executeWorkflows(request, requestContext)
   }
 
-  def getRequestContext( request: TaskRequest, run_args: Map[String,String] ): RequestContext = loadInputData( request, run_args )
+  def getRequestContext( request: TaskRequest, run_args: Map[String,String] ): RequestContext = createRequestContext( request, run_args )
 
   def blockingExecute( request: TaskRequest, run_args: Map[String,String] ): WPSResponse =  {
     logger.info("Blocking Execute { runargs: " + run_args.toString + ", request: " + request.toString + " }")
@@ -300,7 +300,7 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
         case _ =>
           logger.info("Executing task request " + request.name )
           val t1 = System.nanoTime
-          val requestContext = loadInputData (request, run_args)
+          val requestContext = createRequestContext (request, run_args)
           val t2 = System.nanoTime
           val rv = executeWorkflows (request, requestContext)
           val t3 = System.nanoTime
@@ -330,7 +330,7 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
         val result = tvar.result.elements.values.head
         val resultFile = Kernel.getResultFile( resId )
         if(resultFile.exists) Some(resultFile.getAbsolutePath)
-        else { saveResultToFile(resId, result.toCDFloatArray, tvar.request, serverContext, result.metadata, List.empty[nc2.Attribute] ) }
+        else { saveResultToFile(resId, tvar.getGridId, result.toCDFloatArray, tvar.request, serverContext, result.metadata, List.empty[nc2.Attribute] ) }
       case None => None
     }
     //          } else { new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }
@@ -453,14 +453,14 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
     request.workflow.stream( requestCx )
   }
 
-  def executeUtility( context: CDASExecutionContext ): UtilityExecutionResult = {
-    val report: xml.Elem =  <ReportText> {"Completed executing utility " + context.operation.name.toLowerCase } </ReportText>
-    new UtilityExecutionResult( context.operation.name.toLowerCase + "~u0", report )
+  def executeUtility( operationCx: OperationContext, requestCx: RequestContext ): UtilityExecutionResult = {
+    val report: xml.Elem =  <ReportText> {"Completed executing utility " + operationCx.name.toLowerCase } </ReportText>
+    new UtilityExecutionResult( operationCx.name.toLowerCase + "~u0", report )
   }
 
   def utilityExecution( operationCx: OperationContext, requestCx: RequestContext ): UtilityExecutionResult = {
     logger.info( " ***** Utility Execution: utilName=%s, >> Operation = %s ".format( operationCx.name, operationCx.toString ) )
-    executeUtility( new CDASExecutionContext( operationCx, requestCx, serverContext ) )
+    executeUtility( operationCx, requestCx )
   }
 }
 

@@ -7,7 +7,6 @@ import nasa.nccs.cdapi.cdm.{CDSVariable, OperationInput, OperationTransientInput
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartSpec, RDDPartition, RDDVariableSpec}
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.engine.WorkflowNode
-import nasa.nccs.cdas.kernels.CDASExecutionContext
 import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.Loggable

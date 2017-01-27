@@ -34,45 +34,46 @@ class Port( val name: String, val cardinality: String, val description: String, 
   }
 }
 
-class KernelContext( val operation: OperationContext, val grid: GridContext, val sectionMap: Map[String,Option[CDSection]], val configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
+class KernelContext( val operation: OperationContext, val grids: Map[String,Option[GridContext]], val sectionMap: Map[String,Option[CDSection]], val configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
+  lazy val grid: GridContext = getTargetGridContext
   def getConfiguration = configuration ++ operation.getConfiguration
   def getAxes: AxisIndices = grid.getAxisIndices( config("axes", "") )
   def getContextStr = getConfiguration map { case ( key, value ) => key + ":" + value } mkString (";")
+  private def getTargetGridContext: GridContext = (grids.find {case (k,v) => v.isDefined}).getOrElse(("",None))._2.getOrElse( throw new Exception("Undefined grid in KernelContext for op " + operation.identifier ) )   // TODO: choose grid based on configuration
+//  def getGridSection( inputId: String ): Option[GridSection] = sectionMap.getOrElse(None).map( section => GridSection())
 }
 
-class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) extends Loggable  {
-
-  def getOpSections: Option[ IndexedSeq[ma2.Section] ] = {
-    val optargs: Map[String, String] = operation.getConfiguration
-    val domains: IndexedSeq[DomainContainer] = optargs.get("domain") match {
-      case Some(domainIds) => domainIds.split(",").map(request.getDomain(_))
-      case None => return Some( IndexedSeq.empty[ma2.Section] )
-    }
-//    logger.info( "OPT DOMAIN Arg: " + optargs.getOrElse( "domain", "None" ) )
-//    logger.info( "OPT Domains: " + domains.map(_.toString).mkString( ", " ) )
-    Some( domains.map(dc => request.targetGrid.grid.getSubSection(dc.axes) match {
-      case Some(section) => section
-      case None => return None
-    }))
-  }
-
-  def toKernelContext: KernelContext = {
-    val sectionMap: Map[String,Option[CDSection]] = request.inputs.mapValues( _.map( _.cdsection ) ).map(identity)
-    new KernelContext( operation, GridContext(request.targetGrid), sectionMap, request.getConfiguration )
-  }
-
-  def getOpSectionIntersection: Option[ ma2.Section ] = getOpSections match {
-    case None => return None
-    case Some( sections ) =>
-      if( sections.isEmpty ) None
-      else {
-        val result = sections.foldLeft(sections.head)( _.intersect(_) )
-        if (result.computeSize() > 0) { Some(result) }
-        else return None
-      }
-  }
-  def getOpCDSectionIntersection: Option[ CDSection ] = getOpSectionIntersection.map( CDSection( _ ) )
-}
+//class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) extends Loggable  {
+//  val targetGrids = request.getTargetGrids
+//
+//  def getOpSections(uid: String): Option[ IndexedSeq[ma2.Section] ] = {
+//    val optargs: Map[String, String] = operation.getConfiguration
+//    val domains: IndexedSeq[DomainContainer] = optargs.get("domain") match {
+//      case Some(domainIds) => domainIds.split(",").map(request.getDomain(_))
+//      case None => return Some( IndexedSeq.empty[ma2.Section] )
+//    }
+////    logger.info( "OPT DOMAIN Arg: " + optargs.getOrElse( "domain", "None" ) )
+////    logger.info( "OPT Domains: " + domains.map(_.toString).mkString( ", " ) )
+//    targetGrids.get(uid).flatMap( _.map ( targetGrid => domains.map( dc => targetGrid.grid.getSubSection(dc.axes).getOrElse(new ma2.Section(List.empty)) ) ) )
+//  }
+//
+//  def toKernelContext: KernelContext = {
+//    val sectionMap: Map[String,Option[CDSection]] = request.inputs.mapValues( _.map( _.cdsection ) ).map(identity)
+//    new KernelContext( operation, targetGrids.mapValues(_.map(GridContext(_))), sectionMap, request.getConfiguration )
+//  }
+//
+//  def getOpSectionIntersection(uid: String): Option[ ma2.Section ] = getOpSections(uid) match {
+//    case None => return None
+//    case Some( sections ) =>
+//      if( sections.isEmpty ) None
+//      else {
+//        val result = sections.foldLeft(sections.head)( _.intersect(_) )
+//        if (result.computeSize() > 0) { Some(result) }
+//        else return None
+//      }
+//  }
+//  def getOpCDSectionIntersection: Option[ CDSection ] = getOpSectionIntersection().map( CDSection( _ ) )
+//}
 
 case class ResultManifest( val name: String, val dataset: String, val description: String, val units: String )
 

@@ -31,7 +31,8 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
 
   def generateKernelContext( requestCx: RequestContext ): KernelContext = {
     val sectionMap: Map[String, Option[CDSection]] = requestCx.inputs.mapValues(_.map(_.cdsection)).map(identity)
-    new KernelContext( operation, GridContext(requestCx.targetGrid), sectionMap, requestCx.getConfiguration)
+    val gridMap: Map[String,Option[GridContext]] = requestCx.getTargetGrids.map { case (uid,tgridOpt) => uid -> tgridOpt.map( tg => GridContext(uid,tg)) }
+    new KernelContext( operation, gridMap, sectionMap, requestCx.getConfiguration)
   }
 
   def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {
@@ -63,12 +64,13 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
     val nparts = inputs.getNumPartitions
     logger.info( "MAP_REDUCE on RDD, nparts = " + nparts )
     val mapresult = map( inputs, kernelContext, kernel )
-    if(nparts == 1) { mapresult.collect()(0)._2 } else { reduce( mapresult, kernelContext, kernel ) }
+    val result = if(nparts == 1) { mapresult.collect()(0)._2 } else { reduce( mapresult, kernelContext, kernel ) }
+    result.configure( "gid", kernelContext.grid.uid )
   }
 
   def stream( requestCx: RequestContext ): RDD[(Int,RDDPartition)] = {
     val kernelContext = generateKernelContext( requestCx )
-    val inputs = prepareInputs( kernelContext, requestCx )                                                     // TODO: Add (reduce/broadcast)-when-required
+    val inputs = prepareInputs( kernelContext, requestCx )
     map( inputs, kernelContext, kernel )
   }
 
@@ -188,7 +190,8 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
-    val opSection: Option[ma2.Section] = getOpSectionIntersection( requestCx, node )
+    val targetGrid: TargetGrid = requestCx.getTargetGrid( kernelContext.grid.uid ).getOrElse( throw new Exception("Undefined Grid in domain partition for kernel " + kernelContext.operation.identifier))
+    val opSection: Option[ma2.Section] = getOpSectionIntersection( targetGrid, node )
     val rdds: Iterable[RDD[(Int,RDDPartition)]] = opInputs.map { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
           executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node )
@@ -202,21 +205,21 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     if( opInputs.size == 1 ) rdds.head else rdds.tail.foldLeft( rdds.head )( CDSparkContext.merge(_,_) )
   }
 
-  def getOpSections( request: RequestContext, node: WorkflowNode ): Option[ IndexedSeq[ma2.Section] ] = {
+  def getOpSections( targetGrid: TargetGrid, node: WorkflowNode ): Option[ IndexedSeq[ma2.Section] ] = {
     val optargs: Map[String, String] = node.operation.getConfiguration
     val domains: IndexedSeq[DomainContainer] = optargs.get("domain") match {
-      case Some(domainIds) => domainIds.split(",").map(request.getDomain(_))
+      case Some(domainIds) => domainIds.split(",").flatMap(request.getDomain(_)).toIndexedSeq
       case None => return Some( IndexedSeq.empty[ma2.Section] )
     }
     //    logger.info( "OPT DOMAIN Arg: " + optargs.getOrElse( "domain", "None" ) )
     //    logger.info( "OPT Domains: " + domains.map(_.toString).mkString( ", " ) )
-    Some( domains.map(dc => request.targetGrid.grid.getSubSection(dc.axes) match {
+    Some( domains.map(dc => targetGrid.grid.getSubSection(dc.axes) match {
       case Some(section) => section
       case None => return None
     }))
   }
 
-  def getOpSectionIntersection(request: RequestContext, node: WorkflowNode): Option[ ma2.Section ] = getOpSections(request,node) match {
+  def getOpSectionIntersection( targetGrid: TargetGrid, node: WorkflowNode): Option[ ma2.Section ] = getOpSections(targetGrid,node) match {
     case None => return None
     case Some( sections ) =>
       if( sections.isEmpty ) None
@@ -226,7 +229,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
         else return None
       }
   }
-  def getOpCDSectionIntersection(request: RequestContext, node: WorkflowNode): Option[ CDSection ] = getOpSectionIntersection(request, node).map( CDSection( _ ) )
+  def getOpCDSectionIntersection(targetGrid: TargetGrid, node: WorkflowNode): Option[ CDSection ] = getOpSectionIntersection(targetGrid, node).map( CDSection( _ ) )
 }
 
 

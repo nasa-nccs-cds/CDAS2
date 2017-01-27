@@ -57,6 +57,7 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
     case Some(optInputSpec) => optInputSpec map { inputSpec => inputSpec.getCollection }
     case None =>inputs.head._2 map { inputSpec => inputSpec.getCollection }
   }
+  def getTargetGrids: Map[String,Option[TargetGrid]] = inputs.mapValues( _.flatMap( _.targetGridOpt ) )
   def getSection( serverContext: ServerContext, uid: String = "" ): Option[ma2.Section] = inputs.get( uid ) match {
     case Some(optInputSpec) => optInputSpec map { _.roi }
     case None =>inputs.head._2 map { _.roi }
@@ -65,6 +66,7 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
     case Some(domain_container) => domain_container
     case None => throw new Exception("Undefined domain in ExecutionContext: " + domain_id)
   }
+  def getTargetGrid( uid: String  ): Option[TargetGrid] = request.getTargetGrid( uid )
 //  def getAxisIndices( axisConf: String ): AxisIndices = targetGrid.getAxisIndices( axisConf  )
 }
 
@@ -266,7 +268,7 @@ object GridSection extends Loggable {
         Some( new GridCoordSpec(idim, grid, coord_axis, domainAxisOpt) )
       case None => logger.warn( "Unrecognized coordinate axis: %s, axes = ( %s )".format( dim, grid.getCoordinateAxes.map( axis => axis.getFullName ).mkString(", ") )); None
     }
-    new GridSection( variable.collection.grid, coordSpecs.flatten )
+    new GridSection( grid, coordSpecs.flatten )
   }
 
   def apply( variable: CDSVariable, section: ma2.Section ): GridSection = {
@@ -333,15 +335,15 @@ class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
 }
 
 object GridContext extends Loggable {
-  def apply( targetGrid: TargetGrid ) : GridContext = {
+  def apply( uid: String, targetGrid: TargetGrid ) : GridContext = {
     val axisMap: Map[Char,Option[( Int, HeapDblArray )]] = Map( List( 't', 'z', 'y', 'x' ).map( axis => axis -> targetGrid.getAxisCDData(axis) ):_* )
     val cfAxisNames: Array[String] = ( 0 until targetGrid.getRank ).map( dim_index => targetGrid.getCFAxisName( dim_index ) ).toArray
     val axisIndexMap: Map[String,Int] = Map( cfAxisNames.map( cfAxisName => cfAxisName.toLowerCase -> targetGrid.getAxisIndex(cfAxisName) ):_* )
-    new GridContext(axisMap,cfAxisNames,axisIndexMap)
+    new GridContext(uid,axisMap,cfAxisNames,axisIndexMap)
   }
 }
 
-class GridContext(val axisMap: Map[Char,Option[( Int, HeapDblArray )]], val cfAxisNames: Array[String], val axisIndexMap: Map[String,Int] ) extends Serializable {
+class GridContext(val uid: String, val axisMap: Map[Char,Option[( Int, HeapDblArray )]], val cfAxisNames: Array[String], val axisIndexMap: Map[String,Int] ) extends Serializable {
   def getAxisIndices( axisConf: String ): AxisIndices = new AxisIndices( axisIds=axisConf.map( ch => getAxisIndex( ch.toString.toLowerCase ) ).toSet )
   def getAxisIndex( cfAxisName: String, default_val: Int = -1 ): Int = axisIndexMap.getOrElse( cfAxisName, default_val )
   def getCFAxisName( dimension_index: Int ): String = cfAxisNames(dimension_index)

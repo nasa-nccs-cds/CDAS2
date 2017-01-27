@@ -52,6 +52,8 @@ class TaskRequest( val id: UID, val name: String, val variableMap : Map[String,D
     errorReports += error_rep
   }
   def getTargetGrid( dataContainer: DataContainer ): TargetGrid = targetGridMap.getOrElseUpdate( dataContainer.uid, createTargetGrid(dataContainer) )
+  def getTargetGrid( uid: String  ): Option[TargetGrid] = targetGridMap.get( uid )
+
 
   private def createTargetGrid( dataContainer: DataContainer ): TargetGrid = {
     val domainContainerOpt: Option[DomainContainer] = getDomain(dataContainer.getSource)
@@ -91,6 +93,8 @@ class TaskRequest( val id: UID, val name: String, val variableMap : Map[String,D
         domainMap.get( domain )
     }
   }
+
+  def getDomain( domId: String ): Option[DomainContainer] =  domainMap.get( domId )
 
   def validate() = {
     for( variable <- inputVariables; if variable.isSource; domid = variable.getSource.domain; vid=variable.getSource.name; if !domid.isEmpty ) {
@@ -534,9 +538,10 @@ class DataContainer(val uid: String, private val source : Option[DataSource] = N
   assert( source.isDefined || operation.isDefined, s"Empty DataContainer: variable uid = $uid" )
   assert( source.isEmpty || operation.isEmpty, s"Conflicted DataContainer: variable uid = $uid" )
   private val optSpecs = mutable.ListBuffer[ OperationSpecs ]()
+  private lazy val variable = { val source = getSource; source.collection.getVariable( source.name ) }
 
   def toWPSDataInput: WPSDataInput = WPSDataInput( uid.toString, 1, 1 )
-  def getVariable: CDSVariable = { val source = getSource; source.collection.getVariable( source.name ) }
+  def getVariable: CDSVariable = variable
 
   override def toString = {
     val embedded_val: String = if ( source.isDefined ) source.get.toString else operation.get.toString

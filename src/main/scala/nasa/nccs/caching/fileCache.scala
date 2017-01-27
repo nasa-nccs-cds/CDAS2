@@ -449,7 +449,13 @@ class RDDTransientVariable(val result: RDDPartition,
                            val request: RequestContext) {
   val timeFormatter = new SimpleDateFormat("MM.dd-HH:mm:ss")
   val timestamp = Calendar.getInstance().getTime
+
   def getTimestamp = timeFormatter.format(timestamp)
+
+  def getGridId = result.metadata.get("gid") match {
+    case Some(x) => x;
+    case None => throw new Exception("Error, no gridId in result of operation " + operation.identifier)
+  }
 }
 
 class TransientDataCacheMgr extends Loggable {
