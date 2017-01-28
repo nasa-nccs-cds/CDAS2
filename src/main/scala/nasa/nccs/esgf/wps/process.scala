@@ -1,5 +1,4 @@
 package nasa.nccs.esgf.wps
-import nasa.nccs.esgf.wps.servers.APIManager
 import nasa.nccs.utilities.Loggable
 
 
