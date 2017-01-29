@@ -25,10 +25,11 @@ object wpsOperationParser extends OperationNotationParser {
 }
 
 object wpsNameMatchers {
-  val yAxis = """^y\w*|^lat\w*""".r
-  val xAxis = """^x\w*|^lon\w*""".r
-  val zAxis = """^z\w*|^lev\w*|^plev\w*""".r
-  val tAxis = """^t\w*""".r
+  val yAxis = """^lat\w*""".r
+  val xAxis = """^lon\w*""".r
+  val zAxis = """^lev\w*|^plev\w*""".r
+  val id    = """^id\w*|^name\w*""".r
+  val tAxis = """^tim\w*""".r
 
   def getDimension( axisName: String ): Char = axisName match {
     case xAxis() => 'x'

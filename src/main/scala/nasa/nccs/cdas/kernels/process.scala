@@ -39,7 +39,8 @@ class KernelContext( val operation: OperationContext, val grids: Map[String,Opti
   def getConfiguration = configuration ++ operation.getConfiguration
   def getAxes: AxisIndices = grid.getAxisIndices( config("axes", "") )
   def getContextStr = getConfiguration map { case ( key, value ) => key + ":" + value } mkString (";")
-  private def getTargetGridContext: GridContext = (grids.find {case (k,v) => v.isDefined}).getOrElse(("",None))._2.getOrElse( throw new Exception("Undefined grid in KernelContext for op " + operation.identifier ) )   // TODO: choose grid based on configuration
+  private def getTargetGridContext: GridContext =
+    (grids.find {case (k,v) => v.isDefined}).getOrElse(("",None))._2.getOrElse( throw new Exception("Undefined grid in KernelContext for op " + operation.identifier ) )   // TODO: choose grid based on configuration
 //  def getGridSection( inputId: String ): Option[GridSection] = sectionMap.getOrElse(None).map( section => GridSection())
 }
 

@@ -686,7 +686,7 @@ object DataContainer extends ContainerBase {
   }
 }
 
-class DomainContainer( val name: String, val axes: List[DomainAxis] = List.empty[DomainAxis], val mask: Option[String]=None ) extends ContainerBase  with Serializable {
+class DomainContainer( val name: String, val axes: List[DomainAxis] = List.empty[DomainAxis], val metadata: Map[String,String]=Map.empty, val mask: Option[String]=None ) extends ContainerBase  with Serializable {
   override def toString = {
     s"DomainContainer { name = $name, axes = $axes }"
   }
@@ -760,6 +760,9 @@ class DomainAxis( val axistype: DomainAxis.Type.Value, val start: GenericNumber,
 }
 
 object DomainContainer extends ContainerBase {
+
+  def refKey( item: (String,Any) ) = !(key_equals( wpsNameMatchers.xAxis )( item ) || key_equals( wpsNameMatchers.yAxis )( item )
+    || key_equals( wpsNameMatchers.zAxis )( item )|| key_equals( wpsNameMatchers.tAxis )( item ) || key_equals( wpsNameMatchers.id )( item ))
   
   def apply(metadata: Map[String, Any]): DomainContainer = {
     var items = new ListBuffer[ Option[DomainAxis] ]()
@@ -770,7 +773,7 @@ object DomainContainer extends ContainerBase {
       items += DomainAxis( DomainAxis.Type.Z,   filterMap(metadata,  key_equals( wpsNameMatchers.zAxis )))
       items += DomainAxis( DomainAxis.Type.T,   filterMap(metadata,  key_equals( wpsNameMatchers.tAxis )))
       val mask: Option[String] = filterMap(metadata, key_equals("mask")) match { case None => None; case Some(x) => Some(x.toString) }
-      new DomainContainer( normalize(name.toString), items.flatten.toList, mask )
+      new DomainContainer( normalize(name.toString), items.flatten.toList, metadata.filter(refKey).mapValues(_.toString), mask )
     } catch {
       case e: Exception =>
         logger.error("Error creating DomainContainer: " + e.getMessage )
