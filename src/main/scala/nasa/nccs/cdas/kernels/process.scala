@@ -34,13 +34,25 @@ class Port( val name: String, val cardinality: String, val description: String, 
   }
 }
 
-class KernelContext( val operation: OperationContext, val grids: Map[String,Option[GridContext]], val sectionMap: Map[String,Option[CDSection]], val configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
+class KernelContext( val operation: OperationContext, val grids: Map[String,Option[GridContext]], val sectionMap: Map[String,Option[CDSection]],  val domains: Map[String,DomainContainer], val configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
   lazy val grid: GridContext = getTargetGridContext
   def getConfiguration = configuration ++ operation.getConfiguration
   def getAxes: AxisIndices = grid.getAxisIndices( config("axes", "") )
   def getContextStr = getConfiguration map { case ( key, value ) => key + ":" + value } mkString (";")
-  private def getTargetGridContext: GridContext =
-    (grids.find {case (k,v) => v.isDefined}).getOrElse(("",None))._2.getOrElse( throw new Exception("Undefined grid in KernelContext for op " + operation.identifier ) )   // TODO: choose grid based on configuration
+  def getDomainMetadata(domId: String): Map[String,String] = domains.get(domId) match { case Some(dc) => dc.metadata; case None => Map.empty }
+  private def getTargetGridContext: GridContext = {
+    operation.getDomain.flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("crs") ) ) match {
+      case Some( crs ) =>
+        if( crs.startsWith("~")) {
+          val crs_varId = crs.substring(1)
+          grids.get( crs_varId ).flatten.getOrElse( throw new Exception(s"Unsupported grid specification '$crs' in KernelContext for op '$operation'" ) )
+        } else {
+          throw new Exception( "Currently unsupported crs specification")
+        }
+      case None => (grids.find { case (k, v) => v.isDefined }).getOrElse(("", None))._2.getOrElse(throw new Exception("Undefined grid in KernelContext for op " + operation.identifier))
+    }
+  }
+
 //  def getGridSection( inputId: String ): Option[GridSection] = sectionMap.getOrElse(None).map( section => GridSection())
 }
 

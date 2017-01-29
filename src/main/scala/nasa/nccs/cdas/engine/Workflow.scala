@@ -32,7 +32,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   def generateKernelContext( requestCx: RequestContext ): KernelContext = {
     val sectionMap: Map[String, Option[CDSection]] = requestCx.inputs.mapValues(_.map(_.cdsection)).map(identity)
     val gridMap: Map[String,Option[GridContext]] = requestCx.getTargetGrids.map { case (uid,tgridOpt) => uid -> tgridOpt.map( tg => GridContext(uid,tg)) }
-    new KernelContext( operation, gridMap, sectionMap, requestCx.getConfiguration)
+    new KernelContext( operation, gridMap, sectionMap, requestCx.domains, requestCx.getConfiguration)
   }
 
   def reduce( mapresult: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {

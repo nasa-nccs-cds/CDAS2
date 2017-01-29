@@ -51,7 +51,9 @@ class TaskRequest( val id: UID, val name: String, val variableMap : Map[String,D
     logger.error(error_rep.toString)
     errorReports += error_rep
   }
-  def getTargetGrid( dataContainer: DataContainer ): TargetGrid = targetGridMap.getOrElseUpdate( dataContainer.uid, createTargetGrid(dataContainer) )
+  def getTargetGrid( dataContainer: DataContainer ): TargetGrid =
+    targetGridMap.getOrElseUpdate( dataContainer.uid, createTargetGrid(dataContainer) )
+
   def getTargetGrid( uid: String  ): Option[TargetGrid] = targetGridMap.get( uid )
 
 
@@ -787,6 +789,7 @@ object DomainContainer extends ContainerBase {
 
 class OperationContext( val index: Int, val identifier: String, val name: String, val rid: String, val inputs: List[String], val resultType: OpResultType, private val configuration: Map[String,String] )  extends ContainerBase with ScopeContext with Serializable  {
   def getConfiguration = configuration
+  def getDomain: Option[String] = configuration.get("domain")
   val moduleName: String = name.toLowerCase.split('.').head
   override def toString = s"OperationContext { id = $identifier,  name = $name, rid = $rid, inputs = $inputs, configurations = $configuration }"
   override def toXml = <proc id={identifier} name={name} rid={rid} inputs={inputs.toString} configurations={configuration.toString}/>
