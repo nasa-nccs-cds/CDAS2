@@ -125,7 +125,6 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     assert( getResultData( result_node ).maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Subset")
   }
 
-
   test("ESGF_Demo") {
     val unverified_result: CDFloatArray = CDFloatArray(  Array( 237.50804f, 237.50804f, 237.50803f, 237.50804f, 237.50804f, 237.50803f, 237.50804f, 237.50803f, 237.50804f, 237.50803f ), Float.MaxValue )
     val GISS_H_vids = ( 1 to nExp ) map { index => s"vH$index" }

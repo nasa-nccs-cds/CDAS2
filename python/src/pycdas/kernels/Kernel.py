@@ -28,16 +28,12 @@ class Kernel:
 
     def executeTask( self, task, inputs ):
         results = []
+        t0 = time.time()
         self.cacheReturn = [ mParse.s2b(s) for s in task.metadata.get( "cacheReturn", "ft" ) ]
-        for inputId in task.inputs:
-            input = inputs.get( inputId )
-            if( input != None ):
-                t0 = time.time()
-                result = self.executeOperation( task, input )
-                self.logger.info( " >> Executed {0} operation in time {1}".format( self._spec.name(), (time.time()-t0) ) )
-                if( result != None ): results.append( result )
-            else:
-                raise Exception( "ExecuteTask ERROR: required input {0} not available in task inputs: {1}".format( task.inputs, inputs.keys() ))
+        kernel_inputs = [ inputs.get( inputId ) for inputId in task.inputs ]
+        if None in kernel_inputs: raise Exception( "ExecuteTask ERROR: required input {0} not available in task inputs: {1}".format( task.inputs, inputs.keys() ))
+        results = self.executeOperations( task, kernel_inputs )
+        self.logger.info( " >> Executed {0} operation in time {1}".format( self._spec.name(), (time.time()-t0) ) )
         return results
 
     def executeReduceOp( self, task, inputs ):
@@ -45,6 +41,7 @@ class Kernel:
 
     def reduce( self, input0, input1, metadata, rId ): raise Exception( "Parallelizable kernel with undefined reduce method operating on T axis")
 
+    def executeOperations( self, task, inputs ): [ self.executeOperation(task,input) for input in inputs ]
     def executeOperation( self, task, input ): raise Exception( "Attempt to execute Kernel with undefined executeOperation method")
 
     def getCapabilities(self): return self._spec

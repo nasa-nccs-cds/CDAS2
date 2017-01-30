@@ -5,7 +5,7 @@ import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.engine.spark.{CDSparkContext, IndexPartitioner}
-import nasa.nccs.cdas.kernels.{Kernel, KernelContext}
+import nasa.nccs.cdas.kernels.{Kernel, KernelContext, zmqPythonKernel}
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.{DAGNode, Loggable}
 import nasa.nccs.wps._
@@ -68,15 +68,16 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
     result.configure( "gid", kernelContext.grid.uid )
   }
 
-  def stream( requestCx: RequestContext ): RDD[(Int,RDDPartition)] = {
+  def stream( requestCx: RequestContext ): ( RDD[(Int,RDDPartition)], KernelContext ) = {
     val kernelContext = generateKernelContext( requestCx )
     val inputs = prepareInputs( kernelContext, requestCx )
-    map( inputs, kernelContext, kernel )
+    ( map( inputs, kernelContext, kernel ) -> kernelContext )
   }
 
   def prepareInputs( kernelContext: KernelContext, requestCx: RequestContext ): RDD[(Int,RDDPartition)] = {
     val opInputs = workflow.getNodeInputs( requestCx, this )
-    workflow.domainRDDPartition( opInputs, kernelContext, requestCx, this )
+    val inputs = workflow.domainRDDPartition( opInputs, kernelContext, requestCx, this )
+    inputs
   }
 
   def map( input: RDD[(Int,RDDPartition)], context: KernelContext, kernel: Kernel ): RDD[(Int,RDDPartition)] = {
@@ -189,20 +190,29 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     node.operation.rid
   }
 
+  def getRegridKernel: zmqPythonKernel = executionMgr.getKernel( "python.cdmsmodule", "regrid"  ) match {
+    case pyKernel: zmqPythonKernel => pyKernel
+    case x => throw new Exception( "Unexpected Kernel class for regrid module: " + x.getClass.getName)
+  }
+
   def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
     val targetGrid: TargetGrid = requestCx.getTargetGrid( kernelContext.grid.uid ).getOrElse( throw new Exception("Undefined Grid in domain partition for kernel " + kernelContext.operation.identifier))
     val opSection: Option[ma2.Section] = getOpSectionIntersection( targetGrid, node )
-    val rdds: Iterable[RDD[(Int,RDDPartition)]] = opInputs.map { case ( uid, opinput ) => opinput match {
+    lazy val regridKernel = getRegridKernel
+    val rawRdds: Iterable[(RDD[(Int,RDDPartition)],Boolean)] = opInputs.map { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
-          executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node )
+          ( executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node ) -> dataInput.matchGrids( targetGrid ) )
         case ( kernelInput: DependencyOperationInput  ) =>
           logger.info( "\n\n ----------------------- Stream DEPENDENCY Node: %s -------\n".format( kernelInput.workflowNode.getNodeId() ))
-          kernelInput.workflowNode.stream( requestCx )
+          val ( result, context ) = kernelInput.workflowNode.stream( requestCx )
+          ( result, context.grid.uid.equals(kernelContext.grid.uid) )
         case (  x ) =>
           throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
       }
     }
-    if( opInputs.size == 1 ) rdds.head else rdds.tail.foldLeft( rdds.head )( CDSparkContext.merge(_,_) )
+    val needsRegrid: Boolean = rawRdds.exists { case (rdd,matchGrids) => !matchGrids }
+    val rawResult: RDD[(Int,RDDPartition)] = if( opInputs.size == 1 ) rawRdds.head._1 else rawRdds.tail.foldLeft( rawRdds.head._1 )( CDSparkContext.merge(_._1,_._1) )
+    if(needsRegrid) { node.map( rawResult, kernelContext, regridKernel ) } else rawResult
   }
 
   def getOpSections( targetGrid: TargetGrid, node: WorkflowNode ): Option[ IndexedSeq[ma2.Section] ] = {

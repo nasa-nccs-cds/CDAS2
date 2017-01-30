@@ -775,7 +775,7 @@ object DomainContainer extends ContainerBase {
       items += DomainAxis( DomainAxis.Type.Z,   filterMap(metadata,  key_equals( wpsNameMatchers.zAxis )))
       items += DomainAxis( DomainAxis.Type.T,   filterMap(metadata,  key_equals( wpsNameMatchers.tAxis )))
       val mask: Option[String] = filterMap(metadata, key_equals("mask")) match { case None => None; case Some(x) => Some(x.toString) }
-      new DomainContainer( normalize(name.toString), items.flatten.toList, metadata.filter(refKey).mapValues(_.toString), mask )
+      new DomainContainer( normalize(name.toString), items.flatten.toList, metadata.filter(refKey).mapValues(_.toString).map(identity), mask )
     } catch {
       case e: Exception =>
         logger.error("Error creating DomainContainer: " + e.getMessage )

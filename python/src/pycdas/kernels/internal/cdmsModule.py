@@ -23,26 +23,38 @@ class RegridKernel(CDMSKernel):
         Kernel.__init__( self, KernelSpec("regrid", "Regridder", "Regrids the inputs using UVCDAT", parallize=True ) )
         self._debug = False
 
-    def executeOperation(self, task, _input):
-        variable = _input.getVariable()
-        crsToks = task.metadata.get("crs","gaussian~128").split("~")
-        crs = crsToks[0]
-        resolution = int(crsToks[1]) if len(crsToks) > 1 else 128
-        if crs == "gaussian":
-            t42 = cdms2.createGaussianGrid( resolution )
+    def executeOperations(self, task, _inputs):
+        crsToks = task.metadata.get("crs","").split("~")
+        if not crsToks[0]: raise Exception( "Can't find crs spec in regrid kernel")
+        if( len(crsToks) > 1 ):
+            if crsToks[0] == "gaussian":
+                resolution = int(crsToks[1])
+                toGrid = cdms2.createGaussianGrid( resolution )
+            else: raise Exception( "Unrecognized grid type: " + crsToks[0])
+        else:
+            grid_inputs = [ input for input in _inputs if( input.uid() == crsToks[0] ) ]
+            if len( grid_inputs ) == 0: raise Exception( "Can't find grid variable: " + crsToks[0])
+            toGrid = grid_inputs[0].getGrid()
+
+        results = []
+        for _input in _inputs:
+            variable = _input.getVariable()
             ingrid = variable.getGrid()
-            regridFunction = Horizontal(ingrid, t42)
-            inlatBounds, inlonBounds = ingrid.getBounds()
-            result_var = regridFunction( variable )
-            if self._debug:
-                self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( variable.data.flat[i] ) for i in range(20,90) ] ) ) )
-                self.logger.info( " >> Input Variable Shape: {0}, Grid Shape: {1} ".format( str(variable.shape), str([len(ingrid.getLatitude()),len(ingrid.getLongitude())] )))
-                self.logger.info( " >>  Grid Lat axis: " + str( ingrid.getLatitude()) )
-                self.logger.info( " >>  Grid Lon axis: " + str( ingrid.getLongitude()) )
-                self.logger.info( " >>  Grid Lat bounds: " + str(inlatBounds) )
-                self.logger.info( " >>  Grid Lon bounds: " + str(inlonBounds) )
-                self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( result_var.data.flat[i] ) for i in range(20,90) ] ) ) )
-            return self.createResult( result_var, _input, task )
+            if( not ingrid == toGrid ):
+                regridFunction = Horizontal(ingrid, toGrid)
+                inlatBounds, inlonBounds = ingrid.getBounds()
+                self.logger.info( " Regridding Variable {0} using grid {1} ".format( variable.id, str(toGrid) ) )
+                result_var = regridFunction( variable )
+                if self._debug:
+                    self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( variable.data.flat[i] ) for i in range(20,90) ] ) ) )
+                    self.logger.info( " >> Input Variable Shape: {0}, Grid Shape: {1} ".format( str(variable.shape), str([len(ingrid.getLatitude()),len(ingrid.getLongitude())] )))
+                    self.logger.info( " >>  Grid Lat axis: " + str( ingrid.getLatitude()) )
+                    self.logger.info( " >>  Grid Lon axis: " + str( ingrid.getLongitude()) )
+                    self.logger.info( " >>  Grid Lat bounds: " + str(inlatBounds) )
+                    self.logger.info( " >>  Grid Lon bounds: " + str(inlonBounds) )
+                    self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( result_var.data.flat[i] ) for i in range(20,90) ] ) ) )
+                results.append( self.createResult( result_var, _input, task ) )
+        return results
 
 class AverageKernel(CDMSKernel):
 

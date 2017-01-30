@@ -23,12 +23,17 @@ class CDArray:
     @abstractmethod
     def createResult(cls, task, input, result_array ): raise Exception( "Executing abstract method createResult in CDArray")
 
+    def uid(self): self.id.split('-')[0]
+
     @classmethod
     @abstractmethod
     def createInput(cls, header, data): raise Exception( "Executing abstract method createInput in CDArray")
 
     @abstractmethod
     def getVariable(self): pass
+
+    @abstractmethod
+    def getGrid(self): pass
 
     @abstractmethod
     def subsetAxes(self): pass
@@ -70,6 +75,11 @@ class npArray(CDArray):
         self.dimensions = self.metadata["dimensions"].split(",")
         self.array = _ndarray
 
+    def getGrid(self):
+        import cdms2
+        gridfile = cdms2.open(self.gridFilePath)
+        gridfile.grids.values()[0]
+
     def getVariable(self):
         import cdms2
         t0 = time.time()
@@ -83,7 +93,6 @@ class npArray(CDArray):
         variable.createattribute("gridfile", self.gridFilePath)
         variable.createattribute("origin", mParse.ia2s(self.origin))
         t1 = time.time()
-        inlatBounds, inlonBounds = grid1.getBounds()
         self.logger.info(" >> Created CDMS Variable: {0} ({1}) in time {2}, gridFile = {3}".format(variable.id, self.name, (t1 - t0), self.gridFilePath ))
         return variable
 
@@ -136,6 +145,9 @@ class cdmsArray(CDArray):
         self.grid = cdVariable.getGrid()
         self.dimensions = self.metadata["dimensions"].split(",")
         self.variable = cdVariable
+
+    def getGrid(self):
+        return self.variable.getGrid()
 
     def getVariable(self): return self.variable
 
