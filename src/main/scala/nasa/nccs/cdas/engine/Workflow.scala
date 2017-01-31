@@ -68,10 +68,10 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
     result.configure( "gid", kernelContext.grid.uid )
   }
 
-  def stream( requestCx: RequestContext ): ( RDD[(Int,RDDPartition)], KernelContext ) = {
+  def stream( requestCx: RequestContext ):  RDD[(Int,RDDPartition)] = {
     val kernelContext = generateKernelContext( requestCx )
     val inputs = prepareInputs( kernelContext, requestCx )
-    ( map( inputs, kernelContext, kernel ) -> kernelContext )
+    map( inputs, kernelContext, kernel )
   }
 
   def prepareInputs( kernelContext: KernelContext, requestCx: RequestContext ): RDD[(Int,RDDPartition)] = {
@@ -94,6 +94,7 @@ object Workflow {
 class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager ) extends Loggable {
   val nodes = request.operations.map(opCx => WorkflowNode(opCx, this))
   val roots = findRootNodes()
+  lazy val regridKernel = getRegridKernel
 
   def createKernel(id: String): Kernel = executionMgr.getKernel(id)
 
@@ -196,24 +197,45 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
-    val targetGrid: TargetGrid = requestCx.getTargetGrid( kernelContext.grid.uid ).getOrElse( throw new Exception("Undefined Grid in domain partition for kernel " + kernelContext.operation.identifier))
-    val opSection: Option[ma2.Section] = getOpSectionIntersection( targetGrid, node )
-    lazy val regridKernel = getRegridKernel
-    val rawRdds: Iterable[(RDD[(Int,RDDPartition)],Boolean)] = opInputs.map { case ( uid, opinput ) => opinput match {
+    val targetGridSpec: String = requestCx.getTargetGridSpec( kernelContext )
+
+    val rawRdds: Iterable[RDD[(Int,RDDPartition)]] = opInputs.map { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
-          ( executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node ) -> dataInput.matchGrids( targetGrid ) )
+          val opSection: Option[ma2.Section] = getOpSectionIntersection( dataInput.getGrid, node )
+          executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node )
         case ( kernelInput: DependencyOperationInput  ) =>
           logger.info( "\n\n ----------------------- Stream DEPENDENCY Node: %s -------\n".format( kernelInput.workflowNode.getNodeId() ))
-          val ( result, context ) = kernelInput.workflowNode.stream( requestCx )
-          ( result, context.grid.uid.equals(kernelContext.grid.uid) )
+          kernelInput.workflowNode.stream( requestCx )
         case (  x ) =>
           throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
       }
     }
-    val needsRegrid: Boolean = rawRdds.exists { case (rdd,matchGrids) => !matchGrids }
-    val rawResult: RDD[(Int,RDDPartition)] = if( opInputs.size == 1 ) rawRdds.head._1 else rawRdds.tail.foldLeft( rawRdds.head._1 )( CDSparkContext.merge(_._1,_._1) )
-    if(needsRegrid) { node.map( rawResult, kernelContext, regridKernel ) } else rawResult
+    val rawResult = if( opInputs.size == 1 ) rawRdds.head else rawRdds.tail.foldLeft( rawRdds.head )( CDSparkContext.merge(_,_) )
+    val needsRegrid: Boolean = rawResult.first._2.hasMultiGrids( Some(targetGridSpec) )
+    if(needsRegrid) regridRDDElems( rawResult, kernelContext.configure("gridSpec",targetGridSpec) ) else rawResult
   }
+
+  def regridRDDElems( input: RDD[(Int,RDDPartition)], context: KernelContext): RDD[(Int,RDDPartition)] = {
+    input.mapValues( rdd_part => regridKernel.map( rdd_part, context ) )
+  }
+
+  //  def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
+  //    val targetGrid: TargetGrid = getKernelGrid( kernelContext, requestCx )
+  //    val opSection: Option[ma2.Section] = getOpSectionIntersection( targetGrid, node )
+  //    val rawRdds: Iterable[RDDRegen] = opInputs.map { case ( uid, opinput ) => opinput match {
+  //      case ( dataInput: PartitionedFragment) =>
+  //        new RDDRegen( executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node ), dataInput.getGrid, targetGrid, node, kernelContext )
+  //      case ( kernelInput: DependencyOperationInput  ) =>
+  //        logger.info( "\n\n ----------------------- Stream DEPENDENCY Node: %s -------\n".format( kernelInput.workflowNode.getNodeId() ))
+  //        val ( result, context ) = kernelInput.workflowNode.stream( requestCx )
+  //        new RDDRegen( result, getKernelGrid(context,requestCx), targetGrid, node, kernelContext )
+  //      case (  x ) =>
+  //        throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
+  //    }
+  //    }
+  //    val rawResult: RDD[(Int,RDDPartition)] = if( opInputs.size == 1 ) rawRdds.head._1 else rawRdds.tail.foldLeft( rawRdds.head._1 )( CDSparkContext.merge(_._1,_._1) )
+  //    if(needsRegrid) { node.map( rawResult, kernelContext, regridKernel ) } else rawResult
+  //  }
 
   def getOpSections( targetGrid: TargetGrid, node: WorkflowNode ): Option[ IndexedSeq[ma2.Section] ] = {
     val optargs: Map[String, String] = node.operation.getConfiguration

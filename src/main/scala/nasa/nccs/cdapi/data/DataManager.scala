@@ -2,12 +2,15 @@ package nasa.nccs.cdapi.data
 
 import nasa.nccs.caching.Partition
 import nasa.nccs.cdapi.tensors._
+import nasa.nccs.cdas.engine.WorkflowNode
+import nasa.nccs.cdas.kernels.{KernelContext, zmqPythonKernel}
 import nasa.nccs.cdas.workers.TransVar
-import nasa.nccs.esgf.process.CDSection
+import nasa.nccs.esgf.process.{CDSection, TargetGrid}
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.spark.rdd.RDD
 import ucar.nc2.constants.AxisType
 import ucar.ma2
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
@@ -78,55 +81,66 @@ abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray
 }
 
 class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, private val _data:  Array[Float]=Array.emptyFloatArray, _missing: Option[Float]=None,
-                    metadata: Map[String,String]=Map.empty, private val _optWeights: Option[Array[Float]]=None, indexMaps: List[CDCoordMap] = List.empty ) extends ArrayBase[Float](shape,origin,_missing,metadata,indexMaps) with Loggable {
+                    val gridSpec: String = "", metadata: Map[String,String]=Map.empty, private val _optWeights: Option[Array[Float]]=None, indexMaps: List[CDCoordMap] = List.empty ) extends ArrayBase[Float](shape,origin,_missing,metadata,indexMaps) with Loggable {
   val bb = java.nio.ByteBuffer.allocate(4)
   def data: Array[Float] = _data
   def weights: Option[Array[Float]] = _optWeights
   override def toCDWeightsArray: Option[CDFloatArray] = _optWeights.map( CDFloatArray( shape, _, getMissing() ) )
   def getMissing( default: Float = Float.MaxValue ): Float = _missing.getOrElse(default)
+  def sameGrid( other: HeapFltArray) = gridSpec.equals( other.gridSpec )
 
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, getMissing(), indexMaps )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), getMissing() )
+  def verifyGrids( other: HeapFltArray ) = if( !sameGrid(other) ) throw new Exception( s"Error, attempt to combine arrays with different grids: $gridSpec vs ${other.gridSpec}")
 
   def append( other: HeapFltArray ): HeapFltArray = {
+    verifyGrids( other )
     logger.info( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
     if( origin(0) < other.origin(0) ) {
       if( origin(0) + shape(0) != other.origin(0) ) throw new Exception( "Appending non-contiguous arrays" )
-      HeapFltArray(toCDFloatArray.append(other.toCDFloatArray), origin, mergeMetadata("merge", other), toCDWeightsArray.map(_.append(other.toCDWeightsArray.get)))
+      HeapFltArray(toCDFloatArray.append(other.toCDFloatArray), origin, gridSpec, mergeMetadata("merge", other), toCDWeightsArray.map(_.append(other.toCDWeightsArray.get)))
     } else {
       if( other.origin(0) + other.shape(0) != origin(0) ) throw new Exception( "Appending non-contiguous arrays" )
-      HeapFltArray(other.toCDFloatArray.append(toCDFloatArray), other.origin, mergeMetadata("merge", other), other.toCDWeightsArray.map(_.append(toCDWeightsArray.get)))
+      HeapFltArray(other.toCDFloatArray.append(toCDFloatArray), other.origin, gridSpec, mergeMetadata("merge", other), other.toCDWeightsArray.map(_.append(toCDWeightsArray.get)))
     }
   }
   def split( index_offset: Int ): ( HeapFltArray, HeapFltArray ) = toCDFloatArray.split(index_offset) match {
       case (a0, a1) =>
         val ( fa0, fa1 ) = ( CDFloatArray(a0), CDFloatArray(a1) )
         val origin1 = origin.zipWithIndex.map{ case (o,i) => if( i == 0 ) ( origin(0) + index_offset ) else o }
-        ( new HeapFltArray( fa0.getShape, origin, fa0.getArrayData(), Some(a0.getInvalid), metadata, _optWeights, fa0.getCoordMaps ),
-          new HeapFltArray( fa1.getShape, origin1, fa1.getArrayData(), Some(a1.getInvalid), metadata, _optWeights, fa1.getCoordMaps ) )    // TODO: split weights and coord maps?
+        ( new HeapFltArray( fa0.getShape, origin, fa0.getArrayData(), Some(a0.getInvalid), gridSpec, metadata, _optWeights, fa0.getCoordMaps ),
+          new HeapFltArray( fa1.getShape, origin1, fa1.getArrayData(), Some(a1.getInvalid), gridSpec, metadata, _optWeights, fa1.getCoordMaps ) )    // TODO: split weights and coord maps?
     }
 
   def toByteArray() = {
     bb.putFloat( 0, missing.getOrElse(Float.NaN) )
     toUcarFloatArray.getDataAsByteBuffer().array() ++ bb.array()
   }
-  def combine( combineOp: CDArray.ReduceOp[Float], other: HeapFltArray ): HeapFltArray = HeapFltArray( CDFloatArray.combine( combineOp, toCDFloatArray, other.toCDFloatArray ), origin, mergeMetadata("merge",other), toCDWeightsArray.map( _.append( other.toCDWeightsArray.get ) ) )
+  def combine( combineOp: CDArray.ReduceOp[Float], other: HeapFltArray ): HeapFltArray = {
+    verifyGrids( other )
+    HeapFltArray( CDFloatArray.combine( combineOp, toCDFloatArray, other.toCDFloatArray ), origin, gridSpec, mergeMetadata("merge",other), toCDWeightsArray.map( _.append( other.toCDWeightsArray.get ) ) )
+  }
   def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={getMissing().toString}> {_data.mkString(",")} </array> % metadata
 }
 object HeapFltArray {
-  def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray =
-    new HeapFltArray( cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), metadata, optWeights.map( _.getArrayData()), cdarray.getCoordMaps )
-
-  def apply( ucarray: ucar.ma2.Array, origin: Array[Int], metadata: Map[String,String], missing: Float ): HeapFltArray = HeapFltArray( CDArray(ucarray,missing), origin, metadata, None )
+  def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray = {
+    val gridSpec = "file:/" + metadata.get( "gridfile" )
+    new HeapFltArray(cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), gridSpec, metadata, optWeights.map(_.getArrayData()), cdarray.getCoordMaps)
+  }
+  def apply( cdarray: CDFloatArray, origin: Array[Int], gridSpec: String, metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray = {
+    new HeapFltArray(cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), gridSpec, metadata, optWeights.map(_.getArrayData()), cdarray.getCoordMaps)
+  }
+  def apply( ucarray: ucar.ma2.Array, origin: Array[Int], gridSpec: String, metadata: Map[String,String], missing: Float ): HeapFltArray = HeapFltArray( CDArray(ucarray,missing), origin, gridSpec, metadata, None )
 
   def apply( tvar: TransVar, invalidOpt: Option[Float] ): HeapFltArray = {
     val buffer = tvar.getDataBuffer()
     val buff_size = buffer.capacity()
     val ucarray: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, tvar.getShape, buffer )
     val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter(CDArray[Float](ucarray, Float.MaxValue ) )
-    new HeapFltArray( tvar.getShape, tvar.getOrigin, floatArray.getStorageArray, invalidOpt, tvar.getMetaData.asScala.toMap )
+    val gridSpec = "file:/" + tvar.getMetaData.get("gridfile")
+    new HeapFltArray( tvar.getShape, tvar.getOrigin, floatArray.getStorageArray, invalidOpt, gridSpec, tvar.getMetaData.asScala.toMap )
   }
-  def empty(rank:Int) = HeapFltArray( CDFloatArray.empty, Array.fill(rank)(0), Map.empty[String,String], None )
+  def empty(rank:Int) = HeapFltArray( CDFloatArray.empty, Array.fill(rank)(0), "", Map.empty[String,String], None )
   def toHeapFloatArray( fltBaseArray: ArrayBase[Float] ): HeapFltArray = fltBaseArray match {
     case heapFltArray: HeapFltArray => heapFltArray
     case wtf => throw new Exception( "HeapFltArray cast error from ArrayBase[Float]" )
@@ -161,6 +175,11 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray] , met
   def ++( other: RDDPartition ): RDDPartition = {
     if( (iPart!=other.iPart) && ! ( (iPart == -1) || (other.iPart == -1) ) ) throw new Exception( "Attempt to merge RDDPartitions with incommensurate partition indices: %d vs %d".format(iPart,other.iPart ) )
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
+  }
+  def hasMultiGrids( targetGridSpecOpt: Option[String]=None ): Boolean = {
+    if( elements.size == 0 ) return false
+    val targetGridSpec = targetGridSpecOpt.getOrElse( elements.head._2.gridSpec )
+    elements.exists( item => !item._2.gridSpec.equals(targetGridSpec))
   }
   def append( other: RDDPartition ): RDDPartition = {
     logger.info( s"Append Arrays: $iPart +--> ${other.iPart}")
@@ -199,7 +218,7 @@ class RDDPartSpec( val partition: Partition, val varSpecs: List[ RDDVariableSpec
   def getRDDPartition: RDDPartition = {
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition)) ): _* )
-    val rv = RDDPartition( partition.index, elements, Map.empty )
+    val rv = RDDPartition( partition.index, elements )
     logger.info( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
     rv
   }
@@ -219,4 +238,19 @@ class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val mi
   def empty = section.getShape.contains(0)
   def rank = section.getShape.length
 }
+
+class RDDRegen( val source: RDD[(Int,RDDPartition)], val sourceGrid: TargetGrid, val resultGrid: TargetGrid, node: WorkflowNode, kernelContext: KernelContext ) extends Loggable {
+  private val regen: Boolean = !sourceGrid.equals(resultGrid)
+  lazy val regridKernel = getRegridKernel
+//  def getRDD(): RDD[(Int,RDDPartition)] = if(regen) {
+//    source
+//    node.map( source, kernelContext, regridKernel )
+//  } else source
+
+  def getRegridKernel(): zmqPythonKernel = node.workflow.executionMgr.getKernel( "python.cdmsmodule", "regrid"  ) match {
+    case pyKernel: zmqPythonKernel => pyKernel
+    case x => throw new Exception( "Unexpected Kernel class for regrid module: " + x.getClass.getName)
+  }
+}
+
 

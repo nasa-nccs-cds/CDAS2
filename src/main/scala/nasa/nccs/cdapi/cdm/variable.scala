@@ -107,6 +107,10 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
     fragmentSpec.reSection( part.partSection( fragmentSpec.roi ) )
   }
 
+  def getGrid: TargetGrid = fragSpec.targetGridOpt match  {
+    case Some( myGrid ) => myGrid
+    case None => throw new Exception( "Undefined target grid in matchGrids for input " + fragSpec.uid )
+  }
   def matchGrids( targetGrid: TargetGrid ): Boolean = fragSpec.targetGridOpt match  {
     case Some( myGrid ) => myGrid.equals( targetGrid )
     case None => throw new Exception( "Undefined target grid in matchGrids for input " + fragSpec.uid )

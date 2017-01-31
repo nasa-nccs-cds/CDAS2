@@ -149,16 +149,27 @@ public abstract class Worker {
         _sendArrayData( index, id, array.origin(), array.shape(), array.toByteArray(), array.mdata() );
     }
 
+    public void sendArrayMetadata( int index, String id, HeapFltArray array ) {
+        _sendArrayMetadata( index, id, array.origin(), array.shape(), array.mdata() );
+    }
+
     private void _sendArrayData( int index, String id, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
         logger.info( String.format("Kernel part-%d: Sending data to worker for input %s, nbytes=%d", index, id, data.length ));
-        List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata) );
+        List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata), "1" );
         String header = String.join("|", slist);
         logger.info("Sending header: " + header);
         sendDataPacket( header, data );
     }
 
-    public void sendRequest( String operation, String[] inputs, Map<String, String> metadata ) {
-        List<String> slist = Arrays.asList(  "task", operation, sa2s(inputs), m2s(metadata)  );
+    private void _sendArrayMetadata( int index, String id, int[] origin, int[] shape, Map<String, String> metadata ) {
+        logger.info( String.format("Kernel part-%d: Sending metadata to worker for input %s, nbytes=%d", index, id ));
+        List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), "0", m2s(metadata) );
+        String header = String.join("|", slist);
+        logger.info("Sending header: " + header);
+    }
+
+    public void sendRequest( String operation, String[] opInputs, Map<String, String> metadata ) {
+        List<String> slist = Arrays.asList(  "task", operation, sa2s(opInputs), m2s(metadata)  );
         String header = String.join("|", slist);
         logger.info( "Sending Task Request: " + header );
         request_socket.send(header);

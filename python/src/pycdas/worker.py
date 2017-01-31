@@ -42,7 +42,8 @@ class Worker(object):
                 type = self.getMessageField(header,0)
                 self.logger.info( "Received '{0}' message: {1}".format( type, header ) )
                 if type == "array":
-                    data = self.request_socket.recv()
+                    withData = int(self.getMessageField(header,5))
+                    data = self.request_socket.recv() if withData else None
                     array = npArray.createInput(header,data)
                     self.cached_inputs[array.id] = array
 

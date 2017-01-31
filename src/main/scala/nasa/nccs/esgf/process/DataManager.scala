@@ -6,13 +6,14 @@ import nasa.nccs.cdapi.cdm._
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, VariableDS}
 import java.util.Formatter
 
-import nasa.nccs.cdapi.data.{ArrayBase, HeapDblArray, HeapFltArray}
+import nasa.nccs.cdapi.data.{ArrayBase, HeapDblArray, HeapFltArray, RDDPartition}
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDDoubleArray, CDFloatArray}
 import nasa.nccs.cdas.engine.spark.CDSparkContext
-import nasa.nccs.cdas.kernels.AxisIndices
+import nasa.nccs.cdas.kernels.{AxisIndices, KernelContext}
 import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.utilities.{Loggable, cdsutils}
+import org.apache.spark.rdd.RDD
 import ucar.nc2.time.{CalendarDate, CalendarDateRange}
 import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
@@ -61,6 +62,10 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
   def getSection( serverContext: ServerContext, uid: String = "" ): Option[ma2.Section] = inputs.get( uid ) match {
     case Some(optInputSpec) => optInputSpec map { _.roi }
     case None =>inputs.head._2 map { _.roi }
+  }
+  def getTargetGridSpec( kernelContext: KernelContext ) : String = {
+    val targetGrid: TargetGrid = getTargetGrid(kernelContext.grid.uid).getOrElse(throw new Exception("Undefined Grid in domain partition for kernel " + kernelContext.operation.identifier))
+    targetGrid.getGridSpec
   }
   def getDomain(domain_id: String): DomainContainer = domains.get(domain_id) match {
     case Some(domain_container) => domain_container
@@ -285,6 +290,7 @@ class  GridSection( val grid: CDGrid, val axes: IndexedSeq[GridCoordSpec] ) exte
   def getRank = axes.length
   def getBounds: Option[Array[Double]] = getAxisSpec("x").flatMap( xaxis => getAxisSpec("y").map( yaxis => Array( xaxis.bounds(0), yaxis.bounds(0), xaxis.bounds(1), yaxis.bounds(1) )) )
   def toXml: xml.Elem = <grid> { axes.map(_.toXml) } </grid>
+  def getGridSpec: String  = grid.getGridSpec
 
   def getSection: Option[ma2.Section] = {
     val ranges = for( axis <- axes ) yield axis.getIndexRange match { case Some( range ) => range; case None => return None }
@@ -361,6 +367,7 @@ class TargetGrid( variable: CDSVariable, roiOpt: Option[List[DomainAxis]]=None )
   val grid = GridSection( variable, roiOpt )
   def toBoundsString = roiOpt.map( _.map( _.toBoundsString ).mkString( "{ ", ", ", " }") ).getOrElse("")
   def getRank = grid.getRank
+  def getGridSpec: String  = grid.getGridSpec
 
   def addSectionMetadata( section: ma2.Section ): ma2.Section = grid.addRangeNames( section )
 

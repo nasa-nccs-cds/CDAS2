@@ -59,11 +59,14 @@ class npArray(CDArray):
         origin = mParse.s2it(header_toks[2])
         shape = mParse.s2it(header_toks[3])
         metadata = mParse.s2m(header_toks[4])
-        raw_data = np.frombuffer( data, dtype=IO_DType ).astype(np.float32)
-        logger.info(" *** Creating Input, id = {0}, buffer len = {1}, shape = {2}, undef = {3}".format( id, str(len(raw_data)), str(shape), str(raw_data[-1]) ) )
-        data_array = raw_data[0:-1].reshape(shape)
-        undef_value = raw_data[-1]
-        nparray = ma.masked_equal(data_array,undef_value) if ( undef_value != 1.0 ) else data_array
+        if data:
+            raw_data = np.frombuffer( data, dtype=IO_DType ).astype(np.float32)
+            logger.info(" *** Creating Input, id = {0}, buffer len = {1}, shape = {2}, undef = {3}".format( id, str(len(raw_data)), str(shape), str(raw_data[-1]) ) )
+            data_array = raw_data[0:-1].reshape(shape)
+            undef_value = raw_data[-1]
+            nparray = ma.masked_equal(data_array,undef_value) if ( undef_value != 1.0 ) else data_array
+        else:
+            nparray = None
         return npArray( id, origin, shape, metadata, nparray )
 
     def __init__(self, _id, _origin, _shape, _metadata, _ndarray ):

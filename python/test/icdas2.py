@@ -112,7 +112,7 @@
 #     def getVariable( self, trans_array, nparray ):
 #         t0 = time.time()
 #         metadata = getDict( trans_array.metadata )
-#         gridFilePath = metadata["gridFile"]
+#         gridFilePath = metadata["gridfile"]
 #         gridfile = cdms2.open( gridFilePath )
 #         name = metadata["name"]
 #         collection = metadata["collection"]

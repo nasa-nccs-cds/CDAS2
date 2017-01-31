@@ -133,6 +133,8 @@ class CDGrid( name: String,  val gridFilePath: String, coordAxes: List[Coordinat
   override def toString = gridFilePath
   def getCoordinateAxes: List[CoordinateAxis] = coordAxes
 
+  def getGridSpec: String = "file:/" + gridFilePath
+
   def findCoordinateAxis(name: String): Option[CoordinateAxis] = {
     val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
     try {
