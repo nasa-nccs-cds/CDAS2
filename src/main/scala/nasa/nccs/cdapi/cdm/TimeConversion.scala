@@ -21,7 +21,7 @@ class TimeAxisConverter( val toAxis: CoordinateAxis1DTime, val fromAxis: Coordin
       val fromIndex = fromAxis.findTimeIndexFromCalendarDate(cdate0)
       val (cd0,cd1) = (fromAxis.getCalendarDate(fromIndex),fromAxis.getCalendarDate(fromIndex+1))
       val (dt0,dt1,dt) = ( cd0.getDifferenceInMsecs(cdate0), cdate0.getDifferenceInMsecs(cd1), cd0.getDifferenceInMsecs(cd1) )
-      buf += ( index -> new RemapElem( fromIndex, dt0/dt, dt1/dt ) )
+      buf += ( index -> new RemapElem( fromIndex, dt1/dt, dt0/dt ) )
     }
     Map( buf: _* )
   }
