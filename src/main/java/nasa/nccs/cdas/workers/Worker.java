@@ -19,6 +19,8 @@ public abstract class Worker {
     protected int result_port = -1;
     protected int request_port = -1;
     private String errorCondition = null;
+    private String withData = "1";
+    private String withoutData = "0";
 
     static int bindSocket( ZMQ.Socket socket, int init_port ) {
         int test_port = init_port;
@@ -155,17 +157,18 @@ public abstract class Worker {
 
     private void _sendArrayData( int index, String id, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
         logger.info( String.format("Kernel part-%d: Sending data to worker for input %s, nbytes=%d", index, id, data.length ));
-        List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata), "1" );
+        List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata), withData );
         String header = String.join("|", slist);
         logger.info("Sending header: " + header);
         sendDataPacket( header, data );
     }
 
     private void _sendArrayMetadata( int index, String id, int[] origin, int[] shape, Map<String, String> metadata ) {
-        logger.info( String.format("Kernel part-%d: Sending metadata to worker for input %s, nbytes=%d", index, id ));
-        List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), "0", m2s(metadata) );
+        logger.info( String.format("Kernel part-%d: Sending metadata to worker for input %s", index, id ));
+        List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata), withoutData );
         String header = String.join("|", slist);
         logger.info("Sending header: " + header);
+        request_socket.send(header);
     }
 
     public void sendRequest( String operation, String[] opInputs, Map<String, String> metadata ) {

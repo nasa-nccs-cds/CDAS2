@@ -24,22 +24,28 @@ class RegridKernel(CDMSKernel):
         self._debug = False
 
     def executeOperations(self, task, _inputs):
-        crsToks = task.metadata.get("crs","").split("~")
-        if not crsToks[0]: raise Exception( "Can't find crs spec in regrid kernel")
-        if( len(crsToks) > 1 ):
-            if crsToks[0] == "gaussian":
-                resolution = int(crsToks[1])
-                toGrid = cdms2.createGaussianGrid( resolution )
-            else: raise Exception( "Unrecognized grid type: " + crsToks[0])
+        crsSpec = task.metadata.get("crs","")
+        if( crsSpec[0] == '~' ):
+            crsId = crsSpec[1:]
+            grid_input = _inputs.get( crsId, None )
+            if not grid_input: raise Exception( "Can't find grid variable uid: " + crsId + ", variable uids = " + str( _inputs.keys() ) )
+            toGrid = grid_input.getGrid()
         else:
-            grid_inputs = [ input for input in _inputs if( input.uid() == crsToks[0] ) ]
-            if len( grid_inputs ) == 0: raise Exception( "Can't find grid variable: " + crsToks[0])
-            toGrid = grid_inputs[0].getGrid()
+            crsToks = crsSpec.split('~')
+            if( len(crsToks) > 1 ):
+                if crsToks[0] == "gaussian":
+                    resolution = int(crsToks[1])
+                    toGrid = cdms2.createGaussianGrid( resolution )
+                else: raise Exception( "Unrecognized grid type: " + crsToks[0])
+            else: raise Exception( "Can't find crs spec in regrid kernel: " + str(crsToks))
 
         results = []
-        for _input in _inputs:
+        for input_id in task.inputs:
+            _input = _inputs.get( input_id.split('-')[0] )
             variable = _input.getVariable()
             ingrid = variable.getGrid()
+            inlatBounds, inlonBounds = ingrid.getBounds()
+            self.logger.info( " >> Bounds shape: " + str(inlatBounds.shape) )
             if( not ingrid == toGrid ):
                 regridFunction = Horizontal(ingrid, toGrid)
                 inlatBounds, inlonBounds = ingrid.getBounds()

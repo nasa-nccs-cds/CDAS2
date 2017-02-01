@@ -5,7 +5,7 @@ import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.engine.spark.{CDSparkContext, IndexPartitioner}
-import nasa.nccs.cdas.kernels.{Kernel, KernelContext, zmqPythonKernel}
+import nasa.nccs.cdas.kernels.{Kernel, KernelContext, CDMSRegridKernel, zmqPythonKernel}
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.{DAGNode, Loggable}
 import nasa.nccs.wps._
@@ -17,12 +17,14 @@ import ucar.nc2.dataset.CoordinateAxis1DTime
 import scala.util.Try
 
 object WorkflowNode {
+  val regridKernel = new CDMSRegridKernel()
   def apply( operation: OperationContext, workflow: Workflow ): WorkflowNode = {
     new WorkflowNode( operation, workflow )
   }
 }
 
 class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) extends DAGNode with Loggable {
+  import WorkflowNode._
   val kernel = workflow.createKernel( operation.name.toLowerCase )
   def getResultId: String = operation.rid
   def getNodeId(): String = operation.identifier
@@ -57,6 +59,10 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
       logger.info("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
       result
     }
+  }
+
+  def regridRDDElems( input: RDD[(Int,RDDPartition)], context: KernelContext): RDD[(Int,RDDPartition)] = {
+    input.mapValues( rdd_part => regridKernel.map( rdd_part, context ) ) map(identity)
   }
 
   def mapReduce( kernelContext: KernelContext, requestCx: RequestContext ): RDDPartition = {
@@ -94,7 +100,6 @@ object Workflow {
 class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager ) extends Loggable {
   val nodes = request.operations.map(opCx => WorkflowNode(opCx, this))
   val roots = findRootNodes()
-  lazy val regridKernel = getRegridKernel
 
   def createKernel(id: String): Kernel = executionMgr.getKernel(id)
 
@@ -191,11 +196,6 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     node.operation.rid
   }
 
-  def getRegridKernel: zmqPythonKernel = executionMgr.getKernel( "python.cdmsmodule", "regrid"  ) match {
-    case pyKernel: zmqPythonKernel => pyKernel
-    case x => throw new Exception( "Unexpected Kernel class for regrid module: " + x.getClass.getName)
-  }
-
   def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
     val targetGridSpec: String = requestCx.getTargetGridSpec( kernelContext )
 
@@ -211,12 +211,9 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
       }
     }
     val rawResult = if( opInputs.size == 1 ) rawRdds.head else rawRdds.tail.foldLeft( rawRdds.head )( CDSparkContext.merge(_,_) )
-    val needsRegrid: Boolean = rawResult.first._2.hasMultiGrids( Some(targetGridSpec) )
-    if(needsRegrid) regridRDDElems( rawResult, kernelContext.configure("gridSpec",targetGridSpec) ) else rawResult
-  }
-
-  def regridRDDElems( input: RDD[(Int,RDDPartition)], context: KernelContext): RDD[(Int,RDDPartition)] = {
-    input.mapValues( rdd_part => regridKernel.map( rdd_part, context ) )
+    val sampleRDDPart = rawResult.first._2
+    val needsRegrid: Boolean = sampleRDDPart.hasMultiGrids( Some(targetGridSpec) )
+    if(needsRegrid) node.regridRDDElems( rawResult, kernelContext.configure("gridSpec",targetGridSpec) ) else rawResult
   }
 
   //  def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {

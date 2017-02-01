@@ -45,7 +45,7 @@ class Worker(object):
                     withData = int(self.getMessageField(header,5))
                     data = self.request_socket.recv() if withData else None
                     array = npArray.createInput(header,data)
-                    self.cached_inputs[array.id] = array
+                    self.cached_inputs[array.uid()] = array
 
                 elif type == "task":
                     resultVars = self.processTask( Task(header) )

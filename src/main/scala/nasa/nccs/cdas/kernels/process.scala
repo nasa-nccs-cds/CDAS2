@@ -34,7 +34,9 @@ class Port( val name: String, val cardinality: String, val description: String, 
   }
 }
 
-class KernelContext( val operation: OperationContext, val grids: Map[String,Option[GridContext]], val sectionMap: Map[String,Option[CDSection]],  val domains: Map[String,DomainContainer], val configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
+class KernelContext( val operation: OperationContext, val grids: Map[String,Option[GridContext]], val sectionMap: Map[String,Option[CDSection]],  val domains: Map[String,DomainContainer],  _configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
+  val crsOpt = getCRS
+  val configuration = crsOpt.map( crs => _configuration + ("crs" -> crs ) ) getOrElse( _configuration )
   lazy val grid: GridContext = getTargetGridContext
   def findGrid( varUid: String ): Option[GridContext] = grids.find( item => item._1.split('-')(0).equals(varUid) ).flatMap( _._2 )
   def getConfiguration = configuration ++ operation.getConfiguration
@@ -42,10 +44,10 @@ class KernelContext( val operation: OperationContext, val grids: Map[String,Opti
   def getContextStr = getConfiguration map { case ( key, value ) => key + ":" + value } mkString ";"
   def getDomainMetadata(domId: String): Map[String,String] = domains.get(domId) match { case Some(dc) => dc.metadata; case None => Map.empty }
   def findAnyGrid: GridContext = (grids.find { case (k, v) => v.isDefined }).getOrElse(("", None))._2.getOrElse(throw new Exception("Undefined grid in KernelContext for op " + operation.identifier))
-  def getCRS: Option[String] = operation.getDomain flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("crs") ) )
+  private def getCRS: Option[String] = operation.getDomain flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("crs") ) )
   def configure( key: String, value: String ): KernelContext = new KernelContext( operation, grids, sectionMap, domains, configuration + (key -> value) )
 
-  private def getTargetGridContext: GridContext = getCRS match {
+  private def getTargetGridContext: GridContext = crsOpt match {
     case Some( crs ) =>
       if( crs.startsWith("~") ) { findGrid( crs.substring(1) ).getOrElse( throw new Exception(s"Unsupported grid specification '$crs' in KernelContext for op '$operation'" ) ) }
       else { throw new Exception( "Currently unsupported crs specification") }
@@ -97,6 +99,7 @@ class AxisIndices( private val axisIds: Set[Int] = Set.empty ) {
 }
 
 object Kernel {
+  val customKernels = List[Kernel]( new CDMSRegridKernel() )
   def getResultFile( resultId: String, deleteExisting: Boolean = false ): File = {
     val resultsDirPath = appParameters("wps.results.dir", "~/.wps/results").replace( "~",  System.getProperty("user.home") ).replaceAll("[()]","-").replace("=","~")
     val resultsDir = new File(resultsDirPath); resultsDir.mkdirs()
@@ -105,11 +108,14 @@ object Kernel {
     resultFile
   }
 
-  def apply( module: String, kernelSpec: String, api: String ): Kernel = {
+  def apply(module: String, kernelSpec: String, api: String): Kernel = {
     val specToks = kernelSpec.split("[;]")
-    api match {
-      case "python" => new zmqPythonKernel( module, specToks(0), specToks(1), specToks(2), str2Map(specToks(3)) )
-      case   wtf    => throw new Exception( "Unrecognized kernel api: " + api )
+    customKernels.find(_.matchesSpecs(specToks)) match {
+      case Some(kernel) => kernel
+      case None => api match {
+        case "python" => new zmqPythonKernel(module, specToks(0), specToks(1), specToks(2), str2Map(specToks(3)))
+      }
+      case wtf => throw new Exception("Unrecognized kernel api: " + api)
     }
   }
 
@@ -161,11 +167,12 @@ class KIType { val Op = 0; val MData = 1 }
 abstract class Kernel( val options: Map[String,String] ) extends Loggable with Serializable with WPSProcess {
   val identifiers = this.getClass.getName.split('$').flatMap(_.split('.'))
   def operation: String = identifiers.last.toLowerCase
-  def module = identifiers.dropRight(1).mkString(".")
+  def module: String = identifiers.dropRight(1).mkString(".")
   def id = identifiers.mkString(".")
   def name = identifiers.takeRight(2).mkString(".")
   def parallelizable: Boolean = options.getOrElse("parallelizable","true").toBoolean
   val identifier = name
+  def matchesSpecs( specs: Array[String] ): Boolean = { (specs.size >= 2) && specs(0).equals(module) && specs(1).equals(operation) }
 
   val mapCombineOp: Option[ReduceOpFlt] = options.get("mapOp").fold (options.get("mapreduceOp")) (Some(_)) map ( CDFloatArray.getOp(_) )
   val mapCombineNOp: Option[ReduceNOpFlt] = None
@@ -564,6 +571,47 @@ abstract class MultiRDDKernel( options: Map[String,String] ) extends Kernel(opti
   }
 }
 
+class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "Regridder", "Regrids the inputs using UVCDAT", Map( "parallelize" -> "True" ) ) {
+
+  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+    val key = inputs.iPart
+    val t0 = System.nanoTime
+    val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance
+    val worker: PythonWorker = workerManager.getPythonWorker
+    try {
+      logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
+      val targetGridSpec: String = context.config("gridSpec", inputs.elements.values.head.gridSpec)
+      val input_arrays: List[HeapFltArray] = context.operation.inputs.map(id => inputs.findElements(id)).foldLeft(List[HeapFltArray]())(_ ++ _)
+      assert(input_arrays.nonEmpty, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
+
+      val (acceptable_arrays, regrid_arrays) = input_arrays.partition(_.gridSpec.equals(targetGridSpec))
+      if (regrid_arrays.isEmpty) { inputs }
+      else {
+        for (input_array <- acceptable_arrays) { worker.sendArrayMetadata(inputs.iPart, input_array.uid, input_array) }
+        for (input_array <- regrid_arrays)     { worker.sendArrayData(inputs.iPart, input_array.uid, input_array) }
+        val acceptable_array_map = Map(acceptable_arrays.map(array => array.uid -> array): _*)
+
+        logger.info("Gateway-%d: Executing operation %s".format(inputs.iPart, context.operation.identifier))
+        val context_metadata = indexAxisConf(context.getConfiguration, context.grid.axisIndexMap) + ("gridSpec" -> targetGridSpec )
+        val rID = UID()
+        worker.sendRequest("python.cdmsModule.regrid-" + rID, regrid_arrays.map(_.uid).toArray, context_metadata )
+
+        val resultItems = for (input_array <- regrid_arrays) yield {
+          val tvar = worker.getResult
+          val result = HeapFltArray(tvar, input_array.missing, Some(targetGridSpec))
+          context.operation.rid + ":" + input_array.uid -> result
+        }
+        val array_metadata = input_arrays.head.metadata ++ List("uid" -> context.operation.rid, "gridSpec" -> targetGridSpec )
+        val array_metadata_crs = context.crsOpt.map( crs => array_metadata + ( "crs" -> crs ) ).getOrElse( array_metadata )
+        logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s, metadata = %s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9, array_metadata_crs.mkString(";")))
+        RDDPartition(key, Map(resultItems: _*) ++ acceptable_array_map, array_metadata_crs)
+      }
+    } finally {
+      workerManager.releaseWorker( worker )
+    }
+  }
+}
+
 class zmqPythonKernel( _module: String, _operation: String, _title: String, _description: String, options: Map[String,String]  ) extends Kernel(options) {
   override def operation: String = _operation
   override def module = _module
@@ -574,7 +622,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
   val title = _title
   val description = _description
 
-  override def cleanUp() = PythonWorkerPortal.getInstance().shutdown()
+  override def cleanUp = PythonWorkerPortal.getInstance.shutdown
 
   override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
     val key = inputs.iPart
@@ -583,21 +631,20 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     val worker: PythonWorker = workerManager.getPythonWorker();
     try {
       logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
-      val targetGridSpec = context.config( "gridSpec", inputs.elements.values.head.gridSpec )
       val input_arrays: List[HeapFltArray] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[HeapFltArray]())( _ ++ _ )
       assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
       val operation_input_arrays = context.operation.inputs.flatMap( input_id => inputs.element( input_id ) )
 
-      val regrid_inputs: List[Option[String]] = for( input_id <- context.operation.inputs ) yield inputs.element(input_id) match {
+      for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
         case Some( input_array ) =>
-          if( input_array.gridSpec.equals(targetGridSpec) ) {   worker.sendArrayMetadata( inputs.iPart, input_id, input_array );  None            }
-          else                                              {   worker.sendArrayData(inputs.iPart, input_id, input_array) ;       Some(input_id)  }
-        case None =>                                        {   worker.sendUtility( List( "input", input_id ).mkString(";") );    None            }
+          worker.sendArrayData( inputs.iPart, input_id, input_array )
+          logger.info( "Kernel part-%d: Finished Sending data to worker" )
+        case None =>
+          worker.sendUtility( List( "input", input_id ).mkString(";") )
       }
       logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
-      val metadata = indexAxisConf( context.getConfiguration, context.grid.axisIndexMap ) + ( "gridSpec" -> targetGridSpec )
-      val metadata_crs =  context.getCRS match { case Some( crs ) => metadata + ( "crs" -> crs ); case None => metadata }
-      worker.sendRequest("python.cdmsModule.regrid", regrid_inputs.flatten.toArray, metadata_crs   )
+      val metadata = indexAxisConf( context.getConfiguration, context.grid.axisIndexMap )
+      worker.sendRequest(context.operation.identifier, context.operation.inputs.toArray, metadata )
       val resultItems = for( input_array <- operation_input_arrays ) yield {
         val tvar = worker.getResult()
         val result = HeapFltArray( tvar, input_array.missing )
@@ -615,8 +662,8 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
     val t0 = System.nanoTime
     logger.info("&MERGE: start (%d <-> %d)".format( rdd0.iPart, rdd1.iPart  ) )
-    val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance();
-    val worker: PythonWorker = workerManager.getPythonWorker();
+    val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance
+    val worker: PythonWorker = workerManager.getPythonWorker
     val ascending = rdd0.iPart < rdd1.iPart
     val op_metadata = indexAxisConf( context.getConfiguration, context.grid.axisIndexMap )
     rdd0.elements.map {
@@ -629,7 +676,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     }
     val resultItems = rdd0.elements.map {
       case (key, element0) =>
-        val tvar = worker.getResult()
+        val tvar = worker.getResult
         val result = HeapFltArray( tvar, element0.missing )
         context.operation.rid + ":" + element0.uid -> result
     }

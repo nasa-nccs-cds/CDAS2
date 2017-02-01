@@ -124,7 +124,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
 }
 object HeapFltArray {
   def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray = {
-    val gridSpec = "file:/" + metadata.get( "gridfile" )
+    val gridSpec = metadata.get( "gridfile" ).map( "file:/" + _ ).getOrElse("")
     new HeapFltArray(cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), gridSpec, metadata, optWeights.map(_.getArrayData()), cdarray.getCoordMaps)
   }
   def apply( cdarray: CDFloatArray, origin: Array[Int], gridSpec: String, metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray = {
@@ -132,12 +132,12 @@ object HeapFltArray {
   }
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], gridSpec: String, metadata: Map[String,String], missing: Float ): HeapFltArray = HeapFltArray( CDArray(ucarray,missing), origin, gridSpec, metadata, None )
 
-  def apply( tvar: TransVar, invalidOpt: Option[Float] ): HeapFltArray = {
+  def apply( tvar: TransVar, invalidOpt: Option[Float], _gridSpec: Option[String] = None ): HeapFltArray = {
     val buffer = tvar.getDataBuffer()
     val buff_size = buffer.capacity()
     val ucarray: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, tvar.getShape, buffer )
     val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter(CDArray[Float](ucarray, Float.MaxValue ) )
-    val gridSpec = "file:/" + tvar.getMetaData.get("gridfile")
+    val gridSpec = _gridSpec.getOrElse("file:/" + tvar.getMetaData.get("gridfile"))
     new HeapFltArray( tvar.getShape, tvar.getOrigin, floatArray.getStorageArray, invalidOpt, gridSpec, tvar.getMetaData.asScala.toMap )
   }
   def empty(rank:Int) = HeapFltArray( CDFloatArray.empty, Array.fill(rank)(0), "", Map.empty[String,String], None )

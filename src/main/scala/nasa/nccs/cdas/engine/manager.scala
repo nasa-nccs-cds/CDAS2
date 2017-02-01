@@ -74,7 +74,6 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
   import CDS2ExecutionManager._
   val serverContext = new ServerContext( collectionDataCache, CDSparkContext() )
   val kernelManager = new KernelMgr()
-  private val counter = new Counter
   val nprocs: Int = CDASPartitioner.nProcessors
 
 
