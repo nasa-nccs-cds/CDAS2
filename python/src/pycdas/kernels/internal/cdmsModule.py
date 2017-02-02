@@ -44,7 +44,10 @@ class RegridKernel(CDMSKernel):
         for input_id in task.inputs:
             _input = _inputs.get( input_id.split('-')[0] )
             variable = _input.getVariable()
-            ingrid = variable.getGrid()
+            (lataxis, lonaxis) = ( variable.getLatitude(), variable.getLongitude() )
+            ( latInterval, lonInterval ) = ( lataxis.mapInterval(( lataxis[0], lataxis[-1] )), lonaxis.mapInterval(( lonaxis[0], lonaxis[-1] )) )
+            ingrid = variable.getGrid().subGrid( latInterval, lonInterval)
+            self.logger.info( " latInterval {0} --- lonInterval {1} ".format( str(latInterval), str(lonInterval) ) )
             inlatBounds, inlonBounds = ingrid.getBounds()
             self.logger.info( " >> in LAT Bounds shape: " + str(inlatBounds.shape) )
             self.logger.info( " >> in LON Bounds shape: " + str(inlonBounds.shape) )
