@@ -9,4 +9,3 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
-cdms2.setAutoBounds('on')

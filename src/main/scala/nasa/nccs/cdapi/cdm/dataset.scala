@@ -98,25 +98,40 @@ object CDGrid extends Loggable {
     val varTups = for (cvar <- ncDataset.getVariables) yield {
       val newVar = gridWriter.addVariable(null, cvar.getShortName, cvar.getDataType, cvar.getDimensionsString)
       logger.info("Add Varible: " + cvar.getShortName)
-      cvar.getAttributes.map(attr => gridWriter.addVariableAttribute(newVar, attr))
       cvar.getShortName -> (cvar -> newVar)
     }
     val varMap = Map(varTups.toList: _*)
+    val boundsSpecs: Iterable[Option[(String,Variable)]] = for ( (cvar, newVar) <- varMap.values; attr <- cvar.getAttributes ) yield {
+      if( cvar.isCoordinateVariable && attr.getShortName.equals("bounds")) {
+        if( varMap.get( attr.getStringValue(0) ).isDefined ) {
+          gridWriter.addVariableAttribute(newVar, attr)
+          Some( attr.getStringValue(0) -> cvar )
+        } else { None }
+      } else { gridWriter.addVariableAttribute(newVar, attr); None }
+    }
+//    val boundsSpecs = for ((cvar, newVar) <- varMap.values; if cvar.isCoordinateVariable) yield {
+//      Option(cvar.findAttribute("bounds")) match {
+//        case Some(bndsAttr) =>
+//          bndsAttr.getStringValue(0) -> cvar
+//        case None =>
+//          val bndsvar = cvar.getShortName + "_bnds"
+//          gridWriter.addVariableAttribute(newVar, new nc2.Attribute("bounds", bndsvar))
+//          bndsvar -> cvar
+//      }
+//    }
     val globalAttrs = Map(ncDataset.getGlobalAttributes.map(attr => attr.getShortName -> attr): _*)
     globalAttrs.mapValues(attr => gridWriter.addGroupAttribute(null, attr))
     gridWriter.create()
-    val boundsVars = for ((cvar, newVar) <- varMap.values; if cvar.isCoordinateVariable) yield {
+    for ((cvar, newVar) <- varMap.values; if cvar.isCoordinateVariable) {
       logger.info(" ** Write Variable: " + cvar.getShortName)
       gridWriter.write(newVar, cvar.read())
-      Option(cvar.findAttribute("bounds"))
     }
-    boundsVars.flatten.map( bndsAttr => varMap.get(bndsAttr.getStringValue(0) ) match {
-      case Some((cvar, newVar)) =>
-        logger.info(" ** Write Bounds Variable: " + cvar.getShortName)
-        gridWriter.write(newVar, cvar.read())
-      case None =>
-        logger.error(" ** Can't find Bounds Variable: " + bndsAttr.toString)
-    })
+    for ( ( bndsvar, cvar ) <- boundsSpecs.flatten )  varMap.get(bndsvar) match {
+      case Some((bvar, newVar)) =>
+        logger.info(" ** Write Bounds Variable: " + bvar.getShortName)
+        gridWriter.write(newVar, bvar.read())
+      case None => Unit
+    }
     gridWriter.close()
   }
 }

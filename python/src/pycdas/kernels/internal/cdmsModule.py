@@ -21,9 +21,10 @@ class RegridKernel(CDMSKernel):
 
     def __init__( self ):
         Kernel.__init__( self, KernelSpec("regrid", "Regridder", "Regrids the inputs using UVCDAT", parallize=True ) )
-        self._debug = False
+        self._debug = True
 
     def executeOperations(self, task, _inputs):
+        cdms2.setAutoBounds(2)
         crsSpec = task.metadata.get("crs","")
         if( crsSpec[0] == '~' ):
             crsId = crsSpec[1:]
@@ -45,20 +46,26 @@ class RegridKernel(CDMSKernel):
             variable = _input.getVariable()
             ingrid = variable.getGrid()
             inlatBounds, inlonBounds = ingrid.getBounds()
-            self.logger.info( " >> Bounds shape: " + str(inlatBounds.shape) )
+            self.logger.info( " >> in LAT Bounds shape: " + str(inlatBounds.shape) )
+            self.logger.info( " >> in LON Bounds shape: " + str(inlonBounds.shape) )
+            outlatBounds, outlonBounds = toGrid.getBounds()
+            self.logger.info( " >> out LAT Bounds shape: " + str(outlatBounds.shape) )
+            self.logger.info( " >> out LON Bounds shape: " + str(outlonBounds.shape) )
             if( not ingrid == toGrid ):
-                regridFunction = Horizontal(ingrid, toGrid)
-                inlatBounds, inlonBounds = ingrid.getBounds()
                 self.logger.info( " Regridding Variable {0} using grid {1} ".format( variable.id, str(toGrid) ) )
-                result_var = regridFunction( variable )
                 if self._debug:
                     self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( variable.data.flat[i] ) for i in range(20,90) ] ) ) )
                     self.logger.info( " >> Input Variable Shape: {0}, Grid Shape: {1} ".format( str(variable.shape), str([len(ingrid.getLatitude()),len(ingrid.getLongitude())] )))
                     self.logger.info( " >>  Grid Lat axis: " + str( ingrid.getLatitude()) )
                     self.logger.info( " >>  Grid Lon axis: " + str( ingrid.getLongitude()) )
-                    self.logger.info( " >>  Grid Lat bounds: " + str(inlatBounds) )
-                    self.logger.info( " >>  Grid Lon bounds: " + str(inlonBounds) )
-                    self.logger.info( " >> Result Data Sample: [ {0} ]".format( ', '.join(  [ str( result_var.data.flat[i] ) for i in range(20,90) ] ) ) )
+                    self.logger.info( " >>  in Grid Lat bounds: " + str(inlatBounds) )
+                    self.logger.info( " >>  in Grid Lon bounds: " + str(inlonBounds) )
+                    self.logger.info( " >>  out Grid Lat bounds: " + str(outlatBounds) )
+                    self.logger.info( " >>  out Grid Lon bounds: " + str(outlonBounds) )
+
+                regridFunction = Horizontal(ingrid, toGrid)
+                result_var = regridFunction( variable )
+                self.logger.info( " >> Gridded Data Sample: [ {0} ]".format( ', '.join(  [ str( result_var.data.flat[i] ) for i in range(20,90) ] ) ) )
                 results.append( self.createResult( result_var, _input, task ) )
         return results
 
