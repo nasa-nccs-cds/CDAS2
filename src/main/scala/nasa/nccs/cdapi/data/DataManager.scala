@@ -192,7 +192,7 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray] , met
   def getShape = elements.head._2.shape
   def getOrigin = elements.head._2.origin
   def element( id: String ): Option[HeapFltArray] = ( elements find { case (key,array) => key.split(':')(0).equals(id) } ) map ( _._2 )
-  def findElements( id: String ): Iterable[HeapFltArray] = ( elements filter { case (key,array) => key.split(':')(0).equals(id) } ) values
+  def findElements( id: String ): Iterable[HeapFltArray] = ( elements filter { case (key,array) => key.split(':').last.equals(id) } ) values
   def empty( id: String ) = { element(id).isEmpty }
   def head: ( String, HeapFltArray ) = elements.head
   def toXml: xml.Elem = {
