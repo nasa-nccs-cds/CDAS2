@@ -357,7 +357,7 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
                         val longname: String="", private val _section: ma2.Section = new ma2.Section(), private val _domSectOpt: Option[ma2.Section],
                         val missing_value: Float, val mask: Option[String] = None ) extends Loggable with Serializable {
   logger.info( "DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s".format( _section, _domSectOpt.getOrElse("null").toString ) )
-  override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, roi.toString)
+  override def toString =  "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format( varname, collection, dimensions, units, longname, CDSection.serialize(roi) )
   def sameVariable( otherCollection: String, otherVarName: String ): Boolean = { (varname == otherVarName) && (collection == otherCollection) }
   def toXml = {
     mask match {
@@ -368,7 +368,8 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
 
   def readData( section: ma2.Section ) = collection.readVariableData( varname, section )
   def getVariableMetadata: Map[String,nc2.Attribute] = nc2.Attribute.makeMap( collection.getVariableMetadata(varname) ).toMap
-  def getMetadata: Map[String,String] = Map( "name" -> varname, "collection" -> collection.id, "gridfile" -> collection.getGridFilePath, "fragment" -> fragIdOpt.getOrElse(""), "dimensions" -> dimensions, "units" -> units, "longname" -> longname, "uid" -> uid, "roi" -> roi.toString )
+  def getMetadata(section: Option[ma2.Section]=None): Map[String,String] = Map( "name" -> varname, "collection" -> collection.id, "gridfile" -> collection.getGridFilePath, "gridbnds" -> getBounds(section).map(_.toFloat).mkString(","),
+                                                                                "fragment" -> fragIdOpt.getOrElse(""), "dimensions" -> dimensions, "units" -> units, "longname" -> longname, "uid" -> uid, "roi" -> CDSection.serialize(roi) )
   def getVariable: CDSVariable = collection.getVariable( varname )
 
   def combine( other: DataFragmentSpec, sectionMerge: Boolean = true ): ( DataFragmentSpec, SectionMerge.Status ) = {
@@ -389,9 +390,9 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
 
   def reshape( newSection: ma2.Section ): DataFragmentSpec = new DataFragmentSpec( uid, varname, collection, fragIdOpt, targetGridOpt, dimensions, units, longname, new ma2.Section(newSection), domainSectOpt, missing_value, mask )
 
-  def getBounds: Array[Double] = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds(roi) ) match {
-    case Some( array ) => array
-    case None => throw new Exception( "Can't get bounds from FragmentSpec: " + toString )
+  def getBounds(section: Option[ma2.Section]=None): Array[Double] = {
+    val bndsOpt = targetGridOpt.flatMap( targetGrid => targetGrid.getBounds( section.getOrElse(roi) ) )
+    bndsOpt.getOrElse( throw new Exception( "Can't get bounds from FragmentSpec: " + toString ) )
   }
 
   private def collapse( range: ma2.Range, newsize: Int = 1 ): ma2.Range = newsize match {

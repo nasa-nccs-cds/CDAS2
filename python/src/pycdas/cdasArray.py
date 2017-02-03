@@ -14,16 +14,26 @@ class CDArray:
         self.origin = _origin
         self.shape = _shape
         self.metadata = _metadata
+        self.roi = self.parseRoi()
         self.logger.debug("Created Array: {0}".format(self.id))
         self.logger.debug(" >> Array Metadata: {0}".format(self.metadata))
         self.logger.debug(" >> Array Shape: [{0}]".format(', '.join(map(str, self.shape))))
         self.logger.debug(" >> Array Origin: [{0}]".format(', '.join(map(str, self.origin))))
+        self.logger.debug(" >> Array ROI: [{0}]".format(', '.join(map(str, self.roi.items()))))
 
     @classmethod
     @abstractmethod
     def createResult(cls, task, input, result_array ): raise Exception( "Executing abstract method createResult in CDArray")
 
     def uid(self): return self.id.split('-')[0]
+
+    def getGridBounds(self):
+        gridBnds = self.metadata.get("gridbnds")
+        if ( gridBnds == None ): return None
+        else:
+            bndVals = [ float(grdBnd) for grdBnd in gridBnds.split(",") ]
+            return ( (bndVals[0],bndVals[1]), (bndVals[2],bndVals[3]) )
+
 
     @classmethod
     @abstractmethod
@@ -41,6 +51,16 @@ class CDArray:
     @abstractmethod
     def toBytes( self, dtype ): pass
 
+    def getAxisSection( self, axis ): return None if self.roi == None else self.roi.get( axis.lower(), None )
+
+    def parseRoi(self):
+        roiSpec = self.metadata.get("roi")
+        roiMap = {}
+        if( roiSpec != None ):
+            for roiTok in roiSpec.split('+'):
+                axisToks = roiTok.split(',')
+                roiMap[ axisToks[0].lower() ] = ( int(axisToks[1]),  int(axisToks[2]) + 1 )
+        return roiMap
 
 class npArray(CDArray):
 
@@ -54,6 +74,7 @@ class npArray(CDArray):
     @classmethod
     def createInput(self, header, data):
         logger = logging.getLogger("worker")
+        logger.info(" ***->> Creating Input, header = {0}".format( header ) )
         header_toks = header.split('|')
         id = header_toks[1]
         origin = mParse.s2it(header_toks[2])
@@ -76,29 +97,46 @@ class npArray(CDArray):
         self.collection = self.metadata["collection"]
         self.dimensions = self.metadata["dimensions"].split(",")
         self.array = _ndarray
+        self.variable = None
         self.logger.info(" *** Creating data array, nbytes = " + str(self.nbytes()) )
 
     def nbytes(self): return self.array.nbytes if (self.array != None) else 0
 
+    def getGrid1(self):
+        import cdms2
+        gridfile = cdms2.open(self.gridFilePath)
+        baseGrid = gridfile.grids.values()[0]
+        gridBnds = self.getGridBounds()
+        if ( gridBnds == None ):  return baseGrid
+        else:
+            variable = self.getVariable()
+            (lataxis, lonaxis) = (variable.getLatitude(), variable.getLongitude())
+            (latInterval, lonInterval) = (lataxis.mapInterval( gridBnds[0] ), lonaxis.mapInterval( gridBnds[1] ))
+            return baseGrid.subGrid( latInterval, lonInterval )
+
     def getGrid(self):
         import cdms2
         gridfile = cdms2.open(self.gridFilePath)
-        return gridfile.grids.values()[0]
+        baseGrid = gridfile.grids.values()[0]
+        (latInterval, lonInterval) = ( self.getAxisSection('y'), self.getAxisSection('x') )
+        if ( (latInterval == None) or (lonInterval == None)  ):  return baseGrid
+        else: return baseGrid.subGrid( latInterval, lonInterval )
 
     def getVariable(self):
         import cdms2
-        t0 = time.time()
-        gridfile = cdms2.open(self.gridFilePath)
-        var = gridfile[self.name]
-        grid = gridfile.grids.values()[0]
-        partition_axes = self.subsetAxes(self.dimensions, gridfile, self.origin, self.shape)
-        variable = cdms2.createVariable(self.array, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.getMissing(),
-                                        grid=grid, axes=partition_axes, attributes=self.metadata, id=self.collection + "-" + self.name)
-        variable.createattribute("gridfile", self.gridFilePath)
-        variable.createattribute("origin", mParse.ia2s(self.origin))
-        t1 = time.time()
-        self.logger.info(" >> Created CDMS Variable: {0} ({1}) in time {2}, gridFile = {3}".format(variable.id, self.name, (t1 - t0), self.gridFilePath ))
-        return variable
+        if( self.variable == None ):
+            t0 = time.time()
+            gridfile = cdms2.open(self.gridFilePath)
+            var = gridfile[self.name]
+            grid = gridfile.grids.values()[0]
+            partition_axes = self.subsetAxes(self.dimensions, gridfile, self.origin, self.shape)
+            self.variable = cdms2.createVariable(self.array, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.getMissing(),
+                                            grid=grid, axes=partition_axes, attributes=self.metadata, id=self.collection + "-" + self.name)
+            self.variable.createattribute("gridfile", self.gridFilePath)
+            self.variable.createattribute("origin", mParse.ia2s(self.origin))
+            t1 = time.time()
+            self.logger.info(" >> Created CDMS Variable: {0} ({1}) in time {2}, gridFile = {3}".format(self.variable.id, self.name, (t1 - t0), self.gridFilePath ))
+        return self.variable
 
     def subsetAxes( self, dimensions, gridfile, origin, shape ):
         subAxes = []
@@ -150,10 +188,22 @@ class cdmsArray(CDArray):
         self.dimensions = self.metadata["dimensions"].split(",")
         self.variable = cdVariable
 
-    def getGrid(self):
-        return self.variable.getGrid()
-
     def getVariable(self): return self.variable
+
+    def getGrid(self):
+        baseGrid = self.variable.getGrid()
+        (latInterval, lonInterval) = ( self.getAxisSection('y'), self.getAxisSection('x') )
+        if ( (latInterval == None) or (lonInterval == None)  ):  return baseGrid
+        else: return baseGrid.subGrid( latInterval, lonInterval )
+
+    def getGrid1(self):
+        gridBnds = self.getGridBounds()
+        if ( gridBnds == None ):  return self.variable.getGrid()
+        else:
+            (lataxis, lonaxis) = (self.variable.getLatitude(), self.variable.getLongitude())
+            (latInterval, lonInterval) = (lataxis.mapInterval( gridBnds[0] ), lonaxis.mapInterval( gridBnds[1] ))
+            self.logger.info( " latInterval {0} --- lonInterval {1} ".format( str(latInterval), str(lonInterval) ) )
+            return self.variable.getGrid().subGrid( latInterval, lonInterval )
 
     def subsetAxes( self, dimensions, gridfile, origin, shape ):
         subAxes = []

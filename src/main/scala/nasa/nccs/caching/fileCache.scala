@@ -599,7 +599,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
     val t0 = System.nanoTime()
     val result: PartitionedFragment = fragSpec.targetGridOpt match {
       case Some(targetGrid) =>
-        val maskOpt = fragSpec.mask.flatMap(maskId => produceMask(maskId, fragSpec.getBounds, fragSpec.getGridShape, targetGrid.getAxisIndices("xy").args))
+        val maskOpt = fragSpec.mask.flatMap(maskId => produceMask(maskId, fragSpec.getBounds(), fragSpec.getGridShape, targetGrid.getAxisIndices("xy").args))
         targetGrid.loadFileDataIntoCache( fragSpec, maskOpt)
       case None =>
         throw new Exception( "Missing target grid for fragSpec: " + fragSpec.toString )

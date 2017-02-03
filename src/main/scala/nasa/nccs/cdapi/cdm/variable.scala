@@ -130,7 +130,7 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
     val partition = partitions.getPart(partIndex)
     val data: CDFloatArray = partition.data( fragmentSpec.missing_value )
     val spec: DataFragmentSpec = partFragSpec(partIndex)
-    RDDPartition( partIndex, Map( spec.uid -> HeapFltArray(data, fragSpec.getOrigin, spec.getMetadata, None) ) )
+    RDDPartition( partIndex, Map( spec.uid -> HeapFltArray(data, fragSpec.getOrigin, spec.getMetadata(), None) ) )
   }
 
   def domainRDDPartition(partIndex: Int, optSection: Option[ma2.Section] ): Option[RDDPartition] = domainCDDataSection( partIndex, optSection ) match {
@@ -176,7 +176,7 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
       val partition = partitions.getPart(partIndex)
       val partition_data = partition.data(fragmentSpec.missing_value)
       domainSection( partition, optSection ) map {
-        case ( fragSpec, section )  => ( fragSpec.uid, section, fragSpec.getMetadata, CDFloatArray( partition_data.section( section ) ) )
+        case ( domFragSpec, section )  => ( domFragSpec.uid, section, domFragSpec.getMetadata(optSection), CDFloatArray( partition_data.section( section ) ) )
       }
     } catch {
       case ex: Exception => logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )
@@ -185,10 +185,10 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
   }
   def getRDDVariableSpec( uid: String, partition: Partition,  optSection: Option[ma2.Section] ): RDDVariableSpec =
     domainSection(partition,optSection) match {
-      case Some( ( fragSpec, section ) ) =>
-        new RDDVariableSpec( uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection(section) )
+      case Some( ( domFragSpec, section ) ) =>
+        new RDDVariableSpec( uid, domFragSpec.getMetadata(Some(section)), domFragSpec.missing_value, CDSection(section) )
       case _ =>
-        new RDDVariableSpec( uid, fragSpec.getMetadata, fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
+        new RDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
     }
 
 
