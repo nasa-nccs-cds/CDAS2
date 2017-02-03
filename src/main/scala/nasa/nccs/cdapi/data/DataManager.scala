@@ -1,6 +1,7 @@
 package nasa.nccs.cdapi.data
 
 import nasa.nccs.caching.Partition
+import nasa.nccs.cdapi.cdm.RemapElem
 import nasa.nccs.cdapi.tensors._
 import nasa.nccs.cdas.engine.WorkflowNode
 import nasa.nccs.cdas.kernels.{KernelContext, zmqPythonKernel}
@@ -89,6 +90,10 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def getMissing( default: Float = Float.MaxValue ): Float = _missing.getOrElse(default)
   def sameGrid( other: HeapFltArray) = gridSpec.equals( other.gridSpec )
 
+  def reinterp( weights: Map[Int,RemapElem], origin_mapper: Array[Int] => Array[Int] ): HeapFltArray = {
+    val reinterpArray = toCDFloatArray.reinterp(weights)
+    new HeapFltArray( reinterpArray.getShape, origin_mapper(origin), reinterpArray.getArrayData(), Some(reinterpArray.getInvalid), gridSpec, metadata )
+  }
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, getMissing(), indexMaps )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), getMissing() )
   def verifyGrids( other: HeapFltArray ) = if( !sameGrid(other) ) throw new Exception( s"Error, attempt to combine arrays with different grids: $gridSpec vs ${other.gridSpec}")
@@ -123,9 +128,9 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={getMissing().toString}> {_data.mkString(",")} </array> % metadata
 }
 object HeapFltArray {
-  def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray = {
+  def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[Array[Float]] ): HeapFltArray = {
     val gridSpec = metadata.get( "gridfile" ).map( "file:/" + _ ).getOrElse("")
-    new HeapFltArray(cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), gridSpec, metadata, optWeights.map(_.getArrayData()), cdarray.getCoordMaps)
+    new HeapFltArray(cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), gridSpec, metadata, optWeights, cdarray.getCoordMaps)
   }
   def apply( cdarray: CDFloatArray, origin: Array[Int], gridSpec: String, metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray = {
     new HeapFltArray(cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), gridSpec, metadata, optWeights.map(_.getArrayData()), cdarray.getCoordMaps)
@@ -180,6 +185,19 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray] , met
     if( elements.size == 0 ) return false
     val targetGridSpec = targetGridSpecOpt.getOrElse( elements.head._2.gridSpec )
     elements.exists( item => !item._2.gridSpec.equals(targetGridSpec))
+  }
+  def reinterp( weights: Map[Int,RemapElem], from_nsteps: Int, origin_mapper: Array[Int] => Array[Int] ): RDDPartition = {
+    val new_elements = elements.mapValues( array => array.shape(0) match {
+      case x if x == from_nsteps => array.reinterp (weights, origin_mapper)
+      case y if y == weights.size() => array
+      case _ => throw new Exception( "Unexpected time conversion input shape: " + array.shape.mkString(", ") )
+    })
+    new RDDPartition( iPart, new_elements, metadata )
+  }
+  def hasMultiTimeScales( trsOpt: Option[String]=None ): Boolean = {
+    if( elements.size == 0 ) return false
+    val ntimesteps = elements.values.head.shape(0)
+    elements.exists( item => !(item._2.shape(0)==ntimesteps) )
   }
   def append( other: RDDPartition ): RDDPartition = {
     logger.info( s"Append Arrays: $iPart +--> ${other.iPart}")

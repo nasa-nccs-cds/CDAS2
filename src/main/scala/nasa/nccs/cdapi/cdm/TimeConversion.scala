@@ -26,6 +26,10 @@ class TimeAxisConverter( val toAxis: CoordinateAxis1DTime, val fromAxis: Coordin
     Map( buf: _* )
   }
 
+  def mapOrigin( old_origin: Array[Int] ): Array[Int] = {
+    old_origin.zipWithIndex.map{ case (o,i) => if( i == 0 ) ( range.first ) else o }
+  }
+
 //  def convert( data: CDFloatArray ): CDFloatArray = {
 //    data.slice(0,)
 //  }

@@ -64,6 +64,16 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   def regridRDDElems( input: RDD[(Int,RDDPartition)], context: KernelContext): RDD[(Int,RDDPartition)] = {
     input.mapValues( rdd_part => regridKernel.map( rdd_part, context ) ) map(identity)
   }
+  def timeConversion( input: RDD[(Int,RDDPartition)], context: KernelContext ): RDD[(Int,RDDPartition)] = {
+    val crsOpt = context.crsOpt
+    val toAxis: CoordinateAxis1DTime
+    val fromAxis: CoordinateAxis1DTime
+    val toAxisRange: ma2.Range
+    val from_nsteps = fromAxis.getShape(0)
+    val converter = new TimeAxisConverter( toAxis, fromAxis, toAxisRange )
+    val weights = converter.computeWeights()
+    input.mapValues( rdd_part => rdd_part.reinterp( weights, from_nsteps, converter.mapOrigin ) ) map(identity)
+  }
 
   def mapReduce( kernelContext: KernelContext, requestCx: RequestContext ): RDDPartition = {
     val inputs = prepareInputs( kernelContext, requestCx )
@@ -213,7 +223,9 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val rawResult = if( opInputs.size == 1 ) rawRdds.head else rawRdds.tail.foldLeft( rawRdds.head )( CDSparkContext.merge(_,_) )
     val sampleRDDPart = rawResult.first._2
     val needsRegrid: Boolean = sampleRDDPart.hasMultiGrids( Some(targetGridSpec) )
-    if(needsRegrid) node.regridRDDElems( rawResult, kernelContext.configure("gridSpec",targetGridSpec) ) else rawResult
+    val needsTimeConversion: Boolean = sampleRDDPart.hasMultiTimeScales( kernelContext.crsOpt )
+    val regridResult = if(needsRegrid) node.regridRDDElems( rawResult, kernelContext.configure("gridSpec",targetGridSpec) ) else rawResult
+    if( needsTimeConversion ) node.timeConversion( regridResult, kernelContext ) else regridResult
   }
 
   //  def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
