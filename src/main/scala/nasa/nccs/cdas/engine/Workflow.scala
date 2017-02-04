@@ -68,12 +68,14 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   }
   def timeConversion( input: RDD[(Int,RDDPartition)], context: KernelContext, requestCx: RequestContext ): RDD[(Int,RDDPartition)] = {
     val trsOpt: Option[String] = context.trsOpt
-    val gridMap: Map[String,TargetGrid] = Map( for( uid <- context.operation.inputs; targetGrid = requestCx.getTargetGrid(uid).getOrElse( fatal("Missing target grid for kernel input " + uid) ) ) yield ( uid -> targetGrid ) : _* )
+    val gridMap: Map[String,TargetGrid] = Map( (for( uid: String <- context.operation.inputs; targetGrid: TargetGrid = requestCx.getTargetGrid(uid).getOrElse( fatal("Missing target grid for kernel input " + uid) ) ) yield  uid -> targetGrid ) : _* )
     val targetTrsGrid: TargetGrid = trsOpt match {
-      case Some( trs ) => gridMap.getOrElse( trs, fatal( "Invalid trs configuration: " + trs ) )
+      case Some( trs ) =>
+        val trs_input = context.operation.inputs.find( _.split('-')(0).equals( trs.substring(1) ) ).getOrElse( fatal( "Invalid trs configuration: " + trs ) )
+        gridMap.getOrElse( trs_input, fatal( "Invalid trs configuration: " + trs ) )
       case None => gridMap.values.head
     }
-    val toAxis: CoordinateAxis1DTime = targetTrsGrid.getTimeAxis.getOrElse( fatal( "Missing time axis for configuration: " + trsOpt.getOrElse("None") ) )
+    val toAxis: CoordinateAxis1DTime = targetTrsGrid.getTimeCoordinateAxis.getOrElse( fatal( "Missing time axis for configuration: " + trsOpt.getOrElse("None") ) )
     val fromAxis: CoordinateAxis1DTime = null
     val toAxisRange: ma2.Range = null
     val from_nsteps = fromAxis.getShape(0)
