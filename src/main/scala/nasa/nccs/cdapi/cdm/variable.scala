@@ -61,9 +61,14 @@ class CDSVariable( val name: String, val collection: Collection ) extends Loggab
   def getCoordinateAxes: List[ CoordinateAxis1D ] = {
     dims.flatMap( dim => collection.grid.findCoordinateAxis( dim ).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) ) ).toList
   }
-  def getCoordinateAxis( axisType: nc2.constants.AxisType ): Option[CoordinateAxis1D] = collection.grid.findCoordinateAxis(axisType).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
+  def getCoordinateAxis( axisType: AxisType ): Option[CoordinateAxis1D] = collection.grid.findCoordinateAxis(axisType).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
   def getCoordinateAxis( name: String ): Option[CoordinateAxis1D] = collection.grid.findCoordinateAxis(name).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
   def getCoordinateAxesList = collection.grid.getCoordinateAxes
+
+  def getTimeAxis: Option[CoordinateAxis1DTime] = getCoordinateAxis( AxisType.Time ) match {
+    case timeAxis: CoordinateAxis1DTime => Some( timeAxis )
+    case _ => None
+  }
 }
 
 trait OperationInput {

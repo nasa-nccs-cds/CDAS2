@@ -129,7 +129,7 @@ class average extends SingularRDDKernel(Map.empty) {
         val accumulation_index = input_array.getAccumulationIndex( axes.args )
         val weights: CDFloatArray = KernelUtilities.getWeights(inputId, context)
         val (weighted_value_sum_masked, weights_sum_masked) = input_array.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index, Some(weights) )
-        context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked) )
+        context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked.getArrayData()) )
       case None => throw new Exception( "Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
     })
     logger.info("Executed Kernel %s[%d] map op, input = %s, time = %.4f s".format(name, inputs.iPart, id, (System.nanoTime - t0) / 1.0E9))
@@ -164,7 +164,7 @@ class timeBin extends Kernel(Map.empty) {
     val ( id, input_array ) = inputs.head
     val accumulation_index: CDIndexMap = input_array.toCDFloatArray.getIndex.getAccumulator( axes.args, List( getMontlyBinMap( id, context ) )  )  // TODO: Check range of getMontlyBinMap- subset by part?
     val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index )
-    val result_array = HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), Some( weights_sum_masked ) )
+    val result_array = HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), Some( weights_sum_masked.getArrayData() ) )
     logger.info("Executed Kernel %s[%d] map op, input = %s, index=%s, time = %.4f s".format(name, inputs.iPart, id, result_array.toCDFloatArray.getIndex.toString , (System.nanoTime - t0) / 1.0E9))
     RDDPartition( key, Map( context.operation.rid -> result_array ), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }

@@ -364,9 +364,9 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
       val rid = context.operation.rid
       val vTot: CDFloatArray = fltArray(a0, rid) + fltArray(a1, rid)
       val vOrigin: Array[Int] = originArray( a0, rid )
-      val wTotOpt: Option[CDFloatArray] = wtArray(a0, rid ).map(w => w + wtArray(a1,rid).get )
+      val wTotOpt: Option[Array[Float]] = wtArray(a0, rid ).map(w => w + wtArray(a1,rid).get ).map(_.getArrayData())
       val array_mdata = MetadataOps.mergeMetadata( context.operation.name )( arrayMdata(a0, rid), arrayMdata(a1, rid) )
-      val element = rid -> HeapFltArray( vTot,vOrigin,array_mdata,wTotOpt )
+      val element = rid -> HeapFltArray( vTot, vOrigin, array_mdata, wTotOpt )
       val part_mdata = MetadataOps.mergeMetadata( context.operation.name )( a0.metadata, a1.metadata )
       logger.info("weightedValueSumCombiner, values shape = %s, result spec = %s".format(vTot.getShape.mkString(","), a0.metadata.toString))
       new RDDPartition(a0.iPart, Map(element), part_mdata)
@@ -383,7 +383,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
         val values = fltArray(result, rid)
         val vOrigin: Array[Int] = originArray(result, rid)
         logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(values.getShape.mkString(","), weights_sum.getShape.mkString(","), result.metadata.toString))
-        new RDDPartition( result.iPart, Map(rid -> HeapFltArray(values / weights_sum, vOrigin, arrayMdata(result, "value"), Some(weights_sum))), result.metadata )
+        new RDDPartition( result.iPart, Map(rid -> HeapFltArray( values / weights_sum, vOrigin, arrayMdata(result, "value"), Some( weights_sum.getArrayData() ) ) ), result.metadata )
       case None =>
         result
     }

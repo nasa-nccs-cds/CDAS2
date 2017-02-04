@@ -29,6 +29,8 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   def getResultId: String = operation.rid
   def getNodeId(): String = operation.identifier
 
+  def fatal( msg: String ) = throw new Exception( s"Workflow Node '${operation.identifier}' Error: " + msg )
+
   def getKernelOption( key: String , default: String = ""): String = kernel.options.getOrElse(key,default)
 
   def generateKernelContext( requestCx: RequestContext ): KernelContext = {
@@ -64,11 +66,16 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   def regridRDDElems( input: RDD[(Int,RDDPartition)], context: KernelContext): RDD[(Int,RDDPartition)] = {
     input.mapValues( rdd_part => regridKernel.map( rdd_part, context ) ) map(identity)
   }
-  def timeConversion( input: RDD[(Int,RDDPartition)], context: KernelContext ): RDD[(Int,RDDPartition)] = {
-    val crsOpt = context.crsOpt
-    val toAxis: CoordinateAxis1DTime
-    val fromAxis: CoordinateAxis1DTime
-    val toAxisRange: ma2.Range
+  def timeConversion( input: RDD[(Int,RDDPartition)], context: KernelContext, requestCx: RequestContext ): RDD[(Int,RDDPartition)] = {
+    val trsOpt: Option[String] = context.trsOpt
+    val gridMap: Map[String,TargetGrid] = Map( for( uid <- context.operation.inputs; targetGrid = requestCx.getTargetGrid(uid).getOrElse( fatal("Missing target grid for kernel input " + uid) ) ) yield ( uid -> targetGrid ) : _* )
+    val targetTrsGrid: TargetGrid = trsOpt match {
+      case Some( trs ) => gridMap.getOrElse( trs, fatal( "Invalid trs configuration: " + trs ) )
+      case None => gridMap.values.head
+    }
+    val toAxis: CoordinateAxis1DTime = targetTrsGrid.getTimeAxis.getOrElse( fatal( "Missing time axis for configuration: " + trsOpt.getOrElse("None") ) )
+    val fromAxis: CoordinateAxis1DTime = null
+    val toAxisRange: ma2.Range = null
     val from_nsteps = fromAxis.getShape(0)
     val converter = new TimeAxisConverter( toAxis, fromAxis, toAxisRange )
     val weights = converter.computeWeights()
@@ -225,7 +232,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val needsRegrid: Boolean = sampleRDDPart.hasMultiGrids( Some(targetGridSpec) )
     val needsTimeConversion: Boolean = sampleRDDPart.hasMultiTimeScales( kernelContext.crsOpt )
     val regridResult = if(needsRegrid) node.regridRDDElems( rawResult, kernelContext.configure("gridSpec",targetGridSpec) ) else rawResult
-    if( needsTimeConversion ) node.timeConversion( regridResult, kernelContext ) else regridResult
+    if( needsTimeConversion ) node.timeConversion( regridResult, kernelContext, requestCx ) else regridResult
   }
 
   //  def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
