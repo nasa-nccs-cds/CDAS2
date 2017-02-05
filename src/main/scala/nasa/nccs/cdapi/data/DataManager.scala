@@ -189,7 +189,9 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray] , met
   def reinterp( conversionMap: Map[Int,TimeConversionSpec] ): RDDPartition = {
     val new_elements = elements.mapValues( array => conversionMap.get(array.shape(0)) match {
       case Some( conversionSpec ) => array.reinterp( conversionSpec.weights, conversionSpec.mapOrigin )
-      case None => throw new Exception( "Unexpected time conversion input shape: " + array.shape.mkString(", ") )
+      case None =>
+        if( array.shape(0) != conversionMap.values.head.toSize )  throw new Exception( s"Unexpected time conversion input size: ${array.shape(0)} vs ${conversionMap.values.head.toSize}" )
+        array
     })
     new RDDPartition( iPart, new_elements, metadata )
   }

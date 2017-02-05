@@ -81,7 +81,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
       if( grid.shape(0) != toAxis.getSize )
         Some(grid.shape(0) -> targetTrsGrid.getTimeCoordinateAxis.getOrElse( fatal( "Missing time axis for kernel input: " + uid ) ) )
       else None }
-    val conversionMap: Map[Int,TimeConversionSpec] = fromAxisMap mapValues ( fromAxis => { val converter = new TimeAxisConverter( toAxis, fromAxis, toAxisRange ); converter.computeWeights(); } )
+    val conversionMap: Map[Int,TimeConversionSpec] = fromAxisMap mapValues ( fromAxis => { val converter = TimeAxisConverter( toAxis, fromAxis, toAxisRange ); converter.computeWeights(); } ) map (identity)
     input.mapValues( rdd_part => rdd_part.reinterp( conversionMap ) ) map(identity)
   }
 
