@@ -368,7 +368,7 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
 
   def readData( section: ma2.Section ) = collection.readVariableData( varname, section )
   def getVariableMetadata: Map[String,nc2.Attribute] = nc2.Attribute.makeMap( collection.getVariableMetadata(varname) ).toMap
-  def getMetadata(section: Option[ma2.Section]=None): Map[String,String] = Map( "name" -> varname, "collection" -> collection.id, "gridfile" -> collection.getGridFilePath, "gridbnds" -> getBounds(section).map(_.toFloat).mkString(","),
+  def getMetadata(section: Option[ma2.Section]=None): Map[String,String] = Map( "name" -> varname, "collection" -> collection.id, "gridfile" -> collection.getGridFilePath, // "gridbnds" -> getBounds(section).map(_.toFloat).mkString(","),
                                                                                 "fragment" -> fragIdOpt.getOrElse(""), "dimensions" -> dimensions, "units" -> units, "longname" -> longname, "uid" -> uid, "roi" -> CDSection.serialize(roi) )
   def getVariable: CDSVariable = collection.getVariable( varname )
 

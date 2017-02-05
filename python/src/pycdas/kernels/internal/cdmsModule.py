@@ -26,7 +26,7 @@ class RegridKernel(CDMSKernel):
     def executeOperations(self, task, _inputs):
         cdms2.setAutoBounds(2)
         crsSpec = task.metadata.get("crs","")
-        if( crsSpec[0] == '~' ):
+        if( len(crsSpec) and (crsSpec[0] == '~') ):
             crsId = crsSpec[1:]
             grid_input = _inputs.get( crsId, None )
             if not grid_input: raise Exception( "Can't find grid variable uid: " + crsId + ", variable uids = " + str( _inputs.keys() ) )

@@ -352,8 +352,8 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   }
 
   def reinterp( weights: Map[Int,RemapElem] ): CDFloatArray = {
-    val slices = for ( (i,elem) <- weights ) yield { slice(0,elem.index,1) * elem.weight0 + slice(0,elem.index+1,1) * elem.weight1 }
-    slices.fold ( CDFloatArray.empty )( _ append _ )
+    val slices: Iterable[CDFloatArray] = for ( (i,elem) <- weights ) yield { slice(0,elem.index,1) * elem.weight0 + slice(0,elem.index+1,1) * elem.weight1 }
+    slices.reduce( _ append _ )
   }
   def getSampleData( size: Int, start: Int): Array[Float] = ( ( start to (start+size) ) map { index => floatStorage.get(index) } ).toArray
   def setStorageValue( index: StorageIndex, value: Float ): Unit = floatStorage.put( index, value )

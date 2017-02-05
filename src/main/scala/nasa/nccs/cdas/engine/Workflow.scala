@@ -63,6 +63,15 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
     }
   }
 
+  def collect( mapresult: RDD[(Int,RDDPartition)], context: KernelContext ): RDDPartition = {
+    logger.info( "\n\n ----------------------- BEGIN collect Operation: %s (%s) ----------------------- \n".format( context.operation.identifier, context.operation.rid ) )
+    val t0 = System.nanoTime()
+    var repart_mapresult = mapresult repartitionAndSortWithinPartitions new RangePartitioner(1, mapresult)
+    val result = repart_mapresult.reduce(kernel.mergeRDD(context) _)._2
+    logger.info("\n\n ----------------------- FINISHED collect Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
+    result
+  }
+
   def regridRDDElems( input: RDD[(Int,RDDPartition)], context: KernelContext): RDD[(Int,RDDPartition)] = {
     input.mapValues( rdd_part => regridKernel.map( rdd_part, context ) ) map(identity)
   }
@@ -82,7 +91,9 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
         Some(grid.shape(0) -> targetTrsGrid.getTimeCoordinateAxis.getOrElse( fatal( "Missing time axis for kernel input: " + uid ) ) )
       else None }
     val conversionMap: Map[Int,TimeConversionSpec] = fromAxisMap mapValues ( fromAxis => { val converter = TimeAxisConverter( toAxis, fromAxis, toAxisRange ); converter.computeWeights(); } ) map (identity)
-    input.mapValues( rdd_part => rdd_part.reinterp( conversionMap ) ) map(identity)
+    val result = input.mapValues( rdd_part => rdd_part.reinterp( conversionMap ) ) map(identity)
+    val first_part = result.first()._2
+    result
   }
 
   def mapReduce( kernelContext: KernelContext, requestCx: RequestContext ): RDDPartition = {
@@ -235,7 +246,10 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val needsRegrid: Boolean = sampleRDDPart.hasMultiGrids( Some(targetGridSpec) )
     val needsTimeConversion: Boolean = sampleRDDPart.hasMultiTimeScales( kernelContext.crsOpt )
     val regridResult = if(needsRegrid) node.regridRDDElems( rawResult, kernelContext.configure("gridSpec",targetGridSpec) ) else rawResult
-    if( needsTimeConversion ) node.timeConversion( regridResult, kernelContext, requestCx ) else regridResult
+    if( needsTimeConversion ) {
+      val coalescedResult = executionMgr.serverContext.spark.coalesce( regridResult, regridResult.getNumPartitions )
+      node.timeConversion( coalescedResult, kernelContext, requestCx )
+    } else regridResult
   }
 
   //  def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
