@@ -76,12 +76,13 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
       case None => gridMap.values.head
     }
     val toAxis: CoordinateAxis1DTime = targetTrsGrid.getTimeCoordinateAxis.getOrElse( fatal( "Missing time axis for configuration: " + trsOpt.getOrElse("None") ) )
-    val fromAxis: CoordinateAxis1DTime = null
-    val toAxisRange: ma2.Range = null
-    val from_nsteps = fromAxis.getShape(0)
-    val converter = new TimeAxisConverter( toAxis, fromAxis, toAxisRange )
-    val weights = converter.computeWeights()
-    input.mapValues( rdd_part => rdd_part.reinterp( weights, from_nsteps, converter.mapOrigin ) ) map(identity)
+    val toAxisRange: ma2.Range = targetTrsGrid.getFullSection.getRange(0)
+    val fromAxisMap =  gridMap.flatMap { case (uid, grid) =>
+      if( grid.shape(0) != toAxis.getSize )
+        Some(grid.shape(0) -> targetTrsGrid.getTimeCoordinateAxis.getOrElse( fatal( "Missing time axis for kernel input: " + uid ) ) )
+      else None }
+    val conversionMap: Map[Int,TimeConversionSpec] = fromAxisMap mapValues ( fromAxis => { val converter = new TimeAxisConverter( toAxis, fromAxis, toAxisRange ); converter.computeWeights(); } )
+    input.mapValues( rdd_part => rdd_part.reinterp( conversionMap ) ) map(identity)
   }
 
   def mapReduce( kernelContext: KernelContext, requestCx: RequestContext ): RDDPartition = {

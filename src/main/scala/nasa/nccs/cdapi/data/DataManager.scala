@@ -1,7 +1,7 @@
 package nasa.nccs.cdapi.data
 
 import nasa.nccs.caching.Partition
-import nasa.nccs.cdapi.cdm.RemapElem
+import nasa.nccs.cdapi.cdm.{RemapElem, TimeConversionSpec}
 import nasa.nccs.cdapi.tensors._
 import nasa.nccs.cdas.engine.WorkflowNode
 import nasa.nccs.cdas.kernels.{KernelContext, zmqPythonKernel}
@@ -186,11 +186,10 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray] , met
     val targetGridSpec = targetGridSpecOpt.getOrElse( elements.head._2.gridSpec )
     elements.exists( item => !item._2.gridSpec.equals(targetGridSpec))
   }
-  def reinterp( weights: Map[Int,RemapElem], from_nsteps: Int, origin_mapper: Array[Int] => Array[Int] ): RDDPartition = {
-    val new_elements = elements.mapValues( array => array.shape(0) match {
-      case x if x == from_nsteps => array.reinterp (weights, origin_mapper)
-      case y if y == weights.size() => array
-      case _ => throw new Exception( "Unexpected time conversion input shape: " + array.shape.mkString(", ") )
+  def reinterp( conversionMap: Map[Int,TimeConversionSpec] ): RDDPartition = {
+    val new_elements = elements.mapValues( array => conversionMap.get(array.shape(0)) match {
+      case Some( conversionSpec ) => array.reinterp( conversionSpec.weights, conversionSpec.mapOrigin )
+      case None => throw new Exception( "Unexpected time conversion input shape: " + array.shape.mkString(", ") )
     })
     new RDDPartition( iPart, new_elements, metadata )
   }

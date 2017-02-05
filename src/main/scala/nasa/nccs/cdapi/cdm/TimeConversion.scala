@@ -8,30 +8,29 @@ class RemapElem( val index: Int, val weight0: Float, val weight1: Float) {
 
 }
 
+class TimeConversionSpec( val weights: Map[Int,RemapElem], val toAxisRange: ma2.Range ) {
+  def mapOrigin( old_origin: Array[Int] ): Array[Int] = {
+    old_origin.zipWithIndex.map{ case (o,i) => if( i == 0 ) ( toAxisRange.first ) else o }
+  }
+}
+
 class TimeAxisConverter( val toAxis: CoordinateAxis1DTime, val fromAxis: CoordinateAxis1DTime, val toAxisRange: ma2.Range = ma2.Range.EMPTY ) {
   protected val range = if( toAxisRange == ma2.Range.EMPTY ) { new ma2.Range(toAxis.getSize.toInt) } else toAxisRange
-  protected val weights: Map[Int,RemapElem] = computeWeights()
 
-  def computeWeights(): Map[Int,RemapElem] = {
+  def computeWeights(): TimeConversionSpec = {
     val buf = scala.collection.mutable.ListBuffer.empty[(Int,RemapElem)]
     val iter  = range.getIterator
     while ( iter.hasNext ) {
       val index = iter.next
       val cdate0 = toAxis.getCalendarDate(index)
       val fromIndex = fromAxis.findTimeIndexFromCalendarDate(cdate0)
-      val (cd0,cd1) = (fromAxis.getCalendarDate(fromIndex),fromAxis.getCalendarDate(fromIndex+1))
-      val (dt0,dt1,dt) = ( cd0.getDifferenceInMsecs(cdate0), cdate0.getDifferenceInMsecs(cd1), cd0.getDifferenceInMsecs(cd1) )
-      buf += ( index -> new RemapElem( fromIndex, dt1/dt, dt0/dt ) )
+      val toIndex = Math.min( fromIndex+1, fromAxis.getSize -1 ).toInt
+      val (cd0,cd1) = (fromAxis.getCalendarDate(fromIndex),fromAxis.getCalendarDate( toIndex ) )
+      val dt = { val dt0 = cd0.getDifferenceInMsecs(cd1); if( dt0 == 0.0 ) 1.0 else dt0; }
+      val (w0,w1) = ( cd0.getDifferenceInMsecs(cdate0)/dt, cdate0.getDifferenceInMsecs(cd1)/dt )
+      buf += ( index -> new RemapElem( fromIndex, w0.toFloat, w1.toFloat ) )
     }
-    Map( buf: _* )
+    new TimeConversionSpec( Map( buf: _* ), toAxisRange )
   }
-
-  def mapOrigin( old_origin: Array[Int] ): Array[Int] = {
-    old_origin.zipWithIndex.map{ case (o,i) => if( i == 0 ) ( range.first ) else o }
-  }
-
-//  def convert( data: CDFloatArray ): CDFloatArray = {
-//    data.slice(0,)
-//  }
 
 }
