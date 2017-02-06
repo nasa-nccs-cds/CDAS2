@@ -218,7 +218,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def createErrorReport( err: Throwable, context: RequestContext, node: WorkflowNode ): WPSExecuteResponse = {
-    new ExecutionErrorReport( "", node.kernel, node.operation.identifier, err ) // TODO: serviceInstance
+    new WPSExceptionReport( err )
   }
 
   def cacheResult( result: RDDPartition, context: RequestContext, node: WorkflowNode ): String = {
