@@ -15,6 +15,7 @@ import nasa.nccs.wps.{WPSProcess, WPSProcessOutput}
 import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
+import scala.collection.GenTraversableOnce
 import scala.collection.JavaConversions._
 
 object Port {
@@ -47,11 +48,12 @@ class KernelContext( val operation: OperationContext, val grids: Map[String,Opti
   def findAnyGrid: GridContext = (grids.find { case (k, v) => v.isDefined }).getOrElse(("", None))._2.getOrElse(throw new Exception("Undefined grid in KernelContext for op " + operation.identifier))
   private def getCRS: Option[String] = operation.getDomain flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("crs") ) )
   private def getTRS: Option[String] = operation.getDomain flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("trs") ) )
-  def configure( key: String, value: String ): KernelContext = new KernelContext( operation, grids, sectionMap, domains, configuration + (key -> value) )
+  def conf( params: Map[String,String] ): KernelContext = new KernelContext( operation, grids, sectionMap, domains, configuration ++ params )
 
   private def getTargetGridContext: GridContext = crsOpt match {
     case Some( crs ) =>
       if( crs.startsWith("~") ) { findGrid( crs.substring(1) ).getOrElse( throw new Exception(s"Unsupported grid specification '$crs' in KernelContext for op '$operation'" ) ) }
+      else if( crs.contains('~') ) { findAnyGrid }
       else { throw new Exception( "Currently unsupported crs specification") }
     case None => findAnyGrid
   }
@@ -671,9 +673,10 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     rdd0.elements.map {
       case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> {
         val (array0, array1) = if (ascending) (element0, element1) else (element1, element0)
-        worker.sendArrayData( rdd0.iPart, array0.uid, array0 )
-        worker.sendArrayData( rdd1.iPart, array1.uid, array1 )
-        worker.sendRequest( context.operation.identifier, Array(array0.uid,array1.uid), Map( "action" -> "reduce", "axes" -> context.getAxes.getAxes.mkString(",") ) )
+        val uids = Array( s"${rdd0.iPart}.${array0.uid}", s"${rdd1.iPart}.${array1.uid}" )
+        worker.sendArrayData( rdd0.iPart, uids(0), array0 )
+        worker.sendArrayData( rdd1.iPart, uids(1), array1 )
+        worker.sendRequest( context.operation.identifier, uids, Map( "action" -> "reduce", "axes" -> context.getAxes.getAxes.mkString(",") ) )
       })
     }
     val resultItems = rdd0.elements.map {

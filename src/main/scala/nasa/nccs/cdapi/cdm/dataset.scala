@@ -84,6 +84,9 @@ object CDGrid extends Loggable {
       }
       val coordAxes: List[CoordinateAxis] = gridDS.getCoordinateAxes.toList
       val dimensions = gridDS.getDimensions.toList
+      val conv = gridDS.getConventionUsed
+      val title = gridDS.getTitle
+      gridDS.writeCDL( new PrintWriter("/tmp/test.cdl"), true )
       new CDGrid(name, gridFilePath, coordAxes, coordSystems, dimensions, dset_attributes)
     } finally {
       gridDS.close()
@@ -148,8 +151,8 @@ class CDGrid( name: String,  val gridFilePath: String, coordAxes: List[Coordinat
   override def toString = gridFilePath
   def getCoordinateAxes: List[CoordinateAxis] = coordAxes
 
-  def getGridSpec: String =
-    "file:/" + gridFilePath
+  def getGridSpec: String = "file:/" + gridFilePath
+  def getGridFile: String = "file:/" + gridFilePath
 
   def findCoordinateAxis(name: String): Option[CoordinateAxis] = {
     val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)

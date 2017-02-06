@@ -126,19 +126,17 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("ESGF_Demo") {
-    val unverified_result: CDFloatArray = CDFloatArray(  Array( 237.50804f, 237.50804f, 237.50803f, 237.50804f, 237.50804f, 237.50803f, 237.50804f, 237.50803f, 237.50804f, 237.50803f ), Float.MaxValue )
+    val unverified_result: CDFloatArray = CDFloatArray(  Array( 237.6183, 237.6183, 237.61829, 237.6183, 237.6183, 237.61829, 237.6183, 237.61829, 237.6183, 237.61829 ).map(_.toFloat), Float.MaxValue )
     val GISS_H_vids = ( 1 to nExp ) map { index => s"vH$index" }
     val GISS_E2R_vids = ( 1 to nExp ) map { index => s"vR$index" }
     val GISS_H_variables     = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
     val GISS_E2R_variables = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_E2R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
     val datainputs = s"""[
            variable=[$GISS_H_variables,$GISS_E2R_variables],
-           domain=[       {"name":"d0","time":{"start":0,"end":1,"system":"indices"}}],
+           domain=[       {"name":"d0","time":{"start":0,"end":1,"system":"indices"}},{"name":"d1","crs":"gaussian~128"}],
            operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
                           {"name":"CDSpark.multiAverage","input":"${GISS_E2R_vids.mkString(",")}","domain":"d0","id":"eaGISS-E2R"},
-                          {"name":"python.cdmsModule.regrid","input":"eaGISS-E2R","domain":"d0","crs":"gaussian~128","id":"rgE2R"},
-                          {"name":"python.cdmsModule.regrid","input":"eaGISS-H","domain":"d0","crs":"gaussian~128","id":"rgH"},
-                          {"name":"CDSpark.multiAverage","input":"rgE2R,rgH","domain":"d0","result":"esgfDemo"} ]
+                          {"name":"CDSpark.multiAverage","input":"eaGISS-E2R,eaGISS-H","domain":"d1","result":"esgfDemo"} ]
           ]""".replaceAll("\\s", "")
     val result_node = executeTest(datainputs)
     val result_data = CDFloatArray( getResultData( result_node ).slice(0,0,10) )

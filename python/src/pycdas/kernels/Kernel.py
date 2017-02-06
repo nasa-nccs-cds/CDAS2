@@ -34,7 +34,9 @@ class Kernel:
         return results
 
     def executeReduceOp( self, task, inputs ):
-        return [ self.reduce( inputs[task.inputs[0]], inputs[task.inputs[1]], task ) ]
+        kernel_input_ids = [ inputId.split('-')[0] for inputId in task.inputs ]
+        self.logger.info( " >> Executed Reduce operation on inputs {0}, available arrays: {1} ".format( str(kernel_input_ids), str(inputs.keys()) ) )
+        return [ self.reduce( inputs[kernel_input_ids[0]], inputs[kernel_input_ids[1]], task ) ]
 
     def reduce( self, input0, input1, metadata, rId ): raise Exception( "Parallelizable kernel with undefined reduce method operating on T axis")
 

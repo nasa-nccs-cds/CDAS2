@@ -29,7 +29,7 @@ class CDArray:
 
     def getGridBounds(self):
         gridBnds = self.metadata.get("gridbnds")
-        if ( gridBnds == None ): return None
+        if ( gridBnds is None ): return None
         else:
             bndVals = [ float(grdBnd) for grdBnd in gridBnds.split(",") ]
             return ( (bndVals[0],bndVals[1]), (bndVals[2],bndVals[3]) )
@@ -57,6 +57,7 @@ class CDArray:
         roiSpec = self.metadata.get("roi")
         roiMap = {}
         if( roiSpec != None ):
+            self.logger.info(" ***->> Parsing ROI spec: {0}".format( roiSpec ) )
             for roiTok in roiSpec.split('+'):
                 axisToks = roiTok.split(',')
                 roiMap[ axisToks[0].lower() ] = ( int(axisToks[1]),  int(axisToks[2]) + 1 )
@@ -107,7 +108,7 @@ class npArray(CDArray):
         gridfile = cdms2.open(self.gridFilePath)
         baseGrid = gridfile.grids.values()[0]
         gridBnds = self.getGridBounds()
-        if ( gridBnds == None ):  return baseGrid
+        if ( gridBnds is None ):  return baseGrid
         else:
             variable = self.getVariable()
             (lataxis, lonaxis) = (variable.getLatitude(), variable.getLongitude())
@@ -124,7 +125,7 @@ class npArray(CDArray):
 
     def getVariable(self):
         import cdms2
-        if( self.variable == None ):
+        if( self.variable is None ):
             t0 = time.time()
             gridfile = cdms2.open(self.gridFilePath)
             var = gridfile[self.name]

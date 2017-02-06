@@ -229,6 +229,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
     val targetGridSpec: String = requestCx.getTargetGridSpec( kernelContext )
+    val crs: String = kernelContext.crsOpt.getOrElse("")
 
     val rawRdds: Iterable[RDD[(Int,RDDPartition)]] = opInputs.map { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
@@ -243,9 +244,9 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     }
     val rawResult = if( opInputs.size == 1 ) rawRdds.head else rawRdds.tail.foldLeft( rawRdds.head )( CDSparkContext.merge(_,_) )
     val sampleRDDPart = rawResult.first._2
-    val needsRegrid: Boolean = sampleRDDPart.hasMultiGrids( Some(targetGridSpec) )
+    val needsRegrid: Boolean = ( targetGridSpec.startsWith("gspec") || sampleRDDPart.hasMultiGrids )
     val needsTimeConversion: Boolean = sampleRDDPart.hasMultiTimeScales( kernelContext.crsOpt )
-    val regridResult = if(needsRegrid) node.regridRDDElems( rawResult, kernelContext.configure("gridSpec",targetGridSpec) ) else rawResult
+    val regridResult = if(needsRegrid) node.regridRDDElems( rawResult, kernelContext.conf(Map(("gridSpec"->targetGridSpec),("crs"->kernelContext.crsOpt.getOrElse(""))))) else rawResult
     if( needsTimeConversion ) {
       val coalescedResult = executionMgr.serverContext.spark.coalesce( regridResult, regridResult.getNumPartitions )
       node.timeConversion( coalescedResult, kernelContext, requestCx )

@@ -64,8 +64,11 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
     case None =>inputs.head._2 map { _.roi }
   }
   def getTargetGridSpec( kernelContext: KernelContext ) : String = {
-    val targetGrid: TargetGrid = getTargetGrid(kernelContext.grid.uid).getOrElse(throw new Exception("Undefined Grid in domain partition for kernel " + kernelContext.operation.identifier))
-    targetGrid.getGridSpec
+    if( kernelContext.crsOpt.getOrElse("").indexOf('~') > 0 ) { "gspec:" + kernelContext.crsOpt.get }
+    else {
+        val targetGrid: TargetGrid = getTargetGrid (kernelContext.grid.uid).getOrElse (throw new Exception ("Undefined Grid in domain partition for kernel " + kernelContext.operation.identifier) )
+        targetGrid.getGridFile
+    }
   }
   def getDomain(domain_id: String): DomainContainer = domains.get(domain_id) match {
     case Some(domain_container) => domain_container
@@ -294,6 +297,7 @@ class  GridSection( val grid: CDGrid, val axes: IndexedSeq[GridCoordSpec] ) exte
   def getBounds: Option[Array[Double]] = getAxisSpec("x").flatMap( xaxis => getAxisSpec("y").map( yaxis => Array( xaxis.bounds(0), yaxis.bounds(0), xaxis.bounds(1), yaxis.bounds(1) )) )
   def toXml: xml.Elem = <grid> { axes.map(_.toXml) } </grid>
   def getGridSpec: String  = grid.getGridSpec
+  def getGridFile: String  = grid.getGridFile
   def getTimeCoordinateAxis: Option[CoordinateAxis1DTime] = grid.getTimeCoordinateAxis
 
   def getSection: Option[ma2.Section] = {
@@ -335,6 +339,8 @@ object CDSection {
   def relative( section: ma2.Section ): CDSection = new CDSection( Array.fill(section.getRank)(0), section.getShape )
   def empty( rank: Int ): CDSection = new CDSection( Array.fill(rank)(0), Array.fill(rank)(0) )
   def serialize( section: ma2.Section): String = section.getRanges map ( r => r.getName + "," + r.first.toString + "," + r.last.toString ) mkString("+")
+  def deserialize( section: String ): ma2.Section = new ma2.Section( section.split('+').map( rspec => { val sspec = rspec.split(','); new ma2.Range(sspec(0).trim,sspec(1).toInt,sspec(2).toInt) } ):_* )
+  def merge( sect0: String, sect1: String ): String = CDSection.serialize( CDSection.deserialize(sect0).union( CDSection.deserialize(sect1) ) )
 }
 class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
   def toSection: ma2.Section = new ma2.Section( origin, shape )
@@ -343,7 +349,7 @@ class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
   def getShape = toSection.getShape
   def getOrigin = toSection.getOrigin
   override def toString() = "Section[%s:%s]".format( origin.mkString(","), shape.mkString(","))
-
+  def merge( cdsect: CDSection ): CDSection = CDSection( cdsect.toSection.union( toSection ) )
 }
 
 object GridContext extends Loggable {
@@ -374,6 +380,7 @@ class TargetGrid( variable: CDSVariable, roiOpt: Option[List[DomainAxis]]=None )
   def toBoundsString = roiOpt.map( _.map( _.toBoundsString ).mkString( "{ ", ", ", " }") ).getOrElse("")
   def getRank = grid.getRank
   def getGridSpec: String  = grid.getGridSpec
+  def getGridFile: String  = grid.getGridFile
   def getTimeCoordinateAxis: Option[CoordinateAxis1DTime] = grid.getTimeCoordinateAxis
 
   def addSectionMetadata( section: ma2.Section ): ma2.Section = grid.addRangeNames( section )

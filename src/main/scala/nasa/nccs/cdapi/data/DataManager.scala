@@ -25,6 +25,7 @@ object MetadataOps {
         case None => (key, value)
         case Some(value1) =>
           if (value == value1) (key, value)
+          else if( key == "roi")  ( key, CDSection.merge(value,value1) )
           else (key, opName + "(" + value + "," + value1 + ")")
       }
     }
@@ -181,10 +182,10 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray] , met
     if( (iPart!=other.iPart) && ! ( (iPart == -1) || (other.iPart == -1) ) ) throw new Exception( "Attempt to merge RDDPartitions with incommensurate partition indices: %d vs %d".format(iPart,other.iPart ) )
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
   }
-  def hasMultiGrids( targetGridSpecOpt: Option[String]=None ): Boolean = {
+  def hasMultiGrids: Boolean = {
     if( elements.size == 0 ) return false
-    val targetGridSpec = targetGridSpecOpt.getOrElse( elements.head._2.gridSpec )
-    elements.exists( item => !item._2.gridSpec.equals(targetGridSpec))
+    val head_shape = elements.head._2.shape
+    elements.exists( item => !item._2.shape.sameElements(head_shape) )     // TODO: Compare axes as well?
   }
   def reinterp( conversionMap: Map[Int,TimeConversionSpec] ): RDDPartition = {
     val new_elements = elements.mapValues( array => conversionMap.get(array.shape(0)) match {
