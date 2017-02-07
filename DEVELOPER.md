@@ -88,7 +88,8 @@ its own parallelization internally.  If a kernel is parallelizable then CDAS wil
     2. CDAS create N copies of the kernel and calls the N executeOperation(s) methods in parallel.  Each method call is passed a different input fragment of the same variable(s).
     3. The kernel executions produce N result fragments whcih are then combined to produce the final result.
     4. The combination of fragments proceeds as follows:
-        - 
+        - If the set of axes over which the operation is performed (as determined by the operation's "axes" parameter) does not include 't' then the fragments are simply concatenated (maintaining the time ordering) with no reduction.
+        - If the operation's axes set does include 't' then a merge operation is performed that is determined by the kernel's 'reduceOp' configuration parameter.
 
 ###  Rebuilding
 
