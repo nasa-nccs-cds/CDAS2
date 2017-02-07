@@ -1,6 +1,8 @@
 from abc import ABCMeta, abstractmethod
 import logging, os, cdms2, time
 from pycdas.messageParser import mParse
+from pycdas.cdasArray import cdmsArray
+import cdms2, time, os, cdutil
 
 class KernelSpec:
     def __init__( self, name, title, description, **kwargs ):
@@ -68,6 +70,19 @@ class Kernel:
             newDataset.close()
             self.logger.info( "Saved grid file: {0}".format( outpath ) )
         return outpath
+
+class CDMSKernel(Kernel):
+
+    def createResult(self, result_var, input, task ):
+        rv = None
+        result_var.id = result_var.id  + "-" + task.rId
+        gridFilePath = self.saveGridFile( result_var.id, result_var )
+        if( gridFilePath ): result_var.createattribute( "gridfile", gridFilePath )
+        result_var.createattribute( "origin", input.origin )
+        result = cdmsArray.createResult( task, input, result_var )
+        if self.cacheReturn[0]: self.cached_results[ result.id ] = result
+        if self.cacheReturn[1]: rv = result
+        return rv
 
 class InputMode:
     __metaclass__ = ABCMeta

@@ -43,6 +43,9 @@ class CDArray:
     def getVariable(self): pass
 
     @abstractmethod
+    def array(self): pass
+
+    @abstractmethod
     def getGrid(self): pass
 
     @abstractmethod
@@ -102,6 +105,7 @@ class npArray(CDArray):
         self.logger.info(" *** Creating data array, nbytes = " + str(self.nbytes()) )
 
     def nbytes(self): return self.array.nbytes if (self.array != None) else 0
+    def array(self): return self.array
 
     def getGrid1(self):
         import cdms2

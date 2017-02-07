@@ -1,21 +1,9 @@
-from pycdas.kernels.Kernel import Kernel, KernelSpec
+from pycdas.kernels.Kernel import CDMSKernel, KernelSpec
 from pycdas.cdasArray import cdmsArray
 import cdms2, time, os, cdutil
 from pycdas.messageParser import mParse
 from regrid2 import Horizontal
 
-class CDMSKernel(Kernel):
-
-    def createResult(self, result_var, input, task ):
-        rv = None
-        result_var.id = result_var.id  + "-" + task.rId
-        gridFilePath = self.saveGridFile( result_var.id, result_var )
-        if( gridFilePath ): result_var.createattribute( "gridfile", gridFilePath )
-        result_var.createattribute( "origin", input.origin )
-        result = cdmsArray.createResult( task, input, result_var )
-        if self.cacheReturn[0]: self.cached_results[ result.id ] = result
-        if self.cacheReturn[1]: rv = result
-        return rv
 
 class RegridKernel(CDMSKernel):
 
