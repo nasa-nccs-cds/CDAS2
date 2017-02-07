@@ -340,38 +340,19 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
     logger.info( "Locating result: " + resId )
     collectionDataCache.getExistingResult( resId ) match {
       case None =>
-        new WPSMergedEventReport( List( new WPSExceptionReport( new Exception("Unrecognized resId: " + resId + ", existing resIds: " + collectionDataCache.getResultIdList.mkString(", ") )) ) ).toXml
+        new WPSMergedExceptionReport( List( new WPSExceptionReport( new Exception("Unrecognized resId: " + resId + ", existing resIds: " + collectionDataCache.getResultIdList.mkString(", ") )) ) ).toXml
       case Some( tvar: RDDTransientVariable ) =>
-        <wps:ExecuteResponse xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsExecute_response.xsd" service="WPS" version="1.0.0" xml:lang="en-CA">
-          <wps:Status> <wps:ProcessSucceeded> CDAS Process successfully calculated </wps:ProcessSucceeded> </wps:Status>
-          <wps:ProcessOutputs> { tvar.result.elements.map { case (id, result) =>
-            <wps:Output>
-              <wps:Data id={id}>
-                <wps:LiteralData uom={result.metadata.getOrElse("units","")} shape={result.shape.mkString(",")}>
-                  { result.toCDFloatArray.mkDataString(" "," "," ") }
-                </wps:LiteralData>
-              </wps:Data>
-            </wps:Output> } }
-          </wps:ProcessOutputs>
-        </wps:ExecuteResponse>
+        new WPSExecuteResult( "WPS", tvar ).toXml
     }
   }
 
   def getResultStatus( resId: String ): xml.Node = {
     logger.info( "Locating result: " + resId )
-    collectionDataCache.getExistingResult( resId ) match {
-      case None =>
-        <wps:ExecuteResponse xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsExecute_response.xsd" service="WPS" version="1.0.0" xml:lang="en-CA">
-          <wps:Status> <wps:ProcessStarted> CDAS Process has not yet completed </wps:ProcessStarted> </wps:Status>
-        </wps:ExecuteResponse>
-      case Some( tvar: RDDTransientVariable ) =>
-        val proxyAddress =  appParameters("wps.server.proxy.href","")
-        val resultHref: String = proxyAddress + s"/wps/file?id=$resId"
-        <wps:ExecuteResponse xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsExecute_response.xsd" service="WPS" version="1.0.0" xml:lang="en-CA">
-          <wps:Status> <wps:ProcessSucceeded> CDAS Process successfully completed </wps:ProcessSucceeded> </wps:Status>
-          <wps:Reference encoding="UTF-8" mimeType="application/x-netcdf" href={resultHref}/>
-        </wps:ExecuteResponse>
+    val message = collectionDataCache.getExistingResult( resId ) match {
+      case None => "CDAS Process has not yet completed"
+      case Some( tvar: RDDTransientVariable ) => "CDAS Process successfully completed"
     }
+    new WPSExecuteStatus( "WPS", message, resId ).toXml
   }
 
 
@@ -448,7 +429,7 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
     results
   }
 
-  def streamWorkflows( request: TaskRequest, requestCx: RequestContext ): List[WPSExecuteResponse] = {
+  def streamWorkflows( request: TaskRequest, requestCx: RequestContext ): List[WPSProcessExecuteResponse] = {
     request.workflow.stream( requestCx )
   }
 

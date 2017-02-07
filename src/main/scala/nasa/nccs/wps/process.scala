@@ -3,13 +3,13 @@ package nasa.nccs.wps
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.utilities.appParameters
 
-trait WPSElement extends Serializable {
+trait WPSElement extends WPSResponse with Serializable {
   val identifier: String
   val title: String
   val description: String
   val keywords: List[String] = List.empty
 
-  def getHeader(syntax: ResponseSyntax.Value): List[xml.Node] = syntax match {
+  def getHeader: List[xml.Node] = syntax match {
     case ResponseSyntax.WPS =>
       List(<ows:Identifier>
         {identifier}
@@ -36,12 +36,12 @@ class WPSDataInput(_id: String, val minoccurs: Int, val maxoccurs: Int, _title: 
   val description = _abstract
   override val keywords = _keywords
 
-  def Describe(syntax: ResponseSyntax.Value): xml.Elem = syntax match {
+  def toXml: xml.Elem = syntax match {
     case ResponseSyntax.WPS => <wps:Input minOccurs={minoccurs.toString} maxOccurs={maxoccurs.toString}>
-      {getHeader(syntax)}
+      {getHeader}
     </wps:Input>
     case ResponseSyntax.Generic => <input minOccurs={minoccurs.toString} maxOccurs={maxoccurs.toString}>
-      {getHeader(syntax)}
+      {getHeader}
     </input>
   }
 }
@@ -56,10 +56,10 @@ class WPSProcessOutput(_id: String, val mimeType: String, _title: String, _abstr
   val description = _abstract
   override val keywords = _keywords
 
-  def Describe(syntax: ResponseSyntax.Value): xml.Elem = syntax match {
+  def toXml: xml.Elem = syntax match {
     case ResponseSyntax.WPS =>
       <wps:Output>
-        {getHeader(syntax)}<ComplexOutput>
+        {getHeader}<ComplexOutput>
         <Default>
           <Format>
             <MimeType>
@@ -77,7 +77,7 @@ class WPSProcessOutput(_id: String, val mimeType: String, _title: String, _abstr
       </ComplexOutput>
       </wps:Output>
     case ResponseSyntax.Generic => <output>
-      {getHeader(syntax)}
+      {getHeader}
     </output>
   }
 }
@@ -89,28 +89,28 @@ class WPSWorkflowProcess(val identifier: String, val description: String, val ti
 trait WPSProcess extends WPSElement {
   val outputs: List[WPSProcessOutput]
 
-  def GetCapabilities(syntax: ResponseSyntax.Value): xml.Elem = <wps:Process wps:processVersion="1">
-    {getHeader(syntax)}
+  def GetCapabilities: xml.Elem = <wps:Process wps:processVersion="1">
+    {getHeader}
   </wps:Process>
 
-  def DescribeProcess(syntax: ResponseSyntax.Value): xml.Elem = syntax match {
+  def toXml: xml.Elem = syntax match {
     case ResponseSyntax.WPS =>
       <wps:ProcessDescription wps:processVersion="2" storeSupported="true" statusSupported="false">
-        {getHeader(syntax)}<wps:ProcessOutputs>
-        {outputs.map(_.Describe(syntax))}
+        {getHeader}<wps:ProcessOutputs>
+        {outputs.map(_.toXml)}
       </wps:ProcessOutputs>
       </wps:ProcessDescription>
     case ResponseSyntax.Generic =>
       <process>
-        {getHeader(syntax)}<outputs>
-        {outputs.map(_.Describe(syntax))}
+        {getHeader}<outputs>
+        {outputs.map(_.toXml)}
       </outputs>
       </process>
   }
 
-  def ExecuteHeader(syntax: ResponseSyntax.Value): xml.Elem = syntax match {
-    case ResponseSyntax.WPS => <wps:Process wps:processVersion="1">getHeader(syntax)</wps:Process>
-    case ResponseSyntax.Generic => <process>getHeader(syntax)</process>
+  def ExecuteHeader: xml.Elem = syntax match {
+    case ResponseSyntax.WPS => <wps:Process wps:processVersion="1">getHeader</wps:Process>
+    case ResponseSyntax.Generic => <process>getHeader</process>
   }
 
 }

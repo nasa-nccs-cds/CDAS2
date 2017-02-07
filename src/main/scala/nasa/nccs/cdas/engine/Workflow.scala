@@ -134,16 +134,12 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def createKernel(id: String): Kernel = executionMgr.getKernel(id)
 
-  def stream(requestCx: RequestContext): List[ WPSExecuteResponse ] = {
+  def stream(requestCx: RequestContext): List[ WPSProcessExecuteResponse ] = {
     linkNodes( requestCx )
     val product_nodes = DAGNode.sort( nodes.filter( _.isRoot ) )
     for (product_node <- product_nodes) yield {
-      try {
-        logger.info( "\n\n ----------------------- Execute PRODUCT Node: %s -------\n".format( product_node.getNodeId() ))
-        generateProduct(requestCx, product_node)
-      } catch {
-        case err: Exception => createErrorReport( err, requestCx, product_node )
-      }
+      logger.info( "\n\n ----------------------- Execute PRODUCT Node: %s -------\n".format( product_node.getNodeId() ))
+      generateProduct(requestCx, product_node)
     }
   }
 
@@ -197,7 +193,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
 
-  def generateProduct( requestCx: RequestContext, node: WorkflowNode  ): WPSExecuteResponse = {
+  def generateProduct( requestCx: RequestContext, node: WorkflowNode  ): WPSProcessExecuteResponse = {
     val kernelContext = node.generateKernelContext( requestCx )
     val t0 = System.nanoTime()
     var pre_result: RDDPartition = node.mapReduce( kernelContext, requestCx )
@@ -212,13 +208,9 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
 
-  def createResponse( result: RDDPartition, context: RequestContext, node: WorkflowNode ): WPSExecuteResponse = {
+  def createResponse( result: RDDPartition, context: RequestContext, node: WorkflowNode ): WPSProcessExecuteResponse = {
     val resultId = cacheResult( result, context, node )
-    new RDDExecutionResult( "", node.kernel, node.operation.identifier, result, resultId ) // TODO: serviceInstance
-  }
-
-  def createErrorReport( err: Throwable, context: RequestContext, node: WorkflowNode ): WPSExecuteResponse = {
-    new WPSExceptionReport( err )
+    new RDDExecutionResult( "WPS", node.kernel, node.operation.identifier, result, resultId ) // TODO: serviceInstance
   }
 
   def cacheResult( result: RDDPartition, context: RequestContext, node: WorkflowNode ): String = {

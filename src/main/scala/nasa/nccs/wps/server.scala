@@ -7,7 +7,7 @@ trait WPSServer {
 
   def DescribeProcess( process: String ) : xml.Elem = {
     <wps:ProcessDescriptions xmlns:wps="http://www.opengis.net/wps/1.0.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/1.0.0 ../wpsDescribeProcess_response.xsd" service="WPS" version="1.0.0" xml:lang="en-CA">
-      { List(getProcesses.get(process.toLowerCase)).flatten.map( _.DescribeProcess ) }
+      { List(getProcesses.get(process.toLowerCase)).flatten.map( _.toXml ) }
     </wps:ProcessDescriptions>
   }
 

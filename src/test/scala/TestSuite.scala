@@ -139,7 +139,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
                           {"name":"CDSpark.multiAverage","input":"eaGISS-E2R,eaGISS-H","domain":"d1","result":"esgfDemo"} ]
           ]""".replaceAll("\\s", "")
     val result_node = executeTest(datainputs)
-    val result_data = CDFloatArray( getResultData( result_node ).slice(0,0,10) )
+    val result_data = CDFloatArray( getResultData( result_node, false ).slice(0,0,10) )
     println( " ** Op Result:       " + result_data.mkDataString(", ") )
     assert( result_data.maxScaledDiff( unverified_result )  < eps, s" Incorrect value computed for Max")
   }
@@ -367,13 +367,21 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     values / counts
   }
 
-  def getResultData( result_node: xml.Elem ): CDFloatArray = {
-    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+  def getDataNodes( result_node: xml.Elem, print_result: Boolean = false  ): xml.NodeSeq = {
+    if(print_result) { println( s"Result Node:\n${result_node.toString}\n" ) }
+    result_node.label match {
+      case "response" => result_node \\ "outputs" \\ "data"
+      case _ => result_node \\ "Output" \\ "LiteralData"
+    }
+  }
+
+  def getResultData( result_node: xml.Elem, print_result: Boolean = false ): CDFloatArray = {
+    val data_nodes: xml.NodeSeq = getDataNodes( result_node, print_result )
     try{  CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue ) } catch { case err: Exception => CDFloatArray.empty }
   }
 
   def getResultValue( result_node: xml.Elem ): Float = {
-    val data_nodes: xml.NodeSeq = result_node \\ "Output" \\ "LiteralData"
+    val data_nodes: xml.NodeSeq = getDataNodes( result_node )
     try{ data_nodes.head.text.toFloat } catch { case err: Exception => Float.NaN }
   }
 
