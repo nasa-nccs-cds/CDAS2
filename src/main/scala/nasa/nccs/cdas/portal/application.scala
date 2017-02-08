@@ -53,7 +53,7 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
 
 object CDASApplication extends App with Loggable {
   import CDASapp._
-  logger.info( "Executing CDAS with args: " + args.mkString(",") )
+  logger.info( s"Executing CDAS with args: ${args.mkString(",")}, nprocs: ${Runtime.getRuntime.availableProcessors()}" )
   val connect_mode = elem(args,0,"bind")
   val request_port = elem(args,1,"0").toInt
   val response_port = elem(args,2,"0").toInt
