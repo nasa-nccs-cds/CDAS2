@@ -90,6 +90,8 @@ its own parallelization internally.  If a kernel is parallelizable then CDAS wil
     4. The combination of fragments proceeds as follows:
         - If the set of axes over which the operation is performed (as determined by the operation's "axes" parameter) does not include 't' then the fragments are simply concatenated (maintaining the time ordering) with no reduction.
         - If the operation's axes set does include 't' then a merge operation is performed that is determined by the kernel's 'reduceOp' configuration parameter.
+        - If the 'reduceOp' configuration parameter specifies one of the builtin reduction operators then that operation is used to combine the result fragments.
+        - If the 'reduceOp' parameter value is "custom" then the python kernel class must implement the 'reduce' method (from the 'Kernel' base class) and that method is then used to combine the result fragments.
 
 ###  Rebuilding
 
