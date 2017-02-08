@@ -1,6 +1,6 @@
-##                                CDS2 Project Developer Notes
+##                                CDAS Project Developer Notes
 
-_Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and python tools such as UVCDAT, etc._
+_Climate Data Analytic Service provider built on scala, java, Spark, and python tools such as UVCDAT, etc._
 
 ###  Configuration
 
