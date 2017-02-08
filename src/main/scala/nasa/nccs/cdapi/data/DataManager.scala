@@ -4,6 +4,7 @@ import nasa.nccs.caching.Partition
 import nasa.nccs.cdapi.cdm.{RemapElem, TimeConversionSpec}
 import nasa.nccs.cdapi.tensors._
 import nasa.nccs.cdas.engine.WorkflowNode
+import nasa.nccs.cdas.engine.spark.TimePartitionKey
 import nasa.nccs.cdas.kernels.{KernelContext, zmqPythonKernel}
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.esgf.process.{CDSection, TargetGrid}
@@ -11,6 +12,7 @@ import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.spark.rdd.RDD
 import ucar.nc2.constants.AxisType
 import ucar.ma2
+import ucar.nc2.time.CalendarDate
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -230,10 +232,10 @@ object RDDPartition {
 }
 
 object RDDPartSpec {
-  def apply( partition: Partition, varSpecs: List[ RDDVariableSpec ] ): RDDPartSpec = new RDDPartSpec( partition, varSpecs )
+  def apply( partition: Partition, tgrid: TargetGrid, varSpecs: List[ RDDVariableSpec ] ): RDDPartSpec = new RDDPartSpec( partition, partition.getPartitionKey(tgrid), varSpecs )
 }
 
-class RDDPartSpec( val partition: Partition, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
+class RDDPartSpec( val partition: Partition, val timePartitionKey: TimePartitionKey, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
 
   def getRDDPartition: RDDPartition = {
     val t0 = System.nanoTime()
@@ -242,6 +244,7 @@ class RDDPartSpec( val partition: Partition, val varSpecs: List[ RDDVariableSpec
     logger.info( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
     rv
   }
+
   def empty( uid: String ): Boolean = varSpecs.find( _.uid == uid ) match {
     case Some( varSpec ) => varSpec.empty
     case None => true
@@ -259,7 +262,7 @@ class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val mi
   def rank = section.getShape.length
 }
 
-class RDDRegen( val source: RDD[(Int,RDDPartition)], val sourceGrid: TargetGrid, val resultGrid: TargetGrid, node: WorkflowNode, kernelContext: KernelContext ) extends Loggable {
+class RDDRegen( val source: RDD[(TimePartitionKey,RDDPartition)], val sourceGrid: TargetGrid, val resultGrid: TargetGrid, node: WorkflowNode, kernelContext: KernelContext ) extends Loggable {
   private val regen: Boolean = !sourceGrid.equals(resultGrid)
   lazy val regridKernel = getRegridKernel
 //  def getRDD(): RDD[(Int,RDDPartition)] = if(regen) {

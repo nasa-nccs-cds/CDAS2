@@ -6,6 +6,7 @@ import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.{HeapFltArray, _}
 import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
 import nasa.nccs.cdapi.tensors.{CDArray, CDCoordMap, CDFloatArray, CDTimeCoordMap}
+import nasa.nccs.cdas.engine.spark.TimePartitionKey
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
 import nasa.nccs.cdas.utilities.appParameters
@@ -225,21 +226,23 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     RDDPartition(rdd0.iPart, new_elements, rdd0.mergeMetadata(context.operation.name, rdd1))
   }
 
-  def customReduceRDD(context: KernelContext)( a0: ( Int, RDDPartition ), a1: ( Int, RDDPartition ) ): ( Int, RDDPartition ) = {
+  def customReduceRDD(context: KernelContext)( a0: ( TimePartitionKey, RDDPartition ), a1: ( TimePartitionKey, RDDPartition ) ): ( TimePartitionKey, RDDPartition ) = {
     logger.warn( s"No reducer defined for parallel op '$name', executing simple merge." )
     mergeRDD(context)( a0, a1 )
   }
 
-  def mergeRDD(context: KernelContext)( a0: ( Int, RDDPartition ), a1: ( Int, RDDPartition ) ): ( Int, RDDPartition ) = {
+  def mergeRDD(context: KernelContext)(a0: ( TimePartitionKey, RDDPartition ), a1: ( TimePartitionKey, RDDPartition ) ): ( TimePartitionKey, RDDPartition ) = {
     val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
+    val ( k0, k1 ) = ( a0._1, a1._1 )
     val t0 = System.nanoTime
-    logger.info("&MERGE: start (%d <-> %d)".format( rdd0.iPart, rdd1.iPart  ) )
-    val ascending = rdd0.iPart < rdd1.iPart
+    logger.info("&MERGE: start (%d <-> %d)".format( k0.toString, k1.toString  ) )
+    val ascending = k0 < k1
+    val new_key = if(ascending) { k0 + k1 } else { k1 + k0 }
     val new_elements = rdd0.elements.flatMap {
       case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> { if(ascending) element0.append(element1) else element1.append(element0) } )
     }
     logger.info("&MERGE: complete in time = %.4f s".format( (System.nanoTime - t0) / 1.0E9 ) )
-    a0._1 -> RDDPartition( rdd0.iPart, new_elements, rdd0.mergeMetadata("merge", rdd1) )
+    new_key -> RDDPartition( rdd0.iPart, new_elements, rdd0.mergeMetadata("merge", rdd1) )
   }
 
   def postOp(result: DataFragment, context: KernelContext): DataFragment = result
@@ -265,9 +268,9 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     rv
   }
 
-  def reduceRDDOp(context: KernelContext)(a0: ( Int, RDDPartition ), a1: ( Int, RDDPartition ) ): ( Int, RDDPartition ) = {
+  def reduceRDDOp(context: KernelContext)(a0: ( TimePartitionKey, RDDPartition ), a1: ( TimePartitionKey, RDDPartition ) ): ( TimePartitionKey, RDDPartition ) = {
     val axes: AxisIndices = context.getAxes
-    a0._1 -> combineRDD(context)( a0._2, a1._2, axes )
+    (a0._1 + a1._1) -> combineRDD(context)( a0._2, a1._2, axes )
   }
 
   def getDataSample(result: CDFloatArray, sample_size: Int = 20): Array[Float] = {
@@ -662,13 +665,15 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     }
   }
 
-  override def customReduceRDD(context: KernelContext)( a0: ( Int, RDDPartition ), a1: ( Int, RDDPartition ) ): ( Int, RDDPartition ) = {
+  override def customReduceRDD(context: KernelContext)( a0: ( TimePartitionKey, RDDPartition ), a1: ( TimePartitionKey, RDDPartition ) ): ( TimePartitionKey, RDDPartition ) = {
     val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
+    val ( k0, k1 ) = ( a0._1, a1._1 )
     val t0 = System.nanoTime
     logger.info("&MERGE: start (%d <-> %d)".format( rdd0.iPart, rdd1.iPart  ) )
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance
     val worker: PythonWorker = workerManager.getPythonWorker
-    val ascending = rdd0.iPart < rdd1.iPart
+    val ascending = k0 < k1
+    val new_key = if(ascending) { k0 + k1 } else { k1 + k0 }
     val op_metadata = indexAxisConf( context.getConfiguration, context.grid.axisIndexMap )
     rdd0.elements.map {
       case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> {
@@ -686,7 +691,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
         context.operation.rid + ":" + element0.uid -> result
     }
     logger.info("&MERGE: finish (%d <-> %d), time = %.4f s".format( rdd0.iPart, rdd1.iPart, (System.nanoTime - t0) / 1.0E9 ) )
-    a0._1 -> RDDPartition( rdd0.iPart, resultItems, rdd0.mergeMetadata("merge", rdd1) )
+    new_key -> RDDPartition( rdd0.iPart, resultItems, rdd0.mergeMetadata("merge", rdd1) )
   }
 
   def indexAxisConf( metadata: Map[String,String], axisIndexMap: Map[String,Int] ): Map[String,String] = {

@@ -11,7 +11,7 @@ import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.Loggable
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{RangePartitioner, SparkConf, SparkContext}
+import org.apache.spark.{Partitioner, SparkConf, SparkContext}
 import ucar.ma2
 import ucar.nc2.dataset.CoordinateAxis1DTime
 
@@ -42,8 +42,8 @@ object CDSparkContext extends Loggable {
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false, false ) ) )
 
-  def merge( rdd0: RDD[(Int,RDDPartition)], rdd1: RDD[(Int,RDDPartition)] ): RDD[(Int,RDDPartition)] = rdd0.join(rdd1).map { case ( index, (r0, r1) ) => ( index, r0 ++ r1) }
-  def append( p0: (Int,RDDPartition), p1: (Int,RDDPartition) ): (Int,RDDPartition) = ( p0._1, p0._2.append(p1._2) )
+  def merge( rdd0: RDD[(TimePartitionKey,RDDPartition)], rdd1: RDD[(TimePartitionKey,RDDPartition)] ): RDD[(TimePartitionKey,RDDPartition)] = rdd0.join(rdd1).map { case ( tkey, (r0, r1) ) => ( tkey, r0 ++ r1) }
+  def append( p0: (TimePartitionKey,RDDPartition), p1: (TimePartitionKey,RDDPartition) ): (TimePartitionKey,RDDPartition) = ( p0._1 + p1._1, p0._2.append(p1._2) )
 
   def getSparkConf( master: String, appName: String, logConf: Boolean, enableMetrics: Boolean  ) = {
     val sc = new SparkConf(false)
@@ -66,9 +66,9 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
 
   def getConf: SparkConf = sparkContext.getConf
 
-  def coalesce( rdd: RDD[(Int,RDDPartition)], nItems: Int ): RDD[(Int,RDDPartition)] = {
-    var repart_rdd = rdd repartitionAndSortWithinPartitions new IndexPartitioner ( nItems, 1 )
-    val result_rdd = repart_rdd glom() map ( _.fold ((0,RDDPartition.empty)) ((x,y) => { (x._1,x._2.append(y._2)) } ) )
+  def coalesce( rdd: RDD[(TimePartitionKey,RDDPartition)], partitioner: TimePartitioner ): RDD[(TimePartitionKey,RDDPartition)] = {
+    var repart_rdd = rdd repartitionAndSortWithinPartitions( partitioner )
+    val result_rdd = repart_rdd glom() map ( _.fold ((partitioner.startPoint,RDDPartition.empty)) ((x,y) => { ( x._1 + y._1, x._2.append(y._2) ) } ) )
     result_rdd
   }
 
@@ -86,19 +86,20 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     None
   }
 
-  def getRDD( uid: String, pFrag: PartitionedFragment, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(Int,RDDPartition)] = {
+  def getRDD( uid: String, pFrag: PartitionedFragment, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(TimePartitionKey,RDDPartition)] = {
     val partitions = pFrag.partitions
+    val tgrid: TargetGrid = pFrag.getGrid
     val rddSpecs: Array[RDDPartSpec] = partitions.parts map ( partition =>
-      RDDPartSpec( partition, List(pFrag.getRDDVariableSpec(uid, partition, opSection) ) )
+      RDDPartSpec( partition, tgrid, List(pFrag.getRDDVariableSpec(uid, partition, opSection) ) )
       ) filterNot( _.empty(uid) )
     val nItems = rddSpecs.length
     logger.info( "Discarded empty partitions: Creating RDD with <<%d>> items".format( nItems ) )
     if( nItems == 0 ) throw new Exception( "Invalid RDD: all partitions are empty: " + uid )
-    val startIndex = rddSpecs.map( _.partition.index ).reduceLeft( _ min _ )
-    val parallelized_rddspecs = sparkContext parallelize(rddSpecs) keyBy ( _.partition.index - startIndex ) partitionBy( new IndexPartitioner( nItems, nItems ) )
+    val partitioner = TimePartitioner( rddSpecs.map(_.timePartitionKey) )
+    val parallelized_rddspecs = sparkContext parallelize(rddSpecs) keyBy ( _.timePartitionKey ) partitionBy( partitioner )
     val parallelized_result =  parallelized_rddspecs mapValues ( spec => spec.getRDDPartition ) sortByKey(true)
     val parallelize = node.getKernelOption("parallelize","true").toBoolean
-    if( parallelize ) { parallelized_result persist } else { coalesce (parallelized_result,nItems) persist }
+    if( parallelize ) { parallelized_result persist } else { coalesce ( parallelized_result, partitioner.repartition(1) ) persist }
   }
 
  /* def inputConversion( dataInput: PartitionedFragment, targetGrid: TargetGrid ): PartitionedFragment = {
@@ -113,8 +114,9 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     }
   }*/
 
-  def getRDD( uid: String, tVar: OperationTransientInput, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(Int,RDDPartition)] = {
-    val rddParts: IndexedSeq[(Int,RDDPartition)] = partitions.parts.indices.map( index => index -> RDDPartition( index, tVar.variable.result ) )
+  def getRDD( uid: String, tVar: OperationTransientInput, tgrid: TargetGrid, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(TimePartitionKey,RDDPartition)] = {
+    val rddParts: IndexedSeq[(TimePartitionKey,RDDPartition)] = partitions.parts.zipWithIndex map
+      { case (part,index) => ( part.getPartitionKey(tgrid) -> RDDPartition( index, tVar.variable.result ) ) }
 //    log( " Create RDD, rddParts = " + rddParts.map(_.toXml.toString()).mkString(",") )
     logger.info( "Creating Transient RDD with <<%d>> paritions".format( rddParts.length ) )
     sparkContext.parallelize(rddParts)

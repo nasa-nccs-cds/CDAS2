@@ -139,7 +139,7 @@ object CDGrid extends Loggable {
   }
 }
 
-class CDGrid( name: String,  val gridFilePath: String, coordAxes: List[CoordinateAxis], val coordSystems: List[CoordinateSystem], val dimensions: List[Dimension], val attributes: List[nc2.Attribute] ) extends Loggable {
+class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[CoordinateAxis], val coordSystems: List[CoordinateSystem], val dimensions: List[Dimension], val attributes: List[nc2.Attribute] ) extends Loggable {
 
   def gridFileExists(): Boolean = try {
     val file = new File(gridFilePath)
