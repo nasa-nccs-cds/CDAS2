@@ -1,4 +1,4 @@
-from pycdas.kernels.Kernel import CDMSKernel, KernelSpec
+from pycdas.kernels.Kernel import CDMSKernel, Kernel, KernelSpec
 from pycdas.cdasArray import cdmsArray
 import cdms2, time, os, cdutil
 from pycdas.messageParser import mParse
