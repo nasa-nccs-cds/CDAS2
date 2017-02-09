@@ -68,8 +68,8 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
 
   def coalesce(rdd: RDD[(RangePartitionKey,RDDPartition)] ): RDD[(RangePartitionKey,RDDPartition)] = {
     val partitioner = PartitionManager.getPartitioner(rdd,1)
-    var repart_rdd = rdd partitionBy partitioner
-    val result_rdd = repart_rdd glom() map ( _.sortWith(_._1 < _._1).fold ((partitioner.startPoint,RDDPartition.empty)) ((x,y) => { ( x._1 + y._1, x._2.append(y._2) ) } ) )
+    var repart_rdd = rdd repartitionAndSortWithinPartitions partitioner
+    val result_rdd = repart_rdd glom() map ( _.fold ((partitioner.startPoint,RDDPartition.empty)) ((x,y) => { ( x._1 + y._1, x._2.append(y._2) ) } ) )  // .sortWith(_._1 < _._1)
     result_rdd
   }
 

@@ -46,7 +46,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
       val partitioner = PartitionManager.getPartitioner( mapresult, 1 )
       var repart_mapresult = mapresult repartitionAndSortWithinPartitions  partitioner
       val rddReducer = kernel.getReduceOp(context)
-      val result = repart_mapresult glom() map ( _.sortWith(_._1 < _._1).fold ((partitioner.startPoint,RDDPartition.empty)) (rddReducer) ) collect()  // ERROR: fix reduce Op
+      val result = repart_mapresult glom() map ( _.fold ((partitioner.startPoint,RDDPartition.empty)) (rddReducer) ) collect()  // ERROR: fix reduce Op  _.sortWith(_._1 < _._1)
       logger.info("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
       result(0)._2
     }
