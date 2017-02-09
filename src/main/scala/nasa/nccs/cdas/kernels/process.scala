@@ -6,7 +6,7 @@ import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.{HeapFltArray, _}
 import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
 import nasa.nccs.cdapi.tensors.{CDArray, CDCoordMap, CDFloatArray, CDTimeCoordMap}
-import nasa.nccs.cdas.engine.spark.TimePartitionKey
+import nasa.nccs.cdas.engine.spark.{RangePartitionKey, RangePartitionKey$}
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
 import nasa.nccs.cdas.utilities.appParameters
@@ -59,7 +59,7 @@ class KernelContext( val operation: OperationContext, val grids: Map[String,Opti
     case None => findAnyGrid
   }
 
-//  def getGridSection( inputId: String ): Option[GridSection] = sectionMap.getOrElse(None).map( section => GridSection())
+  //  def getGridSection( inputId: String ): Option[GridSection] = sectionMap.getOrElse(None).map( section => GridSection())
 }
 
 //class CDASExecutionContext( val operation: OperationContext, val request: RequestContext, val server: ServerContext ) extends Loggable  {
@@ -105,6 +105,8 @@ class AxisIndices( private val axisIds: Set[Int] = Set.empty ) {
 
 object Kernel {
   val customKernels = List[Kernel]( new CDMSRegridKernel() )
+  type RDDKeyValPair = ( RangePartitionKey, RDDPartition )
+
   def getResultFile( resultId: String, deleteExisting: Boolean = false ): File = {
     val resultsDirPath = appParameters("wps.results.dir", "~/.wps/results").replace( "~",  System.getProperty("user.home") ).replaceAll("[()]","-").replace("=","~")
     val resultsDir = new File(resultsDirPath); resultsDir.mkdirs()
@@ -169,7 +171,9 @@ object KernelUtilities extends Loggable {
 
 class KIType { val Op = 0; val MData = 1 }
 
+
 abstract class Kernel( val options: Map[String,String] ) extends Loggable with Serializable with WPSProcess {
+  import Kernel._
   val identifiers = this.getClass.getName.split('$').flatMap(_.split('.'))
   def operation: String = identifiers.last.toLowerCase
   def module: String = identifiers.dropRight(1).mkString(".")
@@ -185,6 +189,19 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
   val reduceCombineOp: Option[ReduceOpFlt] = options.get("reduceOp").fold (options.get("mapreduceOp")) (Some(_)) map ( CDFloatArray.getOp(_) )
   val initValue: Float = 0f
   def cleanUp() = {}
+
+  def getReduceOp(context: KernelContext): (RDDKeyValPair,RDDKeyValPair)=>RDDKeyValPair =
+    if (context.getAxes.includes(0)) {
+      reduceCombineOp match {
+        case Some(redOp) => redOp match {
+          case CDFloatArray.customOp => customReduceRDD(context)
+          case op => reduceRDDOp(context)
+        }
+        case None => throw new Exception("Undefined reduce operation for parallelizable kernel")
+      }
+    } else {
+      mergeRDD(context)
+    }
 
   def getOpName(context: KernelContext): String = "%s(%s)".format(name, context.operation.inputs.mkString(","))
   def map(partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext): Option[DataFragment] = inputs.head
@@ -208,7 +225,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
 
   def combineRDD(context: KernelContext)(rdd0: RDDPartition, rdd1: RDDPartition, axes: AxisIndices): RDDPartition = {
     val t0 = System.nanoTime
-//    logger.info("&COMBINE: start OP %s (%d <-> %d)".format( context.operation.name, rdd0.iPart, rdd1.iPart  ) )
+    //    logger.info("&COMBINE: start OP %s (%d <-> %d)".format( context.operation.name, rdd0.iPart, rdd1.iPart  ) )
     val ascending = rdd0.iPart < rdd1.iPart
     val new_elements = rdd0.elements.flatMap { case (key, element0) =>
       rdd1.elements.get(key) match {
@@ -226,20 +243,19 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     RDDPartition(rdd0.iPart, new_elements, rdd0.mergeMetadata(context.operation.name, rdd1))
   }
 
-  def customReduceRDD(context: KernelContext)( a0: ( TimePartitionKey, RDDPartition ), a1: ( TimePartitionKey, RDDPartition ) ): ( TimePartitionKey, RDDPartition ) = {
+  def customReduceRDD(context: KernelContext)(a0: RDDKeyValPair, a1: RDDKeyValPair ): RDDKeyValPair = {
     logger.warn( s"No reducer defined for parallel op '$name', executing simple merge." )
     mergeRDD(context)( a0, a1 )
   }
 
-  def mergeRDD(context: KernelContext)(a0: ( TimePartitionKey, RDDPartition ), a1: ( TimePartitionKey, RDDPartition ) ): ( TimePartitionKey, RDDPartition ) = {
+  def mergeRDD(context: KernelContext)(a0: RDDKeyValPair, a1: RDDKeyValPair ): RDDKeyValPair = {
     val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
     val ( k0, k1 ) = ( a0._1, a1._1 )
     val t0 = System.nanoTime
-    logger.info("&MERGE: start (%d <-> %d)".format( k0.toString, k1.toString  ) )
-    val ascending = k0 < k1
-    val new_key = if(ascending) { k0 + k1 } else { k1 + k0 }
+    logger.info("&MERGE: start (%s <-> %s)".format( k0.toString, k1.toString  ) )
+    val new_key = k0 + k1
     val new_elements = rdd0.elements.flatMap {
-      case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> { if(ascending) element0.append(element1) else element1.append(element0) } )
+      case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> { element0.append(element1) } )
     }
     logger.info("&MERGE: complete in time = %.4f s".format( (System.nanoTime - t0) / 1.0E9 ) )
     new_key -> RDDPartition( rdd0.iPart, new_elements, rdd0.mergeMetadata("merge", rdd1) )
@@ -268,7 +284,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     rv
   }
 
-  def reduceRDDOp(context: KernelContext)(a0: ( TimePartitionKey, RDDPartition ), a1: ( TimePartitionKey, RDDPartition ) ): ( TimePartitionKey, RDDPartition ) = {
+  def reduceRDDOp(context: KernelContext)(a0: RDDKeyValPair, a1: RDDKeyValPair ): RDDKeyValPair = {
     val axes: AxisIndices = context.getAxes
     (a0._1 + a1._1) -> combineRDD(context)( a0._2, a1._2, axes )
   }
@@ -322,29 +338,29 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     }
   }
 
-//  def weightedValueSumCombiner(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices): DataFragment = {
-//    if (axes.includes(0)) {
-//      val vTot: CDFloatArray = a0.data + a1.data
-//      val wTotOpt: Option[CDFloatArray] = a0.weights.map(w => w + a1.weights.get)
-//      val dataMap = wTotOpt match {
-//        case Some(wTot) => Map("value" -> vTot, "weights" -> wTot)
-//        case None => Map("value" -> vTot)
-//      }
-//      logger.info("weightedValueSumCombiner, values shape = %s, result spec = %s".format(vTot.getShape.mkString(","), a0.spec.toString))
-//      new DataFragment(a0.spec, dataMap, DataFragment.combineCoordMaps(a0, a1))
-//    }
-//    else {
-//      a0 ++ a1
-//    }
-//  }
-//
-//  def weightedValueSumPostOp(result: DataFragment, context: KernelContext): DataFragment = result.weights match {
-//    case Some(weights_sum) =>
-//      logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(result.data.getShape.mkString(","), weights_sum.getShape.mkString(","), result.spec.toString))
-//      new DataFragment(result.spec, Map("value" -> result.data / weights_sum, "weights" -> weights_sum), result.optCoordMap)
-//    case None =>
-//      result
-//  }
+  //  def weightedValueSumCombiner(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices): DataFragment = {
+  //    if (axes.includes(0)) {
+  //      val vTot: CDFloatArray = a0.data + a1.data
+  //      val wTotOpt: Option[CDFloatArray] = a0.weights.map(w => w + a1.weights.get)
+  //      val dataMap = wTotOpt match {
+  //        case Some(wTot) => Map("value" -> vTot, "weights" -> wTot)
+  //        case None => Map("value" -> vTot)
+  //      }
+  //      logger.info("weightedValueSumCombiner, values shape = %s, result spec = %s".format(vTot.getShape.mkString(","), a0.spec.toString))
+  //      new DataFragment(a0.spec, dataMap, DataFragment.combineCoordMaps(a0, a1))
+  //    }
+  //    else {
+  //      a0 ++ a1
+  //    }
+  //  }
+  //
+  //  def weightedValueSumPostOp(result: DataFragment, context: KernelContext): DataFragment = result.weights match {
+  //    case Some(weights_sum) =>
+  //      logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(result.data.getShape.mkString(","), weights_sum.getShape.mkString(","), result.spec.toString))
+  //      new DataFragment(result.spec, Map("value" -> result.data / weights_sum, "weights" -> weights_sum), result.optCoordMap)
+  //    case None =>
+  //      result
+  //  }
 
   def fltArray(a0: RDDPartition, elem: String): CDFloatArray = a0.element(elem) match {
     case Some(data) => data.toCDFloatArray;
@@ -404,6 +420,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
   }
 
 }
+
 
 //abstract class MultiKernel  extends Kernel {
 //  val kernels: List[Kernel]
@@ -665,7 +682,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     }
   }
 
-  override def customReduceRDD(context: KernelContext)( a0: ( TimePartitionKey, RDDPartition ), a1: ( TimePartitionKey, RDDPartition ) ): ( TimePartitionKey, RDDPartition ) = {
+  override def customReduceRDD(context: KernelContext)(a0: ( RangePartitionKey, RDDPartition ), a1: ( RangePartitionKey, RDDPartition ) ): ( RangePartitionKey, RDDPartition ) = {
     val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
     val ( k0, k1 ) = ( a0._1, a1._1 )
     val t0 = System.nanoTime
