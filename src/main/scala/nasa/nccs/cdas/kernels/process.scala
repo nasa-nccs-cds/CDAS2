@@ -6,7 +6,7 @@ import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.{HeapFltArray, _}
 import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
 import nasa.nccs.cdapi.tensors.{CDArray, CDCoordMap, CDFloatArray, CDTimeCoordMap}
-import nasa.nccs.cdas.engine.spark.{RangePartitionKey, RangePartitionKey$}
+import nasa.nccs.cdas.engine.spark.{LongRange, LongRange$}
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
 import nasa.nccs.cdas.utilities.appParameters
@@ -105,7 +105,7 @@ class AxisIndices( private val axisIds: Set[Int] = Set.empty ) {
 
 object Kernel {
   val customKernels = List[Kernel]( new CDMSRegridKernel() )
-  type RDDKeyValPair = ( RangePartitionKey, RDDPartition )
+  type RDDKeyValPair = ( LongRange, RDDPartition )
 
   def getResultFile( resultId: String, deleteExisting: Boolean = false ): File = {
     val resultsDirPath = appParameters("wps.results.dir", "~/.wps/results").replace( "~",  System.getProperty("user.home") ).replaceAll("[()]","-").replace("=","~")
@@ -410,11 +410,11 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     }
   }
 
-  def getMontlyBinMap(id: String, context: KernelContext): CDCoordMap = {
+  def getMontlyBinMap(id: String, timeUnits: String, context: KernelContext): CDCoordMap = {
     context.sectionMap.get(id).flatten.map( _.toSection ) match  {
       case Some( section ) =>
         val cdTimeCoordMap: CDTimeCoordMap = new CDTimeCoordMap( context.grid, section )
-        cdTimeCoordMap.getMontlyBinMap( section )
+        cdTimeCoordMap.getMontlyBinMap( timeUnits, section )
       case None => throw new Exception( "Error, can't get section for input " + id )
     }
   }
@@ -682,7 +682,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     }
   }
 
-  override def customReduceRDD(context: KernelContext)(a0: ( RangePartitionKey, RDDPartition ), a1: ( RangePartitionKey, RDDPartition ) ): ( RangePartitionKey, RDDPartition ) = {
+  override def customReduceRDD(context: KernelContext)(a0: ( LongRange, RDDPartition ), a1: ( LongRange, RDDPartition ) ): ( LongRange, RDDPartition ) = {
     val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
     val ( k0, k1 ) = ( a0._1, a1._1 )
     val t0 = System.nanoTime

@@ -5,78 +5,71 @@ import org.apache.spark.Partitioner
 import org.apache.spark.rdd.RDD
 import ucar.nc2.time.CalendarDate
 
-class RangePartitionKey(val start: Long, val end: Long, val size: Int) extends Loggable with Serializable with Ordered[RangePartitionKey] {
-  val center = (start + end)/2
-  def offset( pos: Long ): Long = center - pos
-  def compare( that: RangePartitionKey ): Int = start.compare( that.start )
-  def +( that: RangePartitionKey ): RangePartitionKey = {
-    if( end != that.start ) { throw new Exception( s"Attempt to concat non-contiguous partitions: first = ${toString} <-> second = ${that.toString}" )}
-    alloc(start, that.end, size + that.size)
+object LongRange {
+  type StrRep = (Long) => String
+  def apply( start: Long, end: Long ): LongRange = new LongRange( start, end )
+}
+class LongRange(val start: Long, val end: Long ) extends Ordered[LongRange] {
+  def this( r: LongRange ) { this( r.start, r.end ) }
+  def center = (start + end)/2
+  val size: Double = (end - start).toDouble
+  override def equals(other: Any): Boolean = other match {
+    case tp: LongRange => ( tp.start == start) && ( tp.end == end)
+    case _ => false
   }
-  override def toString = s"(${posStr(start)}<->${posStr(end)})[${size}]"
-  def posStr( pos: Long ): String = pos.toString
-  def alloc( start: Long, end: Long, size: Int ): RangePartitionKey = new RangePartitionKey(start, end, size)
-}
-
-object TimePartitionKey {
-  def apply( start: CalendarDate, end: CalendarDate, size: Int ): TimePartitionKey = new TimePartitionKey(start.getMillis, end.getMillis, size)
-}
-
-class TimePartitionKey( start: Long, end: Long, size: Int) extends RangePartitionKey( start, end, size ) {
-  override def posStr( pos: Long ): String = CalendarDate.of(pos).toString
-  def posDate( pos: Long ): CalendarDate = CalendarDate.of(pos)
-  override def alloc( start: Long, end: Long, size: Int ): TimePartitionKey = new TimePartitionKey(start, end, size)
+//  def offset( pos: Long ): Long = center - pos
+  def compare( that: LongRange ): Int = start.compare( that.start )
+  def getRelPos( location: Long ): Double = (location - start) / size
+  def intersect( other: LongRange ): Option[LongRange] = {
+    val ( istart, iend ) = ( Math.max( start, other.start ),  Math.min( end, other.end ) )
+    if ( istart <= iend ) Some( new LongRange( istart, iend ) ) else None
+  }
+  def +( that: LongRange ): LongRange = {
+    if( end != that.start ) { throw new Exception( s"Attempt to concat non-contiguous partitions: first = ${toString} <-> second = ${that.toString}" )}
+    LongRange( start, that.end )
+  }
+  def startPoint: LongRange  = LongRange( start, start )
+  def print( implicit strRep: LongRange.StrRep ) = s"${strRep(start)}<->${strRep(end)}"
+  override def toString = print
 }
 
 object TimePartitioner {
-  def apply( start: CalendarDate, end: CalendarDate, numParts: Int ): RangePartitioner = new RangePartitioner(start.getMillis, end.getMillis, numParts)
-  def apply( keys: Iterable[RangePartitionKey] ): RangePartitioner = {
-    val startMS = keys.foldLeft( Long.MaxValue )( ( tval, key ) => Math.min( tval, key.start ) )
-    val endMS = keys.foldLeft( Long.MinValue )( ( tval, key ) => Math.max( tval, key.end) )
-    new TimePartitioner(startMS, endMS, keys.size)
-  }
+  def strRep( value: Long ): String = CalendarDate.of(value).toString
 }
 
-class RangePartitioner(val start: Long, val end: Long, val numParts: Int) extends Partitioner with Loggable {
-  val range: Float = (end - start).toFloat
+class RangePartitioner( val range: LongRange, val numParts: Int) extends Partitioner with Loggable {
+  val psize: Double = range.size / numParts
+  val partitions: Map[Int,LongRange] = getPartitions
   override def numPartitions: Int = numParts
   override def getPartition( key: Any ): Int = {
     val index: Int = key match {
-      case tval: RangePartitionKey => (getRelPos(tval) * numParts).toInt
+      case rkey: LongRange => getPartIndexFromLocation(rkey.center)
       case wtf => throw new Exception( "Illegal partition key type: " + key.getClass.getName )
     }
-    //    logger.info( s" PPPP Get Partition: $index out of $nItems" )
     assert( index < numParts, s"Illegal index value: $index out of $numParts" )
     index
   }
-  def getRelPos( tval: RangePartitionKey ): Float = (tval.center - start) / range
-  override def equals(other: Any): Boolean = other match {
-    case tp: RangePartitioner => ( tp.numParts == numParts ) && ( tp.start == start) && ( tp.end == end)
-    case _ => false
-  }
-  def repartition( nParts: Int ): RangePartitioner = alloc(start, end, nParts)
-  def startPoint = key(start, start, 0)
-  def alloc( start: Long, end: Long, nParts: Int ) = new RangePartitioner(start, end, nParts)
-  def key( start: Long, end: Long, size: Int ) = new RangePartitionKey(start, end, size)
+  def getPartIndexFromLocation( loc: Long ) = ( range.getRelPos(loc) * numParts ).toInt
+  def repartition( nParts: Int ): RangePartitioner = new RangePartitioner(range, nParts)
+  def pstart( index: Int ): Long = ( range.start + index * psize ).toLong
+  def pend( index: Int ): Long = ( range.start + ( index + 1 ) * psize ).toLong
+  def getPartitionRange( index: Int ): LongRange = LongRange( pstart(index), pend(index) )
+  def getPartitions: Map[Int,LongRange] = Map( ( 0 until numParts ) map (index => index -> getPartitionRange(index) ): _* )
+  def newPartitionKey( irange: LongRange ): Option[LongRange] = irange.intersect( range ) flatMap ( keyrange => partitions.get( getPartIndexFromLocation(keyrange.center) ) )
+  def newPartitionKey( location: Long ): Option[LongRange] = partitions.get( getPartIndexFromLocation(location) )
 }
 
-class TimePartitioner( start: Long, end: Long, numParts: Int) extends RangePartitioner( start, end, numParts ) {
-  override def alloc( start: Long, end: Long, nParts: Int ) = new TimePartitioner(start, end, nParts)
-  override def key( start: Long, end: Long, size: Int ) = new TimePartitionKey(start, end, size)
-}
 object PartitionManager {
 
-  def getPartitioner( rdd: RDD[(RangePartitionKey,RDDPartition)], nParts: Int = -1 ): RangePartitioner = {
+  def getPartitioner( rdd: RDD[(LongRange,RDDPartition)], nParts: Int = -1 ): RangePartitioner = {
     rdd.partitioner match {
       case Some( partitioner ) => partitioner match {
-        case time_partitioner: TimePartitioner => if( nParts > 0 ) time_partitioner.repartition(nParts) else time_partitioner
         case range_partitioner: RangePartitioner => if( nParts > 0 ) range_partitioner.repartition(nParts) else range_partitioner
         case wtf => throw new Exception( "Found partitioner of wrong type: " + wtf.getClass.getName )
       }
       case None => throw new Exception( "Missing partitioner for rdd"  )
     }
   }
-
 }
 
 

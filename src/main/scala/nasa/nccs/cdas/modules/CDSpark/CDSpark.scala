@@ -162,7 +162,8 @@ class timeBin extends Kernel(Map.empty) {
     val offset = context.config("offset", "0" ).toInt
     val async = context.config("async", "false").toBoolean
     val ( id, input_array ) = inputs.head
-    val accumulation_index: CDIndexMap = input_array.toCDFloatArray.getIndex.getAccumulator( axes.args, List( getMontlyBinMap( id, context ) )  )  // TODO: Check range of getMontlyBinMap- subset by part?
+    val timeUnits = ""   // TODO: Get Time Units
+    val accumulation_index: CDIndexMap = input_array.toCDFloatArray.getIndex.getAccumulator( axes.args, List( getMontlyBinMap( id, timeUnits, context ) )  )  // TODO: Check range of getMontlyBinMap- subset by part?
     val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index )
     val result_array = HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), Some( weights_sum_masked.getArrayData() ) )
     logger.info("Executed Kernel %s[%d] map op, input = %s, index=%s, time = %.4f s".format(name, inputs.iPart, id, result_array.toCDFloatArray.getIndex.toString , (System.nanoTime - t0) / 1.0E9))

@@ -182,7 +182,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
   }
 
   def getAggregation(timeRegular: Boolean ): xml.Node = {
-    <aggregation dimName="time" units={cdsutils.baseTimeUnits} type="joinExisting">
+    <aggregation dimName="time" type="joinExisting">
       { for( fileHeader <- fileHeaders ) yield { getAggDataset(fileHeader,timeRegular) } }
     </aggregation>
   }
@@ -253,13 +253,9 @@ object FileHeader extends Loggable {
 
 
   def getTimeValues( ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index : Int = 0, end_index : Int = -1, stride: Int = 1 ): Array[Double] = {
-    val sec_in_day = 60 * 60 * 24
     val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory( ncDataset, coordAxis, new Formatter())
     val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
-    val timeZero = CalendarDate.of(timeCalValues.head.getCalendar, 1970, 1, 1, 1, 1, 1)
-    val last_index = if ( end_index >= start_index ) end_index else ( timeCalValues.length - 1 )
-    val time_values = for (index <- (start_index to last_index by stride); calVal = timeCalValues(index)) yield (calVal.getDifferenceInMsecs(timeZero)/1000).toDouble/sec_in_day
-    time_values.toArray[Double]
+    timeCalValues.map( _.getMillis.toDouble ).toArray
   }
 
   def openNetCDFFile(ncFile: URI, attempt: Int = 0): NetcdfDataset = try {

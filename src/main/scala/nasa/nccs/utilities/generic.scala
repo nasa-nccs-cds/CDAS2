@@ -86,8 +86,6 @@ trait Loggable extends Serializable {
 
 object cdsutils {
 
-  val baseTimeUnits = "days since 1970-1-1"
-
   def getOrElse[T]( map: Map[String,T], key: String, errMsg: String ): T = map.get(key) match { case Some(x) => x; case None => throw new Exception(errMsg) }
 
   def flatlist[T]( values: Option[T]* ): List[T] = values.flatten.toList

@@ -42,8 +42,11 @@ object CDSparkContext extends Loggable {
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false, false ) ) )
 
-  def merge(rdd0: RDD[(RangePartitionKey,RDDPartition)], rdd1: RDD[(RangePartitionKey,RDDPartition)] ): RDD[(RangePartitionKey,RDDPartition)] = rdd0.join(rdd1).map { case ( tkey, (r0, r1) ) => ( tkey, r0 ++ r1) }
-  def append(p0: (RangePartitionKey,RDDPartition), p1: (RangePartitionKey,RDDPartition) ): (RangePartitionKey,RDDPartition) = ( p0._1 + p1._1, p0._2.append(p1._2) )
+  def merge(rdd0: RDD[(LongRange,RDDPartition)], rdd1: RDD[(LongRange,RDDPartition)] ): RDD[(LongRange,RDDPartition)] =
+    rdd0.join(rdd1).map {
+      case ( tkey, (r0, r1) ) => ( tkey, r0 ++ r1)
+    }
+  def append(p0: (LongRange,RDDPartition), p1: (LongRange,RDDPartition) ): (LongRange,RDDPartition) = ( p0._1 + p1._1, p0._2.append(p1._2) )
 
   def getSparkConf( master: String, appName: String, logConf: Boolean, enableMetrics: Boolean  ) = {
     val sc = new SparkConf(false)
@@ -66,7 +69,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
 
   def getConf: SparkConf = sparkContext.getConf
 
-  def coalesce(rdd: RDD[(RangePartitionKey,RDDPartition)] ): RDD[(RangePartitionKey,RDDPartition)] = {
+  def coalesce(rdd: RDD[(LongRange,RDDPartition)] ): RDD[(LongRange,RDDPartition)] = {
     val partitioner = PartitionManager.getPartitioner(rdd,1)
     var repart_rdd = rdd repartitionAndSortWithinPartitions partitioner
     val result_rdd = repart_rdd glom() map ( _.fold ((partitioner.startPoint,RDDPartition.empty)) ((x,y) => { ( x._1 + y._1, x._2.append(y._2) ) } ) )  // .sortWith(_._1 < _._1)
@@ -87,7 +90,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     None
   }
 
-  def getRDD( uid: String, pFrag: PartitionedFragment, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(RangePartitionKey,RDDPartition)] = {
+  def getRDD( uid: String, pFrag: PartitionedFragment, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(LongRange,RDDPartition)] = {
     val partitions = pFrag.partitions
     val tgrid: TargetGrid = pFrag.getGrid
     val rddSpecs: Array[RDDPartSpec] = partitions.parts map ( partition =>
@@ -115,8 +118,8 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     }
   }*/
 
-  def getRDD( uid: String, tVar: OperationTransientInput, tgrid: TargetGrid, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(RangePartitionKey,RDDPartition)] = {
-    val rddParts: IndexedSeq[(RangePartitionKey,RDDPartition)] = partitions.parts.zipWithIndex map
+  def getRDD( uid: String, tVar: OperationTransientInput, tgrid: TargetGrid, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(LongRange,RDDPartition)] = {
+    val rddParts: IndexedSeq[(LongRange,RDDPartition)] = partitions.parts.zipWithIndex map
       { case (part,index) => ( part.getPartitionKey(tgrid) -> RDDPartition( index, tVar.variable.result ) ) }
 //    log( " Create RDD, rddParts = " + rddParts.map(_.toXml.toString()).mkString(",") )
     logger.info( "Creating Transient RDD with <<%d>> paritions".format( rddParts.length ) )
