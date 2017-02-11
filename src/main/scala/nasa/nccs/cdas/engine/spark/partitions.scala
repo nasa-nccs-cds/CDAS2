@@ -17,13 +17,15 @@ class LongRange(val start: Long, val end: Long ) extends Ordered[LongRange] {
     case tp: LongRange => ( tp.start == start) && ( tp.end == end)
     case _ => false
   }
-//  def offset( pos: Long ): Long = center - pos
   def compare( that: LongRange ): Int = start.compare( that.start )
   def getRelPos( location: Long ): Double = (location - start) / size
   def intersect( other: LongRange ): Option[LongRange] = {
     val ( istart, iend ) = ( Math.max( start, other.start ),  Math.min( end, other.end ) )
     if ( istart <= iend ) Some( new LongRange( istart, iend ) ) else None
   }
+  def disjoint( other: LongRange ) = ( end < other.start ) || ( other.end < start )
+  def merge( other: LongRange ): Option[LongRange] = if( disjoint(other) ) None else Some( union(other) )
+  def union( other: LongRange ): LongRange = new LongRange( Math.min( start, other.start ), Math.max( end, other.end ) )
   def +( that: LongRange ): LongRange = {
     if( end != that.start ) { throw new Exception( s"Attempt to concat non-contiguous partitions: first = ${toString} <-> second = ${that.toString}" )}
     LongRange( start, that.end )
@@ -49,6 +51,8 @@ class RangePartitioner( val range: LongRange, val numParts: Int) extends Partiti
     assert( index < numParts, s"Illegal index value: $index out of $numParts" )
     index
   }
+  def intersect( other: RangePartitioner, nParts: Int = numParts ): Option[RangePartitioner] = range.intersect(other.range) map( lrange => new RangePartitioner( lrange, nParts ) )
+  def union( other: RangePartitioner, nParts: Int = numParts ): RangePartitioner =  new RangePartitioner( range.union(other.range), nParts )
   def getPartIndexFromLocation( loc: Long ) = ( range.getRelPos(loc) * numParts ).toInt
   def repartition( nParts: Int ): RangePartitioner = new RangePartitioner(range, nParts)
   def pstart( index: Int ): Long = ( range.start + index * psize ).toLong
