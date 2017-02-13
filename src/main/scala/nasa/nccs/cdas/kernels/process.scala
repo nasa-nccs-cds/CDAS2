@@ -6,7 +6,7 @@ import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.{HeapFltArray, _}
 import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
 import nasa.nccs.cdapi.tensors.{CDArray, CDCoordMap, CDFloatArray, CDTimeCoordMap}
-import nasa.nccs.cdas.engine.spark.{LongRange, LongRange$}
+import nasa.nccs.cdas.engine.spark.{PartitionKey, PartitionKey$}
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
 import nasa.nccs.cdas.utilities.appParameters
@@ -105,7 +105,7 @@ class AxisIndices( private val axisIds: Set[Int] = Set.empty ) {
 
 object Kernel {
   val customKernels = List[Kernel]( new CDMSRegridKernel() )
-  type RDDKeyValPair = ( LongRange, RDDPartition )
+  type RDDKeyValPair = ( PartitionKey, RDDPartition )
 
   def getResultFile( resultId: String, deleteExisting: Boolean = false ): File = {
     val resultsDirPath = appParameters("wps.results.dir", "~/.wps/results").replace( "~",  System.getProperty("user.home") ).replaceAll("[()]","-").replace("=","~")
@@ -682,7 +682,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     }
   }
 
-  override def customReduceRDD(context: KernelContext)(a0: ( LongRange, RDDPartition ), a1: ( LongRange, RDDPartition ) ): ( LongRange, RDDPartition ) = {
+  override def customReduceRDD(context: KernelContext)(a0: ( PartitionKey, RDDPartition ), a1: ( PartitionKey, RDDPartition ) ): ( PartitionKey, RDDPartition ) = {
     val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
     val ( k0, k1 ) = ( a0._1, a1._1 )
     val t0 = System.nanoTime

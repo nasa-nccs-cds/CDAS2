@@ -13,7 +13,7 @@ import nasa.nccs.cdas.utilities.{GeoTools, appParameters, runtime}
 import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
 import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
-import nasa.nccs.cdas.engine.spark.{LongRange, RangePartitioner}
+import nasa.nccs.cdas.engine.spark.{PartitionKey, RangePartitioner}
 import nasa.nccs.cdas.kernels.TransientFragment
 import nasa.nccs.cdas.loaders.Masks
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
@@ -96,7 +96,7 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
   }
   def nChunks = math.ceil(partSize / chunkSize.toDouble).toInt
   def endIndex = startIndex + partSize - 1
-  def getPartitionKey( grid: TargetGrid ): LongRange = LongRange( grid.getCalendarDate(origin(0)+startIndex).getMillis, grid.getCalendarDate(origin(0)+startIndex+partSize-1).getMillis )
+  def getPartitionKey( grid: TargetGrid ): PartitionKey = PartitionKey( grid.getCalendarDate(origin(0)+startIndex).getMillis, grid.getCalendarDate(origin(0)+startIndex+partSize-1).getMillis, partSize )
 
   def chunkRange(iChunk: Int): ma2.Range = {
     val start = chunkStartIndex(iChunk);

@@ -4,7 +4,7 @@ import nasa.nccs.caching.Partition
 import nasa.nccs.cdapi.cdm.{RemapElem, TimeConversionSpec}
 import nasa.nccs.cdapi.tensors._
 import nasa.nccs.cdas.engine.WorkflowNode
-import nasa.nccs.cdas.engine.spark.{LongRange, LongRange$, RangePartitioner}
+import nasa.nccs.cdas.engine.spark.{PartitionKey, PartitionKey$, RangePartitioner}
 import nasa.nccs.cdas.kernels.{KernelContext, zmqPythonKernel}
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.esgf.process.{CDSection, TargetGrid}
@@ -179,7 +179,7 @@ object HeapDblArray {
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], metadata: Map[String,String], missing: Float ): HeapDblArray = HeapDblArray( CDDoubleArray.factory(ucarray,missing), origin, metadata )
 }
 
-class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray] , metadata: Map[String,String] ) extends MetadataCarrier(metadata) {
+class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray], metadata: Map[String,String] ) extends MetadataCarrier(metadata) {
   def ++( other: RDDPartition ): RDDPartition = {
     if( (iPart!=other.iPart) && ! ( (iPart == -1) || (other.iPart == -1) ) ) throw new Exception( "Attempt to merge RDDPartitions with incommensurate partition indices: %d vs %d".format(iPart,other.iPart ) )
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
@@ -235,7 +235,7 @@ object RDDPartSpec {
   def apply( partition: Partition, tgrid: TargetGrid, varSpecs: List[ RDDVariableSpec ] ): RDDPartSpec = new RDDPartSpec( partition, partition.getPartitionKey(tgrid), varSpecs )
 }
 
-class RDDPartSpec(val partition: Partition, val timeRange: LongRange, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
+class RDDPartSpec(val partition: Partition, val timeRange: PartitionKey, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
 
   def getRDDPartition: RDDPartition = {
     val t0 = System.nanoTime()
@@ -245,7 +245,7 @@ class RDDPartSpec(val partition: Partition, val timeRange: LongRange, val varSpe
     rv
   }
 
-  def getPartitionKey( partitioner: RangePartitioner ): LongRange = partitioner.newPartitionKey( timeRange.center )
+  def getPartitionKey( partitioner: RangePartitioner ): PartitionKey = partitioner.newPartitionKey( timeRange.center )
 
   def empty( uid: String ): Boolean = varSpecs.find( _.uid == uid ) match {
     case Some( varSpec ) => varSpec.empty
@@ -264,7 +264,7 @@ class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val mi
   def rank = section.getShape.length
 }
 
-class RDDRegen(val source: RDD[(LongRange,RDDPartition)], val sourceGrid: TargetGrid, val resultGrid: TargetGrid, node: WorkflowNode, kernelContext: KernelContext ) extends Loggable {
+class RDDRegen(val source: RDD[(PartitionKey,RDDPartition)], val sourceGrid: TargetGrid, val resultGrid: TargetGrid, node: WorkflowNode, kernelContext: KernelContext ) extends Loggable {
   private val regen: Boolean = !sourceGrid.equals(resultGrid)
   lazy val regridKernel = getRegridKernel
 //  def getRDD(): RDD[(Int,RDDPartition)] = if(regen) {
