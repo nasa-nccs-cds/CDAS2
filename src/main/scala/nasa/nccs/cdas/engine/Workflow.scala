@@ -46,7 +46,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
       val partitioner = PartitionManager.getPartitioner( mapresult, 1 )
       var repart_mapresult = mapresult repartitionAndSortWithinPartitions  partitioner
       val rddReducer = kernel.getReduceOp(context)
-      val result = repart_mapresult glom() map ( _.fold ((partitioner.startPoint,RDDPartition.empty)) (rddReducer) ) collect()  // ERROR: fix reduce Op  _.sortWith(_._1 < _._1)
+      val result = repart_mapresult glom() map ( _.fold (( partitioner.range.startPoint, RDDPartition.empty )) (rddReducer) ) collect()  // ERROR: fix reduce Op  _.sortWith(_._1 < _._1)
       logger.info("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
       result(0)._2
     }
@@ -226,16 +226,25 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     }
     val keys0 = rawRdds.head.keys.collect()
     val keys1 = rawRdds.last.keys.collect()
-    val rawResult = if( opInputs.size == 1 ) rawRdds.head else rawRdds.tail.foldLeft( rawRdds.head )( CDSparkContext.merge(_,_) )
-    val sampleRDDPart = rawResult.first._2
-    val needsRegrid: Boolean = ( targetGridSpec.startsWith("gspec") || sampleRDDPart.hasMultiGrids )
+    val rawResult: RDD[(LongRange,RDDPartition)] = if( opInputs.size == 1 ) rawRdds.head else rawRdds.tail.foldLeft( rawRdds.head )( CDSparkContext.merge )
+    val sampleRDDPart: RDDPartition = rawResult.first._2
+    val needsRegrid: Boolean =  targetGridSpec.startsWith("gspec") || sampleRDDPart.hasMultiGrids
     val needsTimeConversion: Boolean = sampleRDDPart.hasMultiTimeScales( kernelContext.crsOpt )
-    val regridResult = if(needsRegrid) node.regridRDDElems( rawResult, kernelContext.conf(Map(("gridSpec"->targetGridSpec),("crs"->kernelContext.crsOpt.getOrElse(""))))) else rawResult
+    val regridResult: RDD[(LongRange,RDDPartition)]  = if(needsRegrid) node.regridRDDElems( rawResult, kernelContext.conf(Map("gridSpec"->targetGridSpec,"crs"->kernelContext.crsOpt.getOrElse("")))) else rawResult
     val partitioner = PartitionManager.getPartitioner( regridResult )
     if( needsTimeConversion ) {
       val coalescedResult = executionMgr.serverContext.spark.coalesce( regridResult )
       node.timeConversion( coalescedResult, kernelContext, requestCx )
     } else regridResult
+  }
+
+  def equalizeTimeScales( rdd: RDD[(LongRange,RDDPartition)], crsOpt: Option[String] ) : RDD[(LongRange,RDDPartition)] = {
+    val sampleRDDPart: RDDPartition = rdd.first._2
+    val needsTimeConversion: Boolean = sampleRDDPart.hasMultiTimeScales( crsOpt )
+    if( needsTimeConversion ) {
+      val coalescedResult = executionMgr.serverContext.spark.coalesce( rdd )
+      node.timeConversion( coalescedResult, kernelContext, requestCx )
+    } else rdd
   }
 
   //  def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(Int,RDDPartition)] = {

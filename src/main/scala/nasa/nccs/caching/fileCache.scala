@@ -96,7 +96,7 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
   }
   def nChunks = math.ceil(partSize / chunkSize.toDouble).toInt
   def endIndex = startIndex + partSize - 1
-  def getPartitionKey( grid: TargetGrid ): LongRange = TimePartitionKey( grid.getCalendarDate(origin(0)+startIndex), grid.getCalendarDate(origin(0)+startIndex+partSize-1), partSize )
+  def getPartitionKey( grid: TargetGrid ): LongRange = LongRange( grid.getCalendarDate(origin(0)+startIndex).getMillis, grid.getCalendarDate(origin(0)+startIndex+partSize-1).getMillis )
 
   def chunkRange(iChunk: Int): ma2.Range = {
     val start = chunkStartIndex(iChunk);

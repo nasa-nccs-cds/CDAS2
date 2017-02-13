@@ -72,7 +72,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
   def coalesce(rdd: RDD[(LongRange,RDDPartition)] ): RDD[(LongRange,RDDPartition)] = {
     val partitioner = PartitionManager.getPartitioner(rdd,1)
     var repart_rdd = rdd repartitionAndSortWithinPartitions partitioner
-    val result_rdd = repart_rdd glom() map ( _.fold ((partitioner.startPoint,RDDPartition.empty)) ((x,y) => { ( x._1 + y._1, x._2.append(y._2) ) } ) )  // .sortWith(_._1 < _._1)
+    val result_rdd = repart_rdd glom() map ( _.fold (( partitioner.range.startPoint, RDDPartition.empty )) ((x,y) => { ( x._1 + y._1, x._2.append(y._2) ) } ) )  // .sortWith(_._1 < _._1)
     result_rdd
   }
 
@@ -99,8 +99,8 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     val nItems = rddSpecs.length
     logger.info( "Discarded empty partitions: Creating RDD with <<%d>> items".format( nItems ) )
     if( nItems == 0 ) throw new Exception( "Invalid RDD: all partitions are empty: " + uid )
-    val partitioner = TimePartitioner( rddSpecs.map(_.timePartitionKey) )
-    val parallelized_rddspecs = sparkContext parallelize(rddSpecs) keyBy ( _.timePartitionKey ) partitionBy( partitioner )
+    val partitioner = RangePartitioner( rddSpecs.map(_.timeRange) )
+    val parallelized_rddspecs = sparkContext parallelize(rddSpecs) keyBy ( _.timeRange ) partitionBy( partitioner )
     val parallelized_result =  parallelized_rddspecs mapValues ( spec => spec.getRDDPartition ) repartitionAndSortWithinPartitions( partitioner )
     val parallelize = node.getKernelOption("parallelize","true").toBoolean
     if( parallelize ) { parallelized_result persist } else { coalesce ( parallelized_result ) persist }

@@ -8,7 +8,7 @@ import java.util.Formatter
 
 import nasa.nccs.cdapi.data.{ArrayBase, HeapDblArray, HeapFltArray, RDDPartition}
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDDoubleArray, CDFloatArray}
-import nasa.nccs.cdas.engine.spark.CDSparkContext
+import nasa.nccs.cdas.engine.spark.{CDSparkContext, LongRange, RangePartitioner}
 import nasa.nccs.cdas.kernels.{AxisIndices, KernelContext}
 import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
@@ -303,6 +303,14 @@ class  GridSection( val grid: CDGrid, val axes: IndexedSeq[GridCoordSpec] ) exte
       throw new Exception("Can't get time axis for grid " + grid.name)
   }
 
+  def getTimeRange: LongRange = grid.getTimeCoordinateAxis match {
+    case Some(axis) =>
+      val ( t0, t1 ) = ( axis.getCalendarDate(0), axis.getCalendarDate( axis.getSize.toInt-1 ) )
+      LongRange( t0.getMillis, t1.getMillis )
+    case None =>
+      throw new Exception("Can't get time axis for grid " + grid.name)
+  }
+
   def getNextCalendarDate ( axis: CoordinateAxis1DTime, idx: Int ): CalendarDate = {
     if( (idx+1) < axis.getSize ) { axis.getCalendarDate(idx+1) }
     else {
@@ -395,6 +403,7 @@ class TargetGrid( variable: CDSVariable, roiOpt: Option[List[DomainAxis]]=None )
   def getTimeCoordinateAxis: Option[CoordinateAxis1DTime] = grid.getTimeCoordinateAxis
   def getTimeUnits: String  = grid.getTimeCoordinateAxis match { case Some(timeAxis) => timeAxis.getUnitsString; case None => "" }
   def getCalendarDate ( idx: Int ): CalendarDate = grid.getCalendarDate(idx)
+  def getPartitioner( numParts: Int ) = new RangePartitioner( grid.getTimeRange, numParts )
 
   def addSectionMetadata( section: ma2.Section ): ma2.Section = grid.addRangeNames( section )
 

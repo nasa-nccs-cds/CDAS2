@@ -8,8 +8,10 @@ import ucar.nc2.time.CalendarDate
 object LongRange {
   type StrRep = (Long) => String
   def apply( start: Long, end: Long ): LongRange = new LongRange( start, end )
+  implicit val strRep: LongRange.StrRep = _.toString
 }
 class LongRange(val start: Long, val end: Long ) extends Ordered[LongRange] {
+  import LongRange._
   def this( r: LongRange ) { this( r.start, r.end ) }
   def center = (start + end)/2
   val size: Double = (end - start).toDouble
@@ -27,17 +29,26 @@ class LongRange(val start: Long, val end: Long ) extends Ordered[LongRange] {
   def merge( other: LongRange ): Option[LongRange] = if( disjoint(other) ) None else Some( union(other) )
   def union( other: LongRange ): LongRange = new LongRange( Math.min( start, other.start ), Math.max( end, other.end ) )
   def +( that: LongRange ): LongRange = {
-    if( end != that.start ) { throw new Exception( s"Attempt to concat non-contiguous partitions: first = ${toString} <-> second = ${that.toString}" )}
+    if( end != that.start ) { throw new Exception( s"Attempt to concat non-contiguous ranges: first = ${toString} <-> second = ${that.toString}" )}
     LongRange( start, that.end )
   }
   def startPoint: LongRange  = LongRange( start, start )
-  def print( implicit strRep: LongRange.StrRep ) = s"${strRep(start)}<->${strRep(end)}"
+  def print( implicit strRep: StrRep ) = s"${strRep(start)}<->${strRep(end)}"
   override def toString = print
 }
 
-object TimePartitioner {
-  def strRep( value: Long ): String = CalendarDate.of(value).toString
+object RangePartitioner {
+  def apply( ranges: Array[LongRange] ): RangePartitioner = {
+    val startMS = ranges.foldLeft( Long.MaxValue )( ( tval, key ) => Math.min( tval, key.start ) )
+    val endMS = ranges.foldLeft( Long.MinValue )( ( tval, key ) => Math.max( tval, key.end) )
+    new RangePartitioner( LongRange(startMS, endMS), ranges )
+  }
+  def apply( ranges: Array[LongRange] ): RangePartitioner = {
+
+
+  }
 }
+// implicit val strRep: LongRange.StrRep = CalendarDate.of(_).toString
 
 class RangePartitioner( val range: LongRange, val numParts: Int) extends Partitioner with Loggable {
   val psize: Double = range.size / numParts
@@ -60,7 +71,8 @@ class RangePartitioner( val range: LongRange, val numParts: Int) extends Partiti
   def getPartitionRange( index: Int ): LongRange = LongRange( pstart(index), pend(index) )
   def getPartitions: Map[Int,LongRange] = Map( ( 0 until numParts ) map (index => index -> getPartitionRange(index) ): _* )
   def newPartitionKey( irange: LongRange ): Option[LongRange] = irange.intersect( range ) flatMap ( keyrange => partitions.get( getPartIndexFromLocation(keyrange.center) ) )
-  def newPartitionKey( location: Long ): Option[LongRange] = partitions.get( getPartIndexFromLocation(location) )
+  def newPartitionKeyOpt( location: Long ): Option[LongRange] = partitions.get( getPartIndexFromLocation(location) )
+  def newPartitionKey( location: Long ): LongRange = partitions.get( getPartIndexFromLocation(location) ) getOrElse( throw new Exception( s"Location of new key ${location} is out of bounds for partitioner"))
 }
 
 object PartitionManager {

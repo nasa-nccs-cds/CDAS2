@@ -4,7 +4,7 @@ import nasa.nccs.caching.Partition
 import nasa.nccs.cdapi.cdm.{RemapElem, TimeConversionSpec}
 import nasa.nccs.cdapi.tensors._
 import nasa.nccs.cdas.engine.WorkflowNode
-import nasa.nccs.cdas.engine.spark.{LongRange, LongRange$}
+import nasa.nccs.cdas.engine.spark.{LongRange, LongRange$, RangePartitioner}
 import nasa.nccs.cdas.kernels.{KernelContext, zmqPythonKernel}
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.esgf.process.{CDSection, TargetGrid}
@@ -235,7 +235,7 @@ object RDDPartSpec {
   def apply( partition: Partition, tgrid: TargetGrid, varSpecs: List[ RDDVariableSpec ] ): RDDPartSpec = new RDDPartSpec( partition, partition.getPartitionKey(tgrid), varSpecs )
 }
 
-class RDDPartSpec(val partition: Partition, val timePartitionKey: LongRange, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
+class RDDPartSpec(val partition: Partition, val timeRange: LongRange, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
 
   def getRDDPartition: RDDPartition = {
     val t0 = System.nanoTime()
@@ -244,6 +244,8 @@ class RDDPartSpec(val partition: Partition, val timePartitionKey: LongRange, val
     logger.info( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
     rv
   }
+
+  def getPartitionKey( partitioner: RangePartitioner ): LongRange = partitioner.newPartitionKey( timeRange.center )
 
   def empty( uid: String ): Boolean = varSpecs.find( _.uid == uid ) match {
     case Some( varSpec ) => varSpec.empty
