@@ -306,7 +306,7 @@ class  GridSection( val grid: CDGrid, val axes: IndexedSeq[GridCoordSpec] ) exte
   def getTimeRange: PartitionKey = grid.getTimeCoordinateAxis match {
     case Some(axis) =>
       val ( t0, t1 ) = ( axis.getCalendarDate(0), axis.getCalendarDate( axis.getSize.toInt-1 ) )
-      PartitionKey( t0.getMillis, t1.getMillis, axis.getSize.toInt )
+      PartitionKey( t0.getMillis, t1.getMillis, 0, axis.getSize.toInt )
     case None =>
       throw new Exception("Can't get time axis for grid " + grid.name)
   }

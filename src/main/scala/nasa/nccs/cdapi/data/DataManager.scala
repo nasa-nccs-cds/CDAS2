@@ -120,6 +120,12 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
           new HeapFltArray( fa1.getShape, origin1, fa1.getArrayData(), Some(a1.getInvalid), gridSpec, metadata, _optWeights, fa1.getCoordMaps ) )    // TODO: split weights and coord maps?
     }
 
+  def slice( startIndex: Int, size: Int ): HeapFltArray = {
+    val fa = CDFloatArray(toCDFloatArray.slice(startIndex,size))
+    val origin1 = origin.zipWithIndex.map{ case (o,i) => if( i == 0 ) ( origin(0) + startIndex ) else o }
+    new HeapFltArray( fa.getShape, origin, fa.getArrayData(), Some(fa.getInvalid), gridSpec, metadata, _optWeights, fa.getCoordMaps ) // TODO: split weights and coord maps?
+  }
+
   def toByteArray() = {
     bb.putFloat( 0, missing.getOrElse(Float.NaN) )
     toUcarFloatArray.getDataAsByteBuffer().array() ++ bb.array()
@@ -198,6 +204,12 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray], meta
     })
     new RDDPartition( iPart, new_elements, metadata )
   }
+
+  def slice( startIndex: Int, size: Int ): RDDPartition = {
+    val new_elems = elements.mapValues( _.slice(startIndex,size) )
+    new RDDPartition( iPart, new_elems, metadata )
+  }
+
   def hasMultiTimeScales( trsOpt: Option[String]=None ): Boolean = {
     if( elements.size == 0 ) return false
     val ntimesteps = elements.values.head.shape(0)
@@ -264,18 +276,18 @@ class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val mi
   def rank = section.getShape.length
 }
 
-class RDDRegen(val source: RDD[(PartitionKey,RDDPartition)], val sourceGrid: TargetGrid, val resultGrid: TargetGrid, node: WorkflowNode, kernelContext: KernelContext ) extends Loggable {
-  private val regen: Boolean = !sourceGrid.equals(resultGrid)
-  lazy val regridKernel = getRegridKernel
-//  def getRDD(): RDD[(Int,RDDPartition)] = if(regen) {
-//    source
-//    node.map( source, kernelContext, regridKernel )
-//  } else source
-
-  def getRegridKernel(): zmqPythonKernel = node.workflow.executionMgr.getKernel( "python.cdmsmodule", "regrid"  ) match {
-    case pyKernel: zmqPythonKernel => pyKernel
-    case x => throw new Exception( "Unexpected Kernel class for regrid module: " + x.getClass.getName)
-  }
-}
+//class RDDRegen(val source: RDD[(PartitionKey,RDDPartition)], val sourceGrid: TargetGrid, val resultGrid: TargetGrid, node: WorkflowNode, kernelContext: KernelContext ) extends Loggable {
+//  private val regen: Boolean = !sourceGrid.equals(resultGrid)
+//  lazy val regridKernel = getRegridKernel
+////  def getRDD(): RDD[(Int,RDDPartition)] = if(regen) {
+////    source
+////    node.map( source, kernelContext, regridKernel )
+////  } else source
+//
+//  def getRegridKernel(): zmqPythonKernel = node.workflow.executionMgr.getKernel( "python.cdmsmodule", "regrid"  ) match {
+//    case pyKernel: zmqPythonKernel => pyKernel
+//    case x => throw new Exception( "Unexpected Kernel class for regrid module: " + x.getClass.getName)
+//  }
+//}
 
 

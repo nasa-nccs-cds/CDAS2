@@ -42,10 +42,15 @@ object CDSparkContext extends Loggable {
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false, false ) ) )
 
-  def merge(rdd0: RDD[(PartitionKey,RDDPartition)], rdd1: RDD[(PartitionKey,RDDPartition)] ): RDD[(PartitionKey,RDDPartition)] =
-    rdd0.join(rdd1).map {
-      case ( tkey, (r0, r1) ) => ( tkey, r0 ++ r1)
+  def merge(rdd0: RDD[(PartitionKey,RDDPartition)], rdd1: RDD[(PartitionKey,RDDPartition)] ): RDD[(PartitionKey,RDDPartition)] = {
+    val keys0 = rdd0.keys.collect
+    val keys1 = rdd1.keys.collect
+    val result = rdd0.join(rdd1).map {
+      case (tkey, (r0, r1)) => (tkey, r0 ++ r1)
     }
+    rdd0.partitioner match { case Some(p) => result.partitionBy(p); case None => rdd1.partitioner match { case Some(p) => result.partitionBy(p); case None => result } }
+  }
+
   def append(p0: (PartitionKey,RDDPartition), p1: (PartitionKey,RDDPartition) ): (PartitionKey,RDDPartition) = ( p0._1 + p1._1, p0._2.append(p1._2) )
 
   def getSparkConf( master: String, appName: String, logConf: Boolean, enableMetrics: Boolean  ) = {
@@ -74,9 +79,12 @@ object CDSparkContext extends Loggable {
     val partitioner: RangePartitioner = getPartitioner(rdd).colaesce
     var repart_rdd = rdd repartitionAndSortWithinPartitions partitioner
     val result_rdd = repart_rdd glom() map ( _.fold (( partitioner.range.startPoint, RDDPartition.empty )) ((x,y) => { ( x._1 + y._1, x._2.append(y._2) ) } ) )  // .sortWith(_._1 < _._1)
-    result_rdd
+    result_rdd partitionBy partitioner
   }
+
 }
+
+
 
 class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggable {
 
@@ -98,6 +106,11 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
       case _ => None
     }
     None
+  }
+
+  def parallelize( partition: RDDPartition, partitioner: RangePartitioner ): RDD[(PartitionKey,RDDPartition)] = {
+    val new_partitions = partitioner.partitions.values.map( partKey => partKey -> partition.slice( partKey.elemStart, partKey.numElems ) )
+    sparkContext parallelize new_partitions.toSeq repartitionAndSortWithinPartitions partitioner
   }
 
   def getRDD( uid: String, pFrag: PartitionedFragment, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(PartitionKey,RDDPartition)] = {

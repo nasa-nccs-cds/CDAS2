@@ -18,7 +18,7 @@ object LongRange {
   implicit val strRep: LongRange.StrRep = _.toString
 }
 
-class LongRange(val start: Long, val end: Long ) {
+class LongRange(val start: Long, val end: Long ) extends Serializable {
   import LongRange._
   def this( r: LongRange ) { this( r.start, r.end ) }
   def center = (start + end)/2
@@ -28,7 +28,8 @@ class LongRange(val start: Long, val end: Long ) {
     case _ => false
   }
   def compare( that: LongRange ): Int = start.compare( that.start )
-  def getRelPos( location: Long ): Double = (location - start) / size
+  def getRelPos( location: Long ): Double =
+    (location - start) / size
   def intersect( other: LongRange ): Option[LongRange] = {
     val ( istart, iend ) = ( Math.max( start, other.start ),  Math.min( end, other.end ) )
     if ( istart <= iend ) Some( new LongRange( istart, iend ) ) else None
@@ -47,32 +48,33 @@ class LongRange(val start: Long, val end: Long ) {
 }
 
 object PartitionKey {
-  def apply( start: Long, end: Long, numElems: Int ): PartitionKey = new PartitionKey( start, end, numElems )
+  def apply( start: Long, end: Long, elemStart: Int, numElems: Int ): PartitionKey = new PartitionKey( start, end, elemStart, numElems )
 
   def apply( ranges: Iterable[PartitionKey] ): PartitionKey = {
     val startMS = ranges.foldLeft( Long.MaxValue )( ( tval, key ) => Math.min( tval, key.start ) )
     val endMS = ranges.foldLeft( Long.MinValue )( ( tval, key ) => Math.max( tval, key.end) )
     val nElems = ranges.foldLeft( 0 )( ( tval, key ) => tval + key.numElems )
-    new PartitionKey( startMS, endMS, nElems )
+    new PartitionKey( startMS, endMS, ranges.head.elemStart, nElems )
   }
   implicit val strRep: LongRange.StrRep = _.toString
 
 }
 
-class PartitionKey( start: Long, end: Long, val numElems: Int ) extends LongRange( start, end ) with Ordered[PartitionKey] {
+class PartitionKey( start: Long, end: Long, val elemStart: Int, val numElems: Int ) extends LongRange( start, end ) with Ordered[PartitionKey] with Serializable {
   override def equals(other: Any): Boolean = other match {
-    case tp: PartitionKey => ( tp.start == start) && ( tp.end == end) && ( tp.numElems == numElems)
+    case tp: PartitionKey => ( tp.start == start) && ( tp.end == end) && ( tp.numElems == numElems) && ( tp.elemStart == elemStart )
     case lr: LongRange => ( lr.start == start ) && ( lr.end == end )
     case _ => false
   }
   def sameRange( lr: LongRange ): Boolean = ( lr.start == start ) && ( lr.end == end )
-  def estElemIndexAtLoc( loc: Long ): Int =  ( getRelPos(loc) * numElems ).toInt
+  def estElemIndexAtLoc( loc: Long ): Int =  ( elemStart + getRelPos(loc) * numElems ).toInt
   def compare( that: PartitionKey ): Int = start.compare( that.start )
+  def elemRange: (Int,Int) = ( elemStart, elemStart + numElems )
   def +( that: PartitionKey ): PartitionKey = {
     if( end != that.start ) { throw new Exception( s"Attempt to concat non-contiguous ranges: first = ${toString} <-> second = ${that.toString}" )}
-    PartitionKey( start, that.end, numElems + that.numElems )
+    PartitionKey( start, that.end, elemStart, numElems + that.numElems )
   }
-  def startPoint: PartitionKey  = PartitionKey( start, start, 0 )
+  def startPoint: PartitionKey  = PartitionKey( start, start, elemStart, 0 )
 }
 
 object RangePartitioner {
@@ -99,6 +101,11 @@ class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitio
   val psize: Double = range.size / numParts
   override def numPartitions: Int = numParts
 
+  def getCoordRangeMap = {
+    val startIndices =  partitions.mapValues( _.elemRange )
+    startIndices
+  }
+
   def findPartIndex( index: Int, loc: Long ): Int = partitions.get(index) match {
     case None => -1
     case Some( key ) => key.locate( loc ) match {
@@ -107,16 +114,19 @@ class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitio
     }
   }
 
+  def estPartIndexAtLoc( loc: Long ): Int = ( range.getRelPos(loc) * numParts ).toInt
+
   def colaesce: RangePartitioner = RangePartitioner( List( range ) )
 
-  def getPartIndexFromLocation( loc: Long ) = findPartIndex( range.estElemIndexAtLoc( loc ), loc )
+  def getPartIndexFromLocation( loc: Long ) = findPartIndex( estPartIndexAtLoc( loc ), loc )
 
   override def getPartition( key: Any ): Int = {
     val index: Int = key match {
       case rkey: LongRange => getPartIndexFromLocation(rkey.center)
       case wtf => throw new Exception( "Illegal partition key type: " + key.getClass.getName )
     }
-    assert( index < numParts, s"Illegal index value: $index out of $numParts" )
+    if( index >= numParts ) throw new Exception( s"Illegal index value: $index out of $numParts for key ${key.toString}" )
+    if( index < 0 ) throw new Exception( s"Can't find partition index for key ${key.toString}" )
     index
   }
 
