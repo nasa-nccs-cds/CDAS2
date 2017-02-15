@@ -156,10 +156,13 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
     rangeSeq.toList
   }
 
-  def section(origin: Array[Int], shape: Array[Int], strideOpt: Option[Array[Int]]=None): CDArray[T] =
-    createView(cdIndexMap.section(createRanges(origin,shape,strideOpt)))
+  def section(origin: Array[Int], shape: Array[Int], strideOpt: Option[Array[Int]]=None): CDArray[T] = {
+    logger.info( s"Array: {${getShape.mkString(",")}} --> Section: ORIGIN:{${origin.mkString(",")}} SHAPE:{${shape.mkString(",")}} ")
+    createView(cdIndexMap.section(createRanges(origin, shape, strideOpt)))
+  }
 
   def slice(dim: Int, value: Int, size: Int=1): CDArray[T] = {
+    logger.info( s"CDArray: slice --> dim {${dim}}  value:{${value}} size:{${size}} ")
     val origin: Array[Int] = new Array[Int](rank)
     val shape: Array[Int] = getShape
     origin(dim) = value

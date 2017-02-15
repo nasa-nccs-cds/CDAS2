@@ -5,7 +5,7 @@ import java.nio.file.Paths
 import nasa.nccs.caching.{CDASPartitioner, Partition, Partitions}
 import nasa.nccs.cdapi.cdm.{CDSVariable, OperationInput, OperationTransientInput, PartitionedFragment}
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartSpec, RDDPartition, RDDVariableSpec}
-import nasa.nccs.cdapi.tensors.CDFloatArray
+import ucar.nc2.time.CalendarDate
 import nasa.nccs.cdas.engine.WorkflowNode
 import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.process._
@@ -43,12 +43,9 @@ object CDSparkContext extends Loggable {
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false, false ) ) )
 
   def merge(rdd0: RDD[(PartitionKey,RDDPartition)], rdd1: RDD[(PartitionKey,RDDPartition)] ): RDD[(PartitionKey,RDDPartition)] = {
-    val keys0 = rdd0.keys.collect
-    val keys1 = rdd1.keys.collect
-    val result = rdd0.join(rdd1).map {
-      case (tkey, (r0, r1)) => (tkey, r0 ++ r1)
-    }
-    rdd0.partitioner match { case Some(p) => result.partitionBy(p); case None => rdd1.partitioner match { case Some(p) => result.partitionBy(p); case None => result } }
+    val mergedRdd = rdd0.join( rdd1, rdd0.partitioner.get ) mapValues { case (part0,part1) => part0 ++ part1  } map identity
+    val result = rdd0.partitioner match { case Some(p) => mergedRdd.partitionBy(p); case None => rdd1.partitioner match { case Some(p) => mergedRdd.partitionBy(p); case None => mergedRdd } }
+    result
   }
 
   def append(p0: (PartitionKey,RDDPartition), p1: (PartitionKey,RDDPartition) ): (PartitionKey,RDDPartition) = ( p0._1 + p1._1, p0._2.append(p1._2) )
@@ -75,18 +72,34 @@ object CDSparkContext extends Loggable {
     }
   }
 
-  def coalesce(rdd: RDD[(PartitionKey,RDDPartition)] ): RDD[(PartitionKey,RDDPartition)] = {
-    val partitioner: RangePartitioner = getPartitioner(rdd).colaesce
-    var repart_rdd = rdd repartitionAndSortWithinPartitions partitioner
-    val result_rdd = repart_rdd glom() map ( _.fold (( partitioner.range.startPoint, RDDPartition.empty )) ((x,y) => { ( x._1 + y._1, x._2.append(y._2) ) } ) )  // .sortWith(_._1 < _._1)
-    result_rdd partitionBy partitioner
+  def coalesce( rdd: RDD[(PartitionKey,RDDPartition)] ): RDD[(PartitionKey,RDDPartition)] = {
+    if ( rdd.getNumPartitions > 1 ) {
+      val partitioner: RangePartitioner = getPartitioner(rdd).colaesce
+      var repart_rdd = rdd repartitionAndSortWithinPartitions partitioner
+      val result_rdd = repart_rdd glom() map (_.fold((partitioner.range.startPoint, RDDPartition.empty))((x, y) => {
+        (x._1 + y._1, x._2.append(y._2))
+      })) // .sortWith(_._1 < _._1)
+      result_rdd partitionBy partitioner
+    } else { rdd }
   }
+
+  def splitPartition( key: PartitionKey, part: RDDPartition, partitioner: RangePartitioner ): IndexedSeq[(PartitionKey,RDDPartition)] = {
+    logger.info( s"CDSparkContext.splitPartition: KEY-${key.toString} -> PART-${part.getShape.mkString(",")}")
+    val rv = partitioner.intersect(key) map ( partkey =>
+      (partkey -> part.slice(partkey.elemStart, partkey.numElems)) )
+    rv
+  }
+
+  def applyPartitioner( partitioner: RangePartitioner )( elems: Iterator[(PartitionKey,RDDPartition)] ): Iterator[(PartitionKey,RDDPartition)] =
+    elems.map { case (key,part ) => splitPartition(key,part,partitioner) } reduce ( _ ++ _ ) toIterator
+
+  def repartition( rdd: RDD[(PartitionKey,RDDPartition)], partitioner: RangePartitioner ): RDD[(PartitionKey,RDDPartition)] =
+    rdd.mapPartitions( applyPartitioner(partitioner), true ) repartitionAndSortWithinPartitions partitioner reduceByKey(_ ++ _)
 
 }
 
-
-
 class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggable {
+  implicit val strRep: LongRange.StrRep = CalendarDate.of(_).toString
 
   def setLocalProperty(key: String, value: String): Unit = {
     sparkContext.setLocalProperty(key, value)

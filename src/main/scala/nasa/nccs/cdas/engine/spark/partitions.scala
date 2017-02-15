@@ -27,6 +27,7 @@ class LongRange(val start: Long, val end: Long ) extends Serializable {
     case tp: LongRange => ( tp.start == start) && ( tp.end == end)
     case _ => false
   }
+  override def hashCode() = Math.floorMod( start + end, Int.MaxValue ).toInt
   def compare( that: LongRange ): Int = start.compare( that.start )
   def getRelPos( location: Long ): Double =
     (location - start) / size
@@ -60,21 +61,35 @@ object PartitionKey {
 
 }
 
-class PartitionKey( start: Long, end: Long, val elemStart: Int, val numElems: Int ) extends LongRange( start, end ) with Ordered[PartitionKey] with Serializable {
+class PartitionKey( start: Long, end: Long, val elemStart: Int, val numElems: Int ) extends LongRange( start, end ) with Ordered[PartitionKey] with Serializable with Loggable {
+  import LongRange._
   override def equals(other: Any): Boolean = other match {
     case tp: PartitionKey => ( tp.start == start) && ( tp.end == end) && ( tp.numElems == numElems) && ( tp.elemStart == elemStart )
     case lr: LongRange => ( lr.start == start ) && ( lr.end == end )
     case _ => false
   }
+  override def hashCode() = Math.floorMod( start + end + elemStart + numElems, Int.MaxValue ).toInt
+  def elemEnd = elemStart + numElems
   def sameRange( lr: LongRange ): Boolean = ( lr.start == start ) && ( lr.end == end )
   def estElemIndexAtLoc( loc: Long ): Int =  ( elemStart + getRelPos(loc) * numElems ).toInt
   def compare( that: PartitionKey ): Int = start.compare( that.start )
   def elemRange: (Int,Int) = ( elemStart, elemStart + numElems )
   def +( that: PartitionKey ): PartitionKey = {
-    if( end != that.start ) { throw new Exception( s"Attempt to concat non-contiguous ranges: first = ${toString} <-> second = ${that.toString}" )}
+    if( (end != that.start) || (elemEnd != that.elemStart) ) { throw new Exception( s"Attempt to concat non-contiguous partition keys: first = ${toString} <-> second = ${that.toString}" )}
     PartitionKey( start, that.end, elemStart, numElems + that.numElems )
   }
   def startPoint: PartitionKey  = PartitionKey( start, start, elemStart, 0 )
+
+  def intersect( other: PartitionKey ): Option[PartitionKey] = {
+    val ( istart, iend ) = ( Math.max( start, other.start ),  Math.min( end, other.end ) )
+    if ( istart <= iend ) {
+      val ( ielemStart, ielemEnd ) = ( Math.max( elemStart, other.elemStart ),  Math.min( elemEnd, other.elemEnd ) )
+      val result = Some( PartitionKey( istart, iend, ielemStart, ielemEnd-ielemStart ) )
+      logger.info( s"PartitionKey Intersect: ${toString} + ${other.toString} => ${result.toString} ")
+      result
+    }  else None
+  }
+  override def print( implicit strRep: StrRep ) = s"{ ${strRep(start)}<->${strRep(end)}, ${elemStart}<->${elemEnd} }"
 }
 
 object RangePartitioner {
@@ -92,7 +107,7 @@ object RangePartitioner {
 //  }
 
 }
-// implicit val strRep: LongRange.StrRep = CalendarDate.of(_).toString
+
 
 class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitioner with Loggable {
   val range = PartitionKey(partitions.values)
@@ -112,6 +127,12 @@ class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitio
       case 0 => index
       case x => findPartIndex( index + x, loc )
     }
+  }
+
+  def intersect( key: PartitionKey ): IndexedSeq[PartitionKey]= {
+    val (startIndex, endIndex) = (getPartIndexFromLocation(key.start), getPartIndexFromLocation(key.end-1))
+    val partKeys = (startIndex until endIndex) flatMap ( index => partitions.get(index) )
+    partKeys flatMap ( partkey => partkey.intersect(key) )
   }
 
   def estPartIndexAtLoc( loc: Long ): Int = ( range.getRelPos(loc) * numParts ).toInt

@@ -1,21 +1,23 @@
 package nasa.nccs.cdapi.cdm
 import nasa.nccs.cdapi.data.HeapFltArray
 import nasa.nccs.cdapi.tensors.CDFloatArray
+import nasa.nccs.cdas.engine.spark.PartitionKey
 import ucar.nc2.dataset.CoordinateAxis1DTime
 import ucar.ma2
 
 class RemapElem( val index: Int, val weight0: Float, val weight1: Float) extends Serializable  { }
 
 object TimeConversionSpec {
-  def apply ( weights: Map[Int,RemapElem], toAxisRange: ma2.Range ): TimeConversionSpec = {
-    new TimeConversionSpec( weights, ( toAxisRange.first,  toAxisRange.last ) )
+  def apply ( weights: Map[Int,RemapElem], toAxisRange: ma2.Range, toCoordRange: (Long,Long) ): TimeConversionSpec = {
+    new TimeConversionSpec( weights, ( toAxisRange.first,  toAxisRange.last ), toCoordRange )
   }
 }
-class TimeConversionSpec( val weights: Map[Int,RemapElem], val toAxisRange: (Int,Int) ) extends Serializable {
+class TimeConversionSpec( val weights: Map[Int,RemapElem], val toAxisRange: (Int,Int), val toCoordRange: (Long,Long) ) extends Serializable {
   def mapOrigin( old_origin: Array[Int] ): Array[Int] = {
     old_origin.zipWithIndex.map{ case (o,i) => if( i == 0 ) ( toAxisRange._1 ) else o }
   }
   def toSize = toAxisRange._2 - toAxisRange._1 + 1
+  def getPartKey: PartitionKey = PartitionKey( toCoordRange._1, toCoordRange._2, toAxisRange._1, toAxisRange._2-toAxisRange._1 )
 }
 
 object TimeAxisConverter {
@@ -37,7 +39,8 @@ class TimeAxisConverter( val toAxis: CoordinateAxis1DTime, val fromAxis: Coordin
       val (w0,w1) = ( cd0.getDifferenceInMsecs(cdate0)/dt, cdate0.getDifferenceInMsecs(cd1)/dt )
       buf += ( index -> new RemapElem( fromIndex, w0.toFloat, w1.toFloat ) )
     }
-    new TimeConversionSpec( Map( buf: _* ), toAxisRange )
+    val toCoordRange = ( toAxis.getCalendarDate(toAxisRange._1).getMillis, toAxis.getCalendarDate(toAxisRange._2).getMillis )
+    new TimeConversionSpec( Map( buf: _* ), toAxisRange, toCoordRange )
   }
 
 }

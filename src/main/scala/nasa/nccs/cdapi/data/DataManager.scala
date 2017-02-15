@@ -4,7 +4,7 @@ import nasa.nccs.caching.Partition
 import nasa.nccs.cdapi.cdm.{RemapElem, TimeConversionSpec}
 import nasa.nccs.cdapi.tensors._
 import nasa.nccs.cdas.engine.WorkflowNode
-import nasa.nccs.cdas.engine.spark.{PartitionKey, PartitionKey$, RangePartitioner}
+import nasa.nccs.cdas.engine.spark.{PartitionKey, RangePartitioner}
 import nasa.nccs.cdas.kernels.{KernelContext, zmqPythonKernel}
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.esgf.process.{CDSection, TargetGrid}
@@ -121,7 +121,8 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
     }
 
   def slice( startIndex: Int, size: Int ): HeapFltArray = {
-    val fa = CDFloatArray(toCDFloatArray.slice(startIndex,size))
+    logger.info( s"HeapFltArray: slice --> startIndex:{${startIndex}} size:{${size}} ")
+    val fa = CDFloatArray(toCDFloatArray.slice(0,startIndex,size))
     val origin1 = origin.zipWithIndex.map{ case (o,i) => if( i == 0 ) ( origin(0) + startIndex ) else o }
     new HeapFltArray( fa.getShape, origin, fa.getArrayData(), Some(fa.getInvalid), gridSpec, metadata, _optWeights, fa.getCoordMaps ) // TODO: split weights and coord maps?
   }
@@ -187,7 +188,6 @@ object HeapDblArray {
 
 class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray], metadata: Map[String,String] ) extends MetadataCarrier(metadata) {
   def ++( other: RDDPartition ): RDDPartition = {
-    if( (iPart!=other.iPart) && ! ( (iPart == -1) || (other.iPart == -1) ) ) throw new Exception( "Attempt to merge RDDPartitions with incommensurate partition indices: %d vs %d".format(iPart,other.iPart ) )
     new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
   }
   def hasMultiGrids: Boolean = {
@@ -206,6 +206,7 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray], meta
   }
 
   def slice( startIndex: Int, size: Int ): RDDPartition = {
+    logger.info( s"RDDPartition: slice --> nElems:{${elements.size}} startIndex:{${startIndex}} size:{${size}} ")
     val new_elems = elements.mapValues( _.slice(startIndex,size) )
     new RDDPartition( iPart, new_elems, metadata )
   }
