@@ -39,16 +39,15 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   }
 
   def reduce(mapresult: RDD[(PartitionKey,RDDPartition)], context: KernelContext, kernel: Kernel ): RDDPartition = {
-    logger.info( "\n\n ----------------------- BEGIN reduce Operation: %s (%s) ----------------------- \n".format( context.operation.identifier, context.operation.rid ) )
+    logger.debug( "\n\n ----------------------- BEGIN reduce Operation: %s (%s) ----------------------- \n".format( context.operation.identifier, context.operation.rid ) )
     val t0 = System.nanoTime()
     if( ! kernel.parallelizable ) { mapresult.collect()(0)._2 }
     else {
       val partitioner: RangePartitioner = CDSparkContext.getPartitioner(mapresult).colaesce
       var repart_mapresult = mapresult repartitionAndSortWithinPartitions  partitioner
-      val rddReducer = kernel.getReduceOp(context)
-      val result = repart_mapresult glom() map ( _.fold (( partitioner.range.startPoint, RDDPartition.empty )) (rddReducer) ) collect()  // ERROR: fix reduce Op  _.sortWith(_._1 < _._1)
-      logger.info("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
-      result(0)._2
+      val result = repart_mapresult reduce kernel.getReduceOp(context)
+      logger.debug("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
+      result._2
     }
   }
 
@@ -78,10 +77,10 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
     val toAxis: CoordinateAxis1DTime = targetTrsGrid.getTimeCoordinateAxis.getOrElse( fatal( "Missing time axis for configuration: " + trsOpt.getOrElse("None") ) )
     val toAxisRange: ma2.Range = targetTrsGrid.getFullSection.getRange(0)
     val new_partitioner: RangePartitioner = partitioner.colaesce
-    val fromAxisMap =  gridMap.flatMap { case (uid, grid) =>
-      if( grid.shape(0) != toAxis.getSize )
-        Some(grid.shape(0) -> targetTrsGrid.getTimeCoordinateAxis.getOrElse( fatal( "Missing time axis for kernel input: " + uid ) ) )
-      else None }
+    val conversionGridMap: Map[String,TargetGrid] = gridMap.filter { case (uid, grid) => grid.shape(0) != toAxis.getSize }
+    val fromAxisMap: Map[ Int, CoordinateAxis1DTime ] =  conversionGridMap map { case (uid, grid) => grid.shape(0) ->
+      requestCx.getTargetGrid(uid).getOrElse(throw new Exception("Missing Target Grid: " + uid))
+        .getTimeCoordinateAxis.getOrElse(throw new Exception("Missing Time Axis: " + uid) )    }
     val conversionMap: Map[Int,TimeConversionSpec] = fromAxisMap mapValues ( fromAxis => { val converter = TimeAxisConverter( toAxis, fromAxis, toAxisRange ); converter.computeWeights(); } ) map (identity)
     CDSparkContext.coalesce( input ).map { case ( pkey, rdd_part ) => ( new_partitioner.range, rdd_part.reinterp( conversionMap ) ) } repartitionAndSortWithinPartitions new_partitioner
   }
@@ -192,7 +191,6 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val result = node.kernel.postRDDOp( pre_result, kernelContext  )
     val t2 = System.nanoTime()
     logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec, postOp time = %.3f sec   ********** \n".format(node.kernel.name,node.kernel.id, node.operation.identifier, (t2 - t0) / 1.0E9, (t2 - t1) / 1.0E9))
-    //    logger.info( "\n\nResult partition elements= %s \n\n".format( result.elements.values.map( cdsutils.toString(_) ) ) )
     val response = createResponse( result, requestCx, node )
     if( Try( requestCx.config("unitTest","false").toBoolean ).getOrElse(false)  ) { node.kernel.cleanUp(); }
     response

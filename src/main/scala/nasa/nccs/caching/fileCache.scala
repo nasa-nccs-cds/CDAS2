@@ -81,7 +81,7 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
   def data(missing_value: Float): CDFloatArray = {
     val file = new RandomAccessFile(path, "r")
     val channel: FileChannel = file.getChannel()
-    logger.info(s" *** Mapping channel for Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s), path=%s".format( shape.mkString(","), path ))
+    logger.debug(s" *** Mapping channel for Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s), path=%s".format( shape.mkString(","), path ))
     val buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, partSize * sliceMemorySize)
     channel.close(); file.close()
     new CDFloatArray(shape, buffer.asFloatBuffer, missing_value)

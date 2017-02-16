@@ -81,7 +81,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     val MERRA2_mon_variable = s"""{"uri":"collection:/merra2.6hr.ta.2000_2005","name":"ta:v1","domain":"d0"}"""
     val datainputs = s"""[variable=[$CFSR_6hr_variable,$MERRA2_mon_variable],domain=[{"name":"d0","lat":{"start":0,"end":30,"system":"values"},"lon":{"start":0,"end":30,"system":"values"}},{"name":"d1","crs":"~v1","trs":"~v0"}],operation=[{"name":"CDSpark.diff2","input":"v0,v1","domain":"d1"}]]""".replaceAll("\\s", "")
     val result_node = executeTest(datainputs)
-    val result_data = CDFloatArray( getResultData( result_node ) )
+    val result_data = CDFloatArray( getResultData( result_node ).slice(0,0,10) )
     println( " ** Op Result:       " + result_data.mkDataString(", ") )
   }
 

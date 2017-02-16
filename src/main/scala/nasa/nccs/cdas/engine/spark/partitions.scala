@@ -85,9 +85,12 @@ class PartitionKey( start: Long, end: Long, val elemStart: Int, val numElems: In
     if ( istart <= iend ) {
       val ( ielemStart, ielemEnd ) = ( Math.max( elemStart, other.elemStart ),  Math.min( elemEnd, other.elemEnd ) )
       val result = Some( PartitionKey( istart, iend, ielemStart, ielemEnd-ielemStart ) )
-      logger.info( s"PartitionKey Intersect: ${toString} + ${other.toString} => ${result.toString} ")
+      logger.debug( s"  @@ PartitionKey Intersect: ${toString} + ${other.toString} => ${result.toString} ")
       result
-    }  else None
+    }  else {
+      logger.debug( s"  @@ PartitionKey **NO** Intersect: ${toString} + ${other.toString} ")
+      None
+    }
   }
   override def print( implicit strRep: StrRep ) = s"{ ${strRep(start)}<->${strRep(end)}, ${elemStart}<->${elemEnd} }"
 }
@@ -131,7 +134,7 @@ class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitio
 
   def intersect( key: PartitionKey ): IndexedSeq[PartitionKey]= {
     val (startIndex, endIndex) = (getPartIndexFromLocation(key.start), getPartIndexFromLocation(key.end-1))
-    val partKeys = (startIndex until endIndex) flatMap ( index => partitions.get(index) )
+    val partKeys = (startIndex to endIndex) flatMap ( index => partitions.get(index) )
     partKeys flatMap ( partkey => partkey.intersect(key) )
   }
 

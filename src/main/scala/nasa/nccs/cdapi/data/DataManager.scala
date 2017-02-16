@@ -103,7 +103,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
 
   def append( other: HeapFltArray ): HeapFltArray = {
     verifyGrids( other )
-    logger.info( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
+    logger.debug( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
     if( origin(0) < other.origin(0) ) {
       if( origin(0) + shape(0) != other.origin(0) ) throw new Exception( "Appending non-contiguous arrays" )
       HeapFltArray(toCDFloatArray.append(other.toCDFloatArray), origin, gridSpec, mergeMetadata("merge", other), toCDWeightsArray.map(_.append(other.toCDWeightsArray.get)))
@@ -121,7 +121,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
     }
 
   def slice( startIndex: Int, size: Int ): HeapFltArray = {
-    logger.info( s"HeapFltArray: slice --> startIndex:{${startIndex}} size:{${size}} ")
+    logger.debug( s"HeapFltArray: slice --> startIndex:{${startIndex}} size:{${size}} ")
     val fa = CDFloatArray(toCDFloatArray.slice(0,startIndex,size))
     val origin1 = origin.zipWithIndex.map{ case (o,i) => if( i == 0 ) ( origin(0) + startIndex ) else o }
     new HeapFltArray( fa.getShape, origin, fa.getArrayData(), Some(fa.getInvalid), gridSpec, metadata, _optWeights, fa.getCoordMaps ) // TODO: split weights and coord maps?
@@ -169,7 +169,7 @@ class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data, getMissing() )
 
   def append( other: ArrayBase[Double] ): ArrayBase[Double]  = {
-    logger.info( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
+    logger.debug( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
     if( origin(0) < other.origin(0) ) {
       assert( origin(0) + shape(0) == other.origin(0), "Appending non-contiguous arrays" )
       HeapDblArray(toCDDoubleArray.append(other.toCDDoubleArray), origin, mergeMetadata("merge", other))
@@ -253,7 +253,7 @@ class RDDPartSpec(val partition: Partition, val timeRange: PartitionKey, val var
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition)) ): _* )
     val rv = RDDPartition( elements )
-    logger.info( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
+    logger.debug( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
     rv
   }
 
@@ -269,7 +269,7 @@ class RDDPartSpec(val partition: Partition, val timeRange: PartitionKey, val var
 class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val missing: Float, val section: CDSection  ) extends Serializable with Loggable {
 
   def toHeapArray( partition: Partition ) = {
-    logger.info( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
+    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
     HeapFltArray( partition.dataSection(section, missing), section.getOrigin, metadata, None )
   }
   def empty = section.getShape.contains(0)

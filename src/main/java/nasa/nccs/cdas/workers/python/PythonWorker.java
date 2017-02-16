@@ -26,7 +26,6 @@ public class PythonWorker extends Worker {
             pb.redirectErrorStream( true );
             pb.redirectOutput( ProcessBuilder.Redirect.appendTo( log_path.toFile() ));
             logger.info( " *** Starting Python Worker: pycdas.worker.Worker --> request_port = " + String.valueOf(request_port)+ ", result_port = " + String.valueOf(result_port));
-            logger.info( " --> Environment: " + env.toString() );
             return pb.start();
         } catch ( IOException ex ) {
             throw new Exception( "Error starting Python Worker : " + ex.toString() );
