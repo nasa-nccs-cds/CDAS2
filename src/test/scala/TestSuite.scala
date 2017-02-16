@@ -133,7 +133,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     val GISS_E2R_variables = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_E2R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
     val datainputs = s"""[
            variable=[$GISS_H_variables,$GISS_E2R_variables],
-           domain=[       {"name":"d0","time":{"start":0,"end":1,"system":"indices"}},{"name":"d1","crs":"gaussian~128"}],
+           domain=[       {"name":"d0","time":{"start":"1985-01-01T00:00:00Z","end":"1985-04-04T00:00:00Z","system":"values"}},{"name":"d1","crs":"gaussian~128"}],
            operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
                           {"name":"CDSpark.multiAverage","input":"${GISS_E2R_vids.mkString(",")}","domain":"d0","id":"eaGISS-E2R"},
                           {"name":"CDSpark.multiAverage","input":"eaGISS-E2R,eaGISS-H","domain":"d1","result":"esgfDemo"} ]

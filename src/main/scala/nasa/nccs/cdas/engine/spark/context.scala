@@ -43,7 +43,13 @@ object CDSparkContext extends Loggable {
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false, false ) ) )
 
   def merge(rdd0: RDD[(PartitionKey,RDDPartition)], rdd1: RDD[(PartitionKey,RDDPartition)] ): RDD[(PartitionKey,RDDPartition)] = {
-    val mergedRdd = rdd0.join( rdd1, rdd0.partitioner.get ) mapValues { case (part0,part1) => part0 ++ part1  } map identity
+    val mergedRdd = rdd0.join( rdd1 ) mapValues { case (part0,part1) => part0 ++ part1  } map identity
+    if ( mergedRdd.isEmpty() ) {
+      val keys0 = rdd0.keys.collect()
+      val keys1 = rdd1.keys.collect()
+      logger.error( s"Empty merge ==> keys0: ${keys0.mkString(",")} keys1: ${keys1.mkString(",")}")
+      throw new Exception( "Empty merge" )
+    }
     val result = rdd0.partitioner match { case Some(p) => mergedRdd.partitionBy(p); case None => rdd1.partitioner match { case Some(p) => mergedRdd.partitionBy(p); case None => mergedRdd } }
     result
   }

@@ -87,9 +87,8 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
 
   def mapReduce( kernelContext: KernelContext, requestCx: RequestContext ): RDDPartition = {
     val inputs = prepareInputs( kernelContext, requestCx )
-    val nparts = inputs.getNumPartitions
-    logger.info( "MAP_REDUCE on RDD, nparts = " + nparts )
     val mapresult = map( inputs, kernelContext, kernel )
+    val nparts = mapresult.getNumPartitions
     val result = if(nparts == 1) { mapresult.collect()(0)._2 } else { reduce( mapresult, kernelContext, kernel ) }
     result.configure( "gid", kernelContext.grid.uid )
   }
@@ -233,6 +232,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
           throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
       }
     }
+    val testRddInputs = rawRddMap.mapValues( _.collect() )
     val unifiedRDD = unifyRDDs( rawRddMap, kernelContext, requestCx, node )
     unifyGrids( unifiedRDD, requestCx, kernelContext, node )
   }
@@ -246,15 +246,14 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val tPartitioner = CDSparkContext.getPartitioner(trsRdd)
     val convertedRdds = rddMap.values map( rdd => {
       val partitioner = CDSparkContext.getPartitioner(rdd)
-      if( partitioner.equals(tPartitioner) ) { rdd }
-      else {
+      val repart_result = if (partitioner.equals(tPartitioner)) {
+        rdd
+      } else {
         val convertedResult = if( CDSparkContext.getPartitioner(rdd).numElems != tPartitioner.numElems ) { node.timeConversion( rdd, tPartitioner, kernelContext, requestCx ) } else { rdd }
-        val collected_convertedResult = convertedResult.collect()
-        val repart_result  = CDSparkContext.repartition( convertedResult, tPartitioner )
-        val collected_repart_result = repart_result.collect()
-        if( node.getKernelOption("parallelize","true").toBoolean ) { repart_result }
-        else {  CDSparkContext.coalesce( repart_result ) }
+        CDSparkContext.repartition( convertedResult, tPartitioner )
       }
+      if( node.getKernelOption("parallelize","true").toBoolean ) { repart_result }
+      else {  CDSparkContext.coalesce( repart_result ) }
     } )
     if( convertedRdds.size == 1 ) convertedRdds.head
     else convertedRdds.tail.foldLeft( convertedRdds.head )( CDSparkContext.merge )

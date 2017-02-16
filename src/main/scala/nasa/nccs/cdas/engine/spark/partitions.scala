@@ -43,7 +43,7 @@ class LongRange(val start: Long, val end: Long ) extends Serializable {
     LongRange( start, that.end )
   }
   def contains( loc: Long ): Boolean = ( loc >= start ) && ( loc < end )
-  def locate( loc: Long ): Int = if ( loc < start ) -1 else if ( loc >= end ) 1 else 0
+  def locate( loc: Long ): Int = if ( loc < start ) -1 else if ( (loc >= end) && (end > start) ) 1 else 0
   def print( implicit strRep: StrRep ) = s"${strRep(start)}<->${strRep(end)}"
   override def toString = print
 }
@@ -142,7 +142,8 @@ class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitio
 
   def colaesce: RangePartitioner = RangePartitioner( List( range ) )
 
-  def getPartIndexFromLocation( loc: Long ) = findPartIndex( estPartIndexAtLoc( loc ), loc )
+  def getPartIndexFromLocation( loc: Long ) =
+    findPartIndex( estPartIndexAtLoc( loc ), loc )
 
   override def getPartition( key: Any ): Int = {
     val index: Int = key match {

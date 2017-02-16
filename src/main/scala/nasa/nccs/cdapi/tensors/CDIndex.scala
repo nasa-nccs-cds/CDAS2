@@ -181,7 +181,8 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
     assert(ranges.size == rank, "Bad ranges [] length")
     for( ii <-(0 until rank); r = ranges(ii); if( isActive(r) && (r != ma2.Range.EMPTY) )) {
       assert ((r.first >= 0) && (r.first < shape(ii)), "Bad range starting value at index " + ii + " => " + r.first + ", shape = " + shape(ii) )
-      assert ((r.last >= 0) && (r.last < shape(ii)), "Bad range ending value at index " + ii + " => " + r.last + ", shape = " + shape(ii) )
+      if( ( r.last < 0 ) || ( r.last >= shape(ii) ) )
+        throw new Exception( "Bad range ending value at index " + ii + " => " + r.last + ", shape = " + shape(ii) )
     }
     var __offset: Int = _offset
     val _shape: Array[Int] = Array.fill[Int](rank)(0)

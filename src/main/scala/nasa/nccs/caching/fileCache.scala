@@ -97,9 +97,14 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
   def nChunks = math.ceil(partSize / chunkSize.toDouble).toInt
   def endIndex = startIndex + partSize - 1
   def getPartitionKey( grid: TargetGrid ): PartitionKey = {
-    val startMS = grid.getCalendarDate(origin(0)+startIndex).getMillis
-    val endIndex = origin(0)+startIndex+partSize
-    val endMS =  if( (startIndex+partSize) < grid.shape(0) ) grid.getCalendarDate(endIndex).getMillis else grid.getCalendarDate(endIndex-1).getMillis + 1
+    val start = origin(0)+startIndex
+    val startDate = grid.getCalendarDate(start)
+    val startDateStr = startDate.toString
+    val startMS = startDate.getMillis
+    val end = Math.min( start+partSize, grid.shape(0)-1 )
+    val endDate = grid.getCalendarDate(end)
+    val endDateStr = endDate.toString
+    val endMS =  grid.getCalendarDate(end).getMillis
     PartitionKey( startMS, endMS, startIndex, partSize )
   }
 
