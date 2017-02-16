@@ -50,7 +50,7 @@ public abstract class Worker {
     private void invalidateRequest( String errorMsg ) { errorCondition = errorMsg; }
 
     public TransVar getResult() throws Exception {
-        logger.info( "Waiting for result to appear from worker");
+        logger.debug( "Waiting for result to appear from worker");
         while( true ) {
             if( errorCondition != null ) {
                 throw new Exception( errorCondition );
@@ -62,7 +62,7 @@ public abstract class Worker {
     }
 
     public String getMessage() {
-        logger.info( "Waiting for message to be posted from worker");
+        logger.debug( "Waiting for message to be posted from worker");
         while( errorCondition == null ) {
             String message = messages.poll();
             if( message == null ) try { Thread.sleep(100); } catch( Exception err ) { return null; }
@@ -89,7 +89,7 @@ public abstract class Worker {
                 int mtlen = parts[0].length();
                 String pid = mtypes[1];
                 if( mtype.equals("array") ) {
-                    logger.info("Waiting for result data ");
+                    logger.debug("Waiting for result data ");
                     byte[] data = result_socket.recv(0);
                     addResult(result_header, data);
                 } else if( mtype.equals("info") ) {
@@ -147,27 +147,27 @@ public abstract class Worker {
     }
 
 
-    public void sendArrayData( int index, String id, HeapFltArray array ) {
-        _sendArrayData( index, id, array.origin(), array.shape(), array.toByteArray(), array.mdata() );
+    public void sendArrayData( String id, HeapFltArray array ) {
+        _sendArrayData( id, array.origin(), array.shape(), array.toByteArray(), array.mdata() );
     }
 
-    public void sendArrayMetadata( int index, String id, HeapFltArray array ) {
-        _sendArrayMetadata( index, id, array.origin(), array.shape(), array.mdata() );
+    public void sendArrayMetadata( String id, HeapFltArray array ) {
+        _sendArrayMetadata( id, array.origin(), array.shape(), array.mdata() );
     }
 
-    private void _sendArrayData( int index, String id, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
-        logger.info( String.format("Kernel part-%d: Sending data to worker for input %s, nbytes=%d", index, id, data.length ));
+    private void _sendArrayData( String id, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
+        logger.debug( String.format("Kernel: Sending data to worker for input %s, nbytes=%d", id, data.length ));
         List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata), withData );
         String header = String.join("|", slist);
-        logger.info("Sending header: " + header);
+        logger.debug("Sending header: " + header);
         sendDataPacket( header, data );
     }
 
-    private void _sendArrayMetadata( int index, String id, int[] origin, int[] shape, Map<String, String> metadata ) {
-        logger.info( String.format("Kernel part-%d: Sending metadata to worker for input %s", index, id ));
+    private void _sendArrayMetadata( String id, int[] origin, int[] shape, Map<String, String> metadata ) {
+        logger.debug( String.format("Kernel: Sending metadata to worker for input %s", id ));
         List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata), withoutData );
         String header = String.join("|", slist);
-        logger.info("Sending header: " + header);
+        logger.debug("Sending header: " + header);
         request_socket.send(header);
     }
 
@@ -182,9 +182,9 @@ public abstract class Worker {
     public void sendUtility( String request ) {
         List<String> slist = Arrays.asList(  "util", request );
         String header = String.join("|", slist);
-        logger.info( "Sending Utility Request: " + header );
+        logger.debug( "Sending Utility Request: " + header );
         request_socket.send(header);
-        logger.info( "Utility Request Sent!" );
+        logger.debug( "Utility Request Sent!" );
     }
 
     public String getCapabilities() {

@@ -225,22 +225,20 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
 
   def combineRDD(context: KernelContext)(rdd0: RDDPartition, rdd1: RDDPartition, axes: AxisIndices): RDDPartition = {
     val t0 = System.nanoTime
-    //    logger.info("&COMBINE: start OP %s (%d <-> %d)".format( context.operation.name, rdd0.iPart, rdd1.iPart  ) )
-    val ascending = rdd0.iPart < rdd1.iPart
     val new_elements = rdd0.elements.flatMap { case (key, element0) =>
       rdd1.elements.get(key) match {
         case Some(element1) =>
           reduceCombineOp match {
             case Some(combineOp) =>
               if (axes.includes(0)) Some(key -> element0.combine(combineOp, element1))
-              else Some(key -> { if(ascending) element0.append(element1) else element1.append(element0) } )
-            case None => Some(key -> { if(ascending) element0.append(element1) else element1.append(element0) } )
+              else Some(key -> element0.append(element1) )
+            case None => Some(key -> element0.append(element1)  )
           }
         case None => None
       }
     }
-    logger.info("&COMBINE: finish OP %s (%d <-> %d), time = %.4f s".format( context.operation.name, rdd0.iPart, rdd1.iPart, (System.nanoTime - t0) / 1.0E9 ) )
-    RDDPartition(rdd0.iPart, new_elements, rdd0.mergeMetadata(context.operation.name, rdd1))
+    logger.debug("&COMBINE: %s, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
+    RDDPartition( new_elements, rdd0.mergeMetadata(context.operation.name, rdd1))
   }
 
   def customReduceRDD(context: KernelContext)(a0: RDDKeyValPair, a1: RDDKeyValPair ): RDDKeyValPair = {
@@ -258,7 +256,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
       case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> { element0.append(element1) } )
     }
     logger.info("&MERGE: complete in time = %.4f s".format( (System.nanoTime - t0) / 1.0E9 ) )
-    new_key -> RDDPartition( rdd0.iPart, new_elements, rdd0.mergeMetadata("merge", rdd1) )
+    new_key -> RDDPartition( new_elements, rdd0.mergeMetadata("merge", rdd1) )
   }
 
   def postOp(result: DataFragment, context: KernelContext): DataFragment = result
@@ -390,7 +388,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
       val element = rid -> HeapFltArray( vTot, vOrigin, array_mdata, wTotOpt )
       val part_mdata = MetadataOps.mergeMetadata( context.operation.name )( a0.metadata, a1.metadata )
       logger.info("weightedValueSumCombiner, values shape = %s, result spec = %s".format(vTot.getShape.mkString(","), a0.metadata.toString))
-      new RDDPartition(a0.iPart, Map(element), part_mdata)
+      new RDDPartition( Map(element), part_mdata)
     }
     else {
       a0 ++ a1
@@ -404,7 +402,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
         val values = fltArray(result, rid)
         val vOrigin: Array[Int] = originArray(result, rid)
         logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(values.getShape.mkString(","), weights_sum.getShape.mkString(","), result.metadata.toString))
-        new RDDPartition( result.iPart, Map(rid -> HeapFltArray( values / weights_sum, vOrigin, arrayMdata(result, "value"), Some( weights_sum.getArrayData() ) ) ), result.metadata )
+        new RDDPartition( Map(rid -> HeapFltArray( values / weights_sum, vOrigin, arrayMdata(result, "value"), Some( weights_sum.getArrayData() ) ) ), result.metadata )
       case None =>
         result
     }
@@ -525,15 +523,12 @@ abstract class DualOperationKernel extends Kernel {
 
 abstract class SingularRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
   override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
-    val key = inputs.iPart
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
     val inputId = context.operation.inputs.headOption.getOrElse("NULL")
-    if( key == 0 ) {
-      val shape = inputs.elements.head._2.shape
-      logger.info(" ##### KERNEL [%s]: Map Op: combine, part = 0, input shape = %s".format( name, shape.mkString(",") ) )
-    }
+    val shape = inputs.elements.head._2.shape
+    logger.debug(" ##### KERNEL [%s]: Map Op: combine, input shape = %s".format( name, shape.mkString(",") ) )
     val elem = inputs.findElements(inputId).headOption match {
       case Some( input_array ) =>
         mapCombineOp match {
@@ -547,14 +542,13 @@ abstract class SingularRDDKernel( options: Map[String,String] ) extends Kernel(o
         }
       case None => throw new Exception( "Missing input to '" + this.getClass.getName + "' map op: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
     }
-    logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( key, Map( elem ) )
+    logger.info("Executed Kernel %s map op, time = %.4f s".format(name, (System.nanoTime - t0) / 1.0E9))
+    RDDPartition( Map( elem ) )
   }
 }
 
 abstract class DualRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
   override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
-    val key = inputs.iPart
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
@@ -567,17 +561,15 @@ abstract class DualRDDKernel( options: Map[String,String] ) extends Kernel(optio
       case None => i0
     }
     val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
-    logger.info("Executed Kernel %s[%d] map op, time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( key, Map( context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
+    logger.info("Executed Kernel %s map op, time = %.4f s".format(name,  (System.nanoTime - t0) / 1.0E9))
+    RDDPartition( Map( context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
   }
 }
 
 abstract class MultiRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
 
   override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
-    val key = inputs.iPart
     val t0 = System.nanoTime
-    logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart ) )
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
     val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[ArrayBase[Float]]())( _ ++ _ )
@@ -589,21 +581,19 @@ abstract class MultiRDDKernel( options: Map[String,String] ) extends Kernel(opti
       val (result_array, countArray) = CDFloatArray.combine( mapCombineWNOp.get, cdFloatArrays )
       result_array / countArray
     } else { throw new Exception("Undefined operation in MultiRDDKernel") }
-    logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9))
+    logger.info("&MAP: Finished Kernel %s, time = %.4f s".format(name, (System.nanoTime - t0) / 1.0E9))
     val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
-    RDDPartition( key, Map( context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
+    RDDPartition( Map( context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
   }
 }
 
 class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "Regridder", "Regrids the inputs using UVCDAT", Map( "parallelize" -> "True" ) ) {
 
   override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
-    val key = inputs.iPart
     val t0 = System.nanoTime
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance
     val worker: PythonWorker = workerManager.getPythonWorker
     try {
-      logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
       val targetGridSpec: String = context.config("gridSpec", inputs.elements.values.head.gridSpec)
       val input_arrays: List[HeapFltArray] = context.operation.inputs.map(id => inputs.findElements(id)).foldLeft(List[HeapFltArray]())(_ ++ _)
       assert(input_arrays.nonEmpty, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
@@ -611,11 +601,11 @@ class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "
       val (acceptable_arrays, regrid_arrays) = input_arrays.partition(_.gridSpec.equals(targetGridSpec))
       if (regrid_arrays.isEmpty) { inputs }
       else {
-        for (input_array <- acceptable_arrays) { worker.sendArrayMetadata(inputs.iPart, input_array.uid, input_array) }
-        for (input_array <- regrid_arrays)     { worker.sendArrayData(inputs.iPart, input_array.uid, input_array) }
+        for (input_array <- acceptable_arrays) { worker.sendArrayMetadata( input_array.uid, input_array) }
+        for (input_array <- regrid_arrays)     { worker.sendArrayData(input_array.uid, input_array) }
         val acceptable_array_map = Map(acceptable_arrays.map(array => array.uid -> array): _*)
 
-        logger.info("Gateway-%d: Executing operation %s".format(inputs.iPart, context.operation.identifier))
+        logger.info("Gateway: Executing operation %s".format( context.operation.identifier ) )
         val context_metadata = indexAxisConf(context.getConfiguration, context.grid.axisIndexMap) + ("gridSpec" -> targetGridSpec )
         val rID = UID()
         worker.sendRequest("python.cdmsModule.regrid-" + rID, regrid_arrays.map(_.uid).toArray, context_metadata )
@@ -627,8 +617,8 @@ class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "
         }
         val array_metadata = input_arrays.head.metadata ++ List("uid" -> context.operation.rid, "gridSpec" -> targetGridSpec )
         val array_metadata_crs = context.crsOpt.map( crs => array_metadata + ( "crs" -> crs ) ).getOrElse( array_metadata )
-        logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s, metadata = %s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9, array_metadata_crs.mkString(";")))
-        RDDPartition(key, Map(resultItems: _*) ++ acceptable_array_map, array_metadata_crs)
+        logger.info("&MAP: Finished Kernel %s, time = %.4f s, metadata = %s".format(name, (System.nanoTime - t0) / 1.0E9, array_metadata_crs.mkString(";")))
+        RDDPartition(Map(resultItems: _*) ++ acceptable_array_map, array_metadata_crs)
       }
     } finally {
       workerManager.releaseWorker( worker )
@@ -649,24 +639,22 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
   override def cleanUp = PythonWorkerPortal.getInstance.shutdown
 
   override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
-    val key = inputs.iPart
     val t0 = System.nanoTime
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance();
     val worker: PythonWorker = workerManager.getPythonWorker();
     try {
-      logger.info("&MAP: Executing Kernel %s[%d]".format(name, inputs.iPart))
       val input_arrays: List[HeapFltArray] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[HeapFltArray]())( _ ++ _ )
       assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
       val operation_input_arrays = context.operation.inputs.flatMap( input_id => inputs.element( input_id ) )
 
       for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
         case Some( input_array ) =>
-          worker.sendArrayData( inputs.iPart, input_id, input_array )
+          worker.sendArrayData( input_id, input_array )
           logger.info( "Kernel part-%d: Finished Sending data to worker" )
         case None =>
           worker.sendUtility( List( "input", input_id ).mkString(";") )
       }
-      logger.info( "Gateway-%d: Executing operation %s".format( inputs.iPart,context.operation.identifier ) )
+      logger.info( "Gateway: Executing operation %s".format( context.operation.identifier ) )
       val metadata = indexAxisConf( context.getConfiguration, context.grid.axisIndexMap )
       worker.sendRequest(context.operation.identifier, context.operation.inputs.toArray, metadata )
       val resultItems = for( input_array <- operation_input_arrays ) yield {
@@ -675,8 +663,8 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
         context.operation.rid + ":" + input_array.uid -> result
       }
       val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
-      logger.info("&MAP: Finished Kernel %s[%d], time = %.4f s, metadata = %s".format(name, inputs.iPart, (System.nanoTime - t0) / 1.0E9, result_metadata.mkString(";") ) )
-      RDDPartition( key, Map(resultItems:_*), result_metadata )
+      logger.info("&MAP: Finished Kernel %s, time = %.4f s, metadata = %s".format(name, (System.nanoTime - t0) / 1.0E9, result_metadata.mkString(";") ) )
+      RDDPartition( Map(resultItems:_*), result_metadata )
     } finally {
       workerManager.releaseWorker( worker )
     }
@@ -686,7 +674,6 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
     val ( k0, k1 ) = ( a0._1, a1._1 )
     val t0 = System.nanoTime
-    logger.info("&MERGE: start (%d <-> %d)".format( rdd0.iPart, rdd1.iPart  ) )
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance
     val worker: PythonWorker = workerManager.getPythonWorker
     val ascending = k0 < k1
@@ -695,9 +682,9 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     rdd0.elements.map {
       case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> {
         val (array0, array1) = if (ascending) (element0, element1) else (element1, element0)
-        val uids = Array( s"${rdd0.iPart}.${array0.uid}", s"${rdd1.iPart}.${array1.uid}" )
-        worker.sendArrayData( rdd0.iPart, uids(0), array0 )
-        worker.sendArrayData( rdd1.iPart, uids(1), array1 )
+        val uids = Array( s"${array0.uid}", s"${array1.uid}" )
+        worker.sendArrayData( uids(0), array0 )
+        worker.sendArrayData( uids(1), array1 )
         worker.sendRequest( context.operation.identifier, uids, Map( "action" -> "reduce", "axes" -> context.getAxes.getAxes.mkString(",") ) )
       })
     }
@@ -707,8 +694,8 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
         val result = HeapFltArray( tvar, element0.missing )
         context.operation.rid + ":" + element0.uid -> result
     }
-    logger.info("&MERGE: finish (%d <-> %d), time = %.4f s".format( rdd0.iPart, rdd1.iPart, (System.nanoTime - t0) / 1.0E9 ) )
-    new_key -> RDDPartition( rdd0.iPart, resultItems, rdd0.mergeMetadata("merge", rdd1) )
+    logger.debug("&MERGE %s: finish, time = %.4f s".format( context.operation.identifier, (System.nanoTime - t0) / 1.0E9 ) )
+    new_key -> RDDPartition( resultItems, rdd0.mergeMetadata("merge", rdd1) )
   }
 
   def indexAxisConf( metadata: Map[String,String], axisIndexMap: Map[String,Int] ): Map[String,String] = {

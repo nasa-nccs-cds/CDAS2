@@ -153,8 +153,8 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
   }*/
 
   def getRDD( uid: String, tVar: OperationTransientInput, tgrid: TargetGrid, partitions: Partitions, opSection: Option[ma2.Section] ): RDD[(PartitionKey,RDDPartition)] = {
-    val rddParts: IndexedSeq[(PartitionKey,RDDPartition)] = partitions.parts.zipWithIndex map
-      { case (part,index) => ( part.getPartitionKey(tgrid) -> RDDPartition( index, tVar.variable.result ) ) }
+    val rddParts: IndexedSeq[(PartitionKey,RDDPartition)] = partitions.parts map
+      { case part => ( part.getPartitionKey(tgrid) -> RDDPartition( tVar.variable.result ) ) }
 //    log( " Create RDD, rddParts = " + rddParts.map(_.toXml.toString()).mkString(",") )
     logger.info( "Creating Transient RDD with <<%d>> paritions".format( rddParts.length ) )
     sparkContext.parallelize(rddParts)

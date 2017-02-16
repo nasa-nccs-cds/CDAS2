@@ -186,9 +186,9 @@ object HeapDblArray {
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], metadata: Map[String,String], missing: Float ): HeapDblArray = HeapDblArray( CDDoubleArray.factory(ucarray,missing), origin, metadata )
 }
 
-class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray], metadata: Map[String,String] ) extends MetadataCarrier(metadata) {
+class RDDPartition( val elements: Map[String,HeapFltArray], metadata: Map[String,String] ) extends MetadataCarrier(metadata) {
   def ++( other: RDDPartition ): RDDPartition = {
-    new RDDPartition( if( iPart >= 0 ) iPart else other.iPart, elements ++ other.elements, metadata ++ other.metadata)
+    new RDDPartition( elements ++ other.elements, metadata ++ other.metadata)
   }
   def hasMultiGrids: Boolean = {
     if( elements.size == 0 ) return false
@@ -202,13 +202,13 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray], meta
         if( array.shape(0) != conversionMap.values.head.toSize )  throw new Exception( s"Unexpected time conversion input size: ${array.shape(0)} vs ${conversionMap.values.head.toSize}" )
         array
     })
-    new RDDPartition( iPart, new_elements, metadata )
+    new RDDPartition( new_elements, metadata )
   }
 
   def slice( startIndex: Int, size: Int ): RDDPartition = {
     logger.info( s"RDDPartition: slice --> nElems:{${elements.size}} startIndex:{${startIndex}} size:{${size}} ")
     val new_elems = elements.mapValues( _.slice(startIndex,size) )
-    new RDDPartition( iPart, new_elems, metadata )
+    new RDDPartition( new_elems, metadata )
   }
 
   def hasMultiTimeScales( trsOpt: Option[String]=None ): Boolean = {
@@ -217,11 +217,10 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray], meta
     elements.exists( item => !(item._2.shape(0)==ntimesteps) )
   }
   def append( other: RDDPartition ): RDDPartition = {
-    logger.info( s"Append Arrays: $iPart +--> ${other.iPart}")
     val commonElems = elements.keySet.union( other.elements.keySet )
     val appendedElems: Set[(String,HeapFltArray)] = commonElems flatMap ( key =>
       other.elements.get(key).fold  (elements.get(key) map (e => key -> e))  (e1 => Some( key-> elements.get(key).fold (e1) (e0 => e0.append(e1)))))
-    new RDDPartition( iPart, Map(appendedElems.toSeq:_*), metadata ++ other.metadata )
+    new RDDPartition( Map(appendedElems.toSeq:_*), metadata ++ other.metadata )
   }
 //  def split( index: Int ): (RDDPartition,RDDPartition) = { }
   def getShape = elements.head._2.shape
@@ -234,14 +233,14 @@ class RDDPartition( val iPart: Int, val elements: Map[String,HeapFltArray], meta
     val values: Iterable[xml.Node] = elements.values.map(_.toXml)
     <partition> {values} </partition>  % metadata
   }
-  def configure( key: String, value: String ): RDDPartition = new RDDPartition( iPart, elements, metadata + ( key -> value ) )
+  def configure( key: String, value: String ): RDDPartition = new RDDPartition( elements, metadata + ( key -> value ) )
 }
 
 object RDDPartition {
-  def apply ( iPart: Int = -1, elements: Map[String,HeapFltArray] = Map.empty,  metadata: Map[String,String] = Map.empty ) = new RDDPartition( iPart, elements, metadata )
-  def apply ( iPart: Int, rdd: RDDPartition ) = new RDDPartition( iPart, rdd.elements, rdd.metadata )
+  def apply ( elements: Map[String,HeapFltArray] = Map.empty,  metadata: Map[String,String] = Map.empty ) = new RDDPartition( elements, metadata )
+  def apply ( rdd: RDDPartition ) = new RDDPartition( rdd.elements, rdd.metadata )
   def merge( rdd_parts: Seq[RDDPartition] ) = rdd_parts.foldLeft( RDDPartition() )( _ ++ _ )
-  def empty: RDDPartition = { new RDDPartition(0, Map.empty[String,HeapFltArray], Map.empty[String,String] ) }
+  def empty: RDDPartition = { new RDDPartition( Map.empty[String,HeapFltArray], Map.empty[String,String] ) }
 }
 
 object RDDPartSpec {
@@ -253,7 +252,7 @@ class RDDPartSpec(val partition: Partition, val timeRange: PartitionKey, val var
   def getRDDPartition: RDDPartition = {
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition)) ): _* )
-    val rv = RDDPartition( partition.index, elements )
+    val rv = RDDPartition( elements )
     logger.info( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
     rv
   }
