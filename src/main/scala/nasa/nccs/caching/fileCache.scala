@@ -100,12 +100,12 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
     val start = origin(0)+startIndex
     val startDate = grid.getCalendarDate(start)
     val startDateStr = startDate.toString
-    val startMS = startDate.getMillis
+    val startTime = startDate.getMillis/1000
     val end = Math.min( start+partSize, grid.shape(0)-1 )
     val endDate = grid.getCalendarDate(end)
     val endDateStr = endDate.toString
-    val endMS =  grid.getCalendarDate(end).getMillis
-    PartitionKey( startMS, endMS, startIndex, partSize )
+    val endTime =  grid.getCalendarDate(end).getMillis/1000
+    PartitionKey( startTime, endTime, startIndex, partSize )
   }
 
   def chunkRange(iChunk: Int): ma2.Range = {

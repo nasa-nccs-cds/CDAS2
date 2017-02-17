@@ -408,11 +408,11 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     }
   }
 
-  def getMontlyBinMap(id: String, timeUnits: String, context: KernelContext): CDCoordMap = {
+  def getMontlyBinMap(id: String, context: KernelContext): CDCoordMap = {
     context.sectionMap.get(id).flatten.map( _.toSection ) match  {
       case Some( section ) =>
         val cdTimeCoordMap: CDTimeCoordMap = new CDTimeCoordMap( context.grid, section )
-        cdTimeCoordMap.getMontlyBinMap( timeUnits, section )
+        cdTimeCoordMap.getMontlyBinMap( section )
       case None => throw new Exception( "Error, can't get section for input " + id )
     }
   }

@@ -155,20 +155,21 @@ class GridCoordSpec( val index: Int, val grid: CDGrid, val coordAxis: Coordinate
     }
   }
 
-  def getCoordinateValues: Array[Double] = _optRange match {
-    case Some(range) =>
-      coordAxis.getAxisType match {
-        case AxisType.Time =>
-          val timeAxis: CoordinateAxis1DTime = getTimeAxis
-          val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
-          timeCalValues.map( _.getMillis.toDouble ).toArray
-        case x =>
-          CDDoubleArray.factory( coordAxis.read(List(range)) ).getArrayData()
+  def getCoordinateValues: Array[Double] = coordAxis.getAxisType match {
+    case AxisType.Time =>
+      val timeAxis: CoordinateAxis1DTime = getTimeAxis
+      val timeCalValues: List[CalendarDate] = _optRange match {
+        case None =>          timeAxis.getCalendarDates.toList
+        case Some(range) =>   timeAxis.getCalendarDates.subList( range.first(), range.last() ).toList
       }
-    case None => CDDoubleArray.factory( coordAxis.read() ).getArrayData()
+      timeCalValues.map( _.getMillis/1000.0 ).toArray
+    case x =>_optRange match {
+      case Some(range) => CDDoubleArray.factory( coordAxis.read(List(range)) ).getArrayData()
+      case None =>        CDDoubleArray.factory( coordAxis.read() ).getArrayData()
+    }
   }
 
-  def getUnits: String =  coordAxis.getUnitsString
+  def getUnits: String =  coordAxis.getUnitsString // coordAxis.getAxisType match { case AxisType.Time => cdsutils.baseTimeUnits case x => coordAxis.getUnitsString }
 
   def getTimeAxis: CoordinateAxis1DTime = grid.getTimeCoordinateAxis match {
     case Some(coordAxis1DTime: CoordinateAxis1DTime) => coordAxis1DTime
@@ -306,7 +307,7 @@ class  GridSection( val grid: CDGrid, val axes: IndexedSeq[GridCoordSpec] ) exte
   def getTimeRange: PartitionKey = grid.getTimeCoordinateAxis match {
     case Some(axis) =>
       val ( t0, t1 ) = ( axis.getCalendarDate(0), axis.getCalendarDate( axis.getSize.toInt-1 ) )
-      PartitionKey( t0.getMillis, t1.getMillis, 0, axis.getSize.toInt )
+      PartitionKey( t0.getMillis/1000, t1.getMillis/1000, 0, axis.getSize.toInt )
     case None =>
       throw new Exception("Can't get time axis for grid " + grid.name)
   }

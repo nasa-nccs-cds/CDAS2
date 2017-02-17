@@ -10,14 +10,15 @@ import java.nio._
 import java.util.Formatter
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
-import nasa.nccs.cdapi.tensors.CDFloatArray
+import nasa.nccs.cdapi.tensors.{CDDoubleArray, CDFloatArray}
 import nasa.nccs.cdas.loaders.XmlResource
 import nasa.nccs.cdas.utilities.appParameters
-import nasa.nccs.utilities.Loggable
+import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset._
 import ucar.nc2.ncml.NcMLReader
 import ucar.nc2.util.DebugFlagsImpl
+import ucar.nc2.constants.CDM
 
 import scala.collection.mutable
 import scala.collection.concurrent
@@ -28,7 +29,7 @@ import scala.xml.XML
 import org.apache.commons.io.IOUtils
 import nasa.nccs.cdas.loaders.Collections
 import nasa.nccs.esgf.process.DataSource
-import ucar.nc2.{Dimension, Group, NetcdfFileWriter, Variable}
+import ucar.nc2._
 
 import scala.concurrent.Future
 
@@ -104,37 +105,60 @@ object CDGrid extends Loggable {
       cvar.getShortName -> (cvar -> newVar)
     }
     val varMap = Map(varTups.toList: _*)
-    val boundsSpecs: Iterable[Option[(String,Variable)]] = for ( (cvar, newVar) <- varMap.values; attr <- cvar.getAttributes ) yield {
-      if( cvar.isCoordinateVariable && attr.getShortName.equals("bounds")) {
-        if( varMap.get( attr.getStringValue(0) ).isDefined ) {
-          gridWriter.addVariableAttribute(newVar, attr)
-          Some( attr.getStringValue(0) -> cvar )
-        } else { None }
-      } else { gridWriter.addVariableAttribute(newVar, attr); None }
+    for ( (cvar, newVar) <- varMap.values; attr <- cvar.getAttributes ) cvar match  {
+      case coordAxis: CoordinateAxis =>
+        if( (coordAxis.getAxisType == AxisType.Time) && ( attr.getShortName.equalsIgnoreCase(CDM.UNITS)) ) {
+        gridWriter.addVariableAttribute(newVar, new Attribute( CDM.UNITS, cdsutils.baseTimeUnits ) )
+      } else {  gridWriter.addVariableAttribute(newVar, attr) }
+      case x => gridWriter.addVariableAttribute(newVar, attr)
     }
-//    val boundsSpecs = for ((cvar, newVar) <- varMap.values; if cvar.isCoordinateVariable) yield {
-//      Option(cvar.findAttribute("bounds")) match {
-//        case Some(bndsAttr) =>
-//          bndsAttr.getStringValue(0) -> cvar
-//        case None =>
-//          val bndsvar = cvar.getShortName + "_bnds"
-//          gridWriter.addVariableAttribute(newVar, new nc2.Attribute("bounds", bndsvar))
-//          bndsvar -> cvar
-//      }
-//    }
     val globalAttrs = Map(ncDataset.getGlobalAttributes.map(attr => attr.getShortName -> attr): _*)
     globalAttrs.mapValues(attr => gridWriter.addGroupAttribute(null, attr))
     gridWriter.create()
-    for ((cvar, newVar) <- varMap.values; if cvar.isCoordinateVariable) {
-      logger.info(" ** Write Variable: " + cvar.getShortName)
-      gridWriter.write(newVar, cvar.read())
+    for ((cvar, newVar) <- varMap.values; if cvar.isCoordinateVariable ) cvar match  {
+      case coordAxis: CoordinateAxis => if( coordAxis.getAxisType == AxisType.Time ) {
+        val ( time_values, bounds ) = FileHeader.getTimeValues( ncDataset, coordAxis )
+        newVar.addAttribute( new Attribute( CDM.UNITS, cdsutils.baseTimeUnits ) )
+        gridWriter.write( newVar, ma2.Array.factory( ma2.DataType.DOUBLE, coordAxis.getShape, time_values ) )
+        varMap.get(coordAxis.getBoundaryRef) match {
+          case Some( ( cvarBnds, newVarBnds )  ) => gridWriter.write( newVarBnds, ma2.Array.factory( ma2.DataType.DOUBLE, cvarBnds.getShape, bounds ) )
+          case None => Unit
+        }
+      } else {
+        gridWriter.write(newVar, coordAxis.read())
+        coordAxis match {
+          case coordAxis1D: CoordinateAxis1D =>
+            varMap.get(coordAxis1D.getBoundaryRef) match {
+              case Some( ( cvarBnds, newVarBnds )  ) =>
+                val bounds: Array[Double] = ((0 until coordAxis1D.getShape(0)) map ( index => coordAxis1D.getCoordBounds(index) )).toArray.flatten
+                gridWriter.write( newVarBnds, ma2.Array.factory( ma2.DataType.DOUBLE, cvarBnds.getShape, bounds ) )
+              case None => Unit
+            }
+          case x => Unit
+        }
+      }
+      case x => Unit
     }
-    for ( ( bndsvar, cvar ) <- boundsSpecs.flatten )  varMap.get(bndsvar) match {
-      case Some((bvar, newVar)) =>
-        logger.info(" ** Write Bounds Variable: " + bvar.getShortName)
-        gridWriter.write(newVar, bvar.read())
-      case None => Unit
-    }
+//    for ( ( bndsvar, cvar ) <- boundsSpecs.flatten )  varMap.get(bndsvar) match {
+//      case Some((bvar, newVar)) =>
+//        cvar match  {
+//          case coordAxis: CoordinateAxis => if( coordAxis.getAxisType == AxisType.Time ) {
+//            bvar match  {
+//              case dsvar: VariableDS =>
+//                val time_values = dsvar.read()
+//                val units = dsvar.getUnitsString()
+//                newVar.addAttribute( new Attribute( CDM.UNITS, cdsutils.baseTimeUnits ) )
+//                gridWriter.write( newVar, ma2.Array.factory( ma2.DataType.DOUBLE, dsvar.getShape, time_values ) )
+//              case x =>
+//                gridWriter.write(newVar, bvar.read())
+//            }
+//          } else {
+//            gridWriter.write(newVar, bvar.read())
+//          }
+//          case x => gridWriter.write(newVar, bvar.read())
+//        }
+//      case None => Unit
+//    }
     gridWriter.close()
   }
 }
@@ -169,6 +193,8 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
       Option( gridDS.findCoordinateAxis( AxisType.Time ) ) map { coordAxis =>
         coordAxis.setCaching(true);
         coordAxis.read();
+        val data = coordAxis.read()
+        val units = coordAxis.getUnitsString()
         CoordinateAxis1DTime.factory( gridDS, coordAxis, new Formatter() )
       }
     } catch {

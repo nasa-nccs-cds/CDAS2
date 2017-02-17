@@ -17,7 +17,9 @@ object BoundsRole extends Enumeration { val Start, End = Value }
 
 object CDSVariable extends Loggable {
   def toCoordAxis1D(coordAxis: CoordinateAxis): CoordinateAxis1D = coordAxis match {
-    case coordAxis1D: CoordinateAxis1D => coordAxis1D
+    case coordAxis1D: CoordinateAxis1D =>
+     //  if( coordAxis1D.getShortName.equalsIgnoreCase("time") ){coordAxis1D.setUnitsString( cdsutils.baseTimeUnits ) }
+      coordAxis1D
     case _ => throw new IllegalStateException("CDSVariable: 2D Coord axes not yet supported: " + coordAxis.getClass.getName)
   }
   def empty = new CDSVariable( null, null )
@@ -42,7 +44,7 @@ class CDSVariable( val name: String, val collection: Collection ) extends Loggab
       { for( dim: nc2.Dimension <- collection.grid.dimensions; name=dim.getFullName; dlen=dim.getLength ) yield getCoordinateAxis( name ) match {
           case None=> <dimension name={name} length={dlen.toString}/>
           case Some(axis)=>
-              val units = axis.getUnitsString
+              val units = axis.getAxisType match { case AxisType.Time =>{cdsutils.baseTimeUnits} case x => axis.getUnitsString }
               <dimension name={name} length={dlen.toString} start={axis.getStart.toString} units={units} step={axis.getIncrement.toString} cfname={axis.getAxisType.getCFAxisName}/>
         }
       }

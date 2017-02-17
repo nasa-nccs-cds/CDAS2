@@ -43,19 +43,19 @@ abstract class IndexMapIterator extends collection.Iterator[Int] {
   def getLength: Int
 }
 
-abstract class TimeIndexMapIterator( val timeOffsets: Array[Double], timeUnits: String, range: ma2.Range  ) extends IndexMapIterator {
+abstract class TimeIndexMapIterator( val timeOffsets: Array[Double], range: ma2.Range  ) extends IndexMapIterator {
   val index_offset: Int = range.first()
-  val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, timeUnits )
+  val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, cdsutils.baseTimeUnits )
   override def getLength: Int =  range.last() - range.first() + 1
   def toDate( cd: CalendarDate ): DateTime = new DateTime( cd.toDate )
   def getCalendarDate( index: Int ) = timeHelper.makeCalendarDateFromOffset( timeOffsets(index) )
 }
 
-class YearOfCenturyIter( timeOffsets: Array[Double], timeUnits: String, range: ma2.Range ) extends TimeIndexMapIterator(timeOffsets,timeUnits,range) {
+class YearOfCenturyIter( timeOffsets: Array[Double], range: ma2.Range ) extends TimeIndexMapIterator(timeOffsets,range) {
   def getValue( count_index: Int ): Int = toDate( getCalendarDate(count_index+index_offset) ).getYearOfCentury
 }
 
-class MonthOfYearIter( timeOffsets: Array[Double], timeUnits: String, range: ma2.Range  ) extends TimeIndexMapIterator(timeOffsets,timeUnits,range) {
+class MonthOfYearIter( timeOffsets: Array[Double], range: ma2.Range  ) extends TimeIndexMapIterator(timeOffsets,range) {
   def getValue( count_index: Int ): Int = {
     val rdate = toDate( getCalendarDate(count_index + index_offset) )
     val dom = rdate.getDayOfMonth
@@ -69,7 +69,7 @@ class MonthOfYearIter( timeOffsets: Array[Double], timeUnits: String, range: ma2
   }
 }
 
-class DayOfYearIter( timeOffsets: Array[Double], timeUnits: String, range: ma2.Range ) extends TimeIndexMapIterator(timeOffsets,timeUnits,range) {
+class DayOfYearIter( timeOffsets: Array[Double], range: ma2.Range ) extends TimeIndexMapIterator(timeOffsets,range) {
   def getValue( count_index: Int ): Int = toDate( getCalendarDate(count_index+index_offset) ).getDayOfYear
 }
 
@@ -309,7 +309,7 @@ class IndexValueAccumulator( start_value: Int = 0 ) {
 }
 
 class CDTimeCoordMap( val gridContext: GridContext, section: ma2.Section ) extends Loggable {
-  val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, "" )
+  val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, cdsutils.baseTimeUnits )
   val timeOffsets: Array[Double] = getTimeAxisData()
   val time_axis_index = gridContext.getAxisIndex("t")
 
@@ -322,22 +322,22 @@ class CDTimeCoordMap( val gridContext: GridContext, section: ma2.Section ) exten
       logger.error( "Cant get Time Axis Data" ); Array.emptyDoubleArray
   }
 
-  def getTimeIndexIterator( resolution: String, timeUnits: String, range: ma2.Range ) = resolution match {
-    case x if x.toLowerCase.startsWith("yea") => new YearOfCenturyIter( timeOffsets, timeUnits, range );
-    case x if x.toLowerCase.startsWith("mon") => new MonthOfYearIter( timeOffsets, timeUnits, range );
-    case x if x.toLowerCase.startsWith("day") => new DayOfYearIter( timeOffsets, timeUnits, range );
+  def getTimeIndexIterator( resolution: String, range: ma2.Range ) = resolution match {
+    case x if x.toLowerCase.startsWith("yea") => new YearOfCenturyIter( timeOffsets, range );
+    case x if x.toLowerCase.startsWith("mon") => new MonthOfYearIter( timeOffsets, range );
+    case x if x.toLowerCase.startsWith("day") => new DayOfYearIter( timeOffsets, range );
   }
 
   def pos_mod(initval: Int, period: Int): Int = if (initval >= 0) initval else pos_mod(initval + period, period)
 
-  def getMontlyBinMap( timeUnits: String, section: ma2.Section ): CDCoordMap = {
-    val timeIter = new MonthOfYearIter( timeOffsets, timeUnits, section.getRange(0) );
+  def getMontlyBinMap( section: ma2.Section ): CDCoordMap = {
+    val timeIter = new MonthOfYearIter( timeOffsets,  section.getRange(0) );
     val accum = new IndexValueAccumulator()
     val timeIndices = for( time_index <- timeIter ) yield {time_index}
     new CDCoordMap( time_axis_index, section.getRange(time_axis_index).first(), timeIndices.toArray )
   }
-  def getTimeCycleMap(period: Int, resolution: String, timeUnits: String, mod: Int, offset: Int, section: ma2.Section ): CDCoordMap = {
-    val timeIter = getTimeIndexIterator( resolution, timeUnits, section.getRange(0) )
+  def getTimeCycleMap(period: Int, resolution: String, mod: Int, offset: Int, section: ma2.Section ): CDCoordMap = {
+    val timeIter = getTimeIndexIterator( resolution, section.getRange(0) )
     val start_value = timeIter.getValue(0)-1
     val accum = new IndexValueAccumulator()
     assert(offset <= period, "TimeBin offset can't be >= the period.")

@@ -41,7 +41,7 @@ class TimeAxisConverter( val toAxis: CoordinateAxis1DTime, val fromAxis: Coordin
       buf += ( index -> new RemapElem( fromIndex, w0.toFloat, w1.toFloat ) )
       logger.debug( s"  TimeAxisConverter ==> Weight[$index]{${cdate0.toString}} from W($w0):I[$fromIndex]:T{${cd0.toString}} - W($w1):I[$toIndex]:T{${cd1.toString}}")
     }
-    val toCoordRange = ( toAxis.getCalendarDate(toAxisRange._1).getMillis, toAxis.getCalendarDate(toAxisRange._2).getMillis )
+    val toCoordRange = ( toAxis.getCalendarDate(toAxisRange._1).getMillis/1000, toAxis.getCalendarDate(toAxisRange._2).getMillis/1000 )
     new TimeConversionSpec( Map( buf: _* ), toAxisRange, toCoordRange )
   }
 
