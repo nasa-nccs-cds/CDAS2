@@ -124,6 +124,15 @@ class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitio
     startIndices
   }
 
+  override def equals( other: Any ): Boolean = other match {
+    case partitioner: RangePartitioner =>
+      ( numParts == partitioner.numParts ) && ( numElems == partitioner.numElems ) && !differentPartitions( partitioner.partitions )
+    case x => super.equals(x)
+  }
+
+  def differentPartitions( parts: Map[Int,PartitionKey] ): Boolean =
+    partitions.exists { case (index,partkey) => parts.get(index) match { case Some(partkey1) => !partkey1.equals(partkey); case None => true } }
+
   def findPartIndex( index: Int, loc: Long ): Int = partitions.get(index) match {
     case None => -1
     case Some( key ) => key.locate( loc ) match {

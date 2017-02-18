@@ -11,8 +11,16 @@ class RegridKernel(CDMSKernel):
         Kernel.__init__( self, KernelSpec("regrid", "Regridder", "Regrids the inputs using UVCDAT", parallize=True ) )
         self._debug = True
 
+    def getGrid(self, gridFilePath, latInterval = None, lonInterval = None ):
+        import cdms2
+        gridfile = cdms2.open(gridFilePath)
+        baseGrid = gridfile.grids.values()[0]
+        if ( (latInterval == None) or (lonInterval == None)  ):  return baseGrid
+        else: return baseGrid.subGrid( latInterval, lonInterval )
+
     def executeOperations(self, task, _inputs):
         cdms2.setAutoBounds(2)
+        self.logger.info( " Execute REGRID Task with metadata: " + str( task.metadata ) )
         crsSpec = task.metadata.get("crs","")
         if( len(crsSpec) and (crsSpec[0] == '~') ):
             crsId = crsSpec[1:]
@@ -26,7 +34,10 @@ class RegridKernel(CDMSKernel):
                     resolution = int(crsToks[1])
                     toGrid = cdms2.createGaussianGrid( resolution )
                 else: raise Exception( "Unrecognized grid type: " + crsToks[0])
-            else: raise Exception( "Can't find crs spec in regrid kernel: " + str(crsToks))
+            else:
+                gridSpec = task.metadata.get("gridSpec","")
+                if not gridSpec: raise Exception( "Can't find crs spec in regrid kernel: " + str(crsToks))
+                toGrid = getGrid( gridSpec )
 
         results = []
         for input_id in task.inputs:
