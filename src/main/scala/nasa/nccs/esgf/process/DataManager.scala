@@ -70,6 +70,7 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
         targetGrid.getGridFile
     }
   }
+
   def getDomain(domain_id: String): DomainContainer = domains.get(domain_id) match {
     case Some(domain_container) => domain_container
     case None => throw new Exception("Undefined domain in ExecutionContext: " + domain_id)
