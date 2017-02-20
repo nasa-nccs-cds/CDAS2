@@ -233,10 +233,10 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val rawRddMap: Map[String,RDD[(PartitionKey,RDDPartition)]] = opInputs.map { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
           val opSection: Option[ma2.Section] = getOpSectionIntersection( dataInput.getGrid, node )
-          uid.split('-')(0) -> executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node )
+          uid -> executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node )
         case ( kernelInput: DependencyOperationInput  ) =>
-          logger.info( "\n\n ----------------------- Stream DEPENDENCY Node: %s -------\n".format( kernelInput.workflowNode.getNodeId() ))
-          uid.split('-')(0) -> kernelInput.workflowNode.stream( requestCx )
+          logger.info( "\n\n ----------------------- Stream DEPENDENCY Node: %s, opID = %s, rID = %s -------\n".format( kernelInput.workflowNode.getNodeId(), kernelInput.workflowNode.operation.identifier, kernelInput.workflowNode.getResultId ))
+          uid -> kernelInput.workflowNode.stream( requestCx )
         case (  x ) =>
           throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
       }
@@ -249,7 +249,10 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   def unifyRDDs( rddMap: Map[String,RDD[(PartitionKey,RDDPartition)]], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ) : RDD[(PartitionKey,RDDPartition)] = {
     val rdds = rddMap.values
     val trsRdd: RDD[(PartitionKey,RDDPartition)] = kernelContext.trsOpt match {
-      case Some(trs) => rddMap.getOrElse(trs.substring(1), throw new Exception( s"Unmatched trs ${trs} in kernel ${kernelContext.operation.name}" ))
+      case Some(trs) => rddMap.keys.find( _.startsWith(trs.substring(1))) match {
+        case Some(trsKey) => rddMap.getOrElse(trsKey, throw new Exception( s"Error retreiving key ${trsKey} from rddMap with keys {${rddMap.keys.mkString(",")}}" ) )
+        case None => throw new Exception( s"Unmatched trs ${trs} in kernel ${kernelContext.operation.name}, keys = {${rddMap.keys.mkString(",")}}" )
+      }
       case None => rdds.head
     }
     val tPartitioner = CDSparkContext.getPartitioner(trsRdd)
