@@ -65,7 +65,7 @@ lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
 lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
 
 cdas_cache_dir := baseDirectory.value / "src" / "universal" / "conf"
-conda_lib_dir := file(System.getenv("CONDA_PREFIX")) / "lib"
+conda_lib_dir := getCondaLibDir
 
 unmanagedResourceDirectories in Test ++= Seq( cdas_cache_dir.value )
 unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_cache_dir.value )
@@ -98,6 +98,12 @@ cdasProperties := {
   }
   prop
 }
+
+def getCondaLibDir(): File = sys.env.get("CONDA_PREFIX") match {
+    case Some(ldir) => file(ldir) / "lib"
+    case None => throw new Exception( "Must initialize the Anaconda environment")
+  }
+
 
 def getCacheDir(): File = {
   val cache_dir = sys.env.get("CDAS_CACHE_DIR") match {
