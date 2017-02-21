@@ -275,7 +275,10 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
       val variable = ncDataset.findVariable(null, varName)
       variable.read(section)
     } catch {
-      case err: Exception => logger.error("Can't read data for variable %s in dataset %s ".format(varName, ncDataset.toString)); throw err
+      case err: Exception =>
+        logger.error("Can't read data for variable %s in dataset %s ".format( varName, ncDataset.getLocation  ));
+        logger.error( err.getStackTrace.map(_.toString).mkString("\n"))
+        throw err
     } finally {
       ncDataset.close()
     }
