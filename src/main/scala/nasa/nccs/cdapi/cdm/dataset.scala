@@ -181,24 +181,35 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
   def findCoordinateAxis(name: String): Option[CoordinateAxis] = {
     val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
     try {
-      Option( gridDS.findCoordinateAxis( name ) ).map( axis => { axis.setCaching(true); axis.read(); axis } )
+      val axisOpt = Option( gridDS.findCoordinateAxis( name ) )
+      axisOpt.map( axis => {
+          axis.setCaching(true);
+          axis.read();
+          axis
+        }
+      )
     } catch {
-      case err: Exception => logger.error("Can't find Coordinate Axis " + name); None
+      case err: Exception =>
+        logger.error("Can't find Coordinate Axis " + name + ", error = " + err.toString );
+        logger.error(err.getStackTrace.mkString("\n"))
+        None
     } finally { gridDS.close() }
   }
 
   def getTimeCoordinateAxis: Option[CoordinateAxis1DTime] = {
     val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
     try {
-      Option( gridDS.findCoordinateAxis( AxisType.Time ) ) map { coordAxis =>
-        coordAxis.setCaching(true);
-        coordAxis.read();
-        val data = coordAxis.read()
-        val units = coordAxis.getUnitsString()
-        CoordinateAxis1DTime.factory( gridDS, coordAxis, new Formatter() )
-      }
+      val axisOpt = Option( gridDS.findCoordinateAxis( "time" ) )
+      axisOpt.map( axis => {
+        axis.setCaching(true);
+        axis.read();
+        CoordinateAxis1DTime.factory( gridDS, axis, new Formatter() )
+      })
     } catch {
-      case err: Exception => logger.error("Can't create time Coordinate Axis for collection " + name); None
+      case err: Exception =>
+        logger.error("Can't create time Coordinate Axis for collection " + name + ", error = " + err.toString );
+        logger.error(err.getStackTrace.mkString("\n"))
+        None
     } finally { gridDS.close() }
   }
 
@@ -206,9 +217,16 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
   def findCoordinateAxis( atype: AxisType ): Option[CoordinateAxis] = {
     val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
     try {
-      Option( gridDS.findCoordinateAxis( atype ) ).map( axis => { axis.setCaching(true); axis.read(); axis } )
+      Option( gridDS.findCoordinateAxis( atype ) ).map( axis => {
+        axis.setCaching(true);
+        axis.read();
+        axis
+      } )
     } catch {
-      case err: Exception => logger.error("Can't find Coordinate Axis with type: " + atype.toString ); None
+      case err: Exception =>
+        logger.error("Can't find Coordinate Axis with type: " + atype.toString + ", error = " + err.toString  );
+        logger.error(err.getStackTrace.mkString("\n"))
+        None
     } finally { gridDS.close() }
   }
 
@@ -271,12 +289,13 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
 
   def readVariableData(varName: String, section: ma2.Section): ma2.Array = {
     val ncDataset: NetcdfDataset = NetcdfDataset.openDataset(dataPath)
+    val variable = ncDataset.findVariable(null, varName)
     try {
-      val variable = ncDataset.findVariable(null, varName)
       variable.read(section)
     } catch {
       case err: Exception =>
-        logger.error("Can't read data for variable %s in dataset %s ".format( varName, ncDataset.getLocation  ));
+        logger.error("Can't read data for variable %s in dataset %s due to error: %s".format( varName, ncDataset.getLocation, err.toString ));
+        logger.error("Variable shape: (%s),  section: { o:(%s) s:(%s) }".format( variable.getShape.mkString(","), section.getOrigin.mkString(","), section.getShape.mkString(",") ));
         logger.error( err.getStackTrace.map(_.toString).mkString("\n"))
         throw err
     } finally {

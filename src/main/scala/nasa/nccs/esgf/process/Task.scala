@@ -379,8 +379,10 @@ class DataFragmentSpec( val uid: String="", val varname: String="", val collecti
     ( new DataFragmentSpec( uid, combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, missing_value, mask ) -> mergeStatus )
   }
   def roi = targetGridOpt match {
-    case None => new ma2.Section( _section )
-    case Some( targetGrid ) => targetGrid.addSectionMetadata( _section )
+    case None =>
+      new ma2.Section( _section )
+    case Some( targetGrid ) =>
+      targetGrid.addSectionMetadata( _section )
   }
   def cdsection: CDSection = CDSection(roi)
 

@@ -77,9 +77,9 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("TimeConvertedDiff") {
-    val CFSR_6hr_variable = s"""{"uri":"collection:/cfsr.monthly.ta.2000_2005","name":"ta:v0","domain":"d0"}"""
-    val MERRA2_mon_variable = s"""{"uri":"collection:/merra2.6hr.ta.2000_2005","name":"ta:v1","domain":"d0"}"""
-    val datainputs = s"""[variable=[$CFSR_6hr_variable,$MERRA2_mon_variable],domain=[{"name":"d0","lat":{"start":0,"end":30,"system":"values"},"lon":{"start":0,"end":30,"system":"values"}},{"name":"d1","crs":"~v1","trs":"~v0"}],operation=[{"name":"CDSpark.diff2","input":"v0,v1","domain":"d1"}]]""".replaceAll("\\s", "")
+    val CFSR_6hr_variable = s"""{"uri":"collection:/CIP_CFSR_6hr_ta","name":"ta:v0","domain":"d0"}"""
+    val MERRA2_mon_variable = s"""{"uri":"collection:/CIP_MERRA2_mon_ta","name":"ta:v1","domain":"d0"}"""
+    val datainputs = s"""[variable=[$CFSR_6hr_variable,$MERRA2_mon_variable],domain=[{"name":"d0","lat":{"start":0,"end":30,"system":"values"},"time":{"start":"2000-01-01T00:00:00Z","end":"2009-12-31T00:00:00Z","system":"values"},"lon":{"start":0,"end":30,"system":"values"}},{"name":"d1","crs":"~v1","trs":"~v0"}],operation=[{"name":"CDSpark.diff2","input":"v0,v1","domain":"d1"}]]""".replaceAll("\\s", "")
     val result_node = executeTest(datainputs)
     val result_data = CDFloatArray( getResultData( result_node ).slice(0,0,10) )
     println( " ** Op Result:       " + result_data.mkDataString(", ") )

@@ -152,7 +152,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
     if( timeRegular || !overwriteTime )
         <netcdf location={fileHeader.filePath} ncoords={fileHeader.nElem.toString}/>
     else
-        <netcdf location={fileHeader.filePath} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.map("%.4f".format(_)).mkString(", ")}/>
+        <netcdf location={fileHeader.filePath} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.map( x => "%d".format(x.toLong)).mkString(", ")}/>
 
 
   def getVariable( variable: nc2.Variable, timeRegularSpecs: Option[(Double,Double)] ): xml.Node = {

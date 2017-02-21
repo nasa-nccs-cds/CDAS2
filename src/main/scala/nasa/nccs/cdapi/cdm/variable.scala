@@ -58,7 +58,10 @@ class CDSVariable( val name: String, val collection: Collection ) extends Loggab
     dims.flatMap( dim => collection.grid.findCoordinateAxis( dim ).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) ) ).toList
   }
   def getCoordinateAxis( axisType: AxisType ): Option[CoordinateAxis1D] = collection.grid.findCoordinateAxis(axisType).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
-  def getCoordinateAxis( name: String ): Option[CoordinateAxis1D] = collection.grid.findCoordinateAxis(name).map( coordAxis => CDSVariable.toCoordAxis1D( coordAxis ) )
+  def getCoordinateAxis( name: String ): Option[CoordinateAxis1D] = {
+    val caxis = collection.grid.findCoordinateAxis(name)
+    caxis.map( CDSVariable.toCoordAxis1D(_) )
+  }
   def getCoordinateAxesList = collection.grid.getCoordinateAxes
 }
 

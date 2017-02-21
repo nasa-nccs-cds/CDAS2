@@ -14,6 +14,7 @@ import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.spark.rdd.RDD
+import ucar.nc2.Dimension
 import ucar.nc2.time.{CalendarDate, CalendarDateRange}
 import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
@@ -270,7 +271,8 @@ object GridSection extends Loggable {
       case Some( coord_axis ) =>
         val domainAxisOpt: Option[DomainAxis] = roiOpt.flatMap(axes => axes.find(da => da.matches( coord_axis.getAxisType )))
         Some( new GridCoordSpec(idim, grid, coord_axis, domainAxisOpt) )
-      case None => logger.warn( "Unrecognized coordinate axis: %s, axes = ( %s )".format( dim, grid.getCoordinateAxes.map( axis => axis.getFullName ).mkString(", ") )); None
+      case None =>
+        logger.warn( "Unrecognized coordinate axis: %s, axes = ( %s )".format( dim, grid.getCoordinateAxes.map( axis => axis.getFullName ).mkString(", ") )); None
     }
     new GridSection( grid, coordSpecs.flatten )
   }
@@ -329,6 +331,11 @@ class  GridSection( val grid: CDGrid, val axes: IndexedSeq[GridCoordSpec] ) exte
   def getRanges( section: ma2.Section ): IndexedSeq[ma2.Range] = for( ir <- section.getRanges.indices; r0 = section.getRange(ir); axspec = getAxisSpec(ir) ) yield new ma2.Range( axspec.getCFAxisName, r0 )
 
   def getSubSection( roi: List[DomainAxis] ): Option[ma2.Section] = {
+//    val coordSystem = grid.coordSystems.head
+//    val roi_axes = for( dim: Dimension  <- coordSystem.getDomain ) roi.find( da => da.getCoordAxisName.matches(dim.getShortName) ) match {
+//      case Some( roi_dim ) => roi_dim
+//      case None => dim
+//    }
     val ranges: IndexedSeq[ma2.Range] = for( gridCoordSpec <- axes ) yield {
       roi.find( _.matches( gridCoordSpec.getAxisType ) ) match {
         case Some( domainAxis ) => {
