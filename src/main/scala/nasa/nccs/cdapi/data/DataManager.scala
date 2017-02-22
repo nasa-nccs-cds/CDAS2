@@ -73,6 +73,7 @@ abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray
   def data:  Array[T]
   def toCDFloatArray: CDFloatArray
   def toCDDoubleArray: CDDoubleArray
+  def toCDLongArray: CDLongArray
   def toUcarFloatArray: ucar.ma2.Array = toCDFloatArray
   def toUcarDoubleArray: ucar.ma2.Array = toCDDoubleArray
   def toCDWeightsArray: Option[CDFloatArray] = None
@@ -99,6 +100,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   }
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, getMissing(), indexMaps )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), getMissing() )
+  def toCDLongArray: CDLongArray = CDLongArray( shape, data.map(_.toLong) )
   def verifyGrids( other: HeapFltArray ) = if( !sameGrid(other) ) throw new Exception( s"Error, attempt to combine arrays with different grids: $gridSpec vs ${other.gridSpec}")
 
   def append( other: HeapFltArray ): HeapFltArray = {
@@ -166,6 +168,7 @@ class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def data: Array[Double] = _data_
   def getMissing( default: Double = Double.MaxValue ): Double = _missing.getOrElse(default)
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), getMissing().toFloat )
+  def toCDLongArray: CDLongArray = CDLongArray( shape, data.map(_.toLong) )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data, getMissing() )
 
   def append( other: ArrayBase[Double] ): ArrayBase[Double]  = {
@@ -184,6 +187,30 @@ class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
 object HeapDblArray {
   def apply( cdarray: CDDoubleArray, origin: Array[Int], metadata: Map[String,String] ): HeapDblArray = new HeapDblArray( cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), metadata )
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], metadata: Map[String,String], missing: Float ): HeapDblArray = HeapDblArray( CDDoubleArray.factory(ucarray,missing), origin, metadata )
+}
+
+class HeapLongArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, val _data_ : Array[Long]=Array.emptyLongArray, _missing: Option[Long]=None, metadata: Map[String,String]=Map.empty ) extends ArrayBase[Long](shape,origin,_missing,metadata)  {
+  def data: Array[Long] = _data_
+  def getMissing( default: Long = Long.MaxValue ): Long = _missing.getOrElse(default)
+  def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), Float.MaxValue )
+  def toCDLongArray: CDLongArray = CDLongArray( shape, data )
+  def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), Double.MaxValue )
+
+  def append( other: ArrayBase[Long] ): ArrayBase[Long]  = {
+    logger.debug( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
+    if( origin(0) < other.origin(0) ) {
+      assert( origin(0) + shape(0) == other.origin(0), "Appending non-contiguous arrays" )
+      HeapLongArray(toCDLongArray.append(other.toCDLongArray), origin, mergeMetadata("merge", other))
+    } else {
+      assert( other.origin(0) + other.shape(0) == origin(0), "Appending non-contiguous arrays" )
+      HeapLongArray(other.toCDLongArray.append(toCDLongArray), other.origin, mergeMetadata("merge", other))
+    }
+  }
+  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={getMissing().toString} > {_data_.mkString(",")} </array> % metadata
+}
+object HeapLongArray {
+  def apply( cdarray: CDLongArray, origin: Array[Int], metadata: Map[String,String] ): HeapLongArray = new HeapLongArray( cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), metadata )
+  def apply( ucarray: ucar.ma2.Array, origin: Array[Int], metadata: Map[String,String], missing: Float ): HeapLongArray = HeapLongArray( CDLongArray.factory(ucarray), origin, metadata )
 }
 
 class RDDPartition( val elements: Map[String,HeapFltArray], metadata: Map[String,String] ) extends MetadataCarrier(metadata) {

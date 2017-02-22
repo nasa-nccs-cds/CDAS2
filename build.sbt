@@ -101,7 +101,7 @@ cdasProperties := {
 
 def getCondaLibDir(): File = sys.env.get("CONDA_PREFIX") match {
     case Some(ldir) => file(ldir) / "lib"
-    case None => throw new Exception( "Must initialize the Anaconda environment")
+    case None => throw new Exception( "Must activate the cdas2 environment in Anaconda: '>> source activate cdas2' ")
   }
 
 

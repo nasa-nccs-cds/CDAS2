@@ -110,9 +110,9 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
   private val nFiles = files.length
   val fileHeaders = NCMLWriter.getFileHeaders(files, nReadProcessors)
   val fileMetadata = FileMetadata(files.head)
-  val overwriteTime = true
   val outerDimensionSize: Int = fileHeaders.foldLeft(0)(_ + _.nElem)
   val ignored_attributes = List( "comments" )
+  val overwriteTime = ( fileHeaders.length > 1 )
 
   def isIgnored( attribute: nc2.Attribute ): Boolean = { ignored_attributes.contains(attribute.getShortName) }
 
@@ -148,7 +148,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
     }
   }
 
-  def getAggDataset(fileHeader: FileHeader, timeRegular: Boolean ): xml.Node =
+  def getAggDataset(fileHeader: FileHeader, timeRegular: Boolean = false ): xml.Node =
     if( timeRegular || !overwriteTime )
         <netcdf location={fileHeader.filePath} ncoords={fileHeader.nElem.toString}/>
     else
@@ -158,8 +158,8 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
   def getVariable( variable: nc2.Variable, timeRegularSpecs: Option[(Double,Double)] ): xml.Node = {
     val axisType = fileMetadata.getAxisType(variable)
     <variable name={variable.getFullName} shape={getDims(variable)} type={variable.getDataType.toString}>
-      { if( axisType == AxisType.Time ) { <attribute name="_CoordinateAxisType" value="Time"/>  <attribute name="units" value={cdsutils.baseTimeUnits}/> }
-        else for (attribute <- variable.getAttributes; if( !isIgnored( attribute ) ) ) yield getAttribute(attribute) }
+      { if( axisType == AxisType.Time )  <attribute name="_CoordinateAxisType" value="Time"/>  <attribute name="units" value={if(overwriteTime) cdsutils.baseTimeUnits else variable.getUnitsString}/>
+      else for (attribute <- variable.getAttributes; if( !isIgnored( attribute ) ) ) yield getAttribute(attribute) }
       { if( (axisType != AxisType.Time) && (axisType != AxisType.RunTime) ) variable match {
         case coordVar: CoordinateAxis1D => getData(variable, coordVar.isRegular)
         case _ => getData(variable, false)
@@ -178,16 +178,17 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
     }
   }
 
-  def getTimeSpecs: Option[(Double,Double)] = {
+  def getTimeSpecs: Option[(Long,Long)] = {
     val t0 = fileHeaders.head.startValue
     val dt = if(fileHeaders.head.nElem > 1) { fileHeaders.head.axisValues(1)-fileHeaders.head.axisValues(0) } else { fileHeaders(1).startValue - fileHeaders(0).startValue }
     Some( t0 -> dt )
   }
 
-  def getAggregation(timeRegular: Boolean ): xml.Node =
+  def getAggregation(timeRegular: Boolean ): xml.Node = {
     <aggregation dimName="time" type="joinExisting">
-      { for( fileHeader <- fileHeaders ) yield { getAggDataset(fileHeader,timeRegular) } }
+      {for (fileHeader <- fileHeaders) yield { getAggDataset(fileHeader, timeRegular) }}
     </aggregation>
+  }
 
   def getNCML: xml.Node = {
     val timeRegularSpecs= None // getTimeSpecs
@@ -255,11 +256,11 @@ object FileHeader extends Loggable {
   }
 
 
-  def getTimeValues( ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index : Int = 0, end_index : Int = -1, stride: Int = 1 ): ( Array[Double], Array[Double] )  = {
+  def getTimeValues( ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index : Int = 0, end_index : Int = -1, stride: Int = 1 ): ( Array[Long], Array[Long] )  = {
     val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory( ncDataset, coordAxis, new Formatter())
     val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
-    val bounds: Array[Double] = ((0 until timeAxis.getShape(0)) map ( index => timeAxis.getCoordBoundsDate(index) map (_.getMillis/1000.0) )).toArray.flatten
-    ( timeCalValues.map( _.getMillis/1000.0 ).toArray, bounds )
+    val bounds: Array[Long] = ((0 until timeAxis.getShape(0)) map ( index => timeAxis.getCoordBoundsDate(index) map (_.getMillis/1000) )).toArray.flatten
+    ( timeCalValues.map( _.getMillis/1000 ).toArray, bounds )
   }
 
   def openNetCDFFile(ncFile: URI, attempt: Int = 0): NetcdfDataset = try {
@@ -273,7 +274,7 @@ object FileHeader extends Loggable {
       throw ex
   }
 
-  def getTimeCoordValues(ncFile: URI): ( Array[Double], Array[Double] ) = {
+  def getTimeCoordValues(ncFile: URI): ( Array[Long], Array[Long] ) = {
     val ncDataset: NetcdfDataset = openNetCDFFile( ncFile )
     Option( ncDataset.findCoordinateAxis( AxisType.Time ) ) match {
       case Some( timeAxis ) =>
@@ -290,13 +291,13 @@ class DatasetFileHeaders( val aggDim: String, val aggFileMap: Seq[FileHeader] ) 
     assert( !aggFileMap.isEmpty, "Error, aggregated dataset has no files!" )
     return aggFileMap.head.nElem
   }
-  def getAggAxisValues: Array[Double] =
-    aggFileMap.foldLeft(Array[Double]()) { _ ++ _.axisValues }
+  def getAggAxisValues: Array[Long] =
+    aggFileMap.foldLeft(Array[Long]()) { _ ++ _.axisValues }
 }
 
-class FileHeader( val filePath: String, val axisValues: Array[Double], val boundsValues: Array[Double], val timeRegular: Boolean ) {
+class FileHeader( val filePath: String, val axisValues: Array[Long], val boundsValues: Array[Long], val timeRegular: Boolean ) {
   def nElem = axisValues.length
-  def startValue: Double = axisValues.headOption.getOrElse( Double.NaN )
+  def startValue: Long = axisValues.headOption.getOrElse( Long.MinValue )
   override def toString: String = " *** FileHeader { path='%s', nElem=%d, startValue=%f } ".format( filePath, nElem, startValue )
 }
 

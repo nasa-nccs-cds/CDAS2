@@ -28,6 +28,7 @@ object CDArray {
       case x: ByteBuffer => new CDByteArray( index, storage.asInstanceOf[ByteBuffer] ).asInstanceOf[CDArray[T]]
       case x: ShortBuffer => new CDShortArray( index, storage.asInstanceOf[ShortBuffer] ).asInstanceOf[CDArray[T]]
       case x: DoubleBuffer => new CDDoubleArray( index, storage.asInstanceOf[DoubleBuffer], invalid.asInstanceOf[Double] ).asInstanceOf[CDArray[T]]
+      case x: LongBuffer => new CDLongArray( index, storage.asInstanceOf[LongBuffer] ).asInstanceOf[CDArray[T]]
       case x => throw new Exception( "Unsupported elem type in CDArray: " + x)
     }
   }
@@ -37,6 +38,7 @@ object CDArray {
     case "double" => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]] )
     case "int"    => IntBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]] )
     case "short"  => ShortBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]] )
+    case "long"  =>  LongBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Long]] )
     case x                => ByteBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Byte]] )
   }
 
@@ -47,6 +49,7 @@ object CDArray {
     case x: FloatBuffer => ma2.DataType.FLOAT
     case x: IntBuffer => ma2.DataType.INT
     case x: ShortBuffer => ma2.DataType.SHORT
+    case x: LongBuffer => ma2.DataType.LONG
     case x: ByteBuffer => ma2.DataType.BYTE
   }
 
@@ -250,6 +253,7 @@ object CDFloatArray extends Loggable with Serializable {
     case "double" => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]].map( _.toFloat ) )
     case "int"    => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toFloat ) )
     case "short"  => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toFloat ) )
+    case "long"  =>  FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Long]].map( _.toFloat ) )
     case x        => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Byte]].map( _.toFloat ) )
   }
 
@@ -257,6 +261,7 @@ object CDFloatArray extends Loggable with Serializable {
     case "float"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]]
     case "double" => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]].map( _.toFloat )
     case "int"    => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toFloat )
+    case "long"    => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Long]].map( _.toFloat )
     case "short"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toFloat )
   }
 
@@ -583,6 +588,60 @@ class CDIntArray( cdIndexMap: CDIndexMap, val intStorage: IntBuffer ) extends CD
     if( maxSize < data.length ) { data.slice(0,maxSize) } else { data }
   }
 }
+
+object CDLongArray {
+  def toArray(buffer: LongBuffer): Array[Long] = if (buffer.hasArray) buffer.array else { val data = for (index: Int <- (0 until buffer.capacity)) yield buffer.get(index); data.toArray }
+  def apply( shape: Array[Int], longData: Array[Long] ): CDLongArray  = new CDLongArray( shape, LongBuffer.wrap(longData) )
+
+  def factory( array: ucar.ma2.Array ): CDLongArray = {
+    val storage = CDLongArray.toLongBuffer( array )
+    new CDLongArray( new CDIndexMap(array.getShape), storage )
+  }
+
+  def toLongBuffer( array: ucar.ma2.Array ): LongBuffer = array.getElementType.toString match {
+    case "float"  => LongBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]].map( _.toLong )  )
+    case "double" => LongBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]].map( _.toLong ) )
+    case "int"    => LongBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toLong ) )
+    case "short"  => LongBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toLong ) )
+    case "long"   => LongBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Long]] )
+    case x        => LongBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Byte]].map( _.toLong ) )
+  }
+}
+
+class CDLongArray( cdIndexMap: CDIndexMap, val longStorage: LongBuffer ) extends CDArray[Long](cdIndexMap,longStorage) {
+
+  protected def getData: LongBuffer = longStorage
+  def getStorageValue( index: StorageIndex ): Long = longStorage.get( index )
+  def setStorageValue( index: StorageIndex, value: Long ): Unit = longStorage.put( index, value )
+
+  def this( shape: Array[Int], storage: LongBuffer ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage )
+  def valid( value: Long ): Boolean = true
+  def getInvalid: Long = Long.MinValue
+  def getStorageArray: Array[Long] = CDLongArray.toArray( longStorage )
+
+  override def dup(): CDLongArray = new CDLongArray( cdIndexMap.getShape, this.getSectionData().asInstanceOf[LongBuffer] )
+  def spawn( shape: Array[Int], fillval: Long ): CDArray[Long] = CDArray( shape, LongBuffer.wrap(Array.fill[Long]( shape.product )(fillval)), getInvalid  )
+  def spawn( index: CDIndexMap, fillval: Long ): CDArray[Long] = CDArray( index, LongBuffer.wrap(Array.fill[Long]( index.getStorageShape.product )(fillval)), getInvalid  )
+
+  def copySectionData(maxSize: Int = Int.MaxValue): LongBuffer = {
+    val array_data_iter = for ( index <- getIterator; if( index<maxSize); value = getStorageValue(index) ) yield value
+    LongBuffer.wrap(array_data_iter.toArray)
+  }
+  def getSectionArray( maxSize: Int = Int.MaxValue ): Array[Long] = {
+    val data = CDLongArray.toArray( getSectionData(maxSize).asInstanceOf[LongBuffer] )
+    if( maxSize < data.length ) { data.slice(0,maxSize) } else { data }
+  }
+  def append( other: CDLongArray ): CDLongArray = {
+    val newIndex = getIndex.append( other.getIndex )
+    val new_storage = LongBuffer.wrap( getStorageArray ++ other.getStorageArray )
+    new CDLongArray( newIndex, new_storage )
+  }
+  def getArrayData(maxSize: Int = Int.MaxValue): Array[Long]  = {
+    val data = if( isStorageCongruent ) getStorageArray else getSectionArray(maxSize)
+    if( maxSize < data.length ) { data.slice(0,maxSize) } else { data }
+  }
+
+}
 object CDShortArray {
   def toArray(buffer: ShortBuffer): Array[Short] = if (buffer.hasArray) buffer.array else { val data = for (index: Int <- (0 until buffer.capacity)) yield buffer.get(index); data.toArray }
 }
@@ -623,6 +682,7 @@ object CDDoubleArray {
     case "double" => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]] )
     case "int"    => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toDouble ) )
     case "short"  => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toDouble ) )
+    case "long"   => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Long]].map( _.toDouble )  )
     case x        => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Byte]].map( _.toDouble ) )
   }
   def toArray(buffer: DoubleBuffer): Array[Double] = if( buffer.hasArray ) buffer.array else { val data =for( index: Int <- (0 until buffer.capacity) ) yield buffer.get( index ); data.toArray }
@@ -636,6 +696,7 @@ object CDDoubleArray {
     case "float"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]].map( _.toDouble )
     case "double" => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]]
     case "int"    => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Int]].map( _.toDouble )
+    case "long"   => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Long]].map( _.toDouble )
     case "short"  => array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Short]].map( _.toDouble )
   }
 

@@ -16,8 +16,7 @@ import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset._
-import ucar.nc2.ncml.NcMLReader
-import ucar.nc2.util.DebugFlagsImpl
+import ucar.ma2.DataType
 import ucar.nc2.constants.CDM
 
 import scala.collection.mutable
@@ -87,7 +86,6 @@ object CDGrid extends Loggable {
       val dimensions = gridDS.getDimensions.toList
       val conv = gridDS.getConventionUsed
       val title = gridDS.getTitle
-      gridDS.writeCDL( new PrintWriter("/tmp/test.cdl"), true )
       new CDGrid(name, gridFilePath, coordAxes, coordSystems, dimensions, dset_attributes)
     } finally {
       gridDS.close()
@@ -100,8 +98,11 @@ object CDGrid extends Loggable {
     logger.info("Creating Grid File at: " + gridFilePath)
     val dimMap = Map(ncDataset.getDimensions.map(d => d.getShortName -> gridWriter.addDimension(null, d.getShortName, d.getLength)): _*)
     val varTups = for (cvar <- ncDataset.getVariables) yield {
-      val newVar = gridWriter.addVariable(null, cvar.getShortName, cvar.getDataType, cvar.getDimensionsString)
-      logger.info("Add Varible: " + cvar.getShortName)
+      val dataType = cvar match {
+        case coordAxis: CoordinateAxis => if(coordAxis.getAxisType == AxisType.Time) DataType.LONG else cvar.getDataType
+        case x => cvar.getDataType
+      }
+      val newVar = gridWriter.addVariable(null, cvar.getShortName, dataType, cvar.getDimensionsString)
       cvar.getShortName -> (cvar -> newVar)
     }
     val varMap = Map(varTups.toList: _*)
@@ -119,9 +120,9 @@ object CDGrid extends Loggable {
       case coordAxis: CoordinateAxis => if( coordAxis.getAxisType == AxisType.Time ) {
         val ( time_values, bounds ) = FileHeader.getTimeValues( ncDataset, coordAxis )
         newVar.addAttribute( new Attribute( CDM.UNITS, cdsutils.baseTimeUnits ) )
-        gridWriter.write( newVar, ma2.Array.factory( ma2.DataType.DOUBLE, coordAxis.getShape, time_values ) )
+        gridWriter.write( newVar, ma2.Array.factory( ma2.DataType.LONG, coordAxis.getShape, time_values ) )
         varMap.get(coordAxis.getBoundaryRef) match {
-          case Some( ( cvarBnds, newVarBnds )  ) => gridWriter.write( newVarBnds, ma2.Array.factory( ma2.DataType.DOUBLE, cvarBnds.getShape, bounds ) )
+          case Some( ( cvarBnds, newVarBnds )  ) => gridWriter.write( newVarBnds, ma2.Array.factory( ma2.DataType.LONG, cvarBnds.getShape, bounds ) )
           case None => Unit
         }
       } else {
@@ -190,7 +191,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
       )
     } catch {
       case err: Exception =>
-        logger.error("Can't find Coordinate Axis " + name + ", error = " + err.toString );
+        logger.error("Can't find Coordinate Axis " + name + " in gridFile " + gridFilePath + " , error = " + err.toString );
         logger.error(err.getStackTrace.mkString("\n"))
         None
     } finally { gridDS.close() }
@@ -207,7 +208,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
       })
     } catch {
       case err: Exception =>
-        logger.error("Can't create time Coordinate Axis for collection " + name + ", error = " + err.toString );
+        logger.error("Can't create time Coordinate Axis for collection " + name + " in gridFile " + gridFilePath + ", error = " + err.toString );
         logger.error(err.getStackTrace.mkString("\n"))
         None
     } finally { gridDS.close() }
@@ -224,7 +225,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
       } )
     } catch {
       case err: Exception =>
-        logger.error("Can't find Coordinate Axis with type: " + atype.toString + ", error = " + err.toString  );
+        logger.error("Can't find Coordinate Axis with type: " + atype.toString + " in gridFile " + gridFilePath + ", error = " + err.toString  );
         logger.error(err.getStackTrace.mkString("\n"))
         None
     } finally { gridDS.close() }
@@ -235,7 +236,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
     try {
       Option( ncDataset.findVariable(varName) )
     } catch {
-      case err: Exception => logger.error("Can't get Variable from grid dataset: " + varName); throw err;
+      case err: Exception => logger.error("Can't get Variable " + varName + " from gridFile " + gridFilePath ); throw err;
     } finally { ncDataset.close() }
   }
 
@@ -251,7 +252,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
         case None => throw new Exception("Can't find variable %s in collection %s".format(varName,name) )
       }
     } catch {
-      case err: Exception => logger.error("Can't get Variable metadata for var: " + varName); throw err;
+      case err: Exception => logger.error("Can't get Variable metadata for var: " + varName + " in gridFile " + gridFilePath ); throw err;
     } finally { ncDataset.close() }
   }
 }

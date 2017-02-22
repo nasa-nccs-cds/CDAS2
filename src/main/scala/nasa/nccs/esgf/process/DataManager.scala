@@ -6,7 +6,7 @@ import nasa.nccs.cdapi.cdm._
 import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, VariableDS}
 import java.util.Formatter
 
-import nasa.nccs.cdapi.data.{ArrayBase, HeapDblArray, HeapFltArray, RDDPartition}
+import nasa.nccs.cdapi.data._
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDDoubleArray, CDFloatArray}
 import nasa.nccs.cdas.engine.spark.{CDSparkContext, PartitionKey, RangePartitioner}
 import nasa.nccs.cdas.kernels.{AxisIndices, KernelContext}
@@ -382,24 +382,26 @@ class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
 
 object GridContext extends Loggable {
   def apply( uid: String, targetGrid: TargetGrid ) : GridContext = {
-    val axisMap: Map[Char,Option[( Int, HeapDblArray )]] = Map( List( 't', 'z', 'y', 'x' ).map( axis => axis -> targetGrid.getAxisCDData(axis) ):_* )
+    val axisMap: Map[Char,Option[( Int, HeapDblArray )]] = Map( List( 'z', 'y', 'x' ).map( axis => axis -> targetGrid.getSpatialAxisData(axis) ):_* )
+    val timeAxis: Option[ HeapLongArray ] = targetGrid.getTimeAxisData
     val cfAxisNames: Array[String] = ( 0 until targetGrid.getRank ).map( dim_index => targetGrid.getCFAxisName( dim_index ) ).toArray
     val axisIndexMap: Map[String,Int] = Map( cfAxisNames.map( cfAxisName => cfAxisName.toLowerCase -> targetGrid.getAxisIndex(cfAxisName) ):_* )
-    new GridContext(uid,axisMap,cfAxisNames,axisIndexMap)
+    new GridContext(uid,axisMap,timeAxis,cfAxisNames,axisIndexMap)
   }
 }
 
-class GridContext(val uid: String, val axisMap: Map[Char,Option[( Int, HeapDblArray )]], val cfAxisNames: Array[String], val axisIndexMap: Map[String,Int] ) extends Serializable {
+class GridContext(val uid: String, val axisMap: Map[Char,Option[( Int, HeapDblArray )]], val timeAxis: Option[ HeapLongArray ], val cfAxisNames: Array[String], val axisIndexMap: Map[String,Int] ) extends Serializable {
   def getAxisIndices( axisConf: String ): AxisIndices = new AxisIndices( axisIds=axisConf.map( ch => getAxisIndex( ch.toString.toLowerCase ) ).toSet )
   def getAxisIndex( cfAxisName: String, default_val: Int = -1 ): Int = axisIndexMap.getOrElse( cfAxisName, default_val )
   def getCFAxisName( dimension_index: Int ): String = cfAxisNames(dimension_index)
-  def getAxisData( axis: Char ): Option[( Int, HeapDblArray )] = axisMap.getOrElse( axis, None )
-  def getAxisData( axis: Char, section: CDSection ): Option[( Int, ma2.Array )] = axisMap.getOrElse( axis, None ).map {
+  def getTimeAxisData: Option[( HeapLongArray )] = timeAxis
+  def getSpatialAxisData( axis: Char ): Option[( Int, HeapDblArray )] = axisMap.getOrElse( axis, None )
+  def getSpatialAxisData( axis: Char, section: CDSection ): Option[( Int, ma2.Array )] = axisMap.getOrElse( axis, None ).map {
     case ( axis_index, array ) => ( axis_index, array.toUcarDoubleArray.section( List( section.getRange(axis_index) ) ) )
   }
-  def getAxisData( axis: Char, section: Option[CDSection] ): Option[( Int, ma2.Array )] = section match {
-    case Some(section) => getAxisData( axis, section );
-    case None => getAxisData( axis ).map { case ( index, array ) => ( index, array.toUcarDoubleArray ) }
+  def getSpatialAxisData( axis: Char, section: Option[CDSection] ): Option[( Int, ma2.Array )] = section match {
+    case Some(section) => getSpatialAxisData( axis, section );
+    case None => getSpatialAxisData( axis ).map { case ( index, array ) => ( index, array.toUcarDoubleArray ) }
   }
 }
 
@@ -450,10 +452,24 @@ class TargetGrid( variable: CDSVariable, roiOpt: Option[List[DomainAxis]]=None )
       axisSpec.index -> axisSpec.coordAxis.read()
     })
   }
-  def getAxisCDData( axis: Char ): Option[( Int, HeapDblArray )] = {
-    grid.getAxisSpec(axis.toString).map(axisSpec => {
-      axisSpec.index -> HeapDblArray( axisSpec.coordAxis.read(), Array(0), axisSpec.getMetadata, variable.missing )
-    })
+  def getSpatialAxisData( axis: Char ): Option[( Int, HeapDblArray )] = {
+    grid.getAxisSpec(axis.toString) match {
+      case Some(axisSpec) => axisSpec.coordAxis.getAxisType match {
+        case AxisType.Time => None
+        case x => Some(axisSpec.index -> HeapDblArray(axisSpec.coordAxis.read(), Array(0), axisSpec.getMetadata, variable.missing))
+      }
+      case None => None
+    }
+  }
+
+  def getTimeAxisData: Option[ HeapLongArray ] = {
+    grid.getAxisSpec("t") match {
+      case Some(axisSpec) => axisSpec.coordAxis.getAxisType match {
+        case AxisType.Time => Some( HeapLongArray( axisSpec.coordAxis.read(), Array(0), axisSpec.getMetadata, variable.missing ) )
+        case x => None
+      }
+      case None => None
+    }
   }
 
   def getBounds( section: ma2.Section ): Option[Array[Double]] = {

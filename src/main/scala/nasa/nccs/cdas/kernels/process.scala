@@ -138,7 +138,7 @@ object KernelUtilities extends Loggable {
       case Some(section) =>
         weighting_type match {
           case "cosine" =>
-            context.grid.getAxisData('y', section) match {
+            context.grid.getSpatialAxisData('y', section) match {
               case Some(axis_data) => computeWeights( weighting_type, Map('y' -> axis_data), section.getShape, Float.MaxValue )
               case None => logger.warn("Can't access AxisData for variable %s => Using constant weighting.".format(inputId)); CDFloatArray.const(section.getShape, 1f)
             }

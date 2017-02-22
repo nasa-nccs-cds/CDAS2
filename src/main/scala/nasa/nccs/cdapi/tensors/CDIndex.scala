@@ -43,7 +43,7 @@ abstract class IndexMapIterator extends collection.Iterator[Int] {
   def getLength: Int
 }
 
-abstract class TimeIndexMapIterator( val timeOffsets: Array[Double], range: ma2.Range  ) extends IndexMapIterator {
+abstract class TimeIndexMapIterator( val timeOffsets: Array[Long], range: ma2.Range  ) extends IndexMapIterator {
   val index_offset: Int = range.first()
   val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, cdsutils.baseTimeUnits )
   override def getLength: Int =  range.last() - range.first() + 1
@@ -51,11 +51,11 @@ abstract class TimeIndexMapIterator( val timeOffsets: Array[Double], range: ma2.
   def getCalendarDate( index: Int ) = timeHelper.makeCalendarDateFromOffset( timeOffsets(index) )
 }
 
-class YearOfCenturyIter( timeOffsets: Array[Double], range: ma2.Range ) extends TimeIndexMapIterator(timeOffsets,range) {
+class YearOfCenturyIter( timeOffsets: Array[Long], range: ma2.Range ) extends TimeIndexMapIterator(timeOffsets,range) {
   def getValue( count_index: Int ): Int = toDate( getCalendarDate(count_index+index_offset) ).getYearOfCentury
 }
 
-class MonthOfYearIter( timeOffsets: Array[Double], range: ma2.Range  ) extends TimeIndexMapIterator(timeOffsets,range) {
+class MonthOfYearIter( timeOffsets: Array[Long], range: ma2.Range  ) extends TimeIndexMapIterator(timeOffsets,range) {
   def getValue( count_index: Int ): Int = {
     val rdate = toDate( getCalendarDate(count_index + index_offset) )
     val dom = rdate.getDayOfMonth
@@ -69,7 +69,7 @@ class MonthOfYearIter( timeOffsets: Array[Double], range: ma2.Range  ) extends T
   }
 }
 
-class DayOfYearIter( timeOffsets: Array[Double], range: ma2.Range ) extends TimeIndexMapIterator(timeOffsets,range) {
+class DayOfYearIter( timeOffsets: Array[Long], range: ma2.Range ) extends TimeIndexMapIterator(timeOffsets,range) {
   def getValue( count_index: Int ): Int = toDate( getCalendarDate(count_index+index_offset) ).getDayOfYear
 }
 
@@ -310,16 +310,14 @@ class IndexValueAccumulator( start_value: Int = 0 ) {
 
 class CDTimeCoordMap( val gridContext: GridContext, section: ma2.Section ) extends Loggable {
   val timeHelper = new ucar.nc2.dataset.CoordinateAxisTimeHelper( Calendar.gregorian, cdsutils.baseTimeUnits )
-  val timeOffsets: Array[Double] = getTimeAxisData()
+  val timeOffsets: Array[Long] = getTimeAxisData
   val time_axis_index = gridContext.getAxisIndex("t")
 
   def getDates(): Array[String] = { timeOffsets.map( timeHelper.makeCalendarDateFromOffset(_).toString ) }
 
-  def getTimeAxisData(): Array[Double] = gridContext.getAxisData('t') match {
-    case Some(( index, array )) =>
-      array.data
-    case None =>
-      logger.error( "Cant get Time Axis Data" ); Array.emptyDoubleArray
+  def getTimeAxisData(): Array[Long] = gridContext.getTimeAxisData match {
+    case Some(array) =>  array.data
+    case None => logger.error( "Cant get Time Axis Data" ); Array.emptyLongArray
   }
 
   def getTimeIndexIterator( resolution: String, range: ma2.Range ) = resolution match {
