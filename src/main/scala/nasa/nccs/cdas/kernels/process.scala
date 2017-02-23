@@ -197,7 +197,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
           case CDFloatArray.customOp => customReduceRDD(context)
           case op => reduceRDDOp(context)
         }
-        case None => throw new Exception("Undefined reduce operation for parallelizable kernel")
+        case None => reduceRDDOp(context)
       }
     } else {
       mergeRDD(context)
