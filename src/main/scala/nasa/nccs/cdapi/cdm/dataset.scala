@@ -802,12 +802,12 @@ object writeTest extends App {
 */
 
 
-object readTest extends App {
-  val  gridFilePath =  "/Users/tpmaxwel/.cdas/cache/collections/NCML/cip_cfsr_6hr_ta.nc"
-  val dset = NetcdfDataset.acquireDataset(gridFilePath, null)
-  val axis = dset.findCoordinateAxis( "time" )
-  axis.setCaching(true)
-  val axis1D = CoordinateAxis1DTime.factory( dset, axis, new Formatter() )
-  print( s"${axis1D.getSize} ${axis1D.getShape} \n" )
-  dset.close()
-}
+//object readTest extends App {
+//  val  gridFilePath =  "/Users/tpmaxwel/.cdas/cache/collections/NCML/cip_cfsr_6hr_ta.nc"
+//  val dset = NetcdfDataset.acquireDataset(gridFilePath, null)
+//  val axis = dset.findCoordinateAxis( "time" )
+//  axis.setCaching(true)
+//  val axis1D = CoordinateAxis1DTime.factory( dset, axis, new Formatter() )
+//  print( s"${axis1D.getSize} ${axis1D.getShape} \n" )
+//  dset.close()
+//}

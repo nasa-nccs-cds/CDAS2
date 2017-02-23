@@ -161,7 +161,11 @@ class CDASPortal:
     def sendMessage( self, type, msgStrs = [""] ):
         msgId = self.randomId(8)
         self.logger.info( "Sending {0} request {1} on port {2}.".format( type, msgStrs, self.request_port )  )
-        self.request_socket.send( "!".join( [msgId,type] + msgStrs ) )
+        try:
+            message = "!".join( [msgId,type] + msgStrs )
+            self.request_socket.send( message )
+        except zmq.error.ZMQError as err:
+            self.logger.error("Error sending message {0} on request socket: {1}".format( message, str(err) ) )
         return msgId
 
 class AppThread(Thread):
