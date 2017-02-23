@@ -185,7 +185,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
       val axisOpt = Option( gridDS.findCoordinateAxis( name ) )
       axisOpt.map( axis => {
           axis.setCaching(true);
-          axis.read();
+          axis.read()
           axis
         }
       )
@@ -203,7 +203,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
       val axisOpt = Option( gridDS.findCoordinateAxis( "time" ) )
       axisOpt.map( axis => {
         axis.setCaching(true);
-        axis.read();
+        axis.read()
         CoordinateAxis1DTime.factory( gridDS, axis, new Formatter() )
       })
     } catch {
@@ -220,7 +220,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
     try {
       Option( gridDS.findCoordinateAxis( atype ) ).map( axis => {
         axis.setCaching(true);
-        axis.read();
+        axis.read()
         axis
       } )
     } catch {
@@ -800,3 +800,14 @@ object writeTest extends App {
 
 }
 */
+
+
+object readTest extends App {
+  val  gridFilePath =  "/Users/tpmaxwel/.cdas/cache/collections/NCML/cip_cfsr_6hr_ta.nc"
+  val dset = NetcdfDataset.acquireDataset(gridFilePath, null)
+  val axis = dset.findCoordinateAxis( "time" )
+  axis.setCaching(true)
+  val axis1D = CoordinateAxis1DTime.factory( dset, axis, new Formatter() )
+  print( s"${axis1D.getSize} ${axis1D.getShape} \n" )
+  dset.close()
+}
