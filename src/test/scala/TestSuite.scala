@@ -63,6 +63,14 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
 
   }
 
+//  test("MultiAggregate") {
+//    val collection_path = "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/"
+//    val datainputs = s"""[variable=[{"uri":"collection:/MERRA_DAILY_TEST","path":"$collection_path"}]]"""
+//    val agg_result_node = executeTest (datainputs, false, "util.agg")
+//    logger.info (s"Agg collection MERRA_DAILY_TEST Result: " + printer.format (agg_result_node) )
+//  }
+
+
   test("Cache") {
     for( (model, collection) <- mod_collections ) {
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":150,"system":"indices"}}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
@@ -400,6 +408,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString, "unitTest" -> "true" )
     val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
     val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
+    for( child_node <- response.child ) if ( child_node.label.startsWith("exception")) { throw new Exception( child_node.toString ) }
     println("Completed test '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
     response
   }

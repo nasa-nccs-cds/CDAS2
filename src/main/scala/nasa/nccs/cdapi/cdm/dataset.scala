@@ -329,18 +329,25 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
     }
   }
 
+  def createNCML( pathFile: File, collectionId: String  ): String = {
+    val _ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collectionId).toFile
+    val recreate = appParameters.bool("ncml.recreate", false)
+    if (!_ncmlFile.exists || recreate) {
+      _ncmlFile.getParentFile.mkdirs
+      val ncmlWriter = NCMLWriter(pathFile)
+      ncmlWriter.writeNCML(_ncmlFile)
+    }
+    _ncmlFile.toString
+  }
+
   def getDataFilePath( uri: String, collectionId: String ) : String = ctype match {
     case "csv" =>
-      val _ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collectionId).toFile
-      val recreate = appParameters.bool("ncml.recreate", false)
-      if (!_ncmlFile.exists || recreate) {
-        val pathFile = new File(toFilePath(uri))
-        _ncmlFile.getParentFile.mkdirs
-        val ncmlWriter = NCMLWriter(pathFile)
-        ncmlWriter.writeNCML(_ncmlFile)
-      }
-      _ncmlFile.toString
-    case "file" => toFilePath(uri)
+      val pathFile: File = new File(toFilePath(uri))
+      createNCML( pathFile, collectionId )
+    case "file" =>
+      val pathFile: File = new File(toFilePath(uri))
+      if( pathFile.isDirectory ) createNCML( pathFile, collectionId )
+      else pathFile.toString
     case "dap" => uri
     case _ => throw new Exception( "Unexpected attempt to create Collection data file from ctype " + ctype )
   }
