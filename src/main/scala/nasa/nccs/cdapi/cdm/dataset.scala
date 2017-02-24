@@ -93,9 +93,9 @@ object CDGrid extends Loggable {
   }
 
   def createGridFile(gridFilePath: String, datfilePath: String) = {
+    logger.info( s"Creating grid file $gridFilePath from datfilePath: $datfilePath" )
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset(datfilePath, null)
     val gridWriter = NetcdfFileWriter.createNew(NetcdfFileWriter.Version.netcdf4, gridFilePath, null)
-    logger.info("Creating Grid File at: " + gridFilePath)
     val dimMap = Map(ncDataset.getDimensions.map(d => d.getShortName -> gridWriter.addDimension(null, d.getShortName, d.getLength)): _*)
     val varTups = for (cvar <- ncDataset.getVariables) yield {
       val dataType = cvar match {
