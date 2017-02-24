@@ -123,6 +123,10 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
   val overwriteTime = fileHeaders.length > 1
 
   def isIgnored( attribute: nc2.Attribute ): Boolean = { ignored_attributes.contains(getName(attribute)) }
+  def getDimName( shortName: String ): String = fileMetadata.coordVars.find( v => ( v.getShortName == shortName ) || (v.getShortName.split(':')(0) == shortName.split(':')(0)) ) match {
+    case Some(v) => v.getShortName
+    case None => throw new Exception( s"Coordinate variable ${shortName} does not exist")
+  }
 
 
   def getAttribute(attribute: nc2.Attribute): xml.Node =
@@ -142,7 +146,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
       }
     }
 
-  def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) getName(dim) else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
+  def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) getDimName(dim.getShortName) else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
 
   def getDimension(axis: CoordinateAxis ): Option[xml.Node] = {
     axis match {
