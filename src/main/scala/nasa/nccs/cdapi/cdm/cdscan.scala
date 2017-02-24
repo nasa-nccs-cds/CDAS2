@@ -184,9 +184,12 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
     Some( t0 -> dt )
   }
 
-  def getAggregation(timeRegular: Boolean ): xml.Node = findTimeVariable match {
-    case Some(tvar) =>  <aggregation dimName={tvar.getFullName} type="joinExisting">  { for (fileHeader <- fileHeaders) yield { getAggDataset(fileHeader, timeRegular) } } </aggregation>
-    case None => throw new Exception( s"Can't find time variable, vars: ${fileMetadata.variables.map(_.getFullName).mkString(", ")}")
+  def getAggregation(timeRegular: Boolean ): xml.Node = {
+    val timeVarName = findTimeVariable match {
+      case Some(tvar) => tvar.getFullName
+      case None => { logger.error( s"Can't find time variable, vars: ${fileMetadata.variables.map( v => v.getFullName + ": " + fileMetadata.getAxisType(v).toString ).mkString(", ")}");  "time" }
+    }
+    <aggregation dimName={timeVarName} type="joinExisting">  { for (fileHeader <- fileHeaders) yield { getAggDataset(fileHeader, timeRegular) } } </aggregation>
   }
 
   def findTimeVariable: Option[nc2.Variable] = fileMetadata.variables find ( fileMetadata.getAxisType(_) == AxisType.Time )
