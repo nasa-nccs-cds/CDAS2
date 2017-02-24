@@ -192,7 +192,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
     <aggregation dimName={timeVarName} type="joinExisting">  { for (fileHeader <- fileHeaders) yield { getAggDataset(fileHeader, timeRegular) } } </aggregation>
   }
 
-  def findTimeVariable: Option[nc2.Variable] = fileMetadata.variables find ( fileMetadata.getAxisType(_) == AxisType.Time )
+  def findTimeVariable: Option[nc2.Variable] = fileMetadata.coordVars find ( fileMetadata.getAxisType(_) == AxisType.Time )
 
   def getNCML: xml.Node = {
     val timeRegularSpecs= None // getTimeSpecs
@@ -238,7 +238,10 @@ object FileHeader extends Loggable {
         println("Worker[%d]: Processing file[%d] '%s', start = %.3f, ncoords = %d, time = %.4f ".format(workerIndex, iFile, file, fileHeader.startValue, fileHeader.nElem, (t1 - t0) / 1.0E9))
         if( (iFile % 5) == 0 ) runtime.printMemoryUsage(logger)
         Some(fileHeader)
-      } catch { case err: Exception =>  retryFiles += file; None }
+      } catch { case err: Exception =>
+        println("Worker[%d]: Encountered error Processing file[%d] '%s': '%s'".format(workerIndex, iFile, file, err.toString ) )
+        retryFiles += file; None
+      }
     }
     val secondPass = for (iFile <- retryFiles.indices; file = retryFiles(iFile)) yield {
       println("Worker[%d]: Reprocessing file[%d] '%s'".format(workerIndex, iFile, file ))
