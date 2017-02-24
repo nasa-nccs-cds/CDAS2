@@ -135,7 +135,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
       }
     }
 
-  def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) dim.getDODSName else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
+  def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) getName(dim) else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
 
   def getDimension(axis: CoordinateAxis ): Option[xml.Node] = {
     axis match {
