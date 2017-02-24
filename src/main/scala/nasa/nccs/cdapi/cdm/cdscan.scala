@@ -211,6 +211,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
   }
 
   def writeNCML( ncmlFile: File ) = {
+    logger.info( "Writing NCML File: " + ncmlFile.toString )
     val bw = new BufferedWriter(new FileWriter( ncmlFile ))
     bw.write( getNCML.toString )
     bw.close()

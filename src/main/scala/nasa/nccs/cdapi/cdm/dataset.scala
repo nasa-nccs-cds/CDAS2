@@ -333,6 +333,7 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
     val _ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collectionId).toFile
     val recreate = appParameters.bool("ncml.recreate", false)
     if (!_ncmlFile.exists || recreate) {
+      logger.info( s"Creating NCML file for collection ${collectionId} from path ${pathFile.toString}")
       _ncmlFile.getParentFile.mkdirs
       val ncmlWriter = NCMLWriter(pathFile)
       ncmlWriter.writeNCML(_ncmlFile)
