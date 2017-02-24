@@ -133,7 +133,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
       }
     }
 
-  def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) dim.getShortName else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
+  def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) dim.getFullName else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
 
   def getDimension(axis: CoordinateAxis ): Option[xml.Node] = {
     axis match {
@@ -235,7 +235,7 @@ object FileHeader extends Loggable {
         val t0 = System.nanoTime()
         val fileHeader = FileHeader( file, timeRegular )
         val t1 = System.nanoTime()
-        println("Worker[%d]: Processing file[%d] '%s', start = %d, ncoords = %d, time = %.4f ".format(workerIndex, iFile, file, fileHeader.startValue, fileHeader.nElem, (t1 - t0) / 1.0E9))
+        println("Worker[%d]: Processing file[%d] '%s', start = %s, ncoords = %d, time = %.4f ".format(workerIndex, iFile, file, fileHeader.startDate, fileHeader.nElem, (t1 - t0) / 1.0E9))
         if( (iFile % 5) == 0 ) runtime.printMemoryUsage(logger)
         Some(fileHeader)
       } catch { case err: Exception =>
@@ -307,7 +307,8 @@ class DatasetFileHeaders( val aggDim: String, val aggFileMap: Seq[FileHeader] ) 
 class FileHeader( val filePath: String, val axisValues: Array[Long], val boundsValues: Array[Long], val timeRegular: Boolean ) {
   def nElem = axisValues.length
   def startValue: Long = axisValues.headOption.getOrElse( Long.MinValue )
-  override def toString: String = " *** FileHeader { path='%s', nElem=%d, startValue=%f } ".format( filePath, nElem, startValue )
+  def startDate: String = CalendarDate.of(startValue).toString
+  override def toString: String = " *** FileHeader { path='%s', nElem=%d, startValue=%f startDate=%s} ".format( filePath, nElem, startValue, startDate )
 }
 
 object FileMetadata {
