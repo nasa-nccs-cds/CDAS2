@@ -9,7 +9,7 @@ import scala.collection.JavaConversions._
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.caching.{FragmentPersistence, collectionDataCache}
-import nasa.nccs.cdapi.cdm.{Collection, DiskCacheFileMgr, NCMLWriter}
+import nasa.nccs.cdapi.cdm.{Collection, DiskCacheFileMgr, NCMLWriteManager}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.dataset.NetcdfDataset
 import ucar.{ma2, nc2}
@@ -192,7 +192,7 @@ object Collections extends XmlResource {
   def findNcFile(file: File): Option[File] = {
     file.listFiles.filter( _.isFile ) foreach {
       f =>  if( f.getName.startsWith(".") ) return None
-            else if (NCMLWriter.isNcFile(f)) return Some(f)
+            else if (NCMLWriteManager.isNcFile(f)) return Some(f)
     }
     file.listFiles.filter( _.isDirectory ) foreach { f => findNcFile(f) match { case Some(f) => return Some(f); case None => Unit } }
     None

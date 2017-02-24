@@ -64,7 +64,7 @@ object Collection extends Loggable {
 
 object CDGrid extends Loggable {
   def apply(name: String, datfilePath: String): CDGrid = {
-    val gridFilePath: String = NCMLWriter.getCachePath("NCML").resolve(Collections.idToFile(name, ".nc")).toString
+    val gridFilePath: String = NCMLWriteManager.getCachePath("NCML").resolve(Collections.idToFile(name, ".nc")).toString
     if( !Files.exists( Paths.get(gridFilePath) ) ) { createGridFile(gridFilePath, datfilePath) }
     CDGrid.create(name, gridFilePath)
   }
@@ -330,13 +330,12 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
   }
 
   def createNCML( pathFile: File, collectionId: String  ): String = {
-    val _ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collectionId).toFile
+    val _ncmlFile = NCMLWriteManager.getCachePath("NCML").resolve(collectionId).toFile
     val recreate = appParameters.bool("ncml.recreate", false)
     if (!_ncmlFile.exists || recreate) {
       logger.info( s"Creating NCML file for collection ${collectionId} from path ${pathFile.toString}")
       _ncmlFile.getParentFile.mkdirs
-      val ncmlWriter = NCMLWriter(pathFile)
-      ncmlWriter.writeNCML(_ncmlFile)
+      NCMLWriteManager.writeNetCDFAggregation(pathFile,_ncmlFile,collectionId)
     }
     _ncmlFile.toString
   }
