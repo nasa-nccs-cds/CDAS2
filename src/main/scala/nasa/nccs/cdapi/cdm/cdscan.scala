@@ -37,7 +37,7 @@ object NCMLWriteManager extends Loggable {
         val extension = sampleFile.getName.split('.').last
         metaData.coordVars find ( metaData.getAxisType(_) == AxisType.Time ) match {
           case Some( timeAxis ) =>
-            val aggElem = <?xml version="1.0" encoding="UTF-8"?>
+            val aggElem =
               <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
                 <attribute name="title" type="string" value={collectionId}/>
                 <aggregation type="union">
