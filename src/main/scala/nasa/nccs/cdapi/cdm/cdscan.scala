@@ -239,7 +239,8 @@ object FileHeader extends Loggable {
         if( (iFile % 5) == 0 ) runtime.printMemoryUsage(logger)
         Some(fileHeader)
       } catch { case err: Exception =>
-        println("Worker[%d]: Encountered error Processing file[%d] '%s': '%s'".format(workerIndex, iFile, file, err.toString ) )
+        logger.error("Worker[%d]: Encountered error Processing file[%d] '%s': '%s'".format(workerIndex, iFile, file, err.toString ) )
+        if( (iFile % 10) == 0 ) { logger.error( err.getStackTrace.mkString("\n") )}
         retryFiles += file; None
       }
     }
