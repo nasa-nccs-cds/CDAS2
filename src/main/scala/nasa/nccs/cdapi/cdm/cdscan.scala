@@ -235,7 +235,7 @@ object FileHeader extends Loggable {
         val t0 = System.nanoTime()
         val fileHeader = FileHeader( file, timeRegular )
         val t1 = System.nanoTime()
-        println("Worker[%d]: Processing file[%d] '%s', start = %.3f, ncoords = %d, time = %.4f ".format(workerIndex, iFile, file, fileHeader.startValue, fileHeader.nElem, (t1 - t0) / 1.0E9))
+        println("Worker[%d]: Processing file[%d] '%s', start = %d, ncoords = %d, time = %.4f ".format(workerIndex, iFile, file, fileHeader.startValue, fileHeader.nElem, (t1 - t0) / 1.0E9))
         if( (iFile % 5) == 0 ) runtime.printMemoryUsage(logger)
         Some(fileHeader)
       } catch { case err: Exception =>
