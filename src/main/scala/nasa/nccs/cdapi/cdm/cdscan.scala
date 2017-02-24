@@ -29,10 +29,14 @@ import scala.xml.XML
 object NCMLWriter extends Loggable {
 
   def apply( path: File ): NCMLWriter = { new NCMLWriter( Array(path).iterator ) }
-  def getName( node: CDMNode ): String = Option(node.getGroup) match {
-    case Some(g) => node.getShortName.split(':')(0) + ":" + g.getShortName
-    case None => node.getShortName
-  }
+  def getName( node: nc2.Variable ): String = node.getShortName
+  def getName( node: nc2.Dimension ): String = node.getShortName
+  def getName( node: nc2.Attribute ): String = node.getShortName
+
+//  Option(node.getGroup) match {
+//    case Some(g) => node.getShortName.split(':')(0) + ":" + g.getShortName
+//    case None => node.getShortName
+//  }
   def isNcFileName( fName: String ): Boolean = { val fname = fName.toLowerCase; fname.endsWith(".nc4") || fname.endsWith(".nc") || fname.endsWith(".hdf") || fname.endsWith(".ncml") }
 
   def isNcFile( file: File ): Boolean = { file.isFile && isNcFileName( file.getName.toLowerCase ) }
