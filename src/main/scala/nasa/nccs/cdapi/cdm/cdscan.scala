@@ -29,7 +29,7 @@ import scala.xml.XML
 object NCMLWriter extends Loggable {
 
   def apply( path: File ): NCMLWriter = { new NCMLWriter( Array(path).iterator ) }
-  def getName( node: nc2.Variable ): String = node.getShortName
+  def getName( node: nc2.Variable ): String  = node.getShortName
   def getName( node: nc2.Dimension ): String = node.getShortName
   def getName( node: nc2.Attribute ): String = node.getShortName
 
@@ -216,7 +216,6 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
 
       { for( attribute <- fileMetadata.attributes ) yield getAttribute(attribute) }
       { (for (coordAxis <- fileMetadata.coordinateAxes) yield getDimension(coordAxis)).flatten }
-      { for (variable <- fileMetadata.variables) yield getVariable( variable, timeRegularSpecs ) }
       { for (variable <- fileMetadata.coordVars) yield getVariable( variable, timeRegularSpecs ) }
       { getAggregation( timeRegularSpecs.isDefined ) }
 
