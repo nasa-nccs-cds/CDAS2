@@ -343,7 +343,7 @@ class FileMetadata( val ncFile: URI ) {
   }
 }
 
-//object ncTest extends App {
+//object ncTest {
 //  val testFile = new URI("http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-R_historical_r1i1p1/tas_Amon_GISS-E2-R_historical_r1i1p1_185001-187512.nc")
 //  val fm = FileMetadata(testFile)
 //  print (fm.dimNames)

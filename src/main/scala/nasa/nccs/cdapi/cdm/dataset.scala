@@ -92,6 +92,18 @@ object CDGrid extends Loggable {
     }
   }
 
+  def isInt( s: String ): Boolean = try { s.toInt; true } catch { case err: Exception => false }
+
+  def getDimensionNames( dimIDs: Iterable[String], dimNames: Iterable[String] ): Iterable[String] =
+    dimIDs flatMap ( id => if( isInt(id) || id.equals("*") ) Some(id) else dimNames.find( _ equals id) match {
+      case Some( dname ) => Some(dname)
+      case None => dimNames.find( _.split(':')(0) equals id) match {
+        case Some( dname ) => Some(dname)
+        case None => None
+      }
+    })
+
+
   def createGridFile(gridFilePath: String, datfilePath: String) = {
     logger.info( s"Creating grid file $gridFilePath from datfilePath: $datfilePath" )
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset(datfilePath, null)
@@ -102,7 +114,7 @@ object CDGrid extends Loggable {
         case coordAxis: CoordinateAxis => if(coordAxis.getAxisType == AxisType.Time) DataType.LONG else cvar.getDataType
         case x => cvar.getDataType
       }
-      val newVar = gridWriter.addVariable(null, cvar.getShortName, dataType, cvar.getDimensionsString)
+      val newVar = gridWriter.addVariable(null, cvar.getShortName, dataType, getDimensionNames( cvar.getDimensionsString.split(' '), dimMap.keys ).mkString(" ")  )
       cvar.getShortName -> (cvar -> newVar)
     }
     val varMap = Map(varTups.toList: _*)
@@ -818,4 +830,13 @@ object writeTest extends App {
 //  val axis1D = CoordinateAxis1DTime.factory( dset, axis, new Formatter() )
 //  print( s"${axis1D.getSize} ${axis1D.getShape} \n" )
 //  dset.close()
+//}
+
+//object ncmlTest extends App {
+//  val test_dir = new File( "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MerraHDF" )
+//  val gridFile = "/Users/tpmaxwel/test.nc"
+//  val ncmlFile = new File( "/Users/tpmaxwel/test.ncml" )
+//  val writer = NCMLWriter( test_dir )
+//  writer.writeNCML( ncmlFile )
+//  CDGrid.createGridFile( gridFile, ncmlFile.toString )
 //}
