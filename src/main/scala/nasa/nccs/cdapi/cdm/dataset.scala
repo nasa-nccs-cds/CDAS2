@@ -19,8 +19,7 @@ import ucar.nc2.dataset._
 import ucar.ma2.DataType
 import ucar.nc2.constants.CDM
 
-import scala.collection.mutable
-import scala.collection.concurrent
+import scala.collection.{concurrent, mutable}
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
@@ -103,19 +102,28 @@ object CDGrid extends Loggable {
       }
     })
 
+  def getNewGroup( groupMap: mutable.Map[String,nc2.Group], oldGroup: Group, gridWriter: NetcdfFileWriter ): Group = {
+    val gname = if(oldGroup==null) "" else oldGroup.getShortName
+    if( gname.isEmpty ) gridWriter.addGroup(null,"root") else {
+      groupMap.getOrElseUpdate( gname, gridWriter.addGroup( getNewGroup( groupMap, oldGroup.getParentGroup, gridWriter ), gname ) )
+    }
+  }
 
   def createGridFile(gridFilePath: String, datfilePath: String) = {
     logger.info( s"Creating grid file $gridFilePath from datfilePath: $datfilePath" )
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset(datfilePath, null)
     val gridWriter = NetcdfFileWriter.createNew(NetcdfFileWriter.Version.netcdf4, gridFilePath, null)
     val dimMap = Map(ncDataset.getDimensions.map(d => NCMLWriter.getName(d) -> gridWriter.addDimension(null, NCMLWriter.getName(d), d.getLength)): _*)
+    val groupMap = mutable.HashMap.empty[String,nc2.Group]
     val varTups = for (cvar <- ncDataset.getVariables) yield {
       val dataType = cvar match {
         case coordAxis: CoordinateAxis => if(coordAxis.getAxisType == AxisType.Time) DataType.LONG else cvar.getDataType
         case x => cvar.getDataType
       }
-      println( "Adding variable: " + cvar.getShortName + ", group = " + cvar.getGroup.getFullName )
-      val newVar = gridWriter.addVariable(null, NCMLWriter.getName(cvar), dataType, getDimensionNames( cvar.getDimensionsString.split(' '), dimMap.keys ).mkString(" ")  )
+      val oldGroup = cvar.getGroup
+      val newGroup = getNewGroup( groupMap, oldGroup, gridWriter )
+      println( "Adding variable: " + cvar.getShortName + ", group = " + ( if( newGroup == null ) "root" else newGroup.getFullName ) )
+      val newVar = gridWriter.addVariable( newGroup, NCMLWriter.getName(cvar), dataType, getDimensionNames( cvar.getDimensionsString.split(' '), dimMap.keys ).mkString(" ")  )
       NCMLWriter.getName(cvar) -> (cvar -> newVar)
     }
     val varMap = Map(varTups.toList: _*)
