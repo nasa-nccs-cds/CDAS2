@@ -832,11 +832,11 @@ object writeTest extends App {
 //  dset.close()
 //}
 
-//object ncmlTest extends App {
-//  val test_dir = new File( "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MerraHDF" )
-//  val gridFile = "/Users/tpmaxwel/test.nc"
-//  val ncmlFile = new File( "/Users/tpmaxwel/test.ncml" )
-//  val writer = NCMLWriter( test_dir )
-//  writer.writeNCML( ncmlFile )
-//  CDGrid.createGridFile( gridFile, ncmlFile.toString )
-//}
+object ncmlTest extends App {
+  val test_dir = new File( "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MerraHDF" )
+  val gridFile = "/Users/tpmaxwel/test.nc"
+  val ncmlFile = new File( "/Users/tpmaxwel/test.ncml" )
+  val writer = NCMLWriter( test_dir )
+  writer.writeNCML( ncmlFile )
+  CDGrid.createGridFile( gridFile, ncmlFile.toString )
+}

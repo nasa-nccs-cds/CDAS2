@@ -29,9 +29,7 @@ import scala.xml.XML
 object NCMLWriter extends Loggable {
 
   def apply( path: File ): NCMLWriter = { new NCMLWriter( Array(path).iterator ) }
-  def getName( node: nc2.Variable ): String  = node.getShortName
-  def getName( node: nc2.Dimension ): String = node.getShortName
-  def getName( node: nc2.Attribute ): String = node.getShortName
+  def getName( node: nc2.CDMNode ): String  = node.getFullName
 
 //  Option(node.getGroup) match {
 //    case Some(g) => node.getShortName.split(':')(0) + ":" + g.getShortName
@@ -123,9 +121,12 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
   val overwriteTime = fileHeaders.length > 1
 
   def isIgnored( attribute: nc2.Attribute ): Boolean = { ignored_attributes.contains(getName(attribute)) }
-  def getDimName( shortName: String ): String = fileMetadata.coordVars.find( v => ( v.getShortName == shortName ) || (v.getShortName.split(':')(0) == shortName.split(':')(0)) ) match {
-    case Some(v) => v.getShortName
-    case None => throw new Exception( s"Coordinate variable ${shortName} does not exist")
+  def getDimName( dim: nc2.Dimension ): String = {
+    val dimname = NCMLWriter.getName(dim)
+    fileMetadata.coordVars.map( NCMLWriter.getName(_) ).find( vname => ( vname equals dimname ) || (vname.split(':')(0) == dimname.split(':')(0) ) ) match {
+      case Some(vname) => vname
+      case None => throw new Exception( s"Coordinate variable ${dimname} does not exist")
+    }
   }
 
 
@@ -146,7 +147,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
       }
     }
 
-  def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) getDimName(dim.getShortName) else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
+  def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) getDimName(dim) else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
 
   def getDimension(axis: CoordinateAxis ): Option[xml.Node] = {
     axis match {
@@ -223,7 +224,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
   }
 
   def writeNCML( ncmlFile: File ) = {
-    logger.info( "Writing NCML File: " + ncmlFile.toString )
+    logger.info( "Writing *NCML* File: " + ncmlFile.toString )
     val bw = new BufferedWriter(new FileWriter( ncmlFile ))
     bw.write( getNCML.toString )
     bw.close()
