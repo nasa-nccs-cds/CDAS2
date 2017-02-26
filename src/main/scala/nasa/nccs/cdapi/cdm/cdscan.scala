@@ -29,7 +29,7 @@ import scala.xml.XML
 object NCMLWriter extends Loggable {
 
   def apply( path: File ): NCMLWriter = { new NCMLWriter( Array(path).iterator ) }
-  def getName( node: nc2.CDMNode ): String  = node.getFullName
+  def getName( node: nc2.CDMNode ): String  = node.getShortName
 
 //  Option(node.getGroup) match {
 //    case Some(g) => node.getShortName.split(':')(0) + ":" + g.getShortName

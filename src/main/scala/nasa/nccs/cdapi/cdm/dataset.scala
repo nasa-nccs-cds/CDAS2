@@ -114,6 +114,7 @@ object CDGrid extends Loggable {
         case coordAxis: CoordinateAxis => if(coordAxis.getAxisType == AxisType.Time) DataType.LONG else cvar.getDataType
         case x => cvar.getDataType
       }
+      println( "Adding variable: " + cvar.getShortName + ", group = " + cvar.getGroup.getFullName )
       val newVar = gridWriter.addVariable(null, NCMLWriter.getName(cvar), dataType, getDimensionNames( cvar.getDimensionsString.split(' '), dimMap.keys ).mkString(" ")  )
       NCMLWriter.getName(cvar) -> (cvar -> newVar)
     }
