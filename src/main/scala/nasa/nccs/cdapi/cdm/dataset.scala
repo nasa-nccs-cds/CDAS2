@@ -122,8 +122,8 @@ object CDGrid extends Loggable {
       }
       val oldGroup = cvar.getGroup
       val newGroup = getNewGroup( groupMap, oldGroup, gridWriter )
-      println( "Adding variable: " + cvar.getShortName + ", group = " + ( if( newGroup == null ) "root" else newGroup.getFullName ) )
       val newVar = gridWriter.addVariable( newGroup, NCMLWriter.getName(cvar), dataType, getDimensionNames( cvar.getDimensionsString.split(' '), dimMap.keys ).mkString(" ")  )
+//      val newVar = gridWriter.addVariable( newGroup, NCMLWriter.getName(cvar), dataType, cvar.getDimensionsString  )
       NCMLWriter.getName(cvar) -> (cvar -> newVar)
     }
     val varMap = Map(varTups.toList: _*)
@@ -221,7 +221,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
   def getTimeCoordinateAxis: Option[CoordinateAxis1DTime] = {
     val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
     try {
-      val axisOpt = Option( gridDS.findCoordinateAxis( "time" ) )
+      val axisOpt = Option( gridDS.findCoordinateAxis( AxisType.Time ) )
       axisOpt.map( axis => {
         axis.setCaching(true);
         axis.read()
@@ -261,15 +261,26 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
     } finally { ncDataset.close() }
   }
 
+  def getAttribute( keyValuePair: (String, Option[String] )  ): Option[nc2.Attribute] = keyValuePair._2 match {
+    case Some( value ) => if(value.isEmpty) None else Some( new nc2.Attribute( keyValuePair._1, value ) )
+    case None => None
+  }
+
   def getVariableMetadata( varName: String ): List[nc2.Attribute] = {
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( gridFilePath, null )
     try {
       Option(ncDataset.findVariable(varName)) match {
         case Some( ncVariable ) =>
-          var attributes = ncVariable.getAttributes.toList
-          val newAttr = List( new nc2.Attribute( "description", ncVariable.getDescription ), new nc2.Attribute( "units", ncVariable.getUnitsString), new nc2.Attribute( "dtype", ncVariable.getDataType.toString ),
-            new nc2.Attribute( "dims",   ncVariable.getDimensionsString), new nc2.Attribute( "shape", ncVariable.getShape.mkString(",") ), new nc2.Attribute( "fullname", ncVariable.getFullName)  )
-          attributes ++ newAttr
+          val attributes = ncVariable.getAttributes.toList
+          val keyValuePairs = List(
+            "description" -> ncVariable.getDescription,
+            "units" -> ncVariable.getUnitsString,
+            "dtype" -> ncVariable.getDataType.toString,
+            "dims" -> ncVariable.getDimensionsString,
+            "shape" -> ncVariable.getShape.mkString(","),
+            "fullname" -> ncVariable.getFullName
+          ) map { case (key,value) => getAttribute(key, Option(value)) }
+          attributes ++ keyValuePairs.flatten
         case None => throw new Exception("Can't find variable %s in collection %s".format(varName,name) )
       }
     } catch {
@@ -841,11 +852,11 @@ object writeTest extends App {
 //  dset.close()
 //}
 
-object ncmlTest extends App {
-  val test_dir = new File( "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MerraHDF" )
-  val gridFile = "/Users/tpmaxwel/test.nc"
-  val ncmlFile = new File( "/Users/tpmaxwel/test.ncml" )
-  val writer = NCMLWriter( test_dir )
-  writer.writeNCML( ncmlFile )
-  CDGrid.createGridFile( gridFile, ncmlFile.toString )
-}
+//object ncmlTest extends App {
+//  val test_dir = new File( "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MerraHDF" )
+//  val gridFile = "/Users/tpmaxwel/test.nc"
+//  val ncmlFile = new File( "/Users/tpmaxwel/test.ncml" )
+//  val writer = NCMLWriter( test_dir )
+//  writer.writeNCML( ncmlFile )
+//  CDGrid.createGridFile( gridFile, ncmlFile.toString )
+//}

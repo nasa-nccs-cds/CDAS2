@@ -3,7 +3,7 @@ import java.util.Formatter
 
 import nasa.nccs.caching._
 import nasa.nccs.cdapi.cdm._
-import ucar.nc2.dataset.{CoordinateAxis, CoordinateAxis1D, CoordinateAxis1DTime, VariableDS}
+import ucar.nc2.dataset._
 import java.util.Formatter
 
 import nasa.nccs.cdapi.data._
@@ -173,9 +173,10 @@ class GridCoordSpec( val index: Int, val grid: CDGrid, val coordAxis: Coordinate
 
   def getUnits: String =  coordAxis.getUnitsString // coordAxis.getAxisType match { case AxisType.Time => cdsutils.baseTimeUnits case x => coordAxis.getUnitsString }
 
-  def getTimeAxis: CoordinateAxis1DTime = grid.getTimeCoordinateAxis match {
-    case Some(coordAxis1DTime: CoordinateAxis1DTime) => coordAxis1DTime
-    case x => throw new IllegalStateException("CDS2-CDSVariable: Can't create time axis from type: %s ".format(coordAxis.getClass.getName))
+  def getTimeAxis: CoordinateAxis1DTime = {
+    val gridDS = NetcdfDataset.acquireDataset(grid.gridFilePath, null)
+    try { CoordinateAxis1DTime.factory( gridDS, coordAxis, new Formatter() ) }
+    finally { gridDS.close() }
   }
 
   def getTimeCoordIndex( tval: String, role: BoundsRole.Value, strict: Boolean = false): Option[Int] = {
