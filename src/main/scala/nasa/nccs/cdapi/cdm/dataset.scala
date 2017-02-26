@@ -108,14 +108,14 @@ object CDGrid extends Loggable {
     logger.info( s"Creating grid file $gridFilePath from datfilePath: $datfilePath" )
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset(datfilePath, null)
     val gridWriter = NetcdfFileWriter.createNew(NetcdfFileWriter.Version.netcdf4, gridFilePath, null)
-    val dimMap = Map(ncDataset.getDimensions.map(d => d.getShortName -> gridWriter.addDimension(null, d.getShortName, d.getLength)): _*)
+    val dimMap = Map(ncDataset.getDimensions.map(d => NCMLWriter.getName(d) -> gridWriter.addDimension(null, NCMLWriter.getName(d), d.getLength)): _*)
     val varTups = for (cvar <- ncDataset.getVariables) yield {
       val dataType = cvar match {
         case coordAxis: CoordinateAxis => if(coordAxis.getAxisType == AxisType.Time) DataType.LONG else cvar.getDataType
         case x => cvar.getDataType
       }
-      val newVar = gridWriter.addVariable(null, cvar.getShortName, dataType, getDimensionNames( cvar.getDimensionsString.split(' '), dimMap.keys ).mkString(" ")  )
-      cvar.getShortName -> (cvar -> newVar)
+      val newVar = gridWriter.addVariable(null, NCMLWriter.getName(cvar), dataType, getDimensionNames( cvar.getDimensionsString.split(' '), dimMap.keys ).mkString(" ")  )
+      NCMLWriter.getName(cvar) -> (cvar -> newVar)
     }
     val varMap = Map(varTups.toList: _*)
     for ( (cvar, newVar) <- varMap.values; attr <- cvar.getAttributes ) cvar match  {
@@ -259,7 +259,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
         case Some( ncVariable ) =>
           var attributes = ncVariable.getAttributes.toList
           val newAttr = List( new nc2.Attribute( "description", ncVariable.getDescription ), new nc2.Attribute( "units", ncVariable.getUnitsString), new nc2.Attribute( "dtype", ncVariable.getDataType.toString ),
-            new nc2.Attribute( "dims", ncVariable.getDimensionsString), new nc2.Attribute( "shape", ncVariable.getShape.mkString(",") ), new nc2.Attribute( "fullname", ncVariable.getFullName)  )
+            new nc2.Attribute( "dims",   ncVariable.getDimensionsString), new nc2.Attribute( "shape", ncVariable.getShape.mkString(",") ), new nc2.Attribute( "fullname", ncVariable.getFullName)  )
           attributes ++ newAttr
         case None => throw new Exception("Can't find variable %s in collection %s".format(varName,name) )
       }
@@ -683,100 +683,100 @@ class ncReadTest extends Loggable {
   }
 }
 
-class ncWriteTest extends Loggable {
-  import nasa.nccs.cdas.utilities.runtime
-  import java.nio.channels.FileChannel
-  import java.nio.file.StandardOpenOption._
-  val testType = TestType.Buffer
-
-//  val url = "file:/Users/tpmaxwel/.cdas/cache/NCML/merra_daily.xml"
-  val url = "file:/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/NCML/merra_daily_2005.xml"
-//  val outputFile = "/Users/tpmaxwel/.cdas/cache/test/testBinaryFile.out"
-  val outputFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/test/testBinaryFile.out"
-//  val outputNcFile = "/Users/tpmaxwel/.cdas/cache/test/testFile.nc"
-  val outputNcFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/test/testFile.nc"
-  val bufferSize: Int = -1
-  val varName = "t"
-  NetcdfDataset.setUseNaNs(false)
-//  new File(outputFile).delete()
-//  new File(outputNcFile).delete()
-  try {
-    val datset = NetcdfDataset.openDataset(url, true, bufferSize, null, null )
-    Option(datset.findVariable(varName)) match {
-      case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
-      case Some( ncVar ) =>
-        runtime.printMemoryUsage(logger)
-        testType match  {
-        case TestType.Buffer =>
-          val t0 = System.nanoTime()
-          logger.info(s"Reading  $url...")
-          val data: ma2.Array = ncVar.read()
-          val t1 = System.nanoTime()
-          val bytes = data.getDataAsByteBuffer.array()
-          val outStr = new BufferedOutputStream(new FileOutputStream(new File(outputFile)))
-          logger.info(s"Writing Buffer $outputFile...")
-          runtime.printMemoryUsage(logger)
-//          IOUtils.writeChunked(bytes, outStr)
-          IOUtils.write(bytes, outStr)
-          val t2 = System.nanoTime()
-          logger.info(s"Persisted data chunk, size= %.2f M, Times-{ read: %.2f, write: %.2f, total: %.2f }".format(bytes.size / 1.0E6, (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9))
-        case TestType.Stream =>
-          val t0 = System.nanoTime()
-          logger.info(s"Reading  $url...")
-          val outStr = new BufferedOutputStream(new FileOutputStream(new File(outputFile)))
-          val size = ncVar.readToStream( ncVar.getShapeAsSection, outStr )
-          val t1 = System.nanoTime()
-          logger.info(s"Persisted data chunk, size= %.2f M, Times-{ total: %.2f }".format( size / 1.0E6, (t1 - t0) / 1.0E9 ) )
-        case TestType.Channel =>
-          val t0 = System.nanoTime()
-          logger.info(s"Reading  $url...")
-          val channel = new RandomAccessFile(outputFile, "rw").getChannel()
-          val size = ncVar.readToByteChannel( ncVar.getShapeAsSection, channel )
-          val t1 = System.nanoTime()
-          logger.info(s"Persisted data chunk, size= %.2f M, Times-{ total: %.2f }".format( size / 1.0E6, (t1 - t0) / 1.0E9 ) )
-        case TestType.Map =>
-          val t0 = System.nanoTime()
-          logger.info(s"Reading  $url...")
-          val bSize = ncVar.getSize * ncVar.getElementSize
-          var file = new RandomAccessFile(outputFile, "rw")
-          file.setLength( bSize )
-          val buffer =  file.getChannel.map( FileChannel.MapMode.READ_WRITE, 0, bSize );
-          val data = ncVar.read()
-          logger.info(s"Writing Map $outputFile")
-          runtime.printMemoryUsage(logger)
-          val t1 = System.nanoTime()
-          buffer.put( data.getDataAsByteBuffer )
-          buffer.force()
-          val t2 = System.nanoTime()
-          logger.info(s"Persisted data chunk, size= %.2f M, Times-{ read: %.2f, write: %.2f, total: %.2f }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9) )
-        case TestType.NcFile =>
-          val t0 = System.nanoTime()
-          logger.info(s"Reading  $url...")
-          val channel = new RandomAccessFile(outputFile, "rw").getChannel()
-          val bSize = ncVar.getSize * ncVar.getElementSize
-          val data = ncVar.read()
-          logger.info(s"Writing  $outputNcFile, size = %.2f M...".format( bSize / 1.0E6) )
-          runtime.printMemoryUsage(logger)
-          val t1 = System.nanoTime()
-          val writer: nc2.NetcdfFileWriter = nc2.NetcdfFileWriter.createNew(nc2.NetcdfFileWriter.Version.netcdf4, outputNcFile )
-          datset.getDimensions.map( dim => writer.addDimension( null, dim.getShortName, dim.getLength, dim.isShared, dim.isUnlimited, dim.isVariableLength ) )
-          val newVar = writer.addVariable( null, ncVar.getShortName, ncVar.getDataType, ncVar.getDimensionsString )
-          writer.create()
-          writer.write( newVar, data )
-          writer.close()
-          val t2 = System.nanoTime()
-          logger.info(s"Persisted data chunk, size= %.2f M, Times-{ read: %.2f, write: %.2f, total: %.2f }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9) )
-      }
-    }
-  } catch {
-    case e: java.io.IOException =>
-      logger.error("Couldn't open dataset %s".format(url))
-      throw e
-    case ex: Exception =>
-      logger.error("Something went wrong while reading %s".format(url))
-      throw ex
-  }
-}
+//class ncWriteTest extends Loggable {
+//  import nasa.nccs.cdas.utilities.runtime
+//  import java.nio.channels.FileChannel
+//  import java.nio.file.StandardOpenOption._
+//  val testType = TestType.Buffer
+//
+////  val url = "file:/Users/tpmaxwel/.cdas/cache/NCML/merra_daily.xml"
+//  val url = "file:/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/NCML/merra_daily_2005.xml"
+////  val outputFile = "/Users/tpmaxwel/.cdas/cache/test/testBinaryFile.out"
+//  val outputFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/test/testBinaryFile.out"
+////  val outputNcFile = "/Users/tpmaxwel/.cdas/cache/test/testFile.nc"
+//  val outputNcFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/test/testFile.nc"
+//  val bufferSize: Int = -1
+//  val varName = "t"
+//  NetcdfDataset.setUseNaNs(false)
+////  new File(outputFile).delete()
+////  new File(outputNcFile).delete()
+//  try {
+//    val datset = NetcdfDataset.openDataset(url, true, bufferSize, null, null )
+//    Option(datset.findVariable(varName)) match {
+//      case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
+//      case Some( ncVar ) =>
+//        runtime.printMemoryUsage(logger)
+//        testType match  {
+//        case TestType.Buffer =>
+//          val t0 = System.nanoTime()
+//          logger.info(s"Reading  $url...")
+//          val data: ma2.Array = ncVar.read()
+//          val t1 = System.nanoTime()
+//          val bytes = data.getDataAsByteBuffer.array()
+//          val outStr = new BufferedOutputStream(new FileOutputStream(new File(outputFile)))
+//          logger.info(s"Writing Buffer $outputFile...")
+//          runtime.printMemoryUsage(logger)
+////          IOUtils.writeChunked(bytes, outStr)
+//          IOUtils.write(bytes, outStr)
+//          val t2 = System.nanoTime()
+//          logger.info(s"Persisted data chunk, size= %.2f M, Times-{ read: %.2f, write: %.2f, total: %.2f }".format(bytes.size / 1.0E6, (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9))
+//        case TestType.Stream =>
+//          val t0 = System.nanoTime()
+//          logger.info(s"Reading  $url...")
+//          val outStr = new BufferedOutputStream(new FileOutputStream(new File(outputFile)))
+//          val size = ncVar.readToStream( ncVar.getShapeAsSection, outStr )
+//          val t1 = System.nanoTime()
+//          logger.info(s"Persisted data chunk, size= %.2f M, Times-{ total: %.2f }".format( size / 1.0E6, (t1 - t0) / 1.0E9 ) )
+//        case TestType.Channel =>
+//          val t0 = System.nanoTime()
+//          logger.info(s"Reading  $url...")
+//          val channel = new RandomAccessFile(outputFile, "rw").getChannel()
+//          val size = ncVar.readToByteChannel( ncVar.getShapeAsSection, channel )
+//          val t1 = System.nanoTime()
+//          logger.info(s"Persisted data chunk, size= %.2f M, Times-{ total: %.2f }".format( size / 1.0E6, (t1 - t0) / 1.0E9 ) )
+//        case TestType.Map =>
+//          val t0 = System.nanoTime()
+//          logger.info(s"Reading  $url...")
+//          val bSize = ncVar.getSize * ncVar.getElementSize
+//          var file = new RandomAccessFile(outputFile, "rw")
+//          file.setLength( bSize )
+//          val buffer =  file.getChannel.map( FileChannel.MapMode.READ_WRITE, 0, bSize );
+//          val data = ncVar.read()
+//          logger.info(s"Writing Map $outputFile")
+//          runtime.printMemoryUsage(logger)
+//          val t1 = System.nanoTime()
+//          buffer.put( data.getDataAsByteBuffer )
+//          buffer.force()
+//          val t2 = System.nanoTime()
+//          logger.info(s"Persisted data chunk, size= %.2f M, Times-{ read: %.2f, write: %.2f, total: %.2f }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9) )
+//        case TestType.NcFile =>
+//          val t0 = System.nanoTime()
+//          logger.info(s"Reading  $url...")
+//          val channel = new RandomAccessFile(outputFile, "rw").getChannel()
+//          val bSize = ncVar.getSize * ncVar.getElementSize
+//          val data = ncVar.read()
+//          logger.info(s"Writing  $outputNcFile, size = %.2f M...".format( bSize / 1.0E6) )
+//          runtime.printMemoryUsage(logger)
+//          val t1 = System.nanoTime()
+//          val writer: nc2.NetcdfFileWriter = nc2.NetcdfFileWriter.createNew(nc2.NetcdfFileWriter.Version.netcdf4, outputNcFile )
+//          datset.getDimensions.map( dim => writer.addDimension( null, dim.getShortName, dim.getLength, dim.isShared, dim.isUnlimited, dim.isVariableLength ) )
+//          val newVar = writer.addVariable( null, ncVar.getShortName, ncVar.getDataType, ncVar.getDimensionsString )
+//          writer.create()
+//          writer.write( newVar, data )
+//          writer.close()
+//          val t2 = System.nanoTime()
+//          logger.info(s"Persisted data chunk, size= %.2f M, Times-{ read: %.2f, write: %.2f, total: %.2f }".format( bSize / 1.0E6, (t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t2 - t0) / 1.0E9) )
+//      }
+//    }
+//  } catch {
+//    case e: java.io.IOException =>
+//      logger.error("Couldn't open dataset %s".format(url))
+//      throw e
+//    case ex: Exception =>
+//      logger.error("Something went wrong while reading %s".format(url))
+//      throw ex
+//  }
+//}
 
 
 /*
