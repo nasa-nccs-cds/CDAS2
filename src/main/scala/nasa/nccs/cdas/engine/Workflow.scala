@@ -225,8 +225,8 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def unifyGrids( rdd: RDD[(PartitionKey,RDDPartition)], requestCx: RequestContext, kernelContext: KernelContext, node: WorkflowNode  ): RDD[(PartitionKey,RDDPartition)] = {
     logger.info( "unifyGrids: OP = " + node.operation.name )
-    if( needsRegrid(rdd,requestCx,kernelContext) )
-      node.regridRDDElems( rdd, kernelContext.conf(Map("gridSpec"->requestCx.getTargetGridSpec(kernelContext),"crs"->kernelContext.crsOpt.getOrElse(""))))
+//    if( needsRegrid(rdd,requestCx,kernelContext) )
+//      node.regridRDDElems( rdd, kernelContext.conf(Map("gridSpec"->requestCx.getTargetGridSpec(kernelContext),"crs"->kernelContext.crsOpt.getOrElse(""))))
     else rdd
   }
 
