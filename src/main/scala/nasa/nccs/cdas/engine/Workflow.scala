@@ -106,6 +106,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   }
 
   def map(input: RDD[(PartitionKey,RDDPartition)], context: KernelContext, kernel: Kernel ): RDD[(PartitionKey,RDDPartition)] = {
+    logger.info( "Executing map OP for Kernel " + kernel.id + ", OP = " + context.operation.identifier )
     val rdd = input.mapValues( rdd_part => kernel.map( rdd_part, context ) )
     input.partitioner match { case Some( partitioner ) => rdd partitionBy partitioner; case None => rdd }
   }
@@ -223,13 +224,14 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def unifyGrids( rdd: RDD[(PartitionKey,RDDPartition)], requestCx: RequestContext, kernelContext: KernelContext, node: WorkflowNode  ): RDD[(PartitionKey,RDDPartition)] = {
+    logger.info( "unifyGrids: OP = " + node.operation.name )
     if( needsRegrid(rdd,requestCx,kernelContext) )
       node.regridRDDElems( rdd, kernelContext.conf(Map("gridSpec"->requestCx.getTargetGridSpec(kernelContext),"crs"->kernelContext.crsOpt.getOrElse(""))))
     else rdd
   }
 
   def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(PartitionKey,RDDPartition)] = {
-
+    logger.info( "Generating RDD for inputs: " + opInputs.keys.mkString(", ") )
     val rawRddMap: Map[String,RDD[(PartitionKey,RDDPartition)]] = opInputs.map { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
           val opSection: Option[ma2.Section] = getOpSectionIntersection( dataInput.getGrid, node )
@@ -241,12 +243,12 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
           throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
       }
     }
-    val testRddInputs = rawRddMap.mapValues( _.collect() )
     val unifiedRDD = unifyRDDs( rawRddMap, kernelContext, requestCx, node )
     unifyGrids( unifiedRDD, requestCx, kernelContext, node )
   }
 
   def unifyRDDs( rddMap: Map[String,RDD[(PartitionKey,RDDPartition)]], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ) : RDD[(PartitionKey,RDDPartition)] = {
+    logger.info( "unifyRDDs: " + rddMap.keys.mkString(", ") )
     val rdds = rddMap.values
     val trsRdd: RDD[(PartitionKey,RDDPartition)] = kernelContext.trsOpt match {
       case Some(trs) => rddMap.keys.find( _.startsWith(trs.substring(1))) match {
