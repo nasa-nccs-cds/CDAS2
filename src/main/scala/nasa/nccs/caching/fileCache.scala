@@ -19,18 +19,14 @@ import nasa.nccs.cdas.loaders.Masks
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.Loggable
 import org.apache.commons.io.{FileUtils, IOUtils}
-import sun.nio.ch.FileChannelImpl
-import ucar.nc2.dataset.NetcdfDataset
 import ucar.{ma2, nc2}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
 import scala.util.{Failure, Success, Try}
-import nasa.nccs.cdas.loaders.Collections
 
 object MaskKey {
   def apply(bounds: Array[Double],

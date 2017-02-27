@@ -110,7 +110,8 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
     val kmod = getKernelModule( moduleName )
     kmod.getKernel( operation  ) match {
       case Some(kernel) => kernel
-      case None => throw new Exception( s"Unrecognized Kernel %s in Module %s, kernels = %s ".format( operation, moduleName, kmod.getKernelNames.mkString("[ ",", "," ]")) )
+      case None =>
+        throw new Exception( s"Unrecognized Kernel %s in Module %s, kernels = %s ".format( operation, moduleName, kmod.getKernelNames.mkString("[ ",", "," ]")) )
     }
   }
   def getKernel( kernelName: String  ): Kernel = {

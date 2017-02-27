@@ -161,7 +161,11 @@ class CDASPortal:
     def sendMessage( self, type, msgStrs = [""] ):
         msgId = self.randomId(8)
         self.logger.info( "Sending {0} request {1} on port {2}.".format( type, msgStrs, self.request_port )  )
-        self.request_socket.send( "!".join( [msgId,type] + msgStrs ) )
+        try:
+            message = "!".join( [msgId,type] + msgStrs )
+            self.request_socket.send( message )
+        except zmq.error.ZMQError as err:
+            self.logger.error("Error sending message {0} on request socket: {1}".format( message, str(err) ) )
         return msgId
 
 class AppThread(Thread):
@@ -177,7 +181,7 @@ class AppThread(Thread):
     def run(self):
         import subprocess, shlex
         try:
-            cdas_startup = "cdas2 connect {0} {1} -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC -J-XX:MaxPermSize=800M".format( self._request_port, self._response_port)
+            cdas_startup = "cdas2 connect {0} {1} -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC".format( self._request_port, self._response_port)
             self.process = subprocess.Popen(shlex.split(cdas_startup))
             print "Staring CDAS with command: {0}\n".format(cdas_startup)
             self.process.wait()

@@ -11,7 +11,7 @@ import nasa.nccs.cdas.loaders.Collections
 import nasa.nccs.cdas.utilities.runtime
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.utilities.cdsutils
-import ucar.nc2.{FileWriter2, Group, NetcdfFile, NetcdfFileWriter}
+import ucar.nc2.{FileWriter => _, _}
 import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset._
@@ -29,7 +29,7 @@ import scala.xml.XML
 object NCMLWriter extends Loggable {
 
   def apply( path: File ): NCMLWriter = { new NCMLWriter( Array(path).iterator ) }
-
+  def getName( node: nc2.CDMNode ): String  = node.getShortName
   def isNcFileName( fName: String ): Boolean = { val fname = fName.toLowerCase; fname.endsWith(".nc4") || fname.endsWith(".nc") || fname.endsWith(".hdf") || fname.endsWith(".ncml") }
 
   def isNcFile( file: File ): Boolean = { file.isFile && isNcFileName( file.getName.toLowerCase ) }
@@ -43,7 +43,7 @@ object NCMLWriter extends Loggable {
     new java.io.File( collection_file_path ).getParent.stripSuffix("/")
   }
 
-  def getCachePath( subdir: String ): Path = {  FileSystems.getDefault().getPath( getCacheDir, subdir ) }
+  def getCachePath( subdir: String ): Path = {  FileSystems.getDefault.getPath( getCacheDir, subdir ) }
 
   def getNcURIs(file: File): Iterable[URI] = {
       if( isCollectionFile(file) ) {
@@ -63,7 +63,7 @@ object NCMLWriter extends Loggable {
         val children = new Iterable[File] {
           def iterator = if (file.isDirectory) file.listFiles.iterator else Iterator.empty
         }
-        (Seq(file) ++: children.flatMap(getNcFiles(_))).filter(NCMLWriter.isNcFile(_))
+        Seq(file) ++: children.flatMap(getNcFiles) filter NCMLWriter.isNcFile
       }
     } catch {
       case err: NullPointerException =>
@@ -76,14 +76,14 @@ object NCMLWriter extends Loggable {
   def getNcURIs(args: Iterator[File]): Iterator[URI] = args.map( (arg: File) => NCMLWriter.getNcURIs(arg)).flatten
 
   def getFileHeaders( files: IndexedSeq[URI], nReadProcessors: Int ): IndexedSeq[FileHeader] = {
-    if( files.length > 0 ) {
+    if( files.nonEmpty ) {
       val groupSize = cdsutils.ceilDiv(files.length, nReadProcessors)
       logger.info(" Processing %d files with %d files/group with %d processors".format(files.length, groupSize, nReadProcessors))
       val fileGroups = files.grouped(groupSize).toIndexedSeq
       val fileHeaderFuts = Future.sequence(for (workerIndex <- fileGroups.indices; fileGroup = fileGroups(workerIndex)) yield Future {
         FileHeader.factory(fileGroup, workerIndex)
       })
-      Await.result(fileHeaderFuts, Duration.Inf).flatten sortWith { (afr0, afr1) => (afr0.startValue < afr1.startValue) }
+      Await.result(fileHeaderFuts, Duration.Inf).flatten sortWith { (afr0, afr1) => afr0.startValue < afr1.startValue }
     } else IndexedSeq.empty[FileHeader]
   }
 }
@@ -104,43 +104,52 @@ object NCMLWriter extends Loggable {
 //}
 
 class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
+  import NCMLWriter._
   private val nReadProcessors = Math.min(Runtime.getRuntime.availableProcessors, maxCores)
   private val files: IndexedSeq[URI] = NCMLWriter.getNcURIs(args).toIndexedSeq
   if( files.isEmpty ) { throw new Exception( "Error, empty collection at: " + args.map( _.getAbsolutePath ).mkString(",") ) }
   private val nFiles = files.length
   val fileHeaders = NCMLWriter.getFileHeaders(files, nReadProcessors)
   val fileMetadata = FileMetadata(files.head)
-  val overwriteTime = true
   val outerDimensionSize: Int = fileHeaders.foldLeft(0)(_ + _.nElem)
   val ignored_attributes = List( "comments" )
+  val overwriteTime = fileHeaders.length > 1
 
-  def isIgnored( attribute: nc2.Attribute ): Boolean = { ignored_attributes.contains(attribute.getShortName) }
+  def isIgnored( attribute: nc2.Attribute ): Boolean = { ignored_attributes.contains(getName(attribute)) }
+  def getDimName( dim: nc2.Dimension ): String = {
+    val dimname = NCMLWriter.getName(dim)
+    fileMetadata.coordVars.map( NCMLWriter.getName(_) ).find( vname => ( vname equals dimname ) || (vname.split(':')(0) == dimname.split(':')(0) ) ) match {
+      case Some(vname) => vname
+      case None => throw new Exception( s"Coordinate variable ${dimname} does not exist")
+    }
+  }
+
 
   def getAttribute(attribute: nc2.Attribute): xml.Node =
     if (attribute.getDataType == ma2.DataType.STRING) {
       if (attribute.getLength > 1) {
         val sarray: IndexedSeq[String] = (0 until attribute.getLength).map(i => attribute.getStringValue(i).filter(ch => org.jdom2.Verifier.isXMLCharacter(ch)))
-          <attribute name={attribute.getShortName} value={sarray.mkString("|")} separator="|"/>
+          <attribute name={getName(attribute) } value={sarray.mkString("|")} separator="|"/>
       } else {
-          <attribute name={attribute.getShortName} value={attribute.getStringValue(0)}/>
+          <attribute name={getName(attribute)} value={attribute.getStringValue(0)}/>
       }
     } else {
       if (attribute.getLength > 1) {
         val sarray: IndexedSeq[String] = (0 until attribute.getLength).map(i => attribute.getNumericValue(i).toString)
-          <attribute name={attribute.getShortName} type={attribute.getDataType.toString} value={sarray.mkString(" ")}/>
+          <attribute name={getName(attribute)} type={attribute.getDataType.toString} value={sarray.mkString(" ")}/>
       } else {
-          <attribute name={attribute.getShortName} type={attribute.getDataType.toString} value={attribute.getNumericValue(0).toString}/>
+          <attribute name={getName(attribute)} type={attribute.getDataType.toString} value={attribute.getNumericValue(0).toString}/>
       }
     }
 
-  def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) dim.getShortName else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
+  def getDims(variable: nc2.Variable): String = variable.getDimensions.map(dim => if (dim.isShared) getDimName(dim) else if (dim.isVariableLength) "*" else dim.getLength.toString).toArray.mkString(" ")
 
   def getDimension(axis: CoordinateAxis ): Option[xml.Node] = {
     axis match {
       case coordAxis: CoordinateAxis1D =>
         val nElems = if( coordAxis.getAxisType == AxisType.Time ) outerDimensionSize else coordAxis.getSize
         val dimension = coordAxis.getDimension(0)
-          val node = <dimension name={dimension.getFullName} length={nElems.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString} isShared={dimension.isShared.toString}/>
+          val node = <dimension name={getName(dimension)} length={nElems.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString} isShared={dimension.isShared.toString}/>
         Some(node)
       case x =>
         logger.warn( "Multidimensional coord axes not currently supported: " + x.getClass.getName + " for axis " + axis.getNameAndDimensions(true) )
@@ -148,7 +157,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
     }
   }
 
-  def getAggDataset(fileHeader: FileHeader, timeRegular: Boolean ): xml.Node =
+  def getAggDataset(fileHeader: FileHeader, timeRegular: Boolean = false ): xml.Node =
     if( timeRegular || !overwriteTime )
         <netcdf location={fileHeader.filePath} ncoords={fileHeader.nElem.toString}/>
     else
@@ -157,9 +166,9 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
 
   def getVariable( variable: nc2.Variable, timeRegularSpecs: Option[(Double,Double)] ): xml.Node = {
     val axisType = fileMetadata.getAxisType(variable)
-    <variable name={variable.getFullName} shape={getDims(variable)} type={variable.getDataType.toString}>
-      { if( axisType == AxisType.Time ) { <attribute name="_CoordinateAxisType" value="Time"/>  <attribute name="units" value={cdsutils.baseTimeUnits}/> }
-        else for (attribute <- variable.getAttributes; if( !isIgnored( attribute ) ) ) yield getAttribute(attribute) }
+    <variable name={getName(variable)} shape={getDims(variable)} type={variable.getDataType.toString}>
+      { if( axisType == AxisType.Time )  <attribute name="_CoordinateAxisType" value="Time"/>  <attribute name="units" value={if(overwriteTime) cdsutils.baseTimeUnits else variable.getUnitsString}/>
+      else for (attribute <- variable.getAttributes; if( !isIgnored( attribute ) ) ) yield getAttribute(attribute) }
       { if( (axisType != AxisType.Time) && (axisType != AxisType.RunTime) ) variable match {
         case coordVar: CoordinateAxis1D => getData(variable, coordVar.isRegular)
         case _ => getData(variable, false)
@@ -178,16 +187,21 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
     }
   }
 
-  def getTimeSpecs: Option[(Double,Double)] = {
+  def getTimeSpecs: Option[(Long,Long)] = {
     val t0 = fileHeaders.head.startValue
     val dt = if(fileHeaders.head.nElem > 1) { fileHeaders.head.axisValues(1)-fileHeaders.head.axisValues(0) } else { fileHeaders(1).startValue - fileHeaders(0).startValue }
     Some( t0 -> dt )
   }
 
-  def getAggregation(timeRegular: Boolean ): xml.Node =
-    <aggregation dimName="time" type="joinExisting">
-      { for( fileHeader <- fileHeaders ) yield { getAggDataset(fileHeader,timeRegular) } }
-    </aggregation>
+  def getAggregation(timeRegular: Boolean ): xml.Node = {
+    val timeVarName = findTimeVariable match {
+      case Some(tvar) => getName(tvar)
+      case None => { logger.error( s"Can't find time variable, vars: ${fileMetadata.variables.map( v => getName(v)+ ": " + fileMetadata.getAxisType(v).toString ).mkString(", ")}");  "time" }
+    }
+    <aggregation dimName={timeVarName} type="joinExisting">  { for (fileHeader <- fileHeaders) yield { getAggDataset(fileHeader, timeRegular) } } </aggregation>
+  }
+
+  def findTimeVariable: Option[nc2.Variable] = fileMetadata.coordVars find ( fileMetadata.getAxisType(_) == AxisType.Time )
 
   def getNCML: xml.Node = {
     val timeRegularSpecs= None // getTimeSpecs
@@ -198,14 +212,15 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
 
       { for( attribute <- fileMetadata.attributes ) yield getAttribute(attribute) }
       { (for (coordAxis <- fileMetadata.coordinateAxes) yield getDimension(coordAxis)).flatten }
-      { for (variable <- fileMetadata.variables) yield getVariable( variable, timeRegularSpecs ) }
       { for (variable <- fileMetadata.coordVars) yield getVariable( variable, timeRegularSpecs ) }
+      { for (variable <- fileMetadata.variables) yield getVariable( variable, timeRegularSpecs ) }
       { getAggregation( timeRegularSpecs.isDefined ) }
 
     </netcdf>
   }
 
   def writeNCML( ncmlFile: File ) = {
+    logger.info( "Writing *NCML* File: " + ncmlFile.toString )
     val bw = new BufferedWriter(new FileWriter( ncmlFile ))
     bw.write( getNCML.toString )
     bw.close()
@@ -229,10 +244,14 @@ object FileHeader extends Loggable {
         val t0 = System.nanoTime()
         val fileHeader = FileHeader( file, timeRegular )
         val t1 = System.nanoTime()
-        println("Worker[%d]: Processing file[%d] '%s', start = %.3f, ncoords = %d, time = %.4f ".format(workerIndex, iFile, file, fileHeader.startValue, fileHeader.nElem, (t1 - t0) / 1.0E9))
+        println("Worker[%d]: Processing file[%d] '%s', start = %s, ncoords = %d, time = %.4f ".format(workerIndex, iFile, file, fileHeader.startDate, fileHeader.nElem, (t1 - t0) / 1.0E9))
         if( (iFile % 5) == 0 ) runtime.printMemoryUsage(logger)
         Some(fileHeader)
-      } catch { case err: Exception =>  retryFiles += file; None }
+      } catch { case err: Exception =>
+        logger.error("Worker[%d]: Encountered error Processing file[%d] '%s': '%s'".format(workerIndex, iFile, file, err.toString ) )
+        if( (iFile % 10) == 0 ) { logger.error( err.getStackTrace.mkString("\n") )}
+        retryFiles += file; None
+      }
     }
     val secondPass = for (iFile <- retryFiles.indices; file = retryFiles(iFile)) yield {
       println("Worker[%d]: Reprocessing file[%d] '%s'".format(workerIndex, iFile, file ))
@@ -255,11 +274,11 @@ object FileHeader extends Loggable {
   }
 
 
-  def getTimeValues( ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index : Int = 0, end_index : Int = -1, stride: Int = 1 ): ( Array[Double], Array[Double] )  = {
+  def getTimeValues( ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index : Int = 0, end_index : Int = -1, stride: Int = 1 ): ( Array[Long], Array[Long] )  = {
     val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory( ncDataset, coordAxis, new Formatter())
     val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
-    val bounds: Array[Double] = ((0 until timeAxis.getShape(0)) map ( index => timeAxis.getCoordBoundsDate(index) map (_.getMillis/1000.0) )).toArray.flatten
-    ( timeCalValues.map( _.getMillis/1000.0 ).toArray, bounds )
+    val bounds: Array[Long] = ((0 until timeAxis.getShape(0)) map ( index => timeAxis.getCoordBoundsDate(index) map (_.getMillis/1000) )).toArray.flatten
+    ( timeCalValues.map( _.getMillis/1000 ).toArray, bounds )
   }
 
   def openNetCDFFile(ncFile: URI, attempt: Int = 0): NetcdfDataset = try {
@@ -273,7 +292,7 @@ object FileHeader extends Loggable {
       throw ex
   }
 
-  def getTimeCoordValues(ncFile: URI): ( Array[Double], Array[Double] ) = {
+  def getTimeCoordValues(ncFile: URI): ( Array[Long], Array[Long] ) = {
     val ncDataset: NetcdfDataset = openNetCDFFile( ncFile )
     Option( ncDataset.findCoordinateAxis( AxisType.Time ) ) match {
       case Some( timeAxis ) =>
@@ -290,14 +309,15 @@ class DatasetFileHeaders( val aggDim: String, val aggFileMap: Seq[FileHeader] ) 
     assert( !aggFileMap.isEmpty, "Error, aggregated dataset has no files!" )
     return aggFileMap.head.nElem
   }
-  def getAggAxisValues: Array[Double] =
-    aggFileMap.foldLeft(Array[Double]()) { _ ++ _.axisValues }
+  def getAggAxisValues: Array[Long] =
+    aggFileMap.foldLeft(Array[Long]()) { _ ++ _.axisValues }
 }
 
-class FileHeader( val filePath: String, val axisValues: Array[Double], val boundsValues: Array[Double], val timeRegular: Boolean ) {
+class FileHeader( val filePath: String, val axisValues: Array[Long], val boundsValues: Array[Long], val timeRegular: Boolean ) {
   def nElem = axisValues.length
-  def startValue: Double = axisValues.headOption.getOrElse( Double.NaN )
-  override def toString: String = " *** FileHeader { path='%s', nElem=%d, startValue=%f } ".format( filePath, nElem, startValue )
+  def startValue: Long = axisValues.headOption.getOrElse( Long.MinValue )
+  def startDate: String = CalendarDate.of(startValue).toString
+  override def toString: String = " *** FileHeader { path='%s', nElem=%d, startValue=%f startDate=%s} ".format( filePath, nElem, startValue, startDate )
 }
 
 object FileMetadata {
@@ -311,8 +331,8 @@ class FileMetadata( val ncFile: URI ) {
   val variables = ncDataset.getVariables.filterNot( _.isCoordinateVariable ).toList
   val coordVars = ncDataset.getVariables.filter( _.isCoordinateVariable ).toList
   val attributes = ncDataset.getGlobalAttributes
-  val dimNames = dimensions.map( _.getFullName )
-  def getCoordinateAxis( fullName: String ): Option[nc2.dataset.CoordinateAxis] = coordinateAxes.find( p => p.getFullName.equalsIgnoreCase(fullName) )
+  val dimNames = dimensions.map( NCMLWriter.getName(_) )
+  def getCoordinateAxis( name: String ): Option[nc2.dataset.CoordinateAxis] = coordinateAxes.find( p =>  NCMLWriter.getName(p).equalsIgnoreCase(name) )
 
   def getAxisType( variable: nc2.Variable ): AxisType = variable match {
     case coordVar: CoordinateAxis1D => coordVar.getAxisType;
@@ -320,7 +340,7 @@ class FileMetadata( val ncFile: URI ) {
   }
 }
 
-//object ncTest extends App {
+//object ncTest {
 //  val testFile = new URI("http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-R_historical_r1i1p1/tas_Amon_GISS-E2-R_historical_r1i1p1_185001-187512.nc")
 //  val fm = FileMetadata(testFile)
 //  print (fm.dimNames)

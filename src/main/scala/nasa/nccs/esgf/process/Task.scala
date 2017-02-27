@@ -612,9 +612,7 @@ object DataContainer extends ContainerBase {
     val fragIdOpt = if(uri.startsWith("fragment")) Some(id) else None
     Collections.findCollection( colId ) match {
       case Some(collection) =>
-        if (!path.isEmpty) {
-          assert(absPath(path).equals(absPath(collection.dataPath)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id, collection.dataPath, path))
-        }
+ //       if (!path.isEmpty) { assert(absPath(path).equals(absPath(collection.dataPath)), "Collection %s already exists and its path (%s) does not correspond to the specified path (%s)".format(collection.id, collection.dataPath, path)) }
         (Some(collection), fragIdOpt)
       case None =>
         if( colId.equals("") ) {

@@ -51,7 +51,8 @@ fork in run:= true
 fork in test:= true
 logBuffered in Test := false
 
-javaOptions in run ++= Seq( "-Xmx64000M", "-Xms512M")
+javaOptions in run ++= Seq( "-Xmx8000M", "-Xms512M", "-Xss1M", "-XX:+CMSClassUnloadingEnabled", "-XX:+UseConcMarkSweepGC")
+javaOptions in test ++= Seq( "-Xmx8000M", "-Xms512M", "-Xss1M", "-XX:+CMSClassUnloadingEnabled", "-XX:+UseConcMarkSweepGC")
 ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 
 import java.util.Properties
@@ -101,7 +102,7 @@ cdasProperties := {
 
 def getCondaLibDir(): File = sys.env.get("CONDA_PREFIX") match {
     case Some(ldir) => file(ldir) / "lib"
-    case None => throw new Exception( "Must initialize the Anaconda environment")
+    case None => throw new Exception( "Must activate the cdas2 environment in Anaconda: '>> source activate cdas2' ")
   }
 
 

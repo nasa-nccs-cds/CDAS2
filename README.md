@@ -44,6 +44,7 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
     3) Initialize shell enviromnment for cdas:
     
         >> source <prefix>/CDAS2/bin/setup_runtime.sh
+        >> source activate cdas2
 
 ####  Code development:
 

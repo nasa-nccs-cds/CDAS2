@@ -251,9 +251,9 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     logger.info( "unifyRDDs: " + rddMap.keys.mkString(", ") )
     val rdds = rddMap.values
     val trsRdd: RDD[(PartitionKey,RDDPartition)] = kernelContext.trsOpt match {
-      case Some(trs) => rddMap.keys.find( _.startsWith(trs.substring(1))) match {
-        case Some(trsKey) => rddMap.getOrElse(trsKey, throw new Exception( s"Error retreiving key ${trsKey} from rddMap with keys {${rddMap.keys.mkString(",")}}" ) )
-        case None => throw new Exception( s"Unmatched trs ${trs} in kernel ${kernelContext.operation.name}, keys = {${rddMap.keys.mkString(",")}}" )
+      case Some(trs) => rddMap.keys.find( _.split('-').dropRight(1).mkString("-").equals(trs.substring(1)) ) match {
+        case Some(trsKey) => rddMap.getOrElse(trsKey, throw new Exception( s"Error retreiving key $trsKey from rddMap with keys {${rddMap.keys.mkString(",")}}" ) )
+        case None => throw new Exception( s"Unmatched trs $trs in kernel ${kernelContext.operation.name}, keys = {${rddMap.keys.mkString(",")}}" )
       }
       case None => rdds.head
     }

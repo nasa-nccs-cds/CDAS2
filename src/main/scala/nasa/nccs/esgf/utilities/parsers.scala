@@ -1,5 +1,6 @@
 package nasa.nccs.esgf.utilities
 
+import scala.io.Source
 import scala.util.parsing.combinator._
 
 
@@ -40,6 +41,18 @@ object wpsNameMatchers {
   }
 }
 
+//object readTest extends App {
+//  val filename = "/Users/tpmaxwel/.cdas/cache/ncdump.test"
+//  var timeData = false
+//  var elem_count: Int = 0
+//  for (line <- Source.fromFile(filename).getLines) {
+//    if( line.startsWith(" time = ") ) { timeData = true }
+//    val elems: Int = if( timeData ) { line.count( _ equals ',' ) } else 0
+//    elem_count = elem_count + elems
+//  }
+//  print( elem_count.toString )
+//}
+//
 
 
 
