@@ -66,7 +66,6 @@ class CDSVariable( val name: String, val collection: Collection ) extends Loggab
 }
 
 trait OperationInput {
-//  def domainDataFragment( partIndex: Int,  optSection: Option[ma2.Section] ): Option[DataFragment]
   def getKeyString: String
 }
 class EmptyOperationInput() extends OperationInput { def getKeyString: String = ""; }
