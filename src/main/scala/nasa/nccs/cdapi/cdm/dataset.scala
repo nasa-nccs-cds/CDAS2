@@ -130,9 +130,12 @@ object CDGrid extends Loggable {
     for ( (cvar, newVar) <- varMap.values; attr <- cvar.getAttributes ) cvar match  {
       case coordAxis: CoordinateAxis =>
         if( (coordAxis.getAxisType == AxisType.Time) && ( attr.getShortName.equalsIgnoreCase(CDM.UNITS)) ) {
-        gridWriter.addVariableAttribute(newVar, new Attribute( CDM.UNITS, cdsutils.baseTimeUnits ) )
-      } else {  gridWriter.addVariableAttribute(newVar, attr) }
-      case x => gridWriter.addVariableAttribute(newVar, attr)
+          gridWriter.addVariableAttribute(newVar, new Attribute( CDM.UNITS, cdsutils.baseTimeUnits ) )
+        } else {
+          gridWriter.addVariableAttribute(newVar, attr)
+        }
+      case x =>
+        gridWriter.addVariableAttribute(newVar, attr)
     }
     val globalAttrs = Map(ncDataset.getGlobalAttributes.map(attr => attr.getShortName -> attr): _*)
     globalAttrs.mapValues(attr => gridWriter.addGroupAttribute(null, attr))
@@ -321,7 +324,7 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
   }
 
   def readVariableData(varName: String, section: ma2.Section): ma2.Array = {
-    val ncDataset: NetcdfDataset = NetcdfDataset.openDataset(dataPath)
+    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( dataPath, true, null )
     val variable = ncDataset.findVariable(null, varName)
     try {
       variable.read(section)
@@ -370,7 +373,7 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
       val ncmlWriter = NCMLWriter(pathFile)
       ncmlWriter.writeNCML(_ncmlFile)
     }
-    _ncmlFile.toString
+    _ncmlFile.toURI.toString
   }
 
   def getDataFilePath( uri: String, collectionId: String ) : String = ctype match {
@@ -380,7 +383,7 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
     case "file" =>
       val pathFile: File = new File(toFilePath(uri))
       if( pathFile.isDirectory ) createNCML( pathFile, collectionId )
-      else pathFile.toString
+      else pathFile.toURI.toString
     case "dap" => uri
     case _ => throw new Exception( "Unexpected attempt to create Collection data file from ctype " + ctype )
   }

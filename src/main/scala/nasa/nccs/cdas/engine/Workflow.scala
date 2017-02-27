@@ -102,6 +102,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
   def prepareInputs( kernelContext: KernelContext, requestCx: RequestContext ): RDD[(PartitionKey,RDDPartition)] = {
     val opInputs = workflow.getNodeInputs( requestCx, this )
     val inputs = workflow.domainRDDPartition( opInputs, kernelContext, requestCx, this )
+    val sample = inputs.first()
     inputs
   }
 
@@ -141,7 +142,9 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
           nodes.find(_.getResultId.equals(uid)) match {
             case Some(inode) => workflowNode.addChild(inode)
             case None =>
-              val errorMsg = "Unidentified input in workflow node %s: %s, inputs ids = %s, values = %s".format(workflowNode.getNodeId, uid, requestCx.inputs.keySet.mkString(", "), requestCx.inputs.values.mkString(", "))
+              val errorMsg = " * Unidentified input in workflow node %s: '%s', inputs ids = %s, input values = %s, result ids = %s".format(
+                workflowNode.getNodeId, uid, requestCx.inputs.keySet.map(k=>s"'$k'").mkString(", "), requestCx.inputs.values.mkString(", "),
+                nodes.map(_.getNodeId()).map(k=>s"'$k'").mkString(", "))
               logger.error(errorMsg)
               throw new Exception(errorMsg)
           }
@@ -173,7 +176,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
             case Some(inode) =>
               uid -> new DependencyOperationInput(inode)
             case None =>
-              val errorMsg = "Unidentified input in workflow node %s: %s, input ids = %s".format(workflowNode.getNodeId, uid, requestCx.inputs.keySet.mkString(", "))
+              val errorMsg = " ** Unidentified input in workflow node %s: %s, input ids = %s".format(workflowNode.getNodeId, uid, requestCx.inputs.keySet.mkString(", "))
               logger.error(errorMsg)
               throw new Exception(errorMsg)
           }

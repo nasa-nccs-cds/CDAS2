@@ -134,7 +134,7 @@ class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitio
     partitions.exists { case (index,partkey) => parts.get(index) match { case Some(partkey1) => !partkey1.equals(partkey); case None => true } }
 
   def findPartIndex( index: Int, loc: Long ): Int = partitions.get(index) match {
-    case None => -1
+    case None => if( loc == range.end ) numParts-1 else -1
     case Some( key ) => key.locate( loc ) match {
       case 0 => index
       case x => findPartIndex( index + x, loc )
@@ -159,8 +159,10 @@ class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitio
       case rkey: LongRange => getPartIndexFromLocation(rkey.center)
       case wtf => throw new Exception( "Illegal partition key type: " + key.getClass.getName )
     }
-    if( index >= numParts ) throw new Exception( s"Illegal index value: $index out of $numParts for key ${key.toString}" )
-    if( index < 0 ) throw new Exception( s"Can't find partition index for key ${key.toString}" )
+    if( index >= numParts )
+      throw new Exception( s"Illegal index value: $index out of $numParts for key ${key.toString}" )
+    if( index < 0 )
+      throw new Exception( s"Can't find partition index for key ${key.toString}" )
     index
   }
 

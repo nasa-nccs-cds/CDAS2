@@ -31,7 +31,7 @@ public abstract class CDASPortal {
                 request_socket.bind(String.format("tcp://*:%d", request_port));
                 logger.info(String.format("Bound request socket to port: %d", request_port));
                 response_socket.bind(String.format("tcp://*:%d", response_port));
-                logger.info(String.format("Bound response socket to port: %d", response_port));
+                logger.info( String.format("Bound response socket to port: %d", response_port) );
             }
         } catch (Exception err ) {
             logger.error( String.format("\n-------------------------------\nCDAS Init error: %s -------------------------------\n", err ) );
@@ -39,7 +39,7 @@ public abstract class CDASPortal {
     }
 
     public void sendResponse( String rId, String response  ) {
-        response_socket.send( String.join("!", rId, "response", response ) );
+        response_socket.send( String.join("!", rId, "response", response.substring( 0, Math.min( 100, response.length() - 1 ) ) ) );
         logger.info( " Sent response: " + response );
     }
 

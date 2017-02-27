@@ -213,11 +213,12 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
       { for( attribute <- fileMetadata.attributes ) yield getAttribute(attribute) }
       { (for (coordAxis <- fileMetadata.coordinateAxes) yield getDimension(coordAxis)).flatten }
       { for (variable <- fileMetadata.coordVars) yield getVariable( variable, timeRegularSpecs ) }
-      { for (variable <- fileMetadata.variables) yield getVariable( variable, timeRegularSpecs ) }
       { getAggregation( timeRegularSpecs.isDefined ) }
 
     </netcdf>
   }
+
+//      { for (variable <- fileMetadata.variables) yield getVariable( variable, timeRegularSpecs ) }
 
   def writeNCML( ncmlFile: File ) = {
     logger.info( "Writing *NCML* File: " + ncmlFile.toString )

@@ -228,6 +228,13 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Max")
   }
 
+  test("TimeAve-npana") {
+    val datainputs = """[domain=[{"name":"d0","lev":{"start":5,"end":5,"system":"indices"}},{"name":"d1","lat":{"start":25,"end":30,"system":"indices"},"lon":{"start":25,"end":30,"system":"indices"}}],variable=[{"uri":"collection:/npana","name":"T:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d1","axes":"t"}]]"""
+    val result_node = executeTest(datainputs)
+    val result_data = getResultData( result_node )
+    println( "Op Result:       " + result_data )
+  }
+
   test("Maximum-file") {
     val nco_verified_result = 309.7112
     val data_file = "/data/GISS-r1i1p1-sample.nc"
