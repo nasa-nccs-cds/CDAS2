@@ -26,9 +26,9 @@ import scala.reflect.ClassTag
 import scala.xml.XML
 import org.apache.commons.io.IOUtils
 import nasa.nccs.cdas.loaders.Collections
-import nasa.nccs.cdas.ncml.NCMLReader
 import nasa.nccs.esgf.process.DataSource
 import ucar.nc2._
+import ucar.nc2.ncml.NcMLReader
 
 import scala.concurrent.Future
 
@@ -861,27 +861,26 @@ object writeTest extends App {
 
 
 // needs: DYLD_FALLBACK_LIBRARY_PATH=/Users/tpmaxwel/anaconda/envs/cdas2/lib
-object ncmlTest extends App {
-  val origin = Array(1,10,10,10)
-  val shape = Array(1,1,5,5)
-  val section: ma2.Section = new ma2.Section(origin,shape)
-  val test_dir = new File( "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MerraHDF" )
-  val gridFile = "/Users/tpmaxwel/test.nc"
-  val ncmlFile = new File( "/Users/tpmaxwel/test.xml" )
-  val writer = NCMLWriter( test_dir )
-  writer.writeNCML( ncmlFile )
-  CDGrid.createGridFile( gridFile, ncmlFile.toString )
-  val dset = NCMLReader.readNcML( ncmlFile.toURI.toString, null )
+//object ncmlTest extends App {
+//  val origin = Array(1,10,10,10)
+//  val shape = Array(1,1,5,5)
+//  val section: ma2.Section = new ma2.Section(origin,shape)
+//  val test_dir = new File( "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MerraHDF" )
+//  val gridFile = "/Users/tpmaxwel/test.nc"
+//  val ncmlFile = new File( "/Users/tpmaxwel/test.xml" )
+//  val writer = NCMLWriter( test_dir )
+//  writer.writeNCML( ncmlFile )
+//  CDGrid.createGridFile( gridFile, ncmlFile.toString )
 //  val dset = NetcdfDataset.acquireDataset(ncmlFile.toString, null)
-  val varName = "T"
-  dset.getVariables.toList.find( v => v.getShortName equals varName ) match {
-    case Some( variable ) =>
-      println( "SHAPE: " + variable.getShape.mkString(", ") )
-      val data = CDFloatArray.factory( variable.read(section), Float.NaN )
-      println(  data.getArrayData().mkString(", ") )
-    case None => println( "Can't find variable " + varName + " in dataset " + ncmlFile.toString )
-  }
-
-}
+//  val varName = "T"
+//  dset.getVariables.toList.find( v => v.getShortName equals varName ) match {
+//    case Some( variable ) =>
+//      println( "SHAPE: " + variable.getShape.mkString(", ") )
+//      val data = CDFloatArray.factory( variable.read(section), Float.NaN )
+//      println(  data.getArrayData().mkString(", ") )
+//    case None => println( "Can't find variable " + varName + " in dataset " + ncmlFile.toString )
+//  }
+//
+//}
 
 
