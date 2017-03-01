@@ -208,9 +208,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8)
           <dimension name={getName(dimension)} length={nElems.toString} isUnlimited={dimension.isUnlimited.toString} isVariableLength={dimension.isVariableLength.toString} isShared={dimension.isShared.toString}/>
         Some(node)
       case x =>
-        logger.warn(
-          "Multidimensional coord axes not currently supported: " + x.getClass.getName + " for axis " + axis
-            .getNameAndDimensions(true))
+        logger.warn( "This Coord axis type not currently supported: " + axis.getClass.getName + " for axis " + axis.getNameAndDimensions(true) )
         None
     }
   }

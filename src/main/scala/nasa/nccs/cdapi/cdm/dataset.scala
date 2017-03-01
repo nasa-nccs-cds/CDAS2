@@ -111,7 +111,7 @@ object CDGrid extends Loggable {
   }
 
   def createGridFile(gridFilePath: String, datfilePath: String) = {
-    logger.info( s"Creating grid file $gridFilePath from datfilePath: $datfilePath" )
+    logger.info( s"Creating #grid# file $gridFilePath from datfilePath: $datfilePath" )
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset(datfilePath, null)
     val gridWriter = NetcdfFileWriter.createNew(NetcdfFileWriter.Version.netcdf4, gridFilePath, null)
     val dimMap = Map(ncDataset.getDimensions.map(d => NCMLWriter.getName(d) -> gridWriter.addDimension(null, NCMLWriter.getName(d), d.getLength)): _*)
@@ -130,7 +130,7 @@ object CDGrid extends Loggable {
     val varMap = Map(varTups.toList: _*)
     for ( (cvar, newVar) <- varMap.values; attr <- cvar.getAttributes ) cvar match  {
       case coordAxis: CoordinateAxis =>
-        if( (coordAxis.getAxisType == AxisType.Time) && ( attr.getShortName.equalsIgnoreCase(CDM.UNITS)) ) {
+        if( (coordAxis.getAxisType == AxisType.Time) &&  attr.getShortName.equalsIgnoreCase(CDM.UNITS) ) {
           gridWriter.addVariableAttribute(newVar, new Attribute( CDM.UNITS, cdsutils.baseTimeUnits ) )
         } else {
           gridWriter.addVariableAttribute(newVar, attr)
@@ -141,7 +141,7 @@ object CDGrid extends Loggable {
     val globalAttrs = Map(ncDataset.getGlobalAttributes.map(attr => attr.getShortName -> attr): _*)
     globalAttrs.mapValues(attr => gridWriter.addGroupAttribute(null, attr))
     gridWriter.create()
-    for ((cvar, newVar) <- varMap.values; if cvar.isCoordinateVariable ) cvar match  {
+    for ((cvar, newVar) <- varMap.values; if cvar.isCoordinateVariable && (cvar.getRank == 1) ) cvar match  {
       case coordAxis: CoordinateAxis => if( coordAxis.getAxisType == AxisType.Time ) {
         val ( time_values, bounds ) = FileHeader.getTimeValues( ncDataset, coordAxis )
         newVar.addAttribute( new Attribute( CDM.UNITS, cdsutils.baseTimeUnits ) )
@@ -862,25 +862,33 @@ object writeTest extends App {
 
 // needs: DYLD_FALLBACK_LIBRARY_PATH=/Users/tpmaxwel/anaconda/envs/cdas2/lib
 //object ncmlTest extends App {
-//  val origin = Array(1,10,10,10)
-//  val shape = Array(1,1,5,5)
-//  val section: ma2.Section = new ma2.Section(origin,shape)
-//  val test_dir = new File( "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MerraHDF" )
+//  val test_dir = new File("/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MERRA2/6hr")
 //  val gridFile = "/Users/tpmaxwel/test.nc"
-//  val ncmlFile = new File( "/Users/tpmaxwel/test.xml" )
-//  val writer = NCMLWriter( test_dir )
-//  writer.writeNCML( ncmlFile )
-//  CDGrid.createGridFile( gridFile, ncmlFile.toString )
+//  val ncmlFile = new File("/Users/tpmaxwel/test.xml")
+//  val writer = NCMLWriter(test_dir)
+//  writer.writeNCML(ncmlFile)
+//  CDGrid.createGridFile(gridFile, ncmlFile.toString)
 //  val dset = NetcdfDataset.acquireDataset(ncmlFile.toString, null)
-//  val varName = "T"
-//  dset.getVariables.toList.find( v => v.getShortName equals varName ) match {
-//    case Some( variable ) =>
-//      println( "SHAPE: " + variable.getShape.mkString(", ") )
-//      val data = CDFloatArray.factory( variable.read(section), Float.NaN )
-//      println(  data.getArrayData().mkString(", ") )
-//    case None => println( "Can't find variable " + varName + " in dataset " + ncmlFile.toString )
-//  }
+//  println(dset.getVariables.toList.mkString(", "))
 //
+//  val origin = Array(1, 10, 10, 10)
+//  val shape = Array(1, 1, 5, 5)
+//  val section: ma2.Section = new ma2.Section(origin, shape)
+//
+//  //  val varName = "T"
+////  dset.getVariables.toList.find(v => v.getShortName equals varName) match {
+////    case Some(variable) =>
+////      println("SHAPE: " + variable.getShape.mkString(", "))
+////      val data = CDFloatArray.factory(variable.read(section), Float.NaN)
+////      println(data.getArrayData().mkString(", "))
+////    case None => println("Can't find variable " + varName + " in dataset " + ncmlFile.toString)
+////  }
 //}
+//
+//
 
-
+//object gridFileTest extends App {
+//  val gridFile = "/Users/tpmaxwel/.cdas/cache/collections/NCML/npana.nc"
+//  val ncmlFile = "/Users/tpmaxwel/.cdas/cache/collections/NCML/npana.xml"
+//  CDGrid.createGridFile(gridFile, ncmlFile)
+//}
