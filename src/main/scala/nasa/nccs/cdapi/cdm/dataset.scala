@@ -26,6 +26,7 @@ import scala.reflect.ClassTag
 import scala.xml.XML
 import org.apache.commons.io.IOUtils
 import nasa.nccs.cdas.loaders.Collections
+import nasa.nccs.cdas.ncml.NCMLReader
 import nasa.nccs.esgf.process.DataSource
 import ucar.nc2._
 
@@ -255,12 +256,12 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
     } finally { gridDS.close() }
   }
 
-  def getVariable( varName: String ): Option[nc2.Variable] = {
+  def getVariable( varShortName: String ): Option[nc2.Variable] = {
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( gridFilePath, null )
     try {
-      Option( ncDataset.findVariable(varName) )
+      ncDataset.getVariables.toList.find ( v => (v.getShortName equals varShortName) )
     } catch {
-      case err: Exception => logger.error("Can't get Variable " + varName + " from gridFile " + gridFilePath ); throw err;
+      case err: Exception => logger.error("Can't get Variable " + varShortName + " from gridFile " + gridFilePath ); throw err;
     } finally { ncDataset.close() }
   }
 
@@ -269,10 +270,10 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
     case None => None
   }
 
-  def getVariableMetadata( varName: String ): List[nc2.Attribute] = {
+  def getVariableMetadata( varShortName: String ): List[nc2.Attribute] = {
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( gridFilePath, null )
     try {
-      Option(ncDataset.findVariable(varName)) match {
+      getVariable( varShortName ) match {
         case Some( ncVariable ) =>
           val attributes = ncVariable.getAttributes.toList
           val keyValuePairs = List(
@@ -284,10 +285,10 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
             "fullname" -> ncVariable.getFullName
           ) map { case (key,value) => getAttribute(key, Option(value)) }
           attributes ++ keyValuePairs.flatten
-        case None => throw new Exception("Can't find variable %s in collection %s".format(varName,name) )
+        case None => throw new Exception("Can't find variable %s in collection %s".format(varShortName,name) )
       }
     } catch {
-      case err: Exception => logger.error("Can't get Variable metadata for var: " + varName + " in gridFile " + gridFilePath ); throw err;
+      case err: Exception => logger.error("Can't get Variable metadata for var: " + varShortName + " in gridFile " + gridFilePath ); throw err;
     } finally { ncDataset.close() }
   }
 }
@@ -323,19 +324,22 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
     }
   }
 
-  def readVariableData(varName: String, section: ma2.Section): ma2.Array = {
+  def readVariableData(varShortName: String, section: ma2.Section): ma2.Array = {
     val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( dataPath, true, null )
-    val variable = ncDataset.findVariable(null, varName)
-    try {
-      variable.read(section)
-    } catch {
-      case err: Exception =>
-        logger.error("Can't read data for variable %s in dataset %s due to error: %s".format( varName, ncDataset.getLocation, err.toString ));
-        logger.error("Variable shape: (%s),  section: { o:(%s) s:(%s) }".format( variable.getShape.mkString(","), section.getOrigin.mkString(","), section.getShape.mkString(",") ));
-        logger.error( err.getStackTrace.map(_.toString).mkString("\n"))
-        throw err
-    } finally {
-      ncDataset.close()
+    ncDataset.getVariables.toList.find( v => v.getShortName equals varShortName ) match {
+      case Some(variable) =>
+        try {
+          variable.read(section)
+        } catch {
+          case err: Exception =>
+            logger.error("Can't read data for variable %s in dataset %s due to error: %s".format(varShortName, ncDataset.getLocation, err.toString));
+            logger.error("Variable shape: (%s),  section: { o:(%s) s:(%s) }".format(variable.getShape.mkString(","), section.getOrigin.mkString(","), section.getShape.mkString(",")));
+            logger.error(err.getStackTrace.map(_.toString).mkString("\n"))
+            throw err
+        } finally {
+          ncDataset.close()
+        }
+      case None => throw new Exception( s"Can't find variable $varShortName in dataset $dataPath ")
     }
   }
 
@@ -855,11 +859,29 @@ object writeTest extends App {
 //  dset.close()
 //}
 
-//object ncmlTest extends App {
-//  val test_dir = new File( "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MerraHDF" )
-//  val gridFile = "/Users/tpmaxwel/test.nc"
-//  val ncmlFile = new File( "/Users/tpmaxwel/test.ncml" )
-//  val writer = NCMLWriter( test_dir )
-//  writer.writeNCML( ncmlFile )
-//  CDGrid.createGridFile( gridFile, ncmlFile.toString )
-//}
+
+// needs: DYLD_FALLBACK_LIBRARY_PATH=/Users/tpmaxwel/anaconda/envs/cdas2/lib
+object ncmlTest extends App {
+  val origin = Array(1,10,10,10)
+  val shape = Array(1,1,5,5)
+  val section: ma2.Section = new ma2.Section(origin,shape)
+  val test_dir = new File( "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MerraHDF" )
+  val gridFile = "/Users/tpmaxwel/test.nc"
+  val ncmlFile = new File( "/Users/tpmaxwel/test.xml" )
+  val writer = NCMLWriter( test_dir )
+  writer.writeNCML( ncmlFile )
+  CDGrid.createGridFile( gridFile, ncmlFile.toString )
+  val dset = NCMLReader.readNcML( ncmlFile.toURI.toString, null )
+//  val dset = NetcdfDataset.acquireDataset(ncmlFile.toString, null)
+  val varName = "T"
+  dset.getVariables.toList.find( v => v.getShortName equals varName ) match {
+    case Some( variable ) =>
+      println( "SHAPE: " + variable.getShape.mkString(", ") )
+      val data = CDFloatArray.factory( variable.read(section), Float.NaN )
+      println(  data.getArrayData().mkString(", ") )
+    case None => println( "Can't find variable " + varName + " in dataset " + ncmlFile.toString )
+  }
+
+}
+
+

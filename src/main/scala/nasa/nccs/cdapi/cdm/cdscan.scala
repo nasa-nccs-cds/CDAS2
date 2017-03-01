@@ -29,7 +29,7 @@ import scala.xml.XML
 object NCMLWriter extends Loggable {
 
   def apply( path: File ): NCMLWriter = { new NCMLWriter( Array(path).iterator ) }
-  def getName( node: nc2.CDMNode ): String  = node.getShortName
+  def getName( node: nc2.CDMNode ): String  = node.getFullName
   def isNcFileName( fName: String ): Boolean = { val fname = fName.toLowerCase; fname.endsWith(".nc4") || fname.endsWith(".nc") || fname.endsWith(".hdf") || fname.endsWith(".ncml") }
 
   def isNcFile( file: File ): Boolean = { file.isFile && isNcFileName( file.getName.toLowerCase ) }
@@ -120,7 +120,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
     val dimname = NCMLWriter.getName(dim)
     fileMetadata.coordVars.map( NCMLWriter.getName(_) ).find( vname => ( vname equals dimname ) || (vname.split(':')(0) == dimname.split(':')(0) ) ) match {
       case Some(vname) => vname
-      case None => throw new Exception( s"Coordinate variable ${dimname} does not exist")
+      case None => throw new Exception( s"Coordinate variable ${dimname} does not exist, coord vars = " + fileMetadata.coordVars.map( cvar => cvar.getShortName + ": " + cvar.getFullNameEscaped ).mkString(", "))
     }
   }
 
@@ -157,11 +157,14 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
     }
   }
 
+  def getAggDatasetTUC(fileHeader: FileHeader, timeRegular: Boolean = false ): xml.Node =
+      <netcdf location={fileHeader.filePath} ncoords={fileHeader.nElem.toString} timeUnitsChange="true"/>
+
   def getAggDataset(fileHeader: FileHeader, timeRegular: Boolean = false ): xml.Node =
     if( timeRegular || !overwriteTime )
         <netcdf location={fileHeader.filePath} ncoords={fileHeader.nElem.toString}/>
     else
-        <netcdf location={fileHeader.filePath} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.map( x => "%d".format(x.toLong)).mkString(", ")}/>
+        <netcdf location={fileHeader.filePath} ncoords={fileHeader.nElem.toString} coordValue={fileHeader.axisValues.map( x => "%d".format(x)).mkString(", ")}/>
 
 
   def getVariable( variable: nc2.Variable, timeRegularSpecs: Option[(Double,Double)] ): xml.Node = {
@@ -193,17 +196,29 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
     Some( t0 -> dt )
   }
 
+  def makeFullName( tvar: nc2.Variable ): String = {
+    val g: Group = tvar.getGroup()
+    if((g == null) || g.isRoot())   getName(tvar);
+    else                            g.getFullName() +"/" + tvar.getShortName();
+  }
+
+  def getTimeVarName: String = findTimeVariable match {
+    case Some(tvar) => getName(tvar)
+    case None => { logger.error( s"Can't find time variable, vars: ${fileMetadata.variables.map( v => getName(v)+ ": " + fileMetadata.getAxisType(v).toString ).mkString(", ")}");  "time" }
+  }
+
+
+  def getAggregationTUC(timeRegular: Boolean ): xml.Node = {
+    <aggregation dimName={getTimeVarName} type="joinExisting">  { for (fileHeader <- fileHeaders) yield { getAggDatasetTUC(fileHeader, timeRegular) } } </aggregation>
+  }
+
   def getAggregation(timeRegular: Boolean ): xml.Node = {
-    val timeVarName = findTimeVariable match {
-      case Some(tvar) => getName(tvar)
-      case None => { logger.error( s"Can't find time variable, vars: ${fileMetadata.variables.map( v => getName(v)+ ": " + fileMetadata.getAxisType(v).toString ).mkString(", ")}");  "time" }
-    }
-    <aggregation dimName={timeVarName} type="joinExisting">  { for (fileHeader <- fileHeaders) yield { getAggDataset(fileHeader, timeRegular) } } </aggregation>
+    <aggregation dimName={getTimeVarName} type="joinExisting">  { for (fileHeader <- fileHeaders) yield { getAggDataset(fileHeader, timeRegular) } } </aggregation>
   }
 
   def findTimeVariable: Option[nc2.Variable] = fileMetadata.coordVars find ( fileMetadata.getAxisType(_) == AxisType.Time )
 
-  def getNCML: xml.Node = {
+  def getNCMLVerbose: xml.Node = {
     val timeRegularSpecs= None // getTimeSpecs
     println("Processing %d files with %d workers".format( nFiles, nReadProcessors) )
     <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
@@ -213,12 +228,37 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8) extends Loggable {
       { for( attribute <- fileMetadata.attributes ) yield getAttribute(attribute) }
       { (for (coordAxis <- fileMetadata.coordinateAxes) yield getDimension(coordAxis)).flatten }
       { for (variable <- fileMetadata.coordVars) yield getVariable( variable, timeRegularSpecs ) }
+      { for (variable <- fileMetadata.variables) yield getVariable( variable, timeRegularSpecs ) }
       { getAggregation( timeRegularSpecs.isDefined ) }
 
     </netcdf>
   }
 
-//      { for (variable <- fileMetadata.variables) yield getVariable( variable, timeRegularSpecs ) }
+  def defineNewTimeVariable: xml.Node =
+    <variable name={getTimeVarName}>
+      <attribute name="units" value={cdsutils.baseTimeUnits}/>
+      <attribute name="_CoordinateAxisType" value="Time" />
+    </variable>
+
+  def getNCML1: xml.Node = {
+    val timeRegularSpecs= None // getTimeSpecs
+    println("Processing %d files with %d workers".format( nFiles, nReadProcessors) )
+    <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
+      <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
+      { (for (coordAxis <- fileMetadata.coordinateAxes) yield getDimension(coordAxis)).flatten }
+      { if(overwriteTime) defineNewTimeVariable }
+      { getAggregation( timeRegularSpecs.isDefined ) }
+    </netcdf>
+  }
+
+  def getNCML: xml.Node = {
+    val timeRegularSpecs= None // getTimeSpecs
+    println("Processing %d files with %d workers".format( nFiles, nReadProcessors) )
+    <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
+      <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
+      { getAggregationTUC( timeRegularSpecs.isDefined ) }
+    </netcdf>
+  }
 
   def writeNCML( ncmlFile: File ) = {
     logger.info( "Writing *NCML* File: " + ncmlFile.toString )

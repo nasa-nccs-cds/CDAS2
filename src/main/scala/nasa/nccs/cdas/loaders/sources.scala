@@ -288,21 +288,6 @@ object Collections extends XmlResource {
   def getCollectionKeys(): Array[String] = datasets.keys.toArray
 }
 
-class netcdfTestApp {
-  import ucar.nc2.dataset.NetcdfDataset
-  val origin = Array(1404,0,0)
-  val shape = Array(234,90,144)
-  val section: ma2.Section = new ma2.Section(origin,shape)
-  val varName = "tas"
-  val ncml_path = "/Users/tpmaxwel/.cdas/cache/collections/NCML/giss_r1i1p1.xml"
-  val dap_uri = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
-  println( s"Opening dataset " + dap_uri )
-  val ncDataset: NetcdfDataset = NetcdfDataset.openDataset( dap_uri )
-  val ncVariable = ncDataset.findVariable(varName)
-  println( s"Read variable $varName, shape = " + ncVariable.getShape.mkString(",") )
-  //  val data = ncVariable.read(section)
-  //  println( s"Read variable $varName data section, shape = " + data.getShape.mkString(",") )
-}
 
 
 
