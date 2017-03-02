@@ -2,15 +2,17 @@ package nasa.nccs.cdapi.cdm
 
 import java.nio.channels.{FileChannel, NonReadableChannelException, ReadableByteChannel}
 
-import nasa.nccs.caching.collectionDataCache
+import nasa.nccs.caching.{Cache, FutureCache, collectionDataCache}
 import ucar.{ma2, nc2}
 import java.nio.file.{Files, Path, Paths}
 import java.io.{FileWriter, _}
+import java.net.URI
 import java.nio._
 import java.util.Formatter
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
-import nasa.nccs.cdapi.tensors.{CDDoubleArray, CDFloatArray}
+import nasa.nccs.cdapi.tensors.{CDDoubleArray, CDFloatArray, CDLongArray}
 import nasa.nccs.cdas.loaders.XmlResource
 import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.utilities.{Loggable, cdsutils}
@@ -30,7 +32,9 @@ import nasa.nccs.esgf.process.DataSource
 import ucar.nc2._
 import ucar.nc2.ncml.NcMLReader
 
-import scala.concurrent.Future
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future, Promise}
+import scala.util.{Failure, Success}
 
 object Collection extends Loggable {
   def apply( id: String,  dataPath: String, fileFilter: String = "", scope: String="", title: String= "", vars: List[String] = List() ) = {
@@ -70,26 +74,22 @@ object CDGrid extends Loggable {
   }
 
   def create(name: String, gridFilePath: String): CDGrid = {
-    val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
-    try {
-      val coordSystems: List[CoordinateSystem] = gridDS.getCoordinateSystems.toList
-      val dset_attributes: List[nc2.Attribute] = gridDS.getGlobalAttributes.map(a => {
-        new nc2.Attribute(name + "--" + a.getFullName, a)
-      }).toList
+    val gridDS = NetcdfDatasetMgr.open(gridFilePath)
+    val coordSystems: List[CoordinateSystem] = gridDS.getCoordinateSystems.toList
+    val dset_attributes: List[nc2.Attribute] = gridDS.getGlobalAttributes.map(a => {
+      new nc2.Attribute(name + "--" + a.getFullName, a)
+    }).toList
 
-      for (variable <- gridDS.getVariables; if variable.isCoordinateVariable) {
-        variable match {
-          case cvar: VariableDS => gridDS.addCoordinateAxis(variable.asInstanceOf[VariableDS])
-        }
+    for (variable <- gridDS.getVariables; if variable.isCoordinateVariable) {
+      variable match {
+        case cvar: VariableDS => gridDS.addCoordinateAxis(variable.asInstanceOf[VariableDS])
       }
-      val coordAxes: List[CoordinateAxis] = gridDS.getCoordinateAxes.toList
-      val dimensions = gridDS.getDimensions.toList
-      val conv = gridDS.getConventionUsed
-      val title = gridDS.getTitle
-      new CDGrid(name, gridFilePath, coordAxes, coordSystems, dimensions, dset_attributes)
-    } finally {
-      gridDS.close()
     }
+    val coordAxes: List[CoordinateAxis] = gridDS.getCoordinateAxes.toList
+    val dimensions = gridDS.getDimensions.toList
+    val conv = gridDS.getConventionUsed
+    val title = gridDS.getTitle
+    new CDGrid(name, gridFilePath, coordAxes, coordSystems, dimensions, dset_attributes)
   }
 
   def isInt( s: String ): Boolean = try { s.toInt; true } catch { case err: Exception => false }
@@ -112,7 +112,7 @@ object CDGrid extends Loggable {
 
   def createGridFile(gridFilePath: String, datfilePath: String) = {
     logger.info( s"Creating #grid# file $gridFilePath from datfilePath: $datfilePath" )
-    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset(datfilePath, null)
+    val ncDataset: NetcdfDataset = NetcdfDatasetMgr.open(datfilePath)
     val gridWriter = NetcdfFileWriter.createNew(NetcdfFileWriter.Version.netcdf4, gridFilePath, null)
     val dimMap = Map(ncDataset.getDimensions.map(d => NCMLWriter.getName(d) -> gridWriter.addDimension(null, NCMLWriter.getName(d), d.getLength)): _*)
     val groupMap = mutable.HashMap.empty[String,nc2.Group]
@@ -205,7 +205,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
   def getGridFile: String = "file:/" + gridFilePath
 
   def findCoordinateAxis(name: String): Option[CoordinateAxis] = {
-    val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
+    val gridDS = NetcdfDatasetMgr.open(gridFilePath)
     try {
       val axisOpt = Option( gridDS.findCoordinateAxis( name ) )
       axisOpt.map( axis => {
@@ -219,11 +219,11 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
         logger.error("Can't find Coordinate Axis " + name + " in gridFile " + gridFilePath + " , error = " + err.toString );
         logger.error(err.getStackTrace.mkString("\n"))
         None
-    } finally { gridDS.close() }
+    }
   }
 
   def getTimeCoordinateAxis: Option[CoordinateAxis1DTime] = {
-    val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
+    val gridDS = NetcdfDatasetMgr.open(gridFilePath)
     try {
       val axisOpt = Option( gridDS.findCoordinateAxis( AxisType.Time ) )
       axisOpt.map( axis => {
@@ -236,12 +236,12 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
         logger.error("Can't create time Coordinate Axis for collection " + name + " in gridFile " + gridFilePath + ", error = " + err.toString );
         logger.error(err.getStackTrace.mkString("\n"))
         None
-    } finally { gridDS.close() }
+    }
   }
 
 
   def findCoordinateAxis( atype: AxisType ): Option[CoordinateAxis] = {
-    val gridDS = NetcdfDataset.acquireDataset(gridFilePath, null)
+    val gridDS = NetcdfDatasetMgr.open(gridFilePath)
     try {
       Option( gridDS.findCoordinateAxis( atype ) ).map( axis => {
         axis.setCaching(true);
@@ -253,16 +253,16 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
         logger.error("Can't find Coordinate Axis with type: " + atype.toString + " in gridFile " + gridFilePath + ", error = " + err.toString  );
         logger.error(err.getStackTrace.mkString("\n"))
         None
-    } finally { gridDS.close() }
+    }
   }
 
   def getVariable( varShortName: String ): Option[nc2.Variable] = {
-    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( gridFilePath, null )
+    val ncDataset: NetcdfDataset = NetcdfDatasetMgr.open( gridFilePath )
     try {
       ncDataset.getVariables.toList.find ( v => (v.getShortName equals varShortName) )
     } catch {
       case err: Exception => logger.error("Can't get Variable " + varShortName + " from gridFile " + gridFilePath ); throw err;
-    } finally { ncDataset.close() }
+    }
   }
 
   def getAttribute( keyValuePair: (String, Option[String] )  ): Option[nc2.Attribute] = keyValuePair._2 match {
@@ -271,7 +271,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
   }
 
   def getVariableMetadata( varShortName: String ): List[nc2.Attribute] = {
-    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( gridFilePath, null )
+    val ncDataset: NetcdfDataset = NetcdfDatasetMgr.open( gridFilePath )
     try {
       getVariable( varShortName ) match {
         case Some( ncVariable ) =>
@@ -289,7 +289,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
       }
     } catch {
       case err: Exception => logger.error("Can't get Variable metadata for var: " + varShortName + " in gridFile " + gridFilePath ); throw err;
-    } finally { ncDataset.close() }
+    }
   }
 }
 
@@ -314,18 +314,16 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
     ) ++ grid.attributes
 
   def generateAggregation(): xml.Elem = {
-    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset(grid.gridFilePath, null)
+    val ncDataset: NetcdfDataset = NetcdfDatasetMgr.open(grid.gridFilePath)
     try {
       _aggCollection(ncDataset)
     } catch {
       case err: Exception => logger.error("Can't aggregate collection for dataset " + ncDataset.toString); throw err
-    } finally {
-      ncDataset.close()
     }
   }
 
   def readVariableData(varShortName: String, section: ma2.Section): ma2.Array = {
-    val ncDataset: NetcdfDataset = NetcdfDataset.acquireDataset( dataPath, true, null )
+    val ncDataset: NetcdfDataset = NetcdfDatasetMgr.open( dataPath )
     ncDataset.getVariables.toList.find( v => v.getShortName equals varShortName ) match {
       case Some(variable) =>
         try {
@@ -336,8 +334,6 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
             logger.error("Variable shape: (%s),  section: { o:(%s) s:(%s) }".format(variable.getShape.mkString(","), section.getOrigin.mkString(","), section.getShape.mkString(",")));
             logger.error(err.getStackTrace.map(_.toString).mkString("\n"))
             throw err
-        } finally {
-          ncDataset.close()
         }
       case None => throw new Exception( s"Can't find variable $varShortName in dataset $dataPath ")
     }
@@ -710,6 +706,54 @@ class ncReadTest extends Loggable {
   }
 }
 
+object NetcdfDatasetMgr extends Loggable {
+  private val datasetCache: Cache[String, NetcdfDataset] = new FutureCache("DatasetMap", "dataset", false )
+
+  def keys: Set[String] = datasetCache.keys
+  def keyObjects: Set[String] = datasetCache.keys
+  def values: Iterable[Future[NetcdfDataset]] = datasetCache.values
+
+  def open(path: String ): NetcdfDataset = {
+    val cpath = cleanPath(path)
+    val dsetFut = datasetCache (cpath) { acquireDataset(cpath) _ }
+    logger.info(s" \n -------------------------------------\n Accessing Dataset, path: $path  \n -------------------------------------\n"  )
+    Await.result( dsetFut, Duration.Inf )
+  }
+
+  def cleanPath( path: String ): String =
+    if( path.startsWith("file://") ) path.substring(6)
+    else if( path.startsWith("file:/") ) path.substring(5)
+    else path
+
+  def closeAll = keys flatMap  close
+
+  def close( path: String ): Option[Future[NetcdfDataset]] = {
+    val cpath = cleanPath(path)
+    val result = datasetCache.remove( cpath )
+    result match {
+      case Some( dsetFut ) =>
+        dsetFut onComplete {
+          case Success(dataset) =>
+            logger.info(s" \n -------------------------------------\n Closing Dataset, path: $cpath\n -------------------------------------\n"  )
+            dataset.close()
+          case Failure(err) =>
+            logger.warn(s" \n -------------------------------------\n Failed to access open Dataset for close, path: $cpath, err: ${err.getMessage}  \n -------------------------------------\n"  )
+        }
+        Await.result( dsetFut, Duration.Inf )
+      case None => logger.warn(s" \n -------------------------------------\n Attempt to close non-open Dataset, path: $cpath  \n -------------------------------------\n"  )
+    }
+    result
+  }
+
+  private def acquireDataset( path: String )( p: Promise[NetcdfDataset] ): Unit =
+    try {
+      val result =  NetcdfDataset.acquireDataset( path, null )
+      logger.info(s" \n -------------------------------------\n Opened New Dataset from path: $path  \n -------------------------------------\n"  )
+      p.success(result)
+    } catch { case e: Exception => p.failure(e) }
+
+}
+
 //class ncWriteTest extends Loggable {
 //  import nasa.nccs.cdas.utilities.runtime
 //  import java.nio.channels.FileChannel
@@ -887,8 +931,50 @@ object writeTest extends App {
 //
 //
 
-//object gridFileTest extends App {
-//  val gridFile = "/Users/tpmaxwel/.cdas/cache/collections/NCML/npana.nc"
-//  val ncmlFile = "/Users/tpmaxwel/.cdas/cache/collections/NCML/npana.xml"
-//  CDGrid.createGridFile(gridFile, ncmlFile)
-//}
+object gridFileTest extends App {
+  val gridFilePath = "/Users/tpmaxwel/.cdas/cache/collections/NCML/npana.nc"
+  val gridDS = NetcdfDatasetMgr.open( gridFilePath )
+  val name = "time"
+  try {
+    val axisOpt = Option( gridDS.findCoordinateAxis( name ) )
+    axisOpt.map( axis => {
+      axis.setCaching(true);
+      val raw_data = axis.read()
+      val dataArray = CDLongArray.factory(raw_data)
+      print( dataArray.getArrayData().mkString(", ") )
+      NetcdfDatasetMgr.close( gridFilePath )
+    } )
+  } catch {
+    case err: Exception =>
+      print("Can't find Coordinate Axis " + name + " in gridFile " + gridFilePath + " , error = " + err.toString );
+      None
+  }
+}
+
+object dataFileTest extends App {
+  val gridFilePath = "/Users/tpmaxwel/.cdas/cache/collections/NCML/npana.nc"
+  val gridDS = NetcdfDatasetMgr.open( gridFilePath )
+  val dataPath = "file:/Users/tpmaxwel/.cdas/cache/collections/NCML/npana.xml"
+  val ncDataset = NetcdfDatasetMgr.open(dataPath)
+  val varShortName = "T"
+  val origin = Array(0,10,0,0)
+  val shape = Array(12,1,361,576)
+  val section: ma2.Section = new ma2.Section(origin, shape)
+  ncDataset.getVariables.toList.find(v => v.getShortName equals varShortName) match {
+    case Some(variable) =>
+      try {
+        val raw_data = variable.read(section)
+        val dataArray = CDFloatArray.factory( raw_data, Float.NaN )
+        println( dataArray.getArrayData(25).mkString(", ") )
+        NetcdfDatasetMgr.close( dataPath )
+      } catch {
+        case err: Exception =>
+          println("Can't read data for variable %s in dataset %s due to error: %s".format(varShortName, ncDataset.getLocation, err.toString));
+          println("Variable shape: (%s),  section: { o:(%s) s:(%s) }".format(variable.getShape.mkString(","), section.getOrigin.mkString(","), section.getShape.mkString(",")));
+          println(err.getStackTrace.map(_.toString).mkString("\n"))
+      }
+    case None => println(s"Can't find variable $varShortName in dataset $dataPath ")
+  }
+}
+
+

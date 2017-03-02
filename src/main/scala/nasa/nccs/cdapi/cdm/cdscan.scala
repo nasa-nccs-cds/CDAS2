@@ -14,7 +14,7 @@ import nasa.nccs.utilities.cdsutils
 import ucar.nc2.{FileWriter => _, _}
 import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
-import ucar.nc2.dataset._
+import ucar.nc2.dataset.{NetcdfDataset, _}
 import ucar.nc2.time.CalendarDate
 
 import collection.mutable.ListBuffer
@@ -151,17 +151,9 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8)
   }
   def getDimName(dim: nc2.Dimension): String = {
     val dimname = NCMLWriter.getName(dim)
-    fileMetadata.coordVars
-      .map(NCMLWriter.getName(_))
-      .find(vname =>
-        (vname equals dimname) || (vname.split(':')(0) == dimname.split(':')(
-          0))) match {
+    fileMetadata.coordVars.map(NCMLWriter.getName(_)).find(vname => (vname equals dimname) || (vname.split(':')(0) == dimname.split(':')(0))) match {
       case Some(vname) => vname
-      case None =>
-        throw new Exception(
-          s"Coordinate variable ${dimname} does not exist, coord vars = " + fileMetadata.coordVars
-            .map(cvar => cvar.getShortName + ": " + cvar.getFullNameEscaped)
-            .mkString(", "))
+      case None => throw new Exception( s"Coordinate variable ${dimname} does not exist, coord vars = " + fileMetadata.coordVars.map(cvar => cvar.getShortName + ": " + cvar.getFullNameEscaped).mkString(", "))
     }
   }
 
@@ -283,7 +275,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8)
   def findTimeVariable: Option[nc2.Variable] =
     fileMetadata.coordVars find (fileMetadata.getAxisType(_) == AxisType.Time)
 
-  def getNCML: xml.Node = {
+  def getNCMLVerbose: xml.Node = {
     val timeRegularSpecs = None // getTimeSpecs
     println(
       "Processing %d files with %d workers".format(nFiles, nReadProcessors))
@@ -306,7 +298,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8)
       <attribute name="_CoordinateAxisType" value="Time" />
     </variable>
 
-  def getNCML2: xml.Node = {
+  def getNCMLTerse: xml.Node = {
     val timeRegularSpecs = None // getTimeSpecs
     println(
       "Processing %d files with %d workers".format(nFiles, nReadProcessors))
@@ -318,10 +310,9 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8)
     </netcdf>
   }
 
-  def getNCML1: xml.Node = {
+  def getNCMLSimple: xml.Node = {
     val timeRegularSpecs = None // getTimeSpecs
-    println(
-      "Processing %d files with %d workers".format(nFiles, nReadProcessors))
+    println( "Processing %d files with %d workers".format(nFiles, nReadProcessors) )
     <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2">
       <attribute name="title" type="string" value="NetCDF aggregated dataset"/>
       { getAggregationTUC( timeRegularSpecs.isDefined ) }
@@ -331,7 +322,7 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8)
   def writeNCML(ncmlFile: File) = {
     logger.info("Writing *NCML* File: " + ncmlFile.toString)
     val bw = new BufferedWriter(new FileWriter(ncmlFile))
-    bw.write(getNCML.toString)
+    bw.write(getNCMLTerse.toString)
     bw.close()
   }
 
@@ -387,19 +378,15 @@ object FileHeader extends Loggable {
 
   def getTimeAxisRegularity(ncFile: URI): Boolean = {
     val ncDataset: NetcdfDataset = openNetCDFFile(ncFile)
-    try {
-      Option(ncDataset.findCoordinateAxis(AxisType.Time)) match {
-        case Some(coordAxis) =>
-          coordAxis match {
-            case coordAxis: CoordinateAxis1D => coordAxis.isRegular
-            case _ =>
-              throw new Exception(
-                "Multidimensional coord axes not currently supported")
-          }
-        case None =>
-          throw new Exception("ncFile does not have a time axis: " + ncFile)
-      }
-    } finally { ncDataset.close() }
+    Option(ncDataset.findCoordinateAxis(AxisType.Time)) match {
+      case Some(coordAxis) =>
+        coordAxis match {
+          case coordAxis: CoordinateAxis1D => coordAxis.isRegular
+          case _ => throw new Exception( "Time axis of this type not currently supported: " + coordAxis.getClass.getName )
+        }
+      case None =>
+        throw new Exception("ncFile does not have a time axis: " + ncFile)
+    }
   }
 
   def getTimeValues(ncDataset: NetcdfDataset,
@@ -420,7 +407,7 @@ object FileHeader extends Loggable {
   def openNetCDFFile(ncFile: URI, attempt: Int = 0): NetcdfDataset =
     try {
       logger.info("Opening NetCDF dataset(1) at: " + ncFile)
-      NetcdfDataset.openDataset(ncFile.toString)
+      NetcdfDatasetMgr.open(ncFile.toString)
     } catch {
       case ex: Throwable =>
         val error = if (ex.getCause == null) ex else ex.getCause
@@ -433,13 +420,8 @@ object FileHeader extends Loggable {
   def getTimeCoordValues(ncFile: URI): (Array[Long], Array[Long]) = {
     val ncDataset: NetcdfDataset = openNetCDFFile(ncFile)
     Option(ncDataset.findCoordinateAxis(AxisType.Time)) match {
-      case Some(timeAxis) =>
-        val (values, bounds) = getTimeValues(ncDataset, timeAxis)
-        ncDataset.close()
-        (values, bounds)
-      case None =>
-        throw new Exception(
-          "ncFile does not have a time axis: " + ncFile.getRawPath)
+      case Some(timeAxis) => getTimeValues(ncDataset, timeAxis)
+      case None => throw new Exception( "ncFile does not have a time axis: " + ncFile.getRawPath)
     }
   }
 }

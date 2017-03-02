@@ -174,9 +174,8 @@ class GridCoordSpec( val index: Int, val grid: CDGrid, val coordAxis: Coordinate
   def getUnits: String =  coordAxis.getUnitsString // coordAxis.getAxisType match { case AxisType.Time => cdsutils.baseTimeUnits case x => coordAxis.getUnitsString }
 
   def getTimeAxis: CoordinateAxis1DTime = {
-    val gridDS = NetcdfDataset.acquireDataset(grid.gridFilePath, null)
-    try { CoordinateAxis1DTime.factory( gridDS, coordAxis, new Formatter() ) }
-    finally { gridDS.close() }
+    val gridDS = NetcdfDatasetMgr.open(grid.gridFilePath )
+    CoordinateAxis1DTime.factory( gridDS, coordAxis, new Formatter() )
   }
 
   def getTimeCoordIndex( tval: String, role: BoundsRole.Value, strict: Boolean = false): Option[Int] = {
