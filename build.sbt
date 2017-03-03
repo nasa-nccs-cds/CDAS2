@@ -47,8 +47,8 @@ sbtcp := {
 
 compile  <<= (compile in Compile).dependsOn(sbtcp)
 
-fork in run:= true
-fork in test:= true
+fork := true
+
 logBuffered in Test := false
 
 javaOptions in run ++= Seq( "-Xmx8000M", "-Xms512M", "-Xss1M", "-XX:+CMSClassUnloadingEnabled", "-XX:+UseConcMarkSweepGC")

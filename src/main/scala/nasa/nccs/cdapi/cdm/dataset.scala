@@ -256,12 +256,12 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
     }
   }
 
-  def getVariable( varShortName: String ): Option[nc2.Variable] = {
+  def getVariable( varShortName: String ): nc2.Variable= {
     val ncDataset: NetcdfDataset = NetcdfDatasetMgr.open( gridFilePath )
-    try {
-      ncDataset.getVariables.toList.find ( v => (v.getShortName equals varShortName) )
-    } catch {
-      case err: Exception => logger.error("Can't get Variable " + varShortName + " from gridFile " + gridFilePath ); throw err;
+    val variables = ncDataset.getVariables.toList
+    variables.find ( v => (v.getShortName equals varShortName) ) match {
+      case Some( variable ) => variable
+      case None => throw new Exception("Can't find variable %s in collection %s (%s), variable names = [ %s ] ".format(varShortName,name,gridFilePath, variables.map(_.getShortName).mkString(", ") ) )
     }
   }
 
@@ -271,25 +271,17 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
   }
 
   def getVariableMetadata( varShortName: String ): List[nc2.Attribute] = {
-    val ncDataset: NetcdfDataset = NetcdfDatasetMgr.open( gridFilePath )
-    try {
-      getVariable( varShortName ) match {
-        case Some( ncVariable ) =>
-          val attributes = ncVariable.getAttributes.toList
-          val keyValuePairs = List(
-            "description" -> ncVariable.getDescription,
-            "units" -> ncVariable.getUnitsString,
-            "dtype" -> ncVariable.getDataType.toString,
-            "dims" -> ncVariable.getDimensionsString,
-            "shape" -> ncVariable.getShape.mkString(","),
-            "fullname" -> ncVariable.getFullName
-          ) map { case (key,value) => getAttribute(key, Option(value)) }
-          attributes ++ keyValuePairs.flatten
-        case None => throw new Exception("Can't find variable %s in collection %s".format(varShortName,name) )
-      }
-    } catch {
-      case err: Exception => logger.error("Can't get Variable metadata for var: " + varShortName + " in gridFile " + gridFilePath ); throw err;
-    }
+    val ncVariable = getVariable( varShortName )
+    val attributes = ncVariable.getAttributes.toList
+    val keyValuePairs = List(
+      "description" -> ncVariable.getDescription,
+      "units" -> ncVariable.getUnitsString,
+      "dtype" -> ncVariable.getDataType.toString,
+      "dims" -> ncVariable.getDimensionsString,
+      "shape" -> ncVariable.getShape.mkString(","),
+      "fullname" -> ncVariable.getFullName
+    ) map { case (key,value) => getAttribute(key, Option(value)) }
+    attributes ++ keyValuePairs.flatten
   }
 }
 

@@ -16,6 +16,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   val webProcessManager = new ProcessManager( serverConfiguration )
   val nExp = 3
   val shutdown_after = false
+  val use_6hr_data = false
   val mod_collections = for (model <- List( "GISS", "GISS-E2-R" ); iExp <- (1 to nExp)) yield (model -> s"${model}_r${iExp}i1p1")
   val cip_collections = for ( model <- List( "CIP_CFSR_6hr", "CIP_MERRA2_mon" ) ) yield (model -> s"${model}_ta")
   val eps = 0.00001
@@ -49,20 +50,20 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     }
   }
 
-//  test("Aggregate1") {
-//    for( (model, collection) <- cip_collections ) {
-//      val location = s"/collections/${model}/$collection.csv"
-//      Option(getClass.getResource(location)) match {
-//        case Some( url ) =>
-//          val collection_path = url.getFile
-//          val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
-//          val agg_result_node = executeTest (datainputs, false, "util.agg")
-//          logger.info (s"Agg collection $collection Result: " + printer.format (agg_result_node) )
-//        case None => throw new Exception( s"Can't find collection $collection for model  $model")
-//      }
-//    }
-//
-//  }
+  test("Aggregate1") {
+    for( (model, collection) <- cip_collections ) {
+      val location = s"/collections/${model}/$collection.csv"
+      Option(getClass.getResource(location)) match {
+        case Some( url ) =>
+          val collection_path = url.getFile
+          val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
+          val agg_result_node = executeTest (datainputs, false, "util.agg")
+          logger.info (s"Agg collection $collection Result: " + printer.format (agg_result_node) )
+        case None => throw new Exception( s"Can't find collection $collection for model  $model")
+      }
+    }
+
+  }
 
 //  test("MultiAggregate") {
 //    val collection_path = "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/"
@@ -80,24 +81,25 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
       logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
       runtime.printMemoryUsage
     }
-//    for( (model, collection) <- cip_collections ) {
-//      val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":40,"system":"values"},"lon":{"start":0,"end":40,"system":"values"},"time":{"start":"2000-01-01","end":"2005-01-01","system":"values"}}],variable=[{"uri":"collection:/$collection","name":"ta:v1","domain":"d0"}]]"""
-//      print( s"Caching collection $collection" )
-//      val cache_result_node = executeTest(datainputs, false, "util.cache")
-//      logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
-//      runtime.printMemoryUsage
-//    }
+    if( use_6hr_data )
+      for( (model, collection) <- cip_collections ) {
+        val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":40,"system":"values"},"lon":{"start":0,"end":40,"system":"values"},"time":{"start":"2000-01-01","end":"2005-01-01","system":"values"}}],variable=[{"uri":"collection:/$collection","name":"ta:v1","domain":"d0"}]]"""
+        print( s"Caching collection $collection" )
+        val cache_result_node = executeTest(datainputs, false, "util.cache")
+        logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
+        runtime.printMemoryUsage
+      }
   }
 
-//  test("TimeConvertedDiff") {
-//    print( s"Running test TimeConvertedDiff" )
-//    val CFSR_6hr_variable = s"""{"uri":"collection:/CIP_CFSR_6hr_ta","name":"ta:v0","domain":"d0"}"""
-//    val MERRA2_mon_variable = s"""{"uri":"collection:/CIP_MERRA2_mon_ta","name":"ta:v1","domain":"d0"}"""
-//    val datainputs = s"""[variable=[$CFSR_6hr_variable,$MERRA2_mon_variable],domain=[{"name":"d0","lat":{"start":0,"end":30,"system":"values"},"time":{"start":"2000-01-01T00:00:00Z","end":"2009-12-31T00:00:00Z","system":"values"},"lon":{"start":0,"end":30,"system":"values"}},{"name":"d1","crs":"~v1","trs":"~v0"}],operation=[{"name":"CDSpark.diff2","input":"v0,v1","domain":"d1"}]]""".replaceAll("\\s", "")
-//    val result_node = executeTest(datainputs)
-//    val result_data = CDFloatArray( getResultData( result_node ).slice(0,0,10) )
-//    println( " ** Op Result:       " + result_data.mkDataString(", ") )
-//  }
+  test("TimeConvertedDiff")  { if( use_6hr_data ) {
+    print( s"Running test TimeConvertedDiff" )
+    val CFSR_6hr_variable = s"""{"uri":"collection:/CIP_CFSR_6hr_ta","name":"ta:v0","domain":"d0"}"""
+    val MERRA2_mon_variable = s"""{"uri":"collection:/CIP_MERRA2_mon_ta","name":"ta:v1","domain":"d0"}"""
+    val datainputs = s"""[variable=[$CFSR_6hr_variable,$MERRA2_mon_variable],domain=[{"name":"d0","lat":{"start":0,"end":30,"system":"values"},"time":{"start":"2000-01-01T00:00:00Z","end":"2009-12-31T00:00:00Z","system":"values"},"lon":{"start":0,"end":30,"system":"values"}},{"name":"d1","crs":"~v1","trs":"~v0"}],operation=[{"name":"CDSpark.diff2","input":"v0,v1","domain":"d1"}]]""".replaceAll("\\s", "")
+    val result_node = executeTest(datainputs)
+    val result_data = CDFloatArray( getResultData( result_node ).slice(0,0,10) )
+    println( " ** Op Result:       " + result_data.mkDataString(", ") )
+  }}
 
   test("subsetTestXY") {
     val nco_verified_result: CDFloatArray = CDFloatArray( Array( 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 245.2, 244.904, 244.6914, 244.5297, 244.2834, 244.0234, 245.4426, 245.1731, 244.9478, 244.6251, 244.2375, 244.0953, 248.4837, 247.4268, 246.4957, 245.586, 245.4244, 244.8213, 249.7772, 248.7458, 247.5331, 246.8871, 246.0183, 245.8848, 248.257, 247.3562, 246.3798, 245.3962, 244.6091, 243.6039 ).map(_.toFloat), Float.MaxValue )
