@@ -1,5 +1,6 @@
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.loaders.Collections
+import nasa.nccs.cdas.utilities.runtime
 import nasa.nccs.utilities.{CDASLogManager, Loggable}
 
 import scala.collection.JavaConversions._
@@ -48,20 +49,20 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     }
   }
 
-  test("Aggregate1") {
-    for( (model, collection) <- cip_collections ) {
-      val location = s"/collections/${model}/$collection.csv"
-      Option(getClass.getResource(location)) match {
-        case Some( url ) =>
-          val collection_path = url.getFile
-          val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
-          val agg_result_node = executeTest (datainputs, false, "util.agg")
-          logger.info (s"Agg collection $collection Result: " + printer.format (agg_result_node) )
-        case None => throw new Exception( s"Can't find collection $collection for model  $model")
-      }
-    }
-
-  }
+//  test("Aggregate1") {
+//    for( (model, collection) <- cip_collections ) {
+//      val location = s"/collections/${model}/$collection.csv"
+//      Option(getClass.getResource(location)) match {
+//        case Some( url ) =>
+//          val collection_path = url.getFile
+//          val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
+//          val agg_result_node = executeTest (datainputs, false, "util.agg")
+//          logger.info (s"Agg collection $collection Result: " + printer.format (agg_result_node) )
+//        case None => throw new Exception( s"Can't find collection $collection for model  $model")
+//      }
+//    }
+//
+//  }
 
 //  test("MultiAggregate") {
 //    val collection_path = "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/"
@@ -74,17 +75,22 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   test("Cache") {
     for( (model, collection) <- mod_collections ) {
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":150,"system":"indices"}}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
+      print( s"Caching collection $collection" )
       val cache_result_node = executeTest(datainputs, false, "util.cache")
       logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
+      runtime.printMemoryUsage
     }
-    for( (model, collection) <- cip_collections ) {
-      val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":40,"system":"values"},"lon":{"start":0,"end":40,"system":"values"},"time":{"start":"2000-01-01","end":"2005-01-01","system":"values"}}],variable=[{"uri":"collection:/$collection","name":"ta:v1","domain":"d0"}]]"""
-      val cache_result_node = executeTest(datainputs, false, "util.cache")
-      logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
-    }
+//    for( (model, collection) <- cip_collections ) {
+//      val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":40,"system":"values"},"lon":{"start":0,"end":40,"system":"values"},"time":{"start":"2000-01-01","end":"2005-01-01","system":"values"}}],variable=[{"uri":"collection:/$collection","name":"ta:v1","domain":"d0"}]]"""
+//      print( s"Caching collection $collection" )
+//      val cache_result_node = executeTest(datainputs, false, "util.cache")
+//      logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
+//      runtime.printMemoryUsage
+//    }
   }
 
   test("TimeConvertedDiff") {
+    print( s"Running test TimeConvertedDiff" )
     val CFSR_6hr_variable = s"""{"uri":"collection:/CIP_CFSR_6hr_ta","name":"ta:v0","domain":"d0"}"""
     val MERRA2_mon_variable = s"""{"uri":"collection:/CIP_MERRA2_mon_ta","name":"ta:v1","domain":"d0"}"""
     val datainputs = s"""[variable=[$CFSR_6hr_variable,$MERRA2_mon_variable],domain=[{"name":"d0","lat":{"start":0,"end":30,"system":"values"},"time":{"start":"2000-01-01T00:00:00Z","end":"2009-12-31T00:00:00Z","system":"values"},"lon":{"start":0,"end":30,"system":"values"}},{"name":"d1","crs":"~v1","trs":"~v0"}],operation=[{"name":"CDSpark.diff2","input":"v0,v1","domain":"d1"}]]""".replaceAll("\\s", "")
