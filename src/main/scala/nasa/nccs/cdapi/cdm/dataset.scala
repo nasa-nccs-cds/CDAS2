@@ -701,7 +701,7 @@ class ncReadTest extends Loggable {
 }
 
 object NetcdfDatasetMgr extends Loggable {
-//  NetcdfDataset.initNetcdfFileCache(10,1000,3600)
+//  NetcdfDataset.initNetcdfFileCache(10,1000,3600)   // Bugs in Netcdf file caching cause NullPointerExceptions on MERRA2 npana datasets (var T): ( 3/3/2017 )
   val datasetCache = new ConcurrentLinkedHashMap.Builder[String, NetcdfDataset].initialCapacity(64).maximumWeightedCapacity(1000).build()
 
 
@@ -713,7 +713,7 @@ object NetcdfDatasetMgr extends Loggable {
     val cpath = cleanPath(path)
     val key = getKey(path)
     val result = datasetCache.getOrElseUpdate( key, acquireDataset(cpath) )
-    logger.info(s" \n -------------------------------------\n Accessed Dataset using key: $key  \n -------------------------------------\n")
+    logger.info(s"   Accessed Dataset using key: $key   ")
     result
   }
 
@@ -729,7 +729,7 @@ object NetcdfDatasetMgr extends Loggable {
   private def acquireDataset( path: String ): NetcdfDataset = {
 //    val result = NetcdfDataset.acquireDataset(path, null)
     val result = NetcdfDataset.openDataset(path)
-    logger.info(s" \n -------------------------------------\n Opened Dataset from path: $path  \n -------------------------------------\n")
+    logger.info(s"   Opened Dataset from path: $path   ")
     result
   }
 

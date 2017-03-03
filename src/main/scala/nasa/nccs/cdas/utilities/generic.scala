@@ -7,10 +7,10 @@ object runtime {
     val mb = 1024 * 1024
     val runtime = Runtime.getRuntime
     logger.info("--------------------------------- MEMORY USAGE ---------------------------------")
-    logger.info("** Used Memory:  " + (runtime.totalMemory - runtime.freeMemory) / mb) + " M"
-    logger.info("** Free Memory:  " + runtime.freeMemory / mb) + " M"
-    logger.info("** Total Memory: " + runtime.totalMemory / mb) + " M"
-    logger.info("** Max Memory:   " + runtime.maxMemory / mb) + " M"
+    logger.info("** Used Memory: %d M ".format((runtime.totalMemory - runtime.freeMemory) / mb))
+    logger.info("** Free Memory: %d M ".format(runtime.freeMemory / mb))
+    logger.info("** Total Memory: %d M ".format(runtime.totalMemory / mb))
+    logger.info("** Max Memory: %d M ".format(runtime.maxMemory / mb))
     logger.info("** Processors:   " + runtime.availableProcessors )
     logger.info("--------------------------------- ------------ ---------------------------------")
   }
@@ -19,10 +19,10 @@ object runtime {
     val mb = 1024 * 1024
     val runtime = Runtime.getRuntime
     println("--------------------------------- MEMORY USAGE ---------------------------------")
-    println("** Used Memory:  " + (runtime.totalMemory - runtime.freeMemory) / mb) + " M"
-    println("** Free Memory:  " + runtime.freeMemory / mb) + " M"
-    println("** Total Memory: " + runtime.totalMemory / mb) + " M"
-    println("** Max Memory:   " + runtime.maxMemory / mb) + " M"
+    println("** Used Memory: %d M ".format((runtime.totalMemory - runtime.freeMemory) / mb))
+    println("** Free Memory: %d M ".format(runtime.freeMemory / mb))
+    println("** Total Memory: %d M ".format(runtime.totalMemory / mb))
+    println("** Max Memory: %d M ".format(runtime.maxMemory / mb))
     println("** Processors:   " + runtime.availableProcessors )
     println("--------------------------------- ------------ ---------------------------------")
   }
