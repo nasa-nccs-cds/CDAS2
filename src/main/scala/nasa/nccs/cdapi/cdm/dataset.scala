@@ -709,7 +709,7 @@ class ncReadTest extends Loggable {
 }
 
 object NetcdfDatasetMgr extends Loggable {
-  NetcdfDataset.initNetcdfFileCache(10,1000,3600)
+//  NetcdfDataset.initNetcdfFileCache(10,1000,3600)
   val datasetCache = new ConcurrentLinkedHashMap.Builder[String, NetcdfDataset].initialCapacity(64).maximumWeightedCapacity(1000).build()
 
 
@@ -735,8 +735,9 @@ object NetcdfDatasetMgr extends Loggable {
   def close( path: String ): Option[NetcdfDataset] = _close( getKey(cleanPath(path)) )
 
   private def acquireDataset( path: String ): NetcdfDataset = {
-    val result = NetcdfDataset.acquireDataset(path, null)
-    logger.info(s" \n -------------------------------------\n Opened New Dataset from path: $path  \n -------------------------------------\n")
+//    val result = NetcdfDataset.acquireDataset(path, null)
+    val result = NetcdfDataset.openDataset(path)
+    logger.info(s" \n -------------------------------------\n Opened Dataset from path: $path  \n -------------------------------------\n")
     result
   }
 
@@ -942,10 +943,10 @@ object writeTest extends App {
 //object dataFileTest extends App {
 //  val gridFilePath = "/Users/tpmaxwel/.cdas/cache/collections/NCML/npana.nc"
 //  val gridDS = NetcdfDatasetMgr.open( gridFilePath )
-//  val dataPath = "file:/Users/tpmaxwel/.cdas/cache/collections/NCML/npana.xml"
+//  val dataPath = "/Users/tpmaxwel/.cdas/cache/collections/NCML/npana.xml"
 //  val ncDataset = NetcdfDatasetMgr.open(dataPath)
 //  val varShortName = "T"
-//  val origin = Array(0,10,0,0)
+//  val origin = Array(0,40,0,0)
 //  val shape = Array(12,1,361,576)
 //  val section: ma2.Section = new ma2.Section(origin, shape)
 //  ncDataset.getVariables.toList.find(v => v.getShortName equals varShortName) match {
@@ -965,4 +966,4 @@ object writeTest extends App {
 //  }
 //}
 //
-//
+

@@ -89,15 +89,15 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
 //    }
   }
 
-  test("TimeConvertedDiff") {
-    print( s"Running test TimeConvertedDiff" )
-    val CFSR_6hr_variable = s"""{"uri":"collection:/CIP_CFSR_6hr_ta","name":"ta:v0","domain":"d0"}"""
-    val MERRA2_mon_variable = s"""{"uri":"collection:/CIP_MERRA2_mon_ta","name":"ta:v1","domain":"d0"}"""
-    val datainputs = s"""[variable=[$CFSR_6hr_variable,$MERRA2_mon_variable],domain=[{"name":"d0","lat":{"start":0,"end":30,"system":"values"},"time":{"start":"2000-01-01T00:00:00Z","end":"2009-12-31T00:00:00Z","system":"values"},"lon":{"start":0,"end":30,"system":"values"}},{"name":"d1","crs":"~v1","trs":"~v0"}],operation=[{"name":"CDSpark.diff2","input":"v0,v1","domain":"d1"}]]""".replaceAll("\\s", "")
-    val result_node = executeTest(datainputs)
-    val result_data = CDFloatArray( getResultData( result_node ).slice(0,0,10) )
-    println( " ** Op Result:       " + result_data.mkDataString(", ") )
-  }
+//  test("TimeConvertedDiff") {
+//    print( s"Running test TimeConvertedDiff" )
+//    val CFSR_6hr_variable = s"""{"uri":"collection:/CIP_CFSR_6hr_ta","name":"ta:v0","domain":"d0"}"""
+//    val MERRA2_mon_variable = s"""{"uri":"collection:/CIP_MERRA2_mon_ta","name":"ta:v1","domain":"d0"}"""
+//    val datainputs = s"""[variable=[$CFSR_6hr_variable,$MERRA2_mon_variable],domain=[{"name":"d0","lat":{"start":0,"end":30,"system":"values"},"time":{"start":"2000-01-01T00:00:00Z","end":"2009-12-31T00:00:00Z","system":"values"},"lon":{"start":0,"end":30,"system":"values"}},{"name":"d1","crs":"~v1","trs":"~v0"}],operation=[{"name":"CDSpark.diff2","input":"v0,v1","domain":"d1"}]]""".replaceAll("\\s", "")
+//    val result_node = executeTest(datainputs)
+//    val result_data = CDFloatArray( getResultData( result_node ).slice(0,0,10) )
+//    println( " ** Op Result:       " + result_data.mkDataString(", ") )
+//  }
 
   test("subsetTestXY") {
     val nco_verified_result: CDFloatArray = CDFloatArray( Array( 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 245.2, 244.904, 244.6914, 244.5297, 244.2834, 244.0234, 245.4426, 245.1731, 244.9478, 244.6251, 244.2375, 244.0953, 248.4837, 247.4268, 246.4957, 245.586, 245.4244, 244.8213, 249.7772, 248.7458, 247.5331, 246.8871, 246.0183, 245.8848, 248.257, 247.3562, 246.3798, 245.3962, 244.6091, 243.6039 ).map(_.toFloat), Float.MaxValue )
@@ -140,7 +140,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("ESGF_Demo") {
-    val unverified_result: CDFloatArray = CDFloatArray(  Array( 244.89293, 244.89293, 244.89293, 244.89293, 244.89293, 244.89293, 244.89293, 244.89293, 244.89293, 244.89293 ).map(_.toFloat), Float.MaxValue )
+    val unverified_result: CDFloatArray = CDFloatArray(  Array( 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908 ).map(_.toFloat), Float.MaxValue )
     val GISS_H_vids = ( 1 to nExp ) map { index => s"vH$index" }
     val GISS_E2R_vids = ( 1 to nExp ) map { index => s"vR$index" }
     val GISS_H_variables     = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
