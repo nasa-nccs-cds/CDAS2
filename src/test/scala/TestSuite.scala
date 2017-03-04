@@ -17,7 +17,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   val nExp = 3
   val shutdown_after = false
   val use_6hr_data = false
-  val use_napna_data = false
+  val use_npana_data = false
   val mod_collections = for (model <- List( "GISS", "GISS-E2-R" ); iExp <- (1 to nExp)) yield (model -> s"${model}_r${iExp}i1p1")
   val cip_collections = for ( model <- List( "CIP_CFSR_6hr", "CIP_MERRA2_mon" ) ) yield (model -> s"${model}_ta")
   val eps = 0.00001
@@ -237,11 +237,11 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Max")
   }
 
-  test("TimeAve-npana") { if(use_napna_data) {
+  test("TimeAve-npana") { if(use_npana_data) {
     val datainputs = """[domain=[{"name":"d0","lat":{"start":10,"end":20,"system":"indices"},"lon":{"start":10,"end":20,"system":"indices"}},{"name":"d1","lev":{"start":5,"end":5,"system":"indices"}}],variable=[{"uri":"collection:/npana","name":"T:v1","domain":"d1"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"t"}]]"""
     val result_node = executeTest(datainputs)
     val result_data = getResultData( result_node )
-    println( "Op Result:       " + result_data )
+    println( "Op Result Data:       " + result_data.mkBoundedDataString(", ", 64) )
   }}
 
   test("Maximum-file") {

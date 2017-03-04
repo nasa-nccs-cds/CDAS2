@@ -190,6 +190,7 @@ object CDGrid extends Loggable {
 }
 
 class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[CoordinateAxis], val coordSystems: List[CoordinateSystem], val dimensions: List[Dimension], val attributes: List[nc2.Attribute] ) extends Loggable {
+  val precache = false
 
   def gridFileExists(): Boolean = try {
     val file = new File(gridFilePath)
@@ -209,8 +210,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
     try {
       val axisOpt = Option( gridDS.findCoordinateAxis( name ) )
       axisOpt.map( axis => {
-          axis.setCaching(true);
-          axis.read()
+          if (precache) { axis.setCaching(true); axis.read() }
           axis
         }
       )
@@ -227,8 +227,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
     try {
       val axisOpt = Option( gridDS.findCoordinateAxis( AxisType.Time ) )
       axisOpt.map( axis => {
-        axis.setCaching(true);
-        axis.read()
+        if (precache) { axis.setCaching(true); axis.read() }
         CoordinateAxis1DTime.factory( gridDS, axis, new Formatter() )
       })
     } catch {
@@ -244,8 +243,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
     val gridDS = NetcdfDatasetMgr.open(gridFilePath)
     try {
       Option( gridDS.findCoordinateAxis( atype ) ).map( axis => {
-        axis.setCaching(true);
-        axis.read()
+        if (precache) { axis.setCaching(true); axis.read() }
         axis
       } )
     } catch {
@@ -931,7 +929,7 @@ object writeTest extends App {
 //      None
 //  }
 //}
-//
+
 //object dataFileTest extends App {
 //  val gridFilePath = "/Users/tpmaxwel/.cdas/cache/collections/NCML/npana.nc"
 //  val gridDS = NetcdfDatasetMgr.open( gridFilePath )
@@ -958,4 +956,4 @@ object writeTest extends App {
 //  }
 //}
 //
-
+//

@@ -11,7 +11,7 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
   import CDASapp._
   val processManager = new ProcessManager( appConfiguration )
   val process = "cdas"
-  val printer = new scala.xml.PrettyPrinter(80, 2)
+  val printer = new scala.xml.PrettyPrinter(200, 3)
   Runtime.getRuntime().addShutdownHook( new Thread() { override def run() { term() } } )
 
 
