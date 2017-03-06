@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 export CDAS_CACHE_DIR=${CDAS_CACHE_DIR:-${HOME}/.cdas/cache}
+export CDAS_MAX_MEM=${CDAS_MAX_MEM:-32000M}
 export CDAS_BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export CDAS_HOME_DIR=${CDAS_BIN_DIR}/..
 export CDWPS_HOME_DIR=${CDWPS_HOME_DIR:-${CDAS_HOME_DIR}/../CDWPS}
@@ -9,7 +10,7 @@ export CDAS_SCALA_DIR=${CDAS_BIN_DIR}/../src/main/scala
 export CDAS_STAGE_DIR=${CDAS_HOME_DIR}/target/universal/stage
 export CLASSPATH=${CDAS_SCALA_DIR}:${CDAS_CACHE_DIR}:${CDAS_STAGE_DIR}/conf:${CDAS_STAGE_DIR}/lib:${CONDA_PREFIX}/lib:${CLASSPATH}
 export UVCDAT_ANONYMOUS_LOG=no
-export WPS_CMD="$CDWPS_HOME_DIR/target/universal/cdwps-1.1-SNAPSHOT/bin/cdwps -J-Xmx32000M -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC"
+export WPS_CMD="$CDWPS_HOME_DIR/target/universal/cdwps-1.1-SNAPSHOT/bin/cdwps -J-Xmx$CDAS_MAX_MEM -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC"
 # export PYTHONPATH=${PYTHONPATH}:${CDAS_HOME_DIR}/python
 export PATH=${CDAS_STAGE_DIR}/bin:${CDAS_BIN_DIR}:${PATH}
 
