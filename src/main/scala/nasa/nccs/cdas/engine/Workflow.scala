@@ -247,6 +247,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
           throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
       }
     }
+    logger.info( "\n\n ----------------------- Completed RDD input map, keys: { %s }-------\n".format( rawRddMap.keys.mkString(", ") ))
     val unifiedRDD = unifyRDDs( rawRddMap, kernelContext, requestCx, node )
     unifyGrids( unifiedRDD, requestCx, kernelContext, node )
   }
