@@ -65,6 +65,9 @@ object CDSparkContext extends Loggable {
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer") //
       .set("spark.kryoserializer.buffer",kyro_buffer_mb.toString)
       .set("spark.kryoserializer.buffer.max",kyro_buffer_max_mb.toString)
+      .set("spark.network.timeout", "360s" )
+      .set("spark.logConf", "true" )
+      .set("spark.executor.heartbeatInterval", "30s" )
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     sc
   }
