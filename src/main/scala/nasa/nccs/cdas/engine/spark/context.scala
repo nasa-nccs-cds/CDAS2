@@ -23,13 +23,13 @@ object CDSparkContext extends Loggable {
   val kyro_buffer_max_mb = 300
   val default_master = "local[%d]".format(CDASPartitioner.nProcessors)
 
-  def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = false, enableMetrics: Boolean = false ) : CDSparkContext = {
+  def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = true, enableMetrics: Boolean = false ) : CDSparkContext = {
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  NEW CDSparkContext Created  **** ")
     logger.info( "--------------------------------------------------------\n\n")
 
     val sparkContext = new SparkContext( getSparkConf(master, appName, logConf, enableMetrics) )
-    sparkContext.setLogLevel("WARN")
+    sparkContext.setLogLevel("DEBUG")
     val rv = new CDSparkContext( sparkContext )
 
     logger.info( "--------------------------------------------------------")
@@ -40,7 +40,7 @@ object CDSparkContext extends Loggable {
 
   def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
-  def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false, false ) ) )
+  def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, true, false ) ) )
 
   def merge(rdd0: RDD[(PartitionKey,RDDPartition)], rdd1: RDD[(PartitionKey,RDDPartition)] ): RDD[(PartitionKey,RDDPartition)] = {
     val mergedRdd = rdd0.join( rdd1 ) mapValues { case (part0,part1) => part0 ++ part1  } map identity
@@ -66,7 +66,6 @@ object CDSparkContext extends Loggable {
       .set("spark.kryoserializer.buffer",kyro_buffer_mb.toString)
       .set("spark.kryoserializer.buffer.max",kyro_buffer_max_mb.toString)
       .set("spark.network.timeout", "360s" )
-      .set("spark.logConf", "true" )
       .set("spark.executor.heartbeatInterval", "30s" )
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     sc
