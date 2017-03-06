@@ -957,3 +957,14 @@ object writeTest extends App {
 //}
 //
 //
+
+
+//object treadIdTest extends App {
+//  println( Thread.currentThread().getId() )
+//  val yf0 = Future[Long] { Thread.sleep(3000); Thread.currentThread().getId() }
+//  val yf1 = Future[Long] { Thread.sleep(3000); Thread.currentThread().getId() }
+//  val yf2 = Future[Long] { Thread.sleep(3000); Thread.currentThread().getId() }
+//  println( Await.result( yf0, Duration.Inf) )
+//  println( Await.result( yf1, Duration.Inf) )
+//  println( Await.result( yf2, Duration.Inf) )
+//}
