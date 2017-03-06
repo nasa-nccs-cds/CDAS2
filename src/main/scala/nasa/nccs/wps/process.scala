@@ -89,9 +89,10 @@ class WPSWorkflowProcess(val identifier: String, val description: String, val ti
 trait WPSProcess extends WPSElement {
   val outputs: List[WPSProcessOutput]
 
-  def GetCapabilities: xml.Elem = <wps:Process wps:processVersion="1">
-    {getHeader}
-  </wps:Process>
+  def GetCapabilities: xml.Elem = syntax match {
+    case ResponseSyntax.WPS =>      <wps:Process wps:processVersion="1"> {getHeader} </wps:Process>
+    case ResponseSyntax.Generic =>  <process>  {getHeader}  </process>
+  }
 
   def toXml: xml.Elem = syntax match {
     case ResponseSyntax.WPS =>

@@ -11,6 +11,7 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
   import CDASapp._
   val processManager = new ProcessManager( appConfiguration )
   val process = "cdas"
+  val printer = new scala.xml.PrettyPrinter(200, 3)
   Runtime.getRuntime().addShutdownHook( new Thread() { override def run() { term() } } )
 
 
@@ -24,30 +25,30 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
 
   def getResult( resultSpec: Array[String] ) = {
     val result: xml.Node = processManager.getResult( process, resultSpec(0) )
-    sendResponse( resultSpec(0), result.toString )
+    sendResponse( resultSpec(0), printer.format( result )  )
   }
 
   def getResultStatus( resultSpec: Array[String] ) = {
     val result: xml.Node = processManager.getResultStatus( process, resultSpec(0) )
-    sendResponse( resultSpec(0), result.toString )
+    sendResponse( resultSpec(0), printer.format( result )  )
   }
 
   override def execute( taskSpec: Array[String] ) = {
     val process_name = elem(taskSpec,2)
     val datainputs = if( taskSpec.length > 3 ) wpsObjectParser.parseDataInputs( taskSpec(3) ) else Map.empty[String, Seq[Map[String, Any]]]
     val runargs = if( taskSpec.length > 4 ) wpsObjectParser.parseMap( taskSpec(4) ) else Map.empty[String, Any]
-    val response = processManager.executeProcess( process, process_name, datainputs, runargs.mapValues(_.toString) ).toString
-    sendResponse( taskSpec(0), response )
+    val response = processManager.executeProcess( process, process_name, datainputs, runargs.mapValues(_.toString) )
+    sendResponse( taskSpec(0), printer.format( response ) )
   }
 
   override def getCapabilities(utilSpec: Array[String]) = {
     val result: xml.Elem = processManager.getCapabilities( process, elem(utilSpec,2) )
-    sendResponse( utilSpec(0), result.toString )
+    sendResponse( utilSpec(0), printer.format( result ) )
   }
 
   override def describeProcess(procSpec: Array[String]) = {
     val result: xml.Elem = processManager.describeProcess( process, elem(procSpec,2) )
-    sendResponse( procSpec(0), result.toString  )
+    sendResponse( procSpec(0), printer.format( result )  )
   }
 }
 

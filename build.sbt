@@ -47,12 +47,12 @@ sbtcp := {
 
 compile  <<= (compile in Compile).dependsOn(sbtcp)
 
-fork in run:= true
-fork in test:= true
+fork := true
+
 logBuffered in Test := false
 
 javaOptions in run ++= Seq( "-Xmx8000M", "-Xms512M", "-Xss1M", "-XX:+CMSClassUnloadingEnabled", "-XX:+UseConcMarkSweepGC")
-javaOptions in test ++= Seq( "-Xmx8000M", "-Xms512M", "-Xss1M", "-XX:+CMSClassUnloadingEnabled", "-XX:+UseConcMarkSweepGC")
+javaOptions in test ++= Seq( "-Xmx8000M", "-Xms512M", "-Xss1M", "-XX:+CMSClassUnloadingEnabled", "-XX:+UseConcMarkSweepGC", "-XX:+PrintFlagsFinal")
 ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 
 import java.util.Properties
@@ -134,7 +134,6 @@ publishTo := Some(Resolver.file( "file",  sys.env.get("SBT_PUBLISH_DIR") match {
   case None =>  { val pdir = getCacheDir() / "publish"; pdir.mkdirs(); pdir }
 } ) )
 
-lazy val md = taskKey[Unit]("Prints 'Hello World'")
 //
 //md := {
 //  import nasa.nccs.cds2.engine.MetadataPrinter

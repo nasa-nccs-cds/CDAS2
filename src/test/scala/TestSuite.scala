@@ -1,5 +1,6 @@
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.loaders.Collections
+import nasa.nccs.cdas.utilities.runtime
 import nasa.nccs.utilities.{CDASLogManager, Loggable}
 
 import scala.collection.JavaConversions._
@@ -15,6 +16,8 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   val webProcessManager = new ProcessManager( serverConfiguration )
   val nExp = 3
   val shutdown_after = false
+  val use_6hr_data = false
+  val use_npana_data = false
   val mod_collections = for (model <- List( "GISS", "GISS-E2-R" ); iExp <- (1 to nExp)) yield (model -> s"${model}_r${iExp}i1p1")
   val cip_collections = for ( model <- List( "CIP_CFSR_6hr", "CIP_MERRA2_mon" ) ) yield (model -> s"${model}_ta")
   val eps = 0.00001
@@ -74,24 +77,30 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   test("Cache") {
     for( (model, collection) <- mod_collections ) {
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":150,"system":"indices"}}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
+      print( s"Caching collection $collection" )
       val cache_result_node = executeTest(datainputs, false, "util.cache")
       logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
+      runtime.printMemoryUsage
     }
-    for( (model, collection) <- cip_collections ) {
-      val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":40,"system":"values"},"lon":{"start":0,"end":40,"system":"values"},"time":{"start":"2000-01-01","end":"2005-01-01","system":"values"}}],variable=[{"uri":"collection:/$collection","name":"ta:v1","domain":"d0"}]]"""
-      val cache_result_node = executeTest(datainputs, false, "util.cache")
-      logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
-    }
+    if( use_6hr_data )
+      for( (model, collection) <- cip_collections ) {
+        val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":40,"system":"values"},"lon":{"start":0,"end":40,"system":"values"},"time":{"start":"2000-01-01","end":"2005-01-01","system":"values"}}],variable=[{"uri":"collection:/$collection","name":"ta:v1","domain":"d0"}]]"""
+        print( s"Caching collection $collection" )
+        val cache_result_node = executeTest(datainputs, false, "util.cache")
+        logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
+        runtime.printMemoryUsage
+      }
   }
 
-  test("TimeConvertedDiff") {
+  test("TimeConvertedDiff")  { if( use_6hr_data ) {
+    print( s"Running test TimeConvertedDiff" )
     val CFSR_6hr_variable = s"""{"uri":"collection:/CIP_CFSR_6hr_ta","name":"ta:v0","domain":"d0"}"""
     val MERRA2_mon_variable = s"""{"uri":"collection:/CIP_MERRA2_mon_ta","name":"ta:v1","domain":"d0"}"""
     val datainputs = s"""[variable=[$CFSR_6hr_variable,$MERRA2_mon_variable],domain=[{"name":"d0","lat":{"start":0,"end":30,"system":"values"},"time":{"start":"2000-01-01T00:00:00Z","end":"2009-12-31T00:00:00Z","system":"values"},"lon":{"start":0,"end":30,"system":"values"}},{"name":"d1","crs":"~v1","trs":"~v0"}],operation=[{"name":"CDSpark.diff2","input":"v0,v1","domain":"d1"}]]""".replaceAll("\\s", "")
     val result_node = executeTest(datainputs)
     val result_data = CDFloatArray( getResultData( result_node ).slice(0,0,10) )
     println( " ** Op Result:       " + result_data.mkDataString(", ") )
-  }
+  }}
 
   test("subsetTestXY") {
     val nco_verified_result: CDFloatArray = CDFloatArray( Array( 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 241.2655, 245.2, 244.904, 244.6914, 244.5297, 244.2834, 244.0234, 245.4426, 245.1731, 244.9478, 244.6251, 244.2375, 244.0953, 248.4837, 247.4268, 246.4957, 245.586, 245.4244, 244.8213, 249.7772, 248.7458, 247.5331, 246.8871, 246.0183, 245.8848, 248.257, 247.3562, 246.3798, 245.3962, 244.6091, 243.6039 ).map(_.toFloat), Float.MaxValue )
@@ -134,7 +143,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("ESGF_Demo") {
-    val unverified_result: CDFloatArray = CDFloatArray(  Array( 244.89293, 244.89293, 244.89293, 244.89293, 244.89293, 244.89293, 244.89293, 244.89293, 244.89293, 244.89293 ).map(_.toFloat), Float.MaxValue )
+    val unverified_result: CDFloatArray = CDFloatArray(  Array( 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908 ).map(_.toFloat), Float.MaxValue )
     val GISS_H_vids = ( 1 to nExp ) map { index => s"vH$index" }
     val GISS_E2R_vids = ( 1 to nExp ) map { index => s"vR$index" }
     val GISS_H_variables     = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
@@ -228,12 +237,12 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Max")
   }
 
-  test("TimeAve-npana") {
+  test("TimeAve-npana") { if(use_npana_data) {
     val datainputs = """[domain=[{"name":"d0","lat":{"start":10,"end":20,"system":"indices"},"lon":{"start":10,"end":20,"system":"indices"}},{"name":"d1","lev":{"start":5,"end":5,"system":"indices"}}],variable=[{"uri":"collection:/npana","name":"T:v1","domain":"d1"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"t"}]]"""
     val result_node = executeTest(datainputs)
     val result_data = getResultData( result_node )
-    println( "Op Result:       " + result_data )
-  }
+    println( "Op Result Data:       " + result_data.mkBoundedDataString(", ", 64) )
+  }}
 
   test("Maximum-file") {
     val nco_verified_result = 309.7112

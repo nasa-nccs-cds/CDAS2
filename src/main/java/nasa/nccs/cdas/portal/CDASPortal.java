@@ -39,7 +39,7 @@ public abstract class CDASPortal {
     }
 
     public void sendResponse( String rId, String response  ) {
-        response_socket.send( String.join("!", rId, "response", response.substring( 0, Math.min( 100, response.length() - 1 ) ) ) );
+        response_socket.send( String.join("!", rId, "response", response ) );
         logger.info( " Sent response: " + response );
     }
 
