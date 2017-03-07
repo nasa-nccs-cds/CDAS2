@@ -101,9 +101,7 @@ class WorkflowNode( val operation: OperationContext, val workflow: Workflow  ) e
 
   def prepareInputs( kernelContext: KernelContext, requestCx: RequestContext ): RDD[(PartitionKey,RDDPartition)] = {
     val opInputs = workflow.getNodeInputs( requestCx, this )
-    val inputs = workflow.domainRDDPartition( opInputs, kernelContext, requestCx, this )
-    val sample = inputs.first()
-    inputs
+    workflow.domainRDDPartition( opInputs, kernelContext, requestCx, this )
   }
 
   def map(input: RDD[(PartitionKey,RDDPartition)], context: KernelContext, kernel: Kernel ): RDD[(PartitionKey,RDDPartition)] = {
