@@ -79,6 +79,7 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
     val file = new RandomAccessFile(path, "r")
     val channel: FileChannel = file.getChannel()
     logger.debug(s" *** Mapping channel for Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s), path=%s".format( shape.mkString(","), path ))
+    if( index == 0 ) { logger.debug( "\n    " + Thread.currentThread().getStackTrace.mkString("\n    ")) }
     val buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, partSize * sliceMemorySize)
     channel.close(); file.close()
     runtime.printMemoryUsage(logger)
