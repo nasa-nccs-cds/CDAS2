@@ -18,7 +18,7 @@ import nasa.nccs.cdas.engine.spark.{PartitionKey, RangePartitioner}
 import nasa.nccs.cdas.kernels.TransientFragment
 import nasa.nccs.cdas.loaders.Masks
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
-import nasa.nccs.utilities.Loggable
+import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.commons.io.{FileUtils, IOUtils}
 import ucar.{ma2, nc2}
 
@@ -141,7 +141,7 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
 object CDASPartitioner {
   val M = 1000000
   val maxChunkSize = 200 * M
-  val maxBufferSize = Int.MaxValue
+  val maxBufferSize = cdsutils.parseMemsize( appParameters( "max.buffersize", Int.MaxValue.toString ) )
   val maxProcessors = appParameters("max.procs", "8").toInt //   serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
   val nProcessors = math.min(Runtime.getRuntime.availableProcessors(), maxProcessors)
   val nCoresPerPart = 1

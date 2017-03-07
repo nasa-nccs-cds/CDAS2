@@ -138,6 +138,22 @@ object cdsutils {
     println( "-->> HEAP: heapSize = %d M, heapSizeMax = %d M, heapFreeSize = %d M".format( heapSize/MB, heapSizeMax/MB, heapFreeSize/MB ) )
 
   }
+  def getMult( ch: Char ): Long = ch.toLower match {
+    case 'k' =>  1024
+    case 'm' =>  1024 * 1024
+    case 'g' =>  1024 * 1024 * 1024
+    case 't' =>  1024 * 1024 * 1024 * 1024
+  }
+
+  def parseMemsize( msize: String ): Long = {
+    val tmsize = msize.trim
+    if( tmsize.last.isLetter ) {
+      val n0 = tmsize.substring(0,tmsize.length-1).toDouble
+      val m = getMult( tmsize.last )
+      Math.round( n0 * m )
+    }
+    else tmsize.toInt
+  }
 
   def ptime[R]( label: String)(block: => R): R = {
     val t0 = System.nanoTime()
