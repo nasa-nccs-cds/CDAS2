@@ -126,6 +126,7 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
   def dataSection(section: CDSection, missing_value: Float): CDFloatArray =
     try {
       val partData = data(missing_value)
+      logger.info( " &&& PartSection: section = {s:%s||o:%s}, partOrigin = {%s}".format( section.getShape.mkString(","), section.getOrigin.mkString(","), partitionOrigin.mkString(",") ))
       val partSection = section.toSection( partitionOrigin )
       partData.section( partSection )
     } catch {

@@ -84,6 +84,22 @@ class AverageKernel(CDMSKernel):
         result_var = cdutil.averager( variable, axis=axis, weights=weights, action=action, returned=returned )
         return self.createResult( result_var, _input, task )
 
+class SumKernel(CDMSKernel):
+
+    def __init__( self ):
+        Kernel.__init__( self, KernelSpec("ave", "Average", "Averages the inputs using UVCDAT with area weighting by default", parallize=False, handlesInput=True ) )
+        self._debug = False
+
+    def executeOperation(self, task, _input):
+        variable = _input.getVariable()
+        axis = task.metadata.get("axis","xy")
+        weights = task.metadata.get("weights","generate").split(",")
+        if( len(weights) == 1 ): weights = weights[0]
+        action = task.metadata.get("action","average")
+        returned = 0
+        result_var = cdutil.averager( variable, axis=axis, weights=weights, action=action, returned=returned )
+        return self.createResult( result_var, _input, task )
+
 if __name__ == "__main__":
     from cdms2 import timeslice
     dsetUri = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_195101-200512.nc"
