@@ -19,7 +19,7 @@ try:
 
     t0 = time.time()
 #    datainputs = """[domain=[{"name":"d0"},{"name":"d1","lev":{"start":5,"end":5,"system":"indices"}}],variable=[{"uri":"collection:/npana","name":"T:v1","domain":"d1"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"t"}]]"""
-    datainputs = """[domain=[{"name":"d0","lat":{"start":0,"end":50,"system":"indices"},"lev":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/npana","name":"T:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","axes":"tx"}]]"""
+    datainputs = """[domain=[{"name":"d0","lev":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/npana","name":"T:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","axes":"tx"}]]"""
     print "Sending request on port {0} (awaiting response): {1}".format( portal.request_port, datainputs ); sys.stdout.flush()
     rId = portal.sendMessage( "execute", [ "CDSpark.workflow", datainputs, ""] )
     responses = response_manager.getResponses(rId)
