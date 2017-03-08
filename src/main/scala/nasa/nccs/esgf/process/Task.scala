@@ -352,27 +352,15 @@ class DataFragmentKey(val varname: String,
                       val origin: Array[Int],
                       val shape: Array[Int])
     extends Serializable {
-  override def toString =
-    "DataFragmentKey{ name = %s, collection = %s, origin = [ %s ], shape = [ %s ] }"
-      .format(varname, collId, origin.mkString(", "), shape.mkString(", "))
-  def toStrRep =
-    "%s|%s|%s|%s|%d".format(varname,
-                            collId,
-                            origin.mkString(","),
-                            shape.mkString(","),
-                            CDASPartitioner.nProcessors)
-  def sameVariable(otherCollId: String, otherVarName: String): Boolean = {
-    (varname == otherVarName) && (collId == otherCollId)
-  }
+  override def toString = "DataFragmentKey{ name = %s, collection = %s, origin = [ %s ], shape = [ %s ] }".format(varname, collId, origin.mkString(", "), shape.mkString(", "))
+  def toStrRep = "%s|%s|%s|%s|%d".format(varname,  collId,  origin.mkString(","),  shape.mkString(","), CDASPartitioner.nProcessors)
+  def sameVariable(otherCollId: String, otherVarName: String): Boolean = (varname == otherVarName) && (collId == otherCollId)
   def getRoi: ma2.Section = new ma2.Section(origin, shape)
-  def equalRoi(df: DataFragmentKey): Boolean =
-    (shape.sameElements(df.shape) && origin.sameElements(df.origin))
+  def equalRoi(df: DataFragmentKey): Boolean = shape.sameElements(df.shape) && origin.sameElements(df.origin)
   def getSize: Int = shape.foldLeft(1)(_ * _)
   def contains(df: DataFragmentKey): Boolean = getRoi.contains(df.getRoi)
-  def contains(df: DataFragmentKey, admitEquality: Boolean): Boolean =
-    if (admitEquality) contains(df) else containsSmaller(df)
-  def containsSmaller(df: DataFragmentKey): Boolean =
-    (!equalRoi(df) && contains(df))
+  def contains(df: DataFragmentKey, admitEquality: Boolean): Boolean =  if (admitEquality) contains(df) else containsSmaller(df)
+  def containsSmaller(df: DataFragmentKey): Boolean =  !equalRoi(df) && contains(df)
 }
 
 object DataFragmentKey {
