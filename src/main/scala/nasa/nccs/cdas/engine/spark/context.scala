@@ -3,8 +3,8 @@ package nasa.nccs.cdas.engine.spark
 import java.nio.file.Paths
 
 import nasa.nccs.caching.{CDASPartitioner, Partition, Partitions}
-import nasa.nccs.cdapi.cdm.{CDSVariable, OperationInput, OperationTransientInput, PartitionedFragment}
-import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartSpec, RDDPartition, RDDVariableSpec}
+import nasa.nccs.cdapi.cdm._
+import nasa.nccs.cdapi.data._
 import ucar.nc2.time.CalendarDate
 import nasa.nccs.cdas.engine.WorkflowNode
 import nasa.nccs.cdas.utilities.appParameters
@@ -23,24 +23,25 @@ object CDSparkContext extends Loggable {
   val kyro_buffer_max_mb = 300
   val default_master = "local[%d]".format(CDASPartitioner.nProcessors)
 
-  def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = false, enableMetrics: Boolean = false ) : CDSparkContext = {
+  def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = true, enableMetrics: Boolean = false ) : CDSparkContext = {
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  NEW CDSparkContext Created  **** ")
     logger.info( "--------------------------------------------------------\n\n")
 
     val sparkContext = new SparkContext( getSparkConf(master, appName, logConf, enableMetrics) )
-    sparkContext.setLogLevel("WARN")
+    sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
     val rv = new CDSparkContext( sparkContext )
 
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  CDSparkContext Creation FINISHED  **** ")
     logger.info( "--------------------------------------------------------")
+    logger.info( "Spark Configuration: \n" +  sparkContext.getConf.getAll.mkString("\n") )
     rv
   }
 
   def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
-  def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, false, false ) ) )
+  def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, true, false ) ) )
 
   def merge(rdd0: RDD[(PartitionKey,RDDPartition)], rdd1: RDD[(PartitionKey,RDDPartition)] ): RDD[(PartitionKey,RDDPartition)] = {
     val mergedRdd = rdd0.join( rdd1 ) mapValues { case (part0,part1) => part0 ++ part1  } map identity
@@ -58,6 +59,7 @@ object CDSparkContext extends Loggable {
   def append(p0: (PartitionKey,RDDPartition), p1: (PartitionKey,RDDPartition) ): (PartitionKey,RDDPartition) = ( p0._1 + p1._1, p0._2.append(p1._2) )
 
   def getSparkConf( master: String, appName: String, logConf: Boolean, enableMetrics: Boolean  ) = {
+    val cdas_cache_dir = sys.env.getOrElse("CDAS_CACHE_DIR","/tmp")
     val sc = new SparkConf(false)
       .setMaster( master )
       .setAppName( appName )
@@ -65,6 +67,10 @@ object CDSparkContext extends Loggable {
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer") //
       .set("spark.kryoserializer.buffer",kyro_buffer_mb.toString)
       .set("spark.kryoserializer.buffer.max",kyro_buffer_max_mb.toString)
+      .set("spark.network.timeout", "400s" )
+      .set("spark.executor.heartbeatInterval", "60s" )
+      .set("spark.executor.memory", "30g" )
+      .set( "spark.local.dir", Array( "/tmp", cdas_cache_dir ).mkString(",") )
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     sc
   }
@@ -75,7 +81,8 @@ object CDSparkContext extends Loggable {
         case range_partitioner: RangePartitioner => range_partitioner
         case wtf => throw new Exception( "Found partitioner of wrong type: " + wtf.getClass.getName )
       }
-      case None => throw new Exception( "Missing partitioner for rdd"  )
+      case None =>
+        throw new Exception( "Missing partitioner for rdd"  )
     }
   }
 
@@ -136,15 +143,23 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
   def getRDD( uid: String, pFrag: PartitionedFragment, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(PartitionKey,RDDPartition)] = {
     val partitions = pFrag.partitions
     val tgrid: TargetGrid = pFrag.getGrid
-    val rddPartSpecs: Array[RDDPartSpec] = partitions.parts map ( partition =>
-      RDDPartSpec( partition, tgrid, List(pFrag.getRDDVariableSpec(uid, partition, opSection) ) )
-      ) filterNot( _.empty(uid) )
+    val rddPartSpecs: Array[RDDPartSpec] = partitions.parts map (partition =>
+      RDDPartSpec(partition, tgrid, List(pFrag.getRDDVariableSpec(uid, partition, opSection)))
+      ) filterNot (_.empty(uid))
     val nItems = rddPartSpecs.length
-    logger.info( "Discarded empty partitions: Creating RDD with <<%d>> items".format( nItems ) )
-    if( nItems == 0 ) throw new Exception( "Invalid RDD: all partitions are empty: " + uid )
-    val partitioner = RangePartitioner( rddPartSpecs.map(_.timeRange) )
-    val parallelized_rddspecs = sparkContext parallelize rddPartSpecs keyBy ( _.timeRange ) partitionBy partitioner
-    parallelized_rddspecs mapValues ( spec => spec.getRDDPartition )repartitionAndSortWithinPartitions partitioner
+    logger.info("Discarded empty partitions: Creating RDD with <<%d>> items".format(nItems))
+    if (nItems == 0) throw new Exception("Invalid RDD: all partitions are empty: " + uid)
+    val partitioner = RangePartitioner(rddPartSpecs.map(_.timeRange))
+    val parallelized_rddspecs = sparkContext parallelize rddPartSpecs keyBy (_.timeRange) partitionBy partitioner
+    parallelized_rddspecs mapValues (spec => spec.getRDDPartition) repartitionAndSortWithinPartitions partitioner
+  }
+
+  def getRDD( uid: String, extInput: ExternalInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(PartitionKey,RDDPartition)] = {
+    val tgrid: TargetGrid = extInput.getGrid
+    val ( key, varSpec ) = extInput.getKeyedRDDVariableSpec(uid, opSection)
+    val rddPartSpec = RDDExtPartSpec( key, List(varSpec) )
+    val parallelized_rddspecs = sparkContext parallelize Seq( rddPartSpec ) keyBy (_.timeRange)
+    parallelized_rddspecs mapValues ( spec => spec.getRDDPartition )
   }
 
  /* def inputConversion( dataInput: PartitionedFragment, targetGrid: TargetGrid ): PartitionedFragment = {

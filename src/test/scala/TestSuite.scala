@@ -129,6 +129,16 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     assert( result_data.maxScaledDiff( nco_result )  < eps, s" UVCDAT result (with generated weights) does not match NCO result (with cosine weighting)")
   }
 
+  test("pyWeightedAveTestExt") {
+    val nco_result: CDFloatArray = CDFloatArray( Array( 286.2326, 286.5537, 287.2408, 288.1576, 288.9455, 289.5202, 289.6924, 289.5549, 288.8497, 287.8196, 286.8923 ).map(_.toFloat), Float.MaxValue )
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":10,"system":"indices"}}],variable=[{"uri":"http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.cdmsExt.ave","input":"v1","domain":"d0","axes":"xy"}]]"""
+    val result_node = executeTest(datainputs)
+    val result_data = CDFloatArray( getResultData( result_node ) )
+    println( " ** CDMS Result:       " + result_data.mkDataString(", ") )
+    println( " ** NCO Result:       " + nco_result.mkDataString(", ") )
+    assert( result_data.maxScaledDiff( nco_result )  < eps, s" UVCDAT result (with generated weights) does not match NCO result (with cosine weighting)")
+  }
+
   test("pyRegridTest") {
     val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"python.cdmsModule.regrid","input":"v1","domain":"d0","crs":"gaussian~128"}]]"""
     val result_node = executeTest(datainputs)

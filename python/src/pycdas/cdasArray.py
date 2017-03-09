@@ -104,6 +104,16 @@ class npArray(CDArray):
         self.variable = None
         self.logger.info(" *** Creating data array, nbytes = " + str(self.nbytes()) )
 
+    def getSelector(self, variable, **args):
+        kargs = {}
+        for idim in range( variable.rank ):
+            axis = variable.getAxis(idim)
+            start = self.origin[idim]
+            end = start + self.shape[idim]
+            interval = [start, end + 1]
+            kargs[axis.id] = slice(*interval)
+        return kargs
+
     def nbytes(self): return self.array.nbytes if (self.array != None) else 0
     def array(self): return self.array
 

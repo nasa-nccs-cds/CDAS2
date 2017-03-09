@@ -56,7 +56,7 @@ import cdutil
 class AverageKernel(CDMSKernel):
 
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("ave", "Average", "Averages the inputs using UVCDAT with area weighting by default", parallize=True ) )
+        Kernel.__init__( self, KernelSpec("ave", "Average", "Averages the inputs using UVCDAT with area weighting by default", parallelize=True ) )
 
     def executeOperation(self, task, input):
         variable = input.getVariable()
@@ -81,7 +81,7 @@ class AverageKernel(CDMSKernel):
 
 ##### Python Kernel Parallelization
 The configuration parameters defined in the KernelSpec specify how CDAS will handle the parallelization of the Kernel.   Python Kernels can be 
-either parallelizable _(parallize=True)_ or non-parallelizable _(parallize=False)_.  If a kernel is non-parallelizable then CDAS assumes that the kernel will either run serially or handle 
+either parallelizable _(parallelize=True)_ or non-parallelizable _(parallelize=False)_.  If a kernel is non-parallelizable then CDAS assumes that the kernel will either run serially or handle
 its own parallelization internally.  If a kernel is parallelizable then CDAS will handle the parallelization.  CDAS parallelization occurs as follows:
 
     1. CDAS partitions the input into N fragments by splitting the data over time into N non-overlapping continuous time segments of approx equal length.
@@ -92,6 +92,12 @@ its own parallelization internally.  If a kernel is parallelizable then CDAS wil
         - If the operation's axes set does include 't' then a merge operation is performed that is determined by the kernel's 'reduceOp' configuration parameter.
         - If the 'reduceOp' configuration parameter specifies one of the builtin reduction operators then that operation is used to combine the result fragments.
         - If the 'reduceOp' parameter value is "custom" then the python kernel class must implement the 'reduce' method (from the 'Kernel' base class) and that method is then used to combine the result fragments.
+
+##### Python Kernel Data Input
+By default the python kernels are passed data input arrays that are injested and subsetted by CDAS using it's caching framework.
+However, using the handlesInput configuration parameter a kernel developer can specify that the python kernel should
+perform its own data access  _(handlesInput=True)_.   In this case the CDAS data inject and caching framework will be bypassed
+and a data access URI will be passed to the kernel.  For an example please see the AverageKernel in the cdmsExt KernelModule.
 
 ###  Rebuilding
 

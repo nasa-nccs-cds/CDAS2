@@ -18,7 +18,7 @@ import nasa.nccs.cdas.engine.spark.{PartitionKey, RangePartitioner}
 import nasa.nccs.cdas.kernels.TransientFragment
 import nasa.nccs.cdas.loaders.Masks
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
-import nasa.nccs.utilities.Loggable
+import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.commons.io.{FileUtils, IOUtils}
 import ucar.{ma2, nc2}
 
@@ -56,8 +56,7 @@ class Partitions(val id: String,
   private val baseShape = _section.getShape
   def getShape = baseShape
   def getPart(partId: Int): Partition = parts(partId)
-  def getPartData(partId: Int, missing_value: Float): CDFloatArray =
-    parts(partId).data(missing_value)
+  def getPartData(partId: Int, missing_value: Float): CDFloatArray = parts(partId).data(missing_value)
   def roi: ma2.Section = new ma2.Section(_section.getRanges)
   def delete = parts.map(_.delete)
 }
@@ -79,21 +78,22 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
     val file = new RandomAccessFile(path, "r")
     val channel: FileChannel = file.getChannel()
     logger.debug(s" *** Mapping channel for Partition-$index with partSize=$partSize startIndex=$startIndex, chunkSize=$chunkSize, sliceMemorySize=$sliceMemorySize, shape=(%s), path=%s".format( shape.mkString(","), path ))
+    if( index == 0 ) { logger.debug( "\n    " + Thread.currentThread().getStackTrace.mkString("\n    ")) }
     val buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, partSize * sliceMemorySize)
     channel.close(); file.close()
     runtime.printMemoryUsage(logger)
     new CDFloatArray(shape, buffer.asFloatBuffer, missing_value)
   }
-  val partitionOrigin = origin.zipWithIndex map { case (value, index) => if( index == 0 ) value + startIndex else value }
-  def delete() = { FileUtils.deleteQuietly(new File(path)) }
+  val partitionOrigin: Array[Int] = origin.zipWithIndex map { case (value, ival) => if( ival == 0 ) value + startIndex else value }
+  def delete = { FileUtils.deleteQuietly(new File(path)) }
   def chunkSection(iChunk: Int, section: ma2.Section): ma2.Section = {
     new ma2.Section(section.getRanges).replaceRange(dimIndex, chunkRange(iChunk)).intersect(section)
   }
   def partSection(section: ma2.Section): ma2.Section = {
     new ma2.Section(section.getRanges).replaceRange(dimIndex, partRange)
   }
-  def nChunks = math.ceil(partSize / chunkSize.toDouble).toInt
-  def endIndex = startIndex + partSize - 1
+  def nChunks: Int = math.ceil(partSize / chunkSize.toDouble).toInt
+  def endIndex: Int = startIndex + partSize - 1
   def getPartitionKey( grid: TargetGrid ): PartitionKey = {
     val start = origin(0)+startIndex
     val startDate = grid.getCalendarDate(start)
@@ -125,6 +125,7 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
   def dataSection(section: CDSection, missing_value: Float): CDFloatArray =
     try {
       val partData = data(missing_value)
+      logger.info( " &&& PartSection: section = {s:%s||o:%s}, partOrigin = {%s}".format( section.getShape.mkString(","), section.getOrigin.mkString(","), partitionOrigin.mkString(",") ))
       val partSection = section.toSection( partitionOrigin )
       partData.section( partSection )
     } catch {
@@ -141,7 +142,7 @@ class Partition(val index: Int, val path: String, val dimIndex: Int, val startIn
 object CDASPartitioner {
   val M = 1000000
   val maxChunkSize = 200 * M
-  val maxBufferSize = Int.MaxValue
+  val maxBufferSize = cdsutils.parseMemsize( appParameters( "max.buffersize", Int.MaxValue.toString ) )
   val maxProcessors = appParameters("max.procs", "8").toInt //   serverConfiguration.getOrElse("wps.nprocs", "8" ).toInt
   val nProcessors = math.min(Runtime.getRuntime.availableProcessors(), maxProcessors)
   val nCoresPerPart = 1

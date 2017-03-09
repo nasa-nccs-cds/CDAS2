@@ -93,6 +93,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   override def toCDWeightsArray: Option[CDFloatArray] = _optWeights.map( CDFloatArray( shape, _, getMissing() ) )
   def getMissing( default: Float = Float.MaxValue ): Float = _missing.getOrElse(default)
   def sameGrid( other: HeapFltArray) = gridSpec.equals( other.gridSpec )
+  def hasData = (_data.length > 0)
 
   def reinterp( weights: Map[Int,RemapElem], origin_mapper: Array[Int] => Array[Int] ): HeapFltArray = {
     val reinterpArray = toCDFloatArray.reinterp(weights)
@@ -143,6 +144,10 @@ object HeapFltArray {
   def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[Array[Float]] ): HeapFltArray = {
     val gridSpec = metadata.get( "gridfile" ).map( "file:/" + _ ).getOrElse("")
     new HeapFltArray(cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), gridSpec, metadata, optWeights, cdarray.getCoordMaps)
+  }
+  def apply( shape: Array[Int], origin: Array[Int], metadata: Map[String,String] ): HeapFltArray = {
+    val gridSpec = metadata.get( "gridfile" ).map( "file:/" + _ ).getOrElse("")
+    new HeapFltArray( shape, origin, Array.emptyFloatArray, None, gridSpec, metadata )
   }
   def apply( cdarray: CDFloatArray, origin: Array[Int], gridSpec: String, metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray = {
     new HeapFltArray(cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), gridSpec, metadata, optWeights.map(_.getArrayData()), cdarray.getCoordMaps)
@@ -284,6 +289,15 @@ class RDDPartSpec(val partition: Partition, val timeRange: PartitionKey, val var
     rv
   }
 
+  def getRDDMetaPartition: RDDPartition = {
+    val t0 = System.nanoTime()
+    val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toMetaArray(partition)) ): _* )
+    val rv = RDDPartition( elements )
+    logger.debug( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
+    rv
+  }
+
+
   def getPartitionKey( partitioner: RangePartitioner ): PartitionKey = partitioner.newPartitionKey( timeRange.center )
 
   def empty( uid: String ): Boolean = varSpecs.find( _.uid == uid ) match {
@@ -293,11 +307,38 @@ class RDDPartSpec(val partition: Partition, val timeRange: PartitionKey, val var
 
 }
 
+object RDDExtPartSpec {
+  def apply( timeRange: PartitionKey, varSpecs: List[ RDDVariableSpec ] ): RDDExtPartSpec = new RDDExtPartSpec( timeRange, varSpecs )
+}
+
+class RDDExtPartSpec( val timeRange: PartitionKey, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
+
+  def getRDDPartition: RDDPartition = {
+    val t0 = System.nanoTime()
+    val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toMetaArray ) ): _* )
+    val rv = RDDPartition( elements )
+    logger.debug( "RDDPartSpec: completed data input in %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
+    rv
+  }
+
+}
+
 class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val missing: Float, val section: CDSection  ) extends Serializable with Loggable {
 
   def toHeapArray( partition: Partition ) = {
+    val rv = HeapFltArray( partition.dataSection(section, missing), section.getOrigin, metadata, None )
     logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
-    HeapFltArray( partition.dataSection(section, missing), section.getOrigin, metadata, None )
+    rv
+  }
+  def toMetaArray = {
+    val rv = HeapFltArray( section.getShape, section.getOrigin, metadata )
+    logger.debug( "toHeapArray: %s".format( section.toString() ) )
+    rv
+  }
+  def toMetaArray( partition: Partition ) = {
+    val rv = HeapFltArray( partition.partSection( section.toSection( partition.partitionOrigin ) ).getShape, section.getOrigin, metadata )
+    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
+    rv
   }
   def empty = section.getShape.contains(0)
   def rank = section.getShape.length

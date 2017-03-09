@@ -179,7 +179,8 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
   def module: String = identifiers.dropRight(1).mkString(".")
   def id = identifiers.mkString(".")
   def name = identifiers.takeRight(2).mkString(".")
-  def parallelizable: Boolean = options.getOrElse("parallelizable","true").toBoolean
+  val extInputs: Boolean = options.getOrElse("handlesInput","false").toBoolean
+  val parallelizable: Boolean = if(extInputs) false else options.getOrElse("parallelize","true").toBoolean
   val identifier = name
   def matchesSpecs( specs: Array[String] ): Boolean = { (specs.size >= 2) && specs(0).equals(module) && specs(1).equals(operation) }
 
@@ -602,7 +603,7 @@ class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "
       if (regrid_arrays.isEmpty) { inputs }
       else {
         for (input_array <- acceptable_arrays) { worker.sendArrayMetadata( input_array.uid, input_array) }
-        for (input_array <- regrid_arrays)     { worker.sendArrayData(input_array.uid, input_array) }
+        for (input_array <- regrid_arrays)     { worker.sendRequestInput(input_array.uid, input_array) }
         val acceptable_array_map = Map(acceptable_arrays.map(array => array.uid -> array): _*)
 
         logger.info("Gateway: Executing operation %s".format( context.operation.identifier ) )
@@ -649,7 +650,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
 
       for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
         case Some( input_array ) =>
-          worker.sendArrayData( input_id, input_array )
+          worker.sendRequestInput( input_id, input_array )
           logger.info( "Kernel part-%d: Finished Sending data to worker" )
         case None =>
           worker.sendUtility( List( "input", input_id ).mkString(";") )
@@ -683,8 +684,8 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
       case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> {
         val (array0, array1) = if (ascending) (element0, element1) else (element1, element0)
         val uids = Array( s"${array0.uid}", s"${array1.uid}" )
-        worker.sendArrayData( uids(0), array0 )
-        worker.sendArrayData( uids(1), array1 )
+        worker.sendRequestInput( uids(0), array0 )
+        worker.sendRequestInput( uids(1), array1 )
         worker.sendRequest( context.operation.identifier, uids, Map( "action" -> "reduce", "axes" -> context.getAxes.getAxes.mkString(",") ) )
       })
     }

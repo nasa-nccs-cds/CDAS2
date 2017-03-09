@@ -8,7 +8,7 @@ from regrid2 import Horizontal
 class RegridKernel(CDMSKernel):
 
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("regrid", "Regridder", "Regrids the inputs using UVCDAT", parallize=True ) )
+        Kernel.__init__( self, KernelSpec("regrid", "Regridder", "Regrids the inputs using UVCDAT", parallelize=True ) )
         self._debug = True
 
     def getGrid(self, gridFilePath, latInterval = None, lonInterval = None ):
@@ -71,7 +71,7 @@ class RegridKernel(CDMSKernel):
 class AverageKernel(CDMSKernel):
 
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("ave", "Average", "Averages the inputs using UVCDAT with area weighting by default", parallize=True ) )
+        Kernel.__init__( self, KernelSpec("ave", "Average", "Averages the inputs using UVCDAT with area weighting by default", parallelize=True ) )
         self._debug = False
 
     def executeOperation(self, task, _input):

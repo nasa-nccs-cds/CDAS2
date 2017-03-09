@@ -146,6 +146,10 @@ public abstract class Worker {
         request_socket.send("util|capabilities");
     }
 
+    public void sendRequestInput( String id, HeapFltArray array ) {
+        if( array.hasData() )   _sendArrayData( id, array.origin(), array.shape(), array.toByteArray(), array.mdata() );
+        else                    _sendArrayMetadata( id, array.origin(), array.shape(), array.mdata() );
+    }
 
     public void sendArrayData( String id, HeapFltArray array ) {
         _sendArrayData( id, array.origin(), array.shape(), array.toByteArray(), array.mdata() );

@@ -4,7 +4,8 @@ import nasa.nccs.caching.{Partition, Partitions, RDDTransientVariable}
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition, RDDVariableSpec}
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.cdas.engine.WorkflowNode
-import nasa.nccs.esgf.process._
+import nasa.nccs.cdas.engine.spark.PartitionKey
+import nasa.nccs.esgf.process.{DataFragmentSpec, _}
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
 import nasa.nccs.utilities.{Loggable, cdsutils}
@@ -83,7 +84,7 @@ class OperationTransientInput( val variable: RDDTransientVariable ) extends Oper
 
 }
 
-abstract class OperationDataInput( val fragmentSpec: DataFragmentSpec, val metadata: Map[String,nc2.Attribute] ) extends OperationInput with Loggable {
+abstract class OperationDataInput( val fragmentSpec: DataFragmentSpec, val metadata: Map[String,nc2.Attribute] = Map.empty ) extends OperationInput with Loggable {
   def toBoundsString = fragmentSpec.toBoundsString
   def getKey: DataFragmentKey = fragmentSpec.getKey
   def getKeyString: String = fragmentSpec.getKeyString
@@ -91,8 +92,46 @@ abstract class OperationDataInput( val fragmentSpec: DataFragmentSpec, val metad
   def contains( requestedSection: ma2.Section ): Boolean = fragmentSpec.roi.contains( requestedSection )
   def getVariableMetadata(serverContext: ServerContext): Map[String,nc2.Attribute] = { fragmentSpec.getVariableMetadata(serverContext) ++ metadata }
   def getDatasetMetadata(serverContext: ServerContext): List[nc2.Attribute] = { fragmentSpec.getDatasetMetadata(serverContext) }
+  def getGrid: TargetGrid = fragmentSpec.targetGridOpt match  {
+    case Some( myGrid ) => myGrid
+    case None => throw new Exception( "Undefined target grid in matchGrids for input " + fragmentSpec.uid )
+  }
   def data(partIndex: Int ): CDFloatArray
   def delete
+}
+
+class ExternalInput( fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty  ) extends OperationDataInput(fragSpec,metadata) {
+  def data(partIndex: Int ): CDFloatArray = CDFloatArray.empty
+  def delete: Unit = Unit
+
+  def domainSection( optSection: Option[ma2.Section] ): Option[ ( DataFragmentSpec, ma2.Section )] = {
+    try {
+      val domain_section = fragmentSpec.domainSectOpt match {
+        case Some(dsect) => fragmentSpec.roi.intersect(dsect)
+        case None => fragmentSpec.roi
+      }
+      val sub_section = optSection match {
+        case Some(osect) => domain_section.intersect( osect )
+        case None =>domain_section
+      }
+      fragmentSpec.cutIntersection( sub_section ) match {
+        case Some( cut_spec: DataFragmentSpec ) => Some( ( cut_spec, cut_spec.roi ) )
+        case None =>None
+      }
+    } catch {
+      case ex: Exception =>
+        logger.warn( s"Failed getting data fragment: " + ex.toString )
+        None
+    }
+  }
+
+  def getKeyedRDDVariableSpec( uid: String, optSection: Option[ma2.Section] ): ( PartitionKey, RDDVariableSpec ) =
+    domainSection(optSection) match {
+      case Some( ( domFragSpec, section ) ) =>
+        domFragSpec.getPartitionKey -> new RDDVariableSpec( uid, domFragSpec.getMetadata(Some(section)), domFragSpec.missing_value, CDSection(section) )
+      case _ =>
+        fragSpec.getPartitionKey -> new RDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
+    }
 }
 
 class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByteArray], fragSpec: DataFragmentSpec, mdata: Map[String,nc2.Attribute] = Map.empty ) extends OperationDataInput(fragSpec,mdata) with Loggable {
@@ -103,11 +142,6 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
   def partFragSpec( partIndex: Int ): DataFragmentSpec = {
     val part = partitions.getPart(partIndex)
     fragmentSpec.reSection( part.partSection( fragmentSpec.roi ) )
-  }
-
-  def getGrid: TargetGrid = fragSpec.targetGridOpt match  {
-    case Some( myGrid ) => myGrid
-    case None => throw new Exception( "Undefined target grid in matchGrids for input " + fragSpec.uid )
   }
   def matchGrids( targetGrid: TargetGrid ): Boolean = fragSpec.targetGridOpt match  {
     case Some( myGrid ) => myGrid.equals( targetGrid )
@@ -221,7 +255,6 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
         None
     }
   }
-
 
       //      val domainDataOpt: Option[CDFloatArray] = fragmentSpec.domainSectOpt match {
 //        case None => Some( partition.data(fragmentSpec.missing_value) )
