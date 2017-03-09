@@ -110,7 +110,7 @@ class npArray(CDArray):
             axis = variable.getAxis(idim)
             start = self.origin[idim]
             end = start + self.shape[idim]
-            interval = [start, end + 1]
+            interval = [ start, end ]
             kargs[axis.id] = slice(*interval)
         return kargs
 
