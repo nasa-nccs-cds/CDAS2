@@ -43,6 +43,7 @@ class Kernel:
     def reduce( self, input0, input1, metadata, rId ): raise Exception( "Parallelizable kernel with undefined reduce method operating on T axis")
 
     def executeOperations( self, task, inputs ):
+        self.logger.info( "\n\n Execute Operations, inputs: " + str(inputs) )
         kernel_inputs = [ inputs.get( inputId.split('-')[0] ) for inputId in task.inputs ]
         if None in kernel_inputs: raise Exception( "ExecuteTask ERROR: required input {0} not available in task inputs: {1}".format( task.inputs, inputs.keys() ))
         return [ self.executeOperation(task,input) for input in kernel_inputs ]

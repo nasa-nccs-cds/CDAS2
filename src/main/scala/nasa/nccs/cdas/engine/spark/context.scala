@@ -29,7 +29,7 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------\n\n")
 
     val sparkContext = new SparkContext( getSparkConf(master, appName, logConf, enableMetrics) )
-    sparkContext.setLogLevel("DEBUG")
+    sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
     val rv = new CDSparkContext( sparkContext )
 
     logger.info( "--------------------------------------------------------")

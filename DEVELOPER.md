@@ -93,6 +93,12 @@ its own parallelization internally.  If a kernel is parallelizable then CDAS wil
         - If the 'reduceOp' configuration parameter specifies one of the builtin reduction operators then that operation is used to combine the result fragments.
         - If the 'reduceOp' parameter value is "custom" then the python kernel class must implement the 'reduce' method (from the 'Kernel' base class) and that method is then used to combine the result fragments.
 
+##### Python Kernel Data Input
+By default the python kernels are passed data input arrays that are injested and subsetted by CDAS using it's caching framework.
+However, using the handlesInput configuration parameter a kernel developer can specify that the python kernel should
+perform its own data access  _(handlesInput=True)_.   In this case the CDAS data inject and caching framework will be bypassed
+and a data access URI will be passed to the kernel.  For an example please see the AverageKernel in the cdmsExt KernelModule.
+
 ###  Rebuilding
 
 After modifying the CDAS source code (or pulling a new snapshot from github), the framework can be rebuilt using some or all of the 

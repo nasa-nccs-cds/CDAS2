@@ -547,6 +547,8 @@ class DataFragmentSpec(val uid: String = "",
     Map(
       "name" -> varname,
       "collection" -> collection.id,
+      "dataPath" -> collection.dataPath,
+      "uri" -> collection.uri,
       "gridfile" -> collection.getGridFilePath, // "gridbnds" -> getBounds(section).map(_.toFloat).mkString(","),
       "fragment" -> fragIdOpt.getOrElse(""),
       "dimensions" -> dimensions,
@@ -557,24 +559,11 @@ class DataFragmentSpec(val uid: String = "",
     )
   def getVariable: CDSVariable = collection.getVariable(varname)
 
-  def combine(other: DataFragmentSpec, sectionMerge: Boolean = true)
-    : (DataFragmentSpec, SectionMerge.Status) = {
+  def combine(other: DataFragmentSpec, sectionMerge: Boolean = true): (DataFragmentSpec, SectionMerge.Status) = {
     val combined_varname = varname + ":" + other.varname
     val combined_longname = longname + ":" + other.longname
-    val (combined_section, mergeStatus) =
-      if (sectionMerge) combineRoi(other.roi) else (roi, SectionMerge.Overlap)
-    (new DataFragmentSpec(uid,
-                          combined_varname,
-                          collection,
-                          None,
-                          targetGridOpt,
-                          dimensions,
-                          units,
-                          combined_longname,
-                          combined_section,
-                          _domSectOpt,
-                          missing_value,
-                          mask) -> mergeStatus)
+    val (combined_section, mergeStatus) = if (sectionMerge) combineRoi(other.roi) else (roi, SectionMerge.Overlap)
+    new DataFragmentSpec(uid, combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, missing_value, mask) -> mergeStatus
   }
   def roi = targetGridOpt match {
     case None =>
