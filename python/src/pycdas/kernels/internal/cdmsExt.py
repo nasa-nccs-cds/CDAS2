@@ -10,7 +10,12 @@ class AverageKernel(CDMSKernel):
         self._debug = False
 
     def executeOperation(self, task, _input):
-        variable = _input.getVariable()
+        dset_address = _input.metadata.get("uri", _input.metadata.get("dataPath") )
+        vname = _input.metadata.get("name")
+        dset = cdms2.open( dset_address )
+        selector = _input.getSelector( dset[vname] )
+        self.logger.info( "exec *EXT* AverageKernel, selector: " + str( selector ) )
+        variable = dset( vname, **selector )
         axis = task.metadata.get("axis","xy")
         weights = task.metadata.get("weights","generate").split(",")
         if( len(weights) == 1 ): weights = weights[0]
