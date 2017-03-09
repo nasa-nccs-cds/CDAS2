@@ -56,8 +56,7 @@ class Partitions(val id: String,
   private val baseShape = _section.getShape
   def getShape = baseShape
   def getPart(partId: Int): Partition = parts(partId)
-  def getPartData(partId: Int, missing_value: Float): CDFloatArray =
-    parts(partId).data(missing_value)
+  def getPartData(partId: Int, missing_value: Float): CDFloatArray = parts(partId).data(missing_value)
   def roi: ma2.Section = new ma2.Section(_section.getRanges)
   def delete = parts.map(_.delete)
 }

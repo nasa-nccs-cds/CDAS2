@@ -56,7 +56,7 @@ import cdutil
 class AverageKernel(CDMSKernel):
 
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("ave", "Average", "Averages the inputs using UVCDAT with area weighting by default", parallize=True ) )
+        Kernel.__init__( self, KernelSpec("ave", "Average", "Averages the inputs using UVCDAT with area weighting by default", parallelize=True ) )
 
     def executeOperation(self, task, input):
         variable = input.getVariable()
@@ -81,7 +81,7 @@ class AverageKernel(CDMSKernel):
 
 ##### Python Kernel Parallelization
 The configuration parameters defined in the KernelSpec specify how CDAS will handle the parallelization of the Kernel.   Python Kernels can be 
-either parallelizable _(parallize=True)_ or non-parallelizable _(parallize=False)_.  If a kernel is non-parallelizable then CDAS assumes that the kernel will either run serially or handle 
+either parallelizable _(parallelize=True)_ or non-parallelizable _(parallelize=False)_.  If a kernel is non-parallelizable then CDAS assumes that the kernel will either run serially or handle
 its own parallelization internally.  If a kernel is parallelizable then CDAS will handle the parallelization.  CDAS parallelization occurs as follows:
 
     1. CDAS partitions the input into N fragments by splitting the data over time into N non-overlapping continuous time segments of approx equal length.

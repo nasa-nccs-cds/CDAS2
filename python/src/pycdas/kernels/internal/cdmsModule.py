@@ -8,7 +8,7 @@ from regrid2 import Horizontal
 class RegridKernel(CDMSKernel):
 
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("regrid", "Regridder", "Regrids the inputs using UVCDAT", parallize=True ) )
+        Kernel.__init__( self, KernelSpec("regrid", "Regridder", "Regrids the inputs using UVCDAT", parallelize=True ) )
         self._debug = True
 
     def getGrid(self, gridFilePath, latInterval = None, lonInterval = None ):
@@ -71,23 +71,7 @@ class RegridKernel(CDMSKernel):
 class AverageKernel(CDMSKernel):
 
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("ave", "Average", "Averages the inputs using UVCDAT with area weighting by default", parallize=True ) )
-        self._debug = False
-
-    def executeOperation(self, task, _input):
-        variable = _input.getVariable()
-        axis = task.metadata.get("axis","xy")
-        weights = task.metadata.get("weights","generate").split(",")
-        if( len(weights) == 1 ): weights = weights[0]
-        action = task.metadata.get("action","average")
-        returned = 0
-        result_var = cdutil.averager( variable, axis=axis, weights=weights, action=action, returned=returned )
-        return self.createResult( result_var, _input, task )
-
-class SumKernel(CDMSKernel):
-
-    def __init__( self ):
-        Kernel.__init__( self, KernelSpec("ave", "Average", "Averages the inputs using UVCDAT with area weighting by default", parallize=False, handlesInput=True ) )
+        Kernel.__init__( self, KernelSpec("ave", "Average", "Averages the inputs using UVCDAT with area weighting by default", parallelize=True ) )
         self._debug = False
 
     def executeOperation(self, task, _input):

@@ -179,7 +179,8 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
   def module: String = identifiers.dropRight(1).mkString(".")
   def id = identifiers.mkString(".")
   def name = identifiers.takeRight(2).mkString(".")
-  def parallelizable: Boolean = options.getOrElse("parallelizable","true").toBoolean
+  val extInputs: Boolean = options.getOrElse("handlesInput","false").toBoolean
+  val parallelizable: Boolean = if(extInputs) false else options.getOrElse("parallelize","true").toBoolean
   val identifier = name
   def matchesSpecs( specs: Array[String] ): Boolean = { (specs.size >= 2) && specs(0).equals(module) && specs(1).equals(operation) }
 

@@ -10,6 +10,7 @@ import org.joda.time.{DateTime, DateTimeZone}
 import nasa.nccs.utilities.Loggable
 import java.util.UUID
 
+import nasa.nccs.cdas.engine.spark.PartitionKey
 import nasa.nccs.cdas.engine.{CDS2ExecutionManager, Workflow}
 import nasa.nccs.cdas.kernels.AxisIndices
 import nasa.nccs.esgf.process.OperationContext.OpResultType
@@ -24,12 +25,7 @@ import mutable.ListBuffer
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.esgf.utilities.wpsNameMatchers
 import nasa.nccs.esgf.wps.cds2ServiceProvider
-import nasa.nccs.wps.{
-  WPSDataInput,
-  WPSProcess,
-  WPSProcessOutput,
-  WPSWorkflowProcess
-}
+import nasa.nccs.wps.{WPSDataInput, WPSProcess, WPSProcessOutput, WPSWorkflowProcess}
 import org.apache.commons.lang.RandomStringUtils
 
 import scala.util.Random
@@ -506,8 +502,7 @@ object SectionMerge {
 
 class DataFragmentSpec(val uid: String = "",
                        val varname: String = "",
-                       val collection: Collection =
-                         new Collection("empty", "", ""),
+                       val collection: Collection = new Collection("empty", "", ""),
                        val fragIdOpt: Option[String] = None,
                        val targetGridOpt: Option[TargetGrid] = None,
                        val dimensions: String = "",
@@ -516,20 +511,9 @@ class DataFragmentSpec(val uid: String = "",
                        private val _section: ma2.Section = new ma2.Section(),
                        private val _domSectOpt: Option[ma2.Section],
                        val missing_value: Float,
-                       val mask: Option[String] = None)
-    extends Loggable
-    with Serializable {
-  logger.debug(
-    "DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s"
-      .format(_section, _domSectOpt.getOrElse("null").toString))
-  override def toString =
-    "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }"
-      .format(varname,
-              collection,
-              dimensions,
-              units,
-              longname,
-              CDSection.serialize(roi))
+                       val mask: Option[String] = None) extends Loggable with Serializable {
+  logger.debug("DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s".format(_section, _domSectOpt.getOrElse("null").toString))
+  override def toString = "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format(varname, collection, dimensions, units, longname, CDSection.serialize(roi))
   def sameVariable(otherCollection: String, otherVarName: String): Boolean = {
     (varname == otherVarName) && (collection == otherCollection)
   }
@@ -540,6 +524,19 @@ class DataFragmentSpec(val uid: String = "",
       case Some(maskId) =>
         <input uid={uid} varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
+  }
+
+  def getPartitionKey: PartitionKey = targetGridOpt match {
+      case Some(grid) =>
+        val trange = roi.getRange(0)
+        val start = trange.first()
+        val startDate = grid.getCalendarDate(start)
+        val startTime = startDate.getMillis / 1000
+        val end = trange.last()
+        val endDate = grid.getCalendarDate(end)
+        val endTime = endDate.getMillis / 1000
+        PartitionKey(startTime, endTime, start, end-start )
+    case None => throw new Exception( "Missing target grid ")
   }
 
   def readData(section: ma2.Section) =
