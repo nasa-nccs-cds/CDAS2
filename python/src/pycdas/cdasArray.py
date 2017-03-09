@@ -106,7 +106,7 @@ class npArray(CDArray):
 
     def getSelector(self, variable, **args):
         kargs = {}
-        for idim in range( variable.rank ):
+        for idim in range( variable.rank() ):
             axis = variable.getAxis(idim)
             start = self.origin[idim]
             end = start + self.shape[idim]
