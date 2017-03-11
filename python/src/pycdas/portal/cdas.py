@@ -179,9 +179,10 @@ class AppThread(Thread):
         self.setDaemon(True)
 
     def run(self):
-        import subprocess, shlex
+        import subprocess, shlex, os
         try:
-            cdas_startup = "cdas2 connect {0} {1} -J-Xmx$CDAS_MAX_MEM -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC".format( self._request_port, self._response_port)
+            CDAS_MAX_MEM = os.environ.get( 'CDAS_MAX_MEM', '32000M' )
+            cdas_startup = "cdas2 connect {0} {1} -J-Xmx{2} -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC".format( self._request_port, self._response_port, CDAS_MAX_MEM )
             self.process = subprocess.Popen(shlex.split(cdas_startup))
             print "Staring CDAS with command: {0}\n".format(cdas_startup)
             self.process.wait()
