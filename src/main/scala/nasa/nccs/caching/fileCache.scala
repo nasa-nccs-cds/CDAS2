@@ -20,6 +20,8 @@ import nasa.nccs.cdas.loaders.Masks
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.commons.io.{FileUtils, IOUtils}
+import ucar.nc2.dataset.CoordinateAxis1DTime
+import ucar.nc2.time.{CalendarDate, CalendarDateRange, CalendarPeriod}
 import ucar.{ma2, nc2}
 
 import scala.collection.JavaConversions._
@@ -148,9 +150,34 @@ object CDASPartitioner {
   val nCoresPerPart = 1
 }
 
-class CDASPartitioner(val cache_id: String, private val _section: ma2.Section, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment") extends Loggable {
+object TimePeriod {
+  object RelativePosition extends Enumeration { val Before, After, FirstHalf, SecondHalf = Value }
+  def apply(  first: CalendarDate, last: CalendarDate ): TimePeriod = new TimePeriod( CalendarDateRange.of(first,last) )
+}
+
+class TimePeriod( val dateRange: CalendarDateRange ){
+  import TimePeriod._
+  val durationMS = (dateRange.getEnd.getMillis - dateRange.getStart.getMillis).toDouble
+
+  def relativePosition( date: CalendarDate ): RelativePosition.Value = {
+    if( date.isBefore( dateRange.getStart ) ) { RelativePosition.Before }
+    else if( date.isBefore( dateRange.getEnd ) ) { RelativePosition.After }
+    else {
+      val pos = ( date.getMillis - dateRange.getStart.getMillis ) / durationMS
+      if( pos < 0.5 ) RelativePosition.FirstHalf else  RelativePosition.SecondHalf
+    }
+    RelativePosition.Before
+  }
+
+}
+
+
+
+class CDASPartitioner(val cache_id: String, private val _section: ma2.Section, timeAxisOpt: Option[CoordinateAxis1DTime], dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment") extends Loggable {
   import CDASPartitioner._
   private lazy val elemSize = dataType.getSize
+  private lazy val secPerDay = ( 60 * 60 * 24 )
+  private lazy val secPerMonth = ( secPerDay * 356 ) / 12f
   private lazy val baseShape = _section.getShape
   private lazy val sectionMemorySize = getMemorySize()
   private lazy val sliceMemorySize: Long = getMemorySize(1)
@@ -159,14 +186,67 @@ class CDASPartitioner(val cache_id: String, private val _section: ma2.Section, d
   private lazy val nPartitions = math.ceil( baseShape(0) / nSlicesPerPart.toFloat ).toInt
   private lazy val partitionMemorySize: Long = getMemorySize(nSlicesPerPart)
   private lazy val nChunksPerPart = math.ceil(partitionMemorySize / maxChunkSize.toFloat).toInt
-  private lazy val nSlicesPerChunk: Int =
-    if (sliceMemorySize >= maxChunkSize) 1
-    else math.min(math.ceil(nSlicesPerPart / nChunksPerPart.toFloat).toInt, baseShape(0))
-  private lazy val chunkMemorySize: Long =
-    if (sliceMemorySize >= maxChunkSize) sliceMemorySize
-    else getMemorySize(nSlicesPerChunk)
+  private lazy val nSlicesPerChunk: Int = if (sliceMemorySize >= maxChunkSize) 1 else math.min(math.ceil(nSlicesPerPart / nChunksPerPart.toFloat).toInt, baseShape(0))
+  private lazy val chunkMemorySize: Long = if (sliceMemorySize >= maxChunkSize) sliceMemorySize else getMemorySize(nSlicesPerChunk)
+  private lazy val sectionRange = _section.getRange(0)
+
+  private lazy val nChunksPerSection = math.ceil( sectionMemorySize / maxChunkSize.toFloat).toInt
+
+  private def timeAxis: CoordinateAxis1DTime = timeAxisOpt getOrElse( throw new Exception( "Missing time axis in Partitioner") )
+  private def getCalDateBounds( time_index: Int ): Array[CalendarDate] = timeAxis.getCoordBoundsDate(time_index)
+  private def getCalDate( time_index: Int ): CalendarDate = timeAxis.getCalendarDate( time_index )
+  private def getBoundsStartDate( time_index: Int ): CalendarDate =  getCalDateBounds( time_index )(0)
+  private def getBoundsEndDate( time_index: Int ): CalendarDate =  getCalDateBounds( time_index )(1)
+
+  private lazy val sectionCalendarRange: CalendarDateRange = CalendarDateRange.of( getBoundsStartDate( sectionRange.first ), getBoundsEndDate( sectionRange.last ) )
+  private lazy val monthsPerSection: Float = sectionCalendarRange.getDurationInSecs / secPerMonth
+  private lazy val daysPerSection: Float = sectionCalendarRange.getDurationInSecs / secPerDay
+  private lazy val resolutionInDays: Float = daysPerSection / baseShape(0)
+  private lazy val slicesPerDay: Float = daysPerSection / baseShape(0)
+
+  def computePartitions = {
+    if (resolutionInDays > 1.0) {
+      val daysPerChunk = daysPerSection / nChunksPerSection
+      val slicesPerChunk = Math.floor( slicesPerDay * daysPerChunk )
+
+    } else {
+      val monthMemSize = // getMemorySize(356f/12f)
+      val chunksPerMonth = nChunksPerSection / monthsPerSection
+      if (chunksPerMonth < 1.0) {
+        1
+      } else {
+        val nParts = 1
+      }
+    }
+  }
+
+  private def getPeriodRanges( period: CalendarPeriod.Field ): Map[Int,TimePeriod] = {
+    var currentPeriod = -1
+    var startDate: CalendarDate = CalendarDate.present()
+    var currDate: CalendarDate = startDate
+    val periodRanges = scala.collection.mutable.HashMap.empty[Int,TimePeriod]
+    timeAxis.getCalendarDates.toList.zipWithIndex foreach { case ( date, index ) =>
+      val periodIndex = date.getFieldValue( period )
+      if( currentPeriod < 0 ) { startDate = date }
+      else if( periodIndex != currentPeriod ) {
+        periodRanges.put( periodIndex, TimePeriod( startDate, currDate ) )
+        startDate = date
+      }
+      currDate = date
+      currentPeriod = periodIndex
+    }
+    periodRanges.toMap
+  }
+
+  private def getNearestMonthBoundary( time_index: Int  ): Int = {
+    val startDate = getCalDate( time_index )
+    val dom = startDate.getDayOfMonth()
+    val month = if( dom > 15 ) startDate
+    time_index
+  }
 
   def roi: ma2.Section = new ma2.Section(_section.getRanges)
+
   logger.info(  s" ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, maxBufferSize: $maxBufferSize, sliceMemorySize: $sliceMemorySize, memoryDistFract: $memoryDistFactor, nSlicesPerPart: $nSlicesPerPart, nPartitions: $nPartitions, partitionMemorySize: $partitionMemorySize, ")
   logger.info(  s" ~~~~ Generating partitions for fragment $cache_id with $nPartitions partitions, $nProcessors processors, %d bins, %d partsPerBin, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk, shape=(%s)"
       .format(partIndexArray.size, partIndexArray(0).size, baseShape.mkString(",")))
@@ -193,6 +273,12 @@ class CDASPartitioner(val cache_id: String, private val _section: ma2.Section, d
     if (nSlices > 0) { full_shape(0) = nSlices }
     full_shape.foldLeft(4L)(_ * _)
   }
+  def getMemorySize(nSlices: Float): Float = {
+    var full_shape = baseShape.clone().map(_.toFloat)
+    full_shape(0) = nSlices
+    full_shape.foldLeft(4.0f)(_ * _)
+  }
+
   def getCacheFilePath(partIndex: Int): String = {
     val cache_file = cache_id + "-" + partIndex.toString
     DiskCacheFileMgr.getDiskCacheFilePath(cacheType, cache_file)
@@ -208,7 +294,7 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, val maskOpt: Option[
   val sType = getAttributeValue("dtype", "FLOAT")
   val dType = ma2.DataType.getType( sType )
   def roi: ma2.Section = new ma2.Section(_section.getRanges)
-  val partitioner = new CDASPartitioner(cacheId, roi, dType)
+  val partitioner = new CDASPartitioner(cacheId, roi, fragmentSpec.getTimeCoordinateAxis, dType)
   def getAttributeValue(key: String, default_value: String) =
     attributes.get(key) match {
       case Some(attr_val) => attr_val.toString.split('=').last.replace('"',' ').trim
@@ -349,7 +435,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
               case Some(cache_id_fut) =>
                 Some(cache_id_fut.map((cache_id: String) => {
                   val roi = DataFragmentKey(foundFragKey).getRoi
-                  val partitioner = new CDASPartitioner(cache_id, roi)
+                  val partitioner = new CDASPartitioner(cache_id, roi, fragSpec.getTimeCoordinateAxis )
                   fragSpec.cutIntersection(roi) match {
                     case Some(section) =>
                       new PartitionedFragment( new Partitions(cache_id, roi, partitioner.getPartitions), None, section)
