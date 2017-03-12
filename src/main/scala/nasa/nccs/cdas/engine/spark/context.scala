@@ -59,7 +59,7 @@ object CDSparkContext extends Loggable {
   def append(p0: (PartitionKey,RDDPartition), p1: (PartitionKey,RDDPartition) ): (PartitionKey,RDDPartition) = ( p0._1 + p1._1, p0._2.append(p1._2) )
 
   def getSparkConf( master: String, appName: String, logConf: Boolean, enableMetrics: Boolean  ) = {
-    val cdas_cache_dir = sys.env.getOrElse("CDAS_CACHE_DIR","/tmp")
+    val cdas_cache_dir = sys.env.getOrElse( "CDAS_CACHE_DIR", "~/.cdas/cache" )
     val sc = new SparkConf(false)
       .setMaster( master )
       .setAppName( appName )
@@ -70,7 +70,7 @@ object CDSparkContext extends Loggable {
       .set("spark.network.timeout", "400s" )
       .set("spark.executor.heartbeatInterval", "60s" )
       .set("spark.executor.memory", "30g" )
-      .set( "spark.local.dir", Array( "/tmp", cdas_cache_dir ).mkString(",") )
+      .set( "spark.local.dir", cdas_cache_dir )
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     sc
   }
