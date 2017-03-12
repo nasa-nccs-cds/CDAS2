@@ -23,7 +23,8 @@ Here are descriptions of the currently active parameters:
         - wps: Use syntax conforming to the wps schema.
         - generic:  Use a simpler (and easier to parse) generic format.
      * wps.server.proxy.href: Http address used to query the server for results (e.g. http://localhost:9001)
-     * max.procs: The maximum number of processers that CDAS ia allowed to utilize.
+     * procs.maxnum: The maximum number of processers that CDAS ia allowed to utilize.
+     * record.maxsize: The maximum memory size of a Spark RDD record (i.e. size of the array data partition).
      * ncml.recreate: When set to true the server will recreate the NCML files associated with all registered collections.  When false (the default) it will use the existing NCML files.
      
 
