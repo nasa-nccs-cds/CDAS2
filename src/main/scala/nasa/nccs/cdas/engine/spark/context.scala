@@ -90,9 +90,7 @@ object CDSparkContext extends Loggable {
     if ( rdd.getNumPartitions > 1 ) {
       val partitioner: RangePartitioner = getPartitioner(rdd).colaesce
       var repart_rdd = rdd repartitionAndSortWithinPartitions partitioner
-      val result_rdd = repart_rdd glom() map (_.fold((partitioner.range.startPoint, RDDPartition.empty))((x, y) => {
-        (x._1 + y._1, x._2.append(y._2))
-      })) // .sortWith(_._1 < _._1)
+      val result_rdd = repart_rdd glom() map (_.fold((partitioner.range.startPoint, RDDPartition.empty))((x, y) => { (x._1 + y._1, x._2.append(y._2)) })) // .sortWith(_._1 < _._1)
       result_rdd partitionBy partitioner
     } else { rdd }
   }
@@ -137,7 +135,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
 
   def parallelize( partition: RDDPartition, partitioner: RangePartitioner ): RDD[(PartitionKey,RDDPartition)] = {
     val new_partitions = partitioner.partitions.values.map( partKey => partKey -> partition.slice( partKey.elemStart, partKey.numElems ) )
-    sparkContext parallelize new_partitions.toSeq repartitionAndSortWithinPartitions partitioner
+    sparkContext parallelize new_partitions.toSeq partitionBy partitioner sortByKey(true)
   }
 
   def getRDD( uid: String, pFrag: PartitionedFragment, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(PartitionKey,RDDPartition)] = {
@@ -151,7 +149,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     if (nItems == 0) throw new Exception("Invalid RDD: all partitions are empty: " + uid)
     val partitioner = RangePartitioner(rddPartSpecs.map(_.timeRange))
     val parallelized_rddspecs = sparkContext parallelize rddPartSpecs keyBy (_.timeRange) partitionBy partitioner
-    parallelized_rddspecs mapValues (spec => spec.getRDDPartition) repartitionAndSortWithinPartitions partitioner
+    parallelized_rddspecs mapValues (spec => spec.getRDDPartition)            // repartitionAndSortWithinPartitions partitioner
   }
 
   def getRDD( uid: String, extInput: ExternalInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(PartitionKey,RDDPartition)] = {

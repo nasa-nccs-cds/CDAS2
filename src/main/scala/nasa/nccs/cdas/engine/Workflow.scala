@@ -42,9 +42,8 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
     val t0 = System.nanoTime()
     if( ! kernel.parallelizable ) { mapresult.collect()(0)._2 }
     else {
-      val partitioner: RangePartitioner = CDSparkContext.getPartitioner(mapresult).colaesce
-      var repart_mapresult = mapresult repartitionAndSortWithinPartitions  partitioner
-      val result = repart_mapresult reduce kernel.getReduceOp(context)
+      val reducable_result = if( kernel.orderedReduce ) { mapresult repartitionAndSortWithinPartitions  CDSparkContext.getPartitioner(mapresult).colaesce } else { mapresult }
+      val result = reducable_result reduce kernel.getReduceOp(context)
       logger.debug("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
       result._2
     }

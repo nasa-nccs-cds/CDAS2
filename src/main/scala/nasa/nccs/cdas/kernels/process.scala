@@ -182,6 +182,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
   val extInputs: Boolean = options.getOrElse("handlesInput","false").toBoolean
   val parallelizable: Boolean = if(extInputs) false else options.getOrElse("parallelize","true").toBoolean
   val identifier = name
+  val orderedReduce = false
   def matchesSpecs( specs: Array[String] ): Boolean = { (specs.size >= 2) && specs(0).equals(module) && specs(1).equals(operation) }
 
   val mapCombineOp: Option[ReduceOpFlt] = options.get("mapOp").fold (options.get("mapreduceOp")) (Some(_)) map ( CDFloatArray.getOp(_) )
