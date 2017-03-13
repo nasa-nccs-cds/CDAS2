@@ -703,7 +703,7 @@ object profilingTest extends Loggable {
 
   def main(args: Array[String]): Unit = {
     val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml"
-    val cache_id = "a2e4910eab91d2"
+    val cache_id = "a3298cb50c2abb"
     val varName = "T"
     val iLevel = 10
     val roi_origin = Array[Int](0, iLevel, 0, 0)
