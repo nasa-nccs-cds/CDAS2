@@ -633,13 +633,13 @@ object profilingTest extends Loggable {
     val partitions = partitioner.getPartitions
     for (partition <- partitions) {
       val itime = partition.startIndex
-      val ncycle = itime + 1
-      val chunk_size = partition.endIndex - partition.startIndex + 1
+      val chunk_size = partition.shape(0)
+      val ncycle = chunk_size * partition.index
       val chunk_origin = partition.origin
       val chunk_shape = partition.shape
       val ts0 = System.nanoTime()
       val cfdata: CDFloatArray = partition.data(Float.NaN)
-      println("Mapped data, data shape = %s, datasize = %d, ncycles = %d".format( cfdata.getShape.mkString(", "), cfdata.getSize, cfdata.getSize/(full_shape(2)*full_shape(3))))
+      println("Mapped data, P[%d]: data shape = %s, datasize = %d, ncycles = %d, chunk_size = %d".format( partition.index, cfdata.getShape.mkString(", "), cfdata.getSize, cfdata.getSize/(full_shape(2)*full_shape(3)), chunk_size ) )
       val ts1 = System.nanoTime()
       val max = computeMax(cfdata)
       val ts2 = System.nanoTime()
