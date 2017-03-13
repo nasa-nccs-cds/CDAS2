@@ -625,7 +625,7 @@ object profilingTest extends Loggable {
   }
 
   def main(args: Array[String]): Unit = {
-    val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/ncml.xml"
+    val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml"
     val varName = "T"
 
     try {
