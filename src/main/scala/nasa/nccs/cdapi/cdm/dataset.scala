@@ -11,6 +11,7 @@ import java.util.Formatter
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
+import nasa.nccs.caching.CDASPartitioner
 import nasa.nccs.cdapi.tensors.{CDDoubleArray, CDFloatArray, CDLongArray}
 import nasa.nccs.cdas.loaders.XmlResource
 import nasa.nccs.cdas.utilities.appParameters
@@ -604,55 +605,53 @@ object TestType {
 
 object profilingTest extends Loggable {
 
-  def computeMax( data: ma2.Array ): Float = {
+  def computeMax(data: ma2.Array): Float = {
     var max = Float.MinValue
-    while( data.hasNext() ) {
+    while (data.hasNext()) {
       val dval = data.nextFloat();
-      if( !dval.isNaN ) {
-        max = Math.max( max, dval )
+      if (!dval.isNaN) {
+        max = Math.max(max, dval)
       }
     }
-    if( max == Float.MinValue ) Float.NaN else max
+    if (max == Float.MinValue) Float.NaN else max
   }
 
-  def processData( variable: Variable ) = {
+  def processCacheData(collection: String, roi: ma2.Section) = {
+    val partitioner = new CDASPartitioner(collection, roi)
     val t0 = System.nanoTime()
-    val full_shape = variable.getShape
+    val full_shape = partitioner.getShape
     var total_read_time = 0.0
     var total_compute_time = 0.0
-    val chunk_size = 2
-    println( "Processing data, full shape = " + full_shape.mkString(", ") )
-    (0 until full_shape(1)) foreach ( ilevel => {
-      (0 until full_shape(0) by chunk_size) foreach ( itime => {
-        val ncycle = ilevel*full_shape(0) + itime + 1
-        val chunk_origin = Array[Int](itime, ilevel, 0, 0)
-        val chunk_shape = Array[Int]( chunk_size, 1, full_shape(2), full_shape(3) )
-        val ts0 = System.nanoTime()
-        val data = variable.read(chunk_origin, chunk_shape)
-        val ts1 = System.nanoTime()
-        val max = computeMax( data )
-        val ts2 = System.nanoTime()
-        val read_time = (ts1 - ts0) / 1.0E9
-        val compute_time = (ts2 - ts1) / 1.0E9
-        total_read_time += read_time
-        total_compute_time += compute_time
-        println("Computed max = %.4f [time=%d, level=%d] in %.4f sec, data read time = %.4f sec, compute time = %.4f sec".format( max, itime, ilevel, read_time+compute_time, read_time, compute_time ) )
-        println("Aggretate time for %d cycles = %.4f sec".format( ncycle, (ts2 - t0) / 1.0E9))
-        println("Average over %d cycles: read time per cycle = %.4f sec, compute time per cycle = %.4f sec".format( ncycle, total_read_time/ncycle, total_compute_time/ncycle ) )
-      })
-    })
-    println("Completed data processing for '%s' in %.4f sec".format( variable.getFullName, (System.nanoTime() - t0) / 1.0E9))
+    println("Processing data, full shape = " + full_shape.mkString(", "))
+    val partitions = partitioner.getPartitions
+    for (partition <- partitions) {
+      val itime = partition.startIndex
+      val ncycle = itime + 1
+      val chunk_size = partition.endIndex - partition.startIndex + 1
+      val chunk_origin = partition.origin
+      val chunk_shape = partition.shape
+      val ts0 = System.nanoTime()
+      val cfdata: CDFloatArray = partition.data(Float.NaN)
+      val ts1 = System.nanoTime()
+      val max = computeMax(CDFloatArray.toUcarArray(cfdata))
+      val ts2 = System.nanoTime()
+      val read_time = (ts1 - ts0) / 1.0E9
+      val compute_time = (ts2 - ts1) / 1.0E9
+      total_read_time += read_time
+      total_compute_time += compute_time
+      println("Computed max = %.4f [time=%d] in %.4f sec, data read time = %.4f sec, compute time = %.4f sec".format(max, itime, read_time + compute_time, read_time, compute_time))
+      println("Aggretate time for %d cycles = %.4f sec".format(ncycle, (ts2 - t0) / 1.0E9))
+      println("Average over %d cycles: read time per cycle = %.4f sec, compute time per cycle = %.4f sec".format(ncycle, total_read_time / ncycle, total_compute_time / ncycle))
+    }
+    println("Completed data processing for collectioin '%s' in %.4f sec".format(partitioner.cache_id, (System.nanoTime() - t0) / 1.0E9))
   }
 
-  def main(args: Array[String]): Unit = {
-    val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml"
-    val varName = "T"
-
+  def processFileData(ncmlFile: String, varName: String) = {
     try {
-      val datset = NetcdfDataset.openDataset( ncmlFile, true, -1, null, null)
+      val datset = NetcdfDataset.openDataset(ncmlFile, true, -1, null, null)
       Option(datset.findVariable(varName)) match {
         case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
-        case Some(ncVar) => processData( ncVar )
+        case Some(ncVar) => processData(ncVar)
       }
     } catch {
       case e: java.io.IOException =>
@@ -662,6 +661,47 @@ object profilingTest extends Loggable {
         logger.error("Something went wrong while reading %s".format(ncmlFile))
         throw ex
     }
+  }
+
+
+  def processData(variable: Variable) = {
+    val t0 = System.nanoTime()
+    val full_shape = variable.getShape
+    var total_read_time = 0.0
+    var total_compute_time = 0.0
+    val chunk_size = 2
+    println("Processing data, full shape = " + full_shape.mkString(", "))
+    (0 until full_shape(1)) foreach (ilevel => {
+      (0 until full_shape(0) by chunk_size) foreach (itime => {
+        val ncycle = ilevel * full_shape(0) + itime + 1
+        val chunk_origin = Array[Int](itime, ilevel, 0, 0)
+        val chunk_shape = Array[Int](chunk_size, 1, full_shape(2), full_shape(3))
+        val ts0 = System.nanoTime()
+        val data = variable.read(chunk_origin, chunk_shape)
+        val ts1 = System.nanoTime()
+        val max = computeMax(data)
+        val ts2 = System.nanoTime()
+        val read_time = (ts1 - ts0) / 1.0E9
+        val compute_time = (ts2 - ts1) / 1.0E9
+        total_read_time += read_time
+        total_compute_time += compute_time
+        println("Computed max = %.4f [time=%d, level=%d] in %.4f sec, data read time = %.4f sec, compute time = %.4f sec".format(max, itime, ilevel, read_time + compute_time, read_time, compute_time))
+        println("Aggretate time for %d cycles = %.4f sec".format(ncycle, (ts2 - t0) / 1.0E9))
+        println("Average over %d cycles: read time per cycle = %.4f sec, compute time per cycle = %.4f sec".format(ncycle, total_read_time / ncycle, total_compute_time / ncycle))
+      })
+    })
+    println("Completed data processing for '%s' in %.4f sec".format(variable.getFullName, (System.nanoTime() - t0) / 1.0E9))
+  }
+
+  def main(args: Array[String]): Unit = {
+    val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml"
+    val cache_id = "npana"
+    val varName = "T"
+    val iLevel = 10
+    val roi_origin = Array[Int](0, iLevel, 0, 0)
+    val roi_shape = Array[Int](53668, 1, 361, 576)
+    val roi = new ma2.Section(roi_origin, roi_shape)
+    processCacheData(cache_id, roi)
   }
 }
 
