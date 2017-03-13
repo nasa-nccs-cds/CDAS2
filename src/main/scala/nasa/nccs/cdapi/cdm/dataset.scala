@@ -602,6 +602,43 @@ object TestType {
   val NcFile = 4
 }
 
+class profilingTest extends Loggable {
+
+  def processData( variable: Variable ) = {
+    val full_shape = variable.getShape
+    (0 until full_shape(1)) foreach ( ilevel => {
+      (0 until full_shape(0)) foreach ( itime => {
+        val chunk_origin = Array[Int](itime, ilevel, 0, 0)
+        val chunk_shape = Array[Int]( 1, 1, full_shape(2), full_shape(3) )
+        val data = variable.read(chunk_origin, chunk_shape)
+        var max = Float.MinValue
+        while( data.hasNext()  ) { max = Math.max( max, data.nextFloat()) }
+        println( max )
+      })
+    })
+  }
+
+  def main(args: Array[String]): Unit = {
+    val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/ncml.xml"
+    val varName = "T"
+
+    try {
+      val datset = NetcdfDataset.openDataset( ncmlFile, true, -1, null, null)
+      Option(datset.findVariable(varName)) match {
+        case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
+        case Some(ncVar) => processData( ncVar )
+      }
+    } catch {
+      case e: java.io.IOException =>
+        logger.error("Couldn't open dataset %s".format(ncmlFile))
+        throw e
+      case ex: Exception =>
+        logger.error("Something went wrong while reading %s".format(ncmlFile))
+        throw ex
+    }
+  }
+}
+
 class ncReadTest extends Loggable {
 
   import nasa.nccs.cdas.utilities.runtime
