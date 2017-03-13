@@ -620,12 +620,13 @@ object profilingTest extends Loggable {
     val full_shape = variable.getShape
     var total_read_time = 0.0
     var total_compute_time = 0.0
+    val chunk_size = 10
     println( "Processing data, full shape = " + full_shape.mkString(", ") )
     (0 until full_shape(1)) foreach ( ilevel => {
-      (0 until full_shape(0)) foreach ( itime => {
+      (0 until full_shape(0) by chunk_size) foreach ( itime => {
         val ncycle = ilevel*full_shape(0) + itime + 1
         val chunk_origin = Array[Int](itime, ilevel, 0, 0)
-        val chunk_shape = Array[Int]( 1, 1, full_shape(2), full_shape(3) )
+        val chunk_shape = Array[Int]( chunk_size, 1, full_shape(2), full_shape(3) )
         val ts0 = System.nanoTime()
         val data = variable.read(chunk_origin, chunk_shape)
         val ts1 = System.nanoTime()
@@ -635,11 +636,9 @@ object profilingTest extends Loggable {
         val compute_time = (ts2 - ts1) / 1.0E9
         total_read_time += read_time
         total_compute_time += compute_time
-        if( ncycle % 10 == 0 ) {
-          println("Computed max = %.4f [time=%d, level=%d] in %.4f sec, data read time = %.4f sec, compute time = %.4f sec".format( max, itime, ilevel, read_time+compute_time, read_time, compute_time ) )
-          println("Aggretate time for %d cycles = %.4f sec".format( ncycle, (ts2 - t0) / 1.0E9))
-          println("Average over %d cycles: read time = %.4f sec, compute time = %.4f sec".format( ncycle, total_read_time/ncycle, total_compute_time/ncycle ) )
-        }
+        println("Computed max = %.4f [time=%d, level=%d] in %.4f sec, data read time = %.4f sec, compute time = %.4f sec".format( max, itime, ilevel, read_time+compute_time, read_time, compute_time ) )
+        println("Aggretate time for %d cycles = %.4f sec".format( ncycle, (ts2 - t0) / 1.0E9))
+        println("Average over %d cycles: read time per cycle = %.4f sec, compute time per cycle = %.4f sec".format( ncycle, total_read_time/ncycle, total_compute_time/ncycle ) )
       })
     })
     println("Completed data processing for '%s' in %.4f sec".format( variable.getFullName, (System.nanoTime() - t0) / 1.0E9))
