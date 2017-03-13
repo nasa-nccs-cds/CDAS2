@@ -616,8 +616,8 @@ object profilingTest extends Loggable {
     if (max == Float.MinValue) Float.NaN else max
   }
 
-  def processCacheData(collection: String, roi: ma2.Section) = {
-    val partitioner = new CDASPartitioner(collection, roi)
+  def processCacheData(cache_id: String, roi: ma2.Section) = {
+    val partitioner = new CDASPartitioner(cache_id, roi)
     val t0 = System.nanoTime()
     val full_shape = partitioner.getShape
     var total_read_time = 0.0
@@ -695,7 +695,7 @@ object profilingTest extends Loggable {
 
   def main(args: Array[String]): Unit = {
     val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml"
-    val cache_id = "npana"
+    val cache_id = "a2e4910eab91d2"
     val varName = "T"
     val iLevel = 10
     val roi_origin = Array[Int](0, iLevel, 0, 0)
