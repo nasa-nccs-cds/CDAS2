@@ -616,6 +616,18 @@ object profilingTest extends Loggable {
     if (max == Float.MinValue) Float.NaN else max
   }
 
+  def computeMax( data: CDFloatArray ): Float = {
+    var max = Float.MinValue
+    val datasize = data.getSize
+    ( 0 until datasize ) map { index =>
+      val dval = data.getFlatValue( index );
+      if (!dval.isNaN) {
+        max = Math.max(max, dval)
+      }
+    }
+    if (max == Float.MinValue) Float.NaN else max
+  }
+
   def processCacheData(cache_id: String, roi: ma2.Section) = {
     val partitioner = new CDASPartitioner(cache_id, roi)
     val t0 = System.nanoTime()
@@ -633,7 +645,7 @@ object profilingTest extends Loggable {
       val ts0 = System.nanoTime()
       val cfdata: CDFloatArray = partition.data(Float.NaN)
       val ts1 = System.nanoTime()
-      val max = computeMax(CDFloatArray.toUcarArray(cfdata))
+      val max = computeMax(cfdata)
       val ts2 = System.nanoTime()
       val read_time = (ts1 - ts0) / 1.0E9
       val compute_time = (ts2 - ts1) / 1.0E9
