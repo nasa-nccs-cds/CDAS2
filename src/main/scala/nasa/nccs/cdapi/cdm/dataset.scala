@@ -620,7 +620,7 @@ object profilingTest extends Loggable {
     val full_shape = variable.getShape
     var total_read_time = 0.0
     var total_compute_time = 0.0
-    println( "Processing data, full shape = %d", full_shape.mkString(", ") )
+    println( "Processing data, full shape = " + full_shape.mkString(", ") )
     (0 until full_shape(1)) foreach ( ilevel => {
       (0 until full_shape(0)) foreach ( itime => {
         val ncycle = ilevel*full_shape(0) + itime + 1
