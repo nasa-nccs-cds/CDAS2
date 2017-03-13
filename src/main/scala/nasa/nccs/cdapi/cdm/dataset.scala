@@ -602,20 +602,26 @@ object TestType {
   val NcFile = 4
 }
 
-class profilingTest extends Loggable {
+object profilingTest extends Loggable {
 
   def processData( variable: Variable ) = {
+    val t0 = System.nanoTime()
     val full_shape = variable.getShape
     (0 until full_shape(1)) foreach ( ilevel => {
       (0 until full_shape(0)) foreach ( itime => {
         val chunk_origin = Array[Int](itime, ilevel, 0, 0)
         val chunk_shape = Array[Int]( 1, 1, full_shape(2), full_shape(3) )
+        val ts0 = System.nanoTime()
         val data = variable.read(chunk_origin, chunk_shape)
+        val ts1 = System.nanoTime()
         var max = Float.MinValue
         while( data.hasNext()  ) { max = Math.max( max, data.nextFloat()) }
-        println( max )
+        val ts2 = System.nanoTime()
+        println("Computed max = %.4f [time=%d, level=%d] in %.4f sec, data read time = %.4f sec, compute time = %.4f sec".format( max, itime, ilevel, (ts2 - ts0) / 1.0E9, (ts1 - ts0) / 1.0E9, (ts2 - ts1) / 1.0E9 ) )
+        println("Aggretate time for %d cycles = %.4f sec".format( ilevel*full_shape(0) + itime + 1, (ts2 - t0) / 1.0E9))
       })
     })
+    println("Completed data processing for '%s' in %.4f sec".format( variable.getFullName, (System.nanoTime() - t0) / 1.0E9))
   }
 
   def main(args: Array[String]): Unit = {
