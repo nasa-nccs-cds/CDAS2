@@ -634,12 +634,12 @@ object profilingTest extends Loggable {
     for (partition <- partitions) {
       val itime = partition.startIndex
       val chunk_size = partition.shape(0)
-      val ncycle = chunk_size * partition.index
+      val ncycle = chunk_size * (partition.index + 1)
       val chunk_origin = partition.origin
       val chunk_shape = partition.shape
       val ts0 = System.nanoTime()
       val cfdata: CDFloatArray = partition.data(Float.NaN)
-      println("Mapped data, P[%d]: data shape = %s, datasize = %d, ncycles = %d, chunk_size = %d".format( partition.index, cfdata.getShape.mkString(", "), cfdata.getSize, cfdata.getSize/(full_shape(2)*full_shape(3)), chunk_size ) )
+      println("Mapped data, P[%d]: data shape = (%s), datasize = %d, ncycles = %d, chunk_size = %d".format( partition.index, cfdata.getShape.mkString(", "), cfdata.getSize, cfdata.getSize/(full_shape(2)*full_shape(3)), chunk_size ) )
       val ts1 = System.nanoTime()
       val max = computeMax(cfdata)
       val ts2 = System.nanoTime()
@@ -651,7 +651,7 @@ object profilingTest extends Loggable {
       println("Aggretate time for %d cycles = %.4f sec".format(ncycle, (ts2 - t0) / 1.0E9))
       println("Average over %d cycles: read time per cycle = %.4f sec, compute time per cycle = %.4f sec".format(ncycle, total_read_time / ncycle, total_compute_time / ncycle))
     }
-    println("Completed data processing for collectioin '%s' in %.4f sec".format(partitioner.cache_id, (System.nanoTime() - t0) / 1.0E9))
+    println("Completed data processing for collection '%s' in %.4f sec".format(partitioner.cache_id, (System.nanoTime() - t0) / 1.0E9))
   }
 
   def processFileData(ncmlFile: String, varName: String) = {
