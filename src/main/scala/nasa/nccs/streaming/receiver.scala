@@ -70,6 +70,8 @@ object streamingTest extends Loggable {
     val inputStream = sectionsStream.map( sectionSpec => sectionReader.read(sectionSpec) )
     val maxStream = inputStream.map( data => data.max() )
     maxStream.print(nRecords)
+    ssc.start()            
+    ssc.awaitTermination()
   }
 }
 
