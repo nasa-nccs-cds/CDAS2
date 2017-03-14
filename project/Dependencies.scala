@@ -14,6 +14,7 @@ object Library {
   val scalaTest      = "org.scalatest"     %% "scalatest"       % Version.scalaTest
   val sparkSQL       = "org.apache.spark"  %% "spark-sql"       % Version.spark
   val sparkCore      = "org.apache.spark"  %% "spark-core"      % Version.spark
+  val sparkStreaming = "org.apache.spark"  %% "spark-streaming" % Version.spark
   val scalaxml       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
   val scalaparser    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
   val commonsIO      = "commons-io"         % "commons-io"      % "2.5"
@@ -45,7 +46,7 @@ object Dependencies {
 
   val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, zeromq, logback )
 
-  val spark = Seq( sparkCore )
+  val spark = Seq( sparkCore, sparkStreaming )
 
   val cache = Seq( concurrentlinkedhashmap )
 
