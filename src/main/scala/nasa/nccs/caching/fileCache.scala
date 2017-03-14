@@ -166,6 +166,7 @@ class CDASPartitioner(val cache_id: String, private val _section: ma2.Section, d
     if (sliceMemorySize >= maxChunkSize) sliceMemorySize
     else getMemorySize(nSlicesPerChunk)
 
+  def getShape = baseShape
   def roi: ma2.Section = new ma2.Section(_section.getRanges)
   logger.info(  s" ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, maxBufferSize: $maxBufferSize, sliceMemorySize: $sliceMemorySize, memoryDistFract: $memoryDistFactor, nSlicesPerPart: $nSlicesPerPart, nPartitions: $nPartitions, partitionMemorySize: $partitionMemorySize, ")
   logger.info(  s" ~~~~ Generating partitions for fragment $cache_id with $nPartitions partitions, $nProcessors processors, %d bins, %d partsPerBin, $nChunksPerPart ChunksPerPart, $nSlicesPerChunk SlicesPerChunk, shape=(%s)"
