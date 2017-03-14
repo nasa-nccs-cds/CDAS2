@@ -55,7 +55,7 @@ class SectionReader( val ncmlFile: String, val varName: String ) extends Seriali
     }
 }
 
-class streamingTest extends Loggable {
+object streamingTest extends Loggable {
 
   def main(args: Array[String]): Unit = {
     val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/ncml.xml"
