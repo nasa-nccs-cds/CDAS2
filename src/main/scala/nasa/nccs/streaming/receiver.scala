@@ -136,7 +136,7 @@ object DataProcessor extends TimeTracker with Loggable {
     val data: ma2.Array = raw_data.toUcarFloatArray
     val t0 = System.nanoTime()
     var max = Float.MinValue
-    while( data.hasNext ) { max = Math.max( max, data.nextFloat ) }
+    while( data.hasNext ) { val dval: Float = data.nextFloat; if( !dval.isNaN ) { max = Math.max( max, dval ) } }
     if (max == Float.MinValue) max = Float.NaN
     logger.info( "DataProcessor computing max: %s, time = %.4f sec, batch time = %.4f sec *thread = %d".format( max.toString, getElapsedTime(t0), getElapsedTime, Thread.currentThread().getId))
     max
