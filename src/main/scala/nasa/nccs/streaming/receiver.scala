@@ -5,6 +5,7 @@ import nasa.nccs.cdapi.data.HeapFltArray
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.esgf.process.CDSection
 import nasa.nccs.streaming.DataProcessor.logger
+import nasa.nccs.streaming.streamingTest.logger
 import nasa.nccs.utilities.Loggable
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
@@ -92,14 +93,16 @@ object DataProcessor extends Loggable {
   }
 }
 
-object streamingTest extends Loggable {
+object DataLogger extends Loggable {
   var currentTime = 0L
-
-  def processOutput( rdd: RDD[Float] ) = {
+  def apply( rdd: RDD[Float] ): Unit = {
     logger.info( "------>>>> Result: " + rdd.collect().mkString(", ") )
     if( currentTime > 0L ) { println("Elapsed batch time = %.4f sec".format( (System.nanoTime() - currentTime) / 1.0E9)) }
     currentTime = System.nanoTime()
   }
+}
+
+object streamingTest extends Loggable {
 
   def main(args: Array[String]): Unit = {
     val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml"
@@ -112,8 +115,8 @@ object streamingTest extends Loggable {
     val sectionsStream: ReceiverInputDStream[String] = ssc.receiverStream(new SectionFeeder( section, nRecords, recordSize ) )
     val sectionReader = new SectionReader( ncmlFile, varName )
     val inputStream = sectionsStream.map( sectionSpec => sectionReader.read(sectionSpec) )
-    val maxStream = inputStream.map( DataProcessor(_) )
-    maxStream.foreachRDD( processOutput(_)  )
+    val maxStream = inputStream.map { DataProcessor(_) }
+    maxStream.foreachRDD { DataLogger(_)  }
     ssc.start()
     ssc.awaitTermination()
   }
