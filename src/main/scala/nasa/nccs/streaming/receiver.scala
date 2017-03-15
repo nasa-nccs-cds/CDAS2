@@ -21,13 +21,13 @@ import org.apache.spark.streaming.dstream.{DStream, ReceiverInputDStream}
 class TimeTracker {
   val threadTimes = new ConcurrentLinkedHashMap.Builder[ Long, (Int, Float) ].initialCapacity(4).maximumWeightedCapacity(100).build()
 
-  def getElapsedTime: Float = {
+  def getElapsedTime: ( Int, Float ) = {
     val tid = Thread.currentThread().getId;
-    val ( count, timeSum ) = threadTimes.getOrDefault( tid, ( 0, 0f ) )
+    val ( count, timeSum, lastTime ) = threadTimes.getOrDefault( tid, ( 0, 0f ) )
     val currtime = System.nanoTime() / 1.0E9f
     val new_rec = (count+1, timeSum+currtime)
     threadTimes.put( tid, new_rec )
-    new_rec._2 / new_rec._1
+    ( new_rec._1, new_rec._2 / new_rec._1 )
   }
 
   def getElapsedTime( t0: Long ): Float = (System.nanoTime() - t0) / 1.0E9f
@@ -103,7 +103,10 @@ class SectionReader( val ncmlFile: String, val varName: String ) extends TimeTra
       try {
         val t0 = System.nanoTime()
         val data = ncVar.read(CDSection(sectionSpec).toSection)
-        logger.info( "SectionReader accessing data for sectionSpec: %s, read time = %.4f sec, cycle time = %.4f sec,  *thread = %d".format( sectionSpec,  getElapsedTime(t0), getElapsedTime, Thread.currentThread().getId  ) )
+        val ( count, etime ) = getElapsedTime
+        if( count % 100 == 99 ) {
+          logger.info("SectionReader accessing data for sectionSpec: %s, read time = %.4f sec, cycle time = %.4f sec,  *thread = %d".format(sectionSpec, getElapsedTime(t0), etime, Thread.currentThread().getId))
+        }
         HeapFltArray(data, Array(0, 0, 0, 0), "", Map.empty[String, String], Float.NaN)
       } catch {
         case e: Exception =>
@@ -124,16 +127,20 @@ object DataProcessor extends TimeTracker with Loggable {
     val datasize = data.data.length
     for( index <- 0 until datasize; dval = data.data(index); if !dval.isNaN ) { max = Math.max(max, dval) }
     if (max == Float.MinValue) max = Float.NaN
-    logger.info( "DataProcessor computing max: %s, time = %.4f sec, batch time = %.4f sec *thread = %d".format( max.toString, getElapsedTime(t0), getElapsedTime, Thread.currentThread().getId))
+    val ( count, etime ) = getElapsedTime
+    logger.info( "DataProcessor computing max: %s, time = %.4f sec, batch time = %.4f sec *thread = %d".format( max.toString, getElapsedTime(t0), etime, Thread.currentThread().getId))
     max
   }
   def computeMax( raw_data: HeapFltArray ): Float = {
     val data: ma2.Array = raw_data.toUcarFloatArray
     val t0 = System.nanoTime()
     var max = Float.MinValue
+    val ( count, etime ) = getElapsedTime
     while( data.hasNext ) { val dval: Float = data.nextFloat; if( !dval.isNaN ) { max = Math.max( max, dval ) } }
     if (max == Float.MinValue) max = Float.NaN
-    logger.info( "DataProcessor computing max: %s, time = %.4f sec, batch time = %.4f sec *thread = %d".format( max.toString, getElapsedTime(t0), getElapsedTime, Thread.currentThread().getId))
+    if( count % 100 == 99 ) {
+      logger.info("DataProcessor computing max: %s, time = %.4f sec, batch time = %.4f sec *thread = %d".format(max.toString, getElapsedTime(t0), etime, Thread.currentThread().getId))
+    }
     max
   }
 
