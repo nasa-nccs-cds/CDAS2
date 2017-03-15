@@ -149,11 +149,13 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
     if( reduceDims.isEmpty ) {
       var value: T = initVal
       val datasize = getSize
+      logger.info( s"Computing reduce, datasize = $datasize" )
       for( index <- 0 until datasize; dval = getFlatValue(index); if !(dval == getInvalid) ) { value = reductionOp(value, dval) }
       if (value == initVal) value = getInvalid
       val shape = Array.fill[Int](getRank)(1)
       CDArray[T]( shape, Array[T](value), getInvalid )
     } else {
+      logger.info(  "Computing axccumulation, reduceDims = " + reduceDims.mkString(", ") )
       val accumulator: CDArray[T] = getAccumulator(reduceDims, initVal)
       val iter = getIterator
       for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
