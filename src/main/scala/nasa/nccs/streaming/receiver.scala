@@ -111,6 +111,7 @@ object streamingTest extends Loggable {
     val recordSize = 1
     val conf = new SparkConf().setMaster(s"local[$nRecords]").setAppName("StreamingTest")
     val ssc = new StreamingContext( conf, Milliseconds(1000) )
+    ssc.sparkContext.setLogLevel("WARN" )
     val section = new CDSection( Array(0,10,0,0), Array(53668,1,361,576) )
     val sectionsStream: ReceiverInputDStream[String] = ssc.receiverStream(new SectionFeeder( section, nRecords, recordSize ) )
     val sectionReader = new SectionReader( ncmlFile, varName )
