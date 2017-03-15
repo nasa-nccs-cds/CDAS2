@@ -709,7 +709,7 @@ object profilingTest extends Loggable {
     val roi_origin = Array[Int](0, iLevel, 0, 0)
     val roi_shape = Array[Int](53668, 1, 361, 576)
     val roi = new ma2.Section(roi_origin, roi_shape)
-    processCacheData(cache_id, roi)
+    processFileData( ncmlFile, varName )
   }
 }
 
