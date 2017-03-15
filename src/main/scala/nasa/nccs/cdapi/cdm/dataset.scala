@@ -616,7 +616,17 @@ object profilingTest extends Loggable {
     if (max == Float.MinValue) Float.NaN else max
   }
 
-  def computeMax(data: ma2.Array): Float = { val array = CDFloatArray.factory(data,Float.NaN).max(); array.getSize.toFloat }
+  def computeMax2(data: ma2.Array): Float = CDFloatArray.factory(data,Float.NaN).max().getStorageData.get(0)
+
+  def computeMax(data: ma2.Array): Float = {
+    val fltArray = CDFloatArray.factory(data,Float.NaN)
+    var max = Float.MinValue
+    for ( index <-( 0 until fltArray.getSize ) ) {
+      val dval = fltArray.getStorageValue( index )
+      if (!dval.isNaN) { max = Math.max(max, dval) }
+    }
+    if (max == Float.MinValue) Float.NaN else max
+  }
 
   def computeMax( data: CDFloatArray ): Float = {
     var max = Float.MinValue
