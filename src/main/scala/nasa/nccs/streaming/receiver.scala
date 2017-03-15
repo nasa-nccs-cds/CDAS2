@@ -1,5 +1,6 @@
 package nasa.nccs.streaming
 
+import nasa.nccs.cdapi.data.HeapFltArray
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.esgf.process.CDSection
 import nasa.nccs.utilities.Loggable
@@ -38,12 +39,12 @@ class SectionFeeder( section: CDSection, nRecords: Int, recordSize: Int = 1, sto
 }
 
 class SectionReader( val ncmlFile: String, val varName: String ) extends Serializable with Loggable {
-    def read( sectionSpec: String ): CDFloatArray = {
+    def read( sectionSpec: String ): HeapFltArray = {
       try {
         val datset = NetcdfDataset.openDataset( ncmlFile, true, -1, null, null)
         Option(datset.findVariable(varName)) match {
           case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
-          case Some(ncVar) => CDFloatArray.factory( ncVar.read( CDSection(sectionSpec).toSection ), Float.NaN )
+          case Some(ncVar) => HeapFltArray( ncVar.read( CDSection(sectionSpec).toSection ), Array(0,0,0,0), "", Map.empty[String,String], Float.NaN )
         }
       } catch {
         case e: java.io.IOException =>
@@ -54,6 +55,12 @@ class SectionReader( val ncmlFile: String, val varName: String ) extends Seriali
           throw ex
       }
     }
+}
+
+object DataProcessor {
+  def apply( data: HeapFltArray ): Float = {
+    data.toCDFloatArray.max().getStorageValue(0)
+  }
 }
 
 object streamingTest extends Loggable {
@@ -69,7 +76,7 @@ object streamingTest extends Loggable {
     val sectionsStream: ReceiverInputDStream[String] = ssc.receiverStream(new SectionFeeder( section, nRecords, recordSize ) )
     val sectionReader = new SectionReader( ncmlFile, varName )
     val inputStream = sectionsStream.map( sectionSpec => sectionReader.read(sectionSpec) )
-    val maxStream = inputStream.map( data => data.max() )
+    val maxStream = inputStream.map( DataProcessor(_) )
     maxStream.print(nRecords)
     ssc.start()
     ssc.awaitTermination()
