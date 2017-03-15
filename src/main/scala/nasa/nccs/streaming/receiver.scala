@@ -5,6 +5,7 @@ import nasa.nccs.cdapi.data.HeapFltArray
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.esgf.process.CDSection
 import nasa.nccs.streaming.DataProcessor.logger
+import nasa.nccs.streaming.DatasetReader.logger
 import nasa.nccs.streaming.streamingTest.logger
 import nasa.nccs.utilities.Loggable
 import org.apache.spark.SparkConf
@@ -23,7 +24,10 @@ object DatasetReader extends Loggable {
   val datasets = new ConcurrentLinkedHashMap.Builder[String, NetcdfDataset].initialCapacity(4).maximumWeightedCapacity(100).build()
   val variables = new ConcurrentLinkedHashMap.Builder[String, Variable].initialCapacity(10).maximumWeightedCapacity(400).build()
 
-  private def getDataset( filePath: String ): NetcdfDataset = datasets.putIfAbsent( filePath, openDataset(filePath) )
+  private def getDataset( filePath: String ): NetcdfDataset = {
+    if( !datasets.containsKey(filePath) ) { datasets.put( filePath, openDataset(filePath) ) }
+    datasets.get( filePath )
+  }
 
   private def openDataset( filePath: String ): NetcdfDataset = {
     try {
@@ -40,7 +44,8 @@ object DatasetReader extends Loggable {
 
   def getVariable( filePath: String, varName: String ): Variable = {
     val varPath = filePath + "|" + varName
-    variables.putIfAbsent( varPath, findVariable(varPath) )
+    if( !variables.containsKey(varPath) ) { variables.put( varPath, findVariable(varPath) ) }
+    variables.get( varPath )
   }
 
   private def findVariable( varPath: String ): Variable = {
@@ -81,7 +86,14 @@ class SectionFeeder( section: CDSection, nRecords: Int, recordSize: Int = 1, sto
 class SectionReader( val ncmlFile: String, val varName: String ) extends Serializable with Loggable {
     def read( sectionSpec: String ): HeapFltArray = {
       val ncVar = DatasetReader.getVariable(ncmlFile, varName)
-      HeapFltArray(ncVar.read(CDSection(sectionSpec).toSection), Array(0, 0, 0, 0), "", Map.empty[String, String], Float.NaN)
+      try {
+        val data = ncVar.read(CDSection(sectionSpec).toSection)
+        HeapFltArray(data, Array(0, 0, 0, 0), "", Map.empty[String, String], Float.NaN)
+      } catch {
+        case e: Exception =>
+          logger.error("Error reading variable %s with section spec %s: %s".format( varName, sectionSpec, e.toString ))
+          HeapFltArray.empty(4)
+      }
     }
 }
 
