@@ -41,7 +41,8 @@ object DatasetReader extends Loggable {
   }
 
   private def findVariable( varPath: String ): Variable = {
-    val ( filepath, varName ) = varPath.split('|')
+    val toks = varPath.split('|')
+    val ( filepath, varName ) = ( toks(0), toks(1) )
     val dataset = getDataset( filepath )
     Option(dataset.findVariable(varName)) match {
       case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
