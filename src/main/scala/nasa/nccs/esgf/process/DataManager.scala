@@ -364,13 +364,19 @@ class  GridSection( val grid: CDGrid, val axes: IndexedSeq[GridCoordSpec] ) exte
 
 object CDSection {
   def apply( section: ma2.Section ): CDSection = new CDSection( section.getOrigin, section.getShape )
+  def apply( sectionSpec: String ): CDSection = {
+    val toks= sectionSpec.split(':')
+    val origin = toks(0).split(',').map( _.toInt )
+    val shape = toks(1).split(',').map( _.toInt )
+    new CDSection( origin, shape )
+  }
   def relative( section: ma2.Section ): CDSection = new CDSection( Array.fill(section.getRank)(0), section.getShape )
   def empty( rank: Int ): CDSection = new CDSection( Array.fill(rank)(0), Array.fill(rank)(0) )
   def serialize( section: ma2.Section): String = section.getRanges map ( r => r.getName + "," + r.first.toString + "," + r.last.toString ) mkString("+")
   def deserialize( section: String ): ma2.Section = new ma2.Section( section.split('+').map( rspec => { val sspec = rspec.split(','); new ma2.Range(sspec(0).trim,sspec(1).toInt,sspec(2).toInt) } ):_* )
   def merge( sect0: String, sect1: String ): String = CDSection.serialize( CDSection.deserialize(sect0).union( CDSection.deserialize(sect1) ) )
 }
-class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
+class CDSection( val origin: Array[Int], val shape: Array[Int] ) extends Serializable {
   def toSection: ma2.Section = new ma2.Section( origin, shape )
   def toSection(offset: Array[Int]): ma2.Section = new ma2.Section( origin, shape ).shiftOrigin( new ma2.Section( offset, shape ) )
   def getRange( axis_index: Int ) = toSection.getRange(axis_index)
@@ -378,6 +384,12 @@ class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
   def getOrigin = toSection.getOrigin
   override def toString() = "Section[%s:%s]".format( origin.mkString(","), shape.mkString(","))
   def merge( cdsect: CDSection ): CDSection = CDSection( cdsect.toSection.union( toSection ) )
+
+  def subserialize( dim: Int, first: Int, size: Int ): String = {
+    val origin1: Array[Int] = origin.zipWithIndex map { case (oval,index) => if( index==dim ) first else oval }
+    val shape1: Array[Int] = shape.zipWithIndex map { case (sval,index) => if( index==dim ) size else sval }
+    origin1.mkString(",") + ":" + shape1.mkString(",")
+  }
 }
 
 object GridContext extends Loggable {
