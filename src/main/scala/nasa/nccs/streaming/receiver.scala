@@ -18,7 +18,26 @@ import ucar.ma2
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.dstream.{DStream, ReceiverInputDStream}
 
-import scala.concurrent.Future
+class TimeTracker {
+  val threadTimes = new ConcurrentLinkedHashMap.Builder[Long, Long].initialCapacity(4).maximumWeightedCapacity(100).build()
+
+  def setCurrentTime = {
+    val tid = Thread.currentThread().getId;
+    val currtime = System.nanoTime()
+    threadTimes.put( tid, currtime )
+  }
+
+  def getElapsedTime: Float = {
+    val tid = Thread.currentThread().getId;
+    val lastTime = threadTimes.getOrDefault( tid, 0L )
+    val currtime = System.nanoTime()
+    threadTimes.put( tid, currtime )
+    if( lastTime == 0L ) Float.NaN else (currtime - lastTime) / 1.0E9f
+  }
+
+  def getElapsedTime( t0: Long ): Float = (System.nanoTime() - t0) / 1.0E9f
+
+}
 
 object DatasetReader extends Loggable {
   val datasets = new ConcurrentLinkedHashMap.Builder[String, NetcdfDataset].initialCapacity(4).maximumWeightedCapacity(100).build()
@@ -83,13 +102,13 @@ class SectionFeeder( section: CDSection, nRecords: Int, recordSize: Int = 1, sto
   }
 }
 
-class SectionReader( val ncmlFile: String, val varName: String ) extends Serializable with Loggable {
+class SectionReader( val ncmlFile: String, val varName: String ) extends TimeTracker with Serializable with Loggable {
     def read( sectionSpec: String ): HeapFltArray = {
       val ncVar = DatasetReader.getVariable(ncmlFile, varName)
       try {
         val t0 = System.nanoTime()
         val data = ncVar.read(CDSection(sectionSpec).toSection)
-        logger.info( "SectionReader accessing data for sectionSpec: %s, read time = %.4f sec,  *thread = %d".format( sectionSpec, (System.nanoTime() - t0) / 1.0E9,Thread.currentThread().getId  ) )
+        logger.info( "SectionReader accessing data for sectionSpec: %s, read time = %.4f sec, cycle time = %.4f sec,  *thread = %d".format( sectionSpec,  getElapsedTime(t0), getElapsedTime, Thread.currentThread().getId  ) )
         HeapFltArray(data, Array(0, 0, 0, 0), "", Map.empty[String, String], Float.NaN)
       } catch {
         case e: Exception =>
@@ -99,12 +118,9 @@ class SectionReader( val ncmlFile: String, val varName: String ) extends Seriali
     }
 }
 
-object DataProcessor extends Loggable {
-  var currentTime = 0L
+object DataProcessor extends TimeTracker with Loggable {
   def apply( data: HeapFltArray ): Float = {
     val result = computeMax(data)
-    if( currentTime > 0L ) { println("Elapsed batch time = %.4f sec,  *thread = %d".format( (System.nanoTime() - currentTime) / 1.0E9, Thread.currentThread().getId )) }
-    currentTime = System.nanoTime()
     result
   }
   def computeMax( data: HeapFltArray ): Float = {
@@ -113,7 +129,7 @@ object DataProcessor extends Loggable {
     val datasize = data.data.length
     for( index <- 0 until datasize; dval = data.data(index); if !dval.isNaN ) { max = Math.max(max, dval) }
     if (max == Float.MinValue) max = Float.NaN
-    logger.info( "DataProcessor computing max: %s, time = %.4f sec,  *thread = %d".format( max.toString, (System.nanoTime() - currentTime) / 1.0E9, Thread.currentThread().getId))
+    logger.info( "DataProcessor computing max: %s, time = %.4f sec, batch time = %.4f sec *thread = %d".format( max.toString, getElapsedTime(t0), getElapsedTime, Thread.currentThread().getId))
     max
   }
 }
