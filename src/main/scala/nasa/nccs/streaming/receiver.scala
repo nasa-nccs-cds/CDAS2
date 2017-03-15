@@ -88,6 +88,7 @@ class SectionReader( val ncmlFile: String, val varName: String ) extends Seriali
       val ncVar = DatasetReader.getVariable(ncmlFile, varName)
       try {
         val data = ncVar.read(CDSection(sectionSpec).toSection)
+        logger.info( "SectionReader accessing data for sectionSpec: " + sectionSpec )
         HeapFltArray(data, Array(0, 0, 0, 0), "", Map.empty[String, String], Float.NaN)
       } catch {
         case e: Exception =>
@@ -98,9 +99,12 @@ class SectionReader( val ncmlFile: String, val varName: String ) extends Seriali
 }
 
 object DataProcessor extends Loggable {
+  var currentTime = 0L
   def apply( data: HeapFltArray ): Float = {
     val result = data.toCDFloatArray.max().getStorageValue(0)
     logger.info( "DataProcessor computing max: " + result )
+    if( currentTime > 0L ) { println("Elapsed batch time = %.4f sec".format( (System.nanoTime() - currentTime) / 1.0E9)) }
+    currentTime = System.nanoTime()
     result
   }
 }
