@@ -123,7 +123,7 @@ object DataProcessor extends TimeTracker with Loggable {
     val result = computeMax(data)
     result
   }
-  def computeMax( data: HeapFltArray ): Float = {
+  def computeMax1( data: HeapFltArray ): Float = {
     val t0 = System.nanoTime()
     var max = Float.MinValue
     val datasize = data.data.length
@@ -132,6 +132,16 @@ object DataProcessor extends TimeTracker with Loggable {
     logger.info( "DataProcessor computing max: %s, time = %.4f sec, batch time = %.4f sec *thread = %d".format( max.toString, getElapsedTime(t0), getElapsedTime, Thread.currentThread().getId))
     max
   }
+  def computeMax( raw_data: HeapFltArray ): Float = {
+    val data: ma2.Array = raw_data.toUcarFloatArray
+    val t0 = System.nanoTime()
+    var max = Float.MinValue
+    while( data.hasNext ) { max = Math.max( max, data.nextFloat ) }
+    if (max == Float.MinValue) max = Float.NaN
+    logger.info( "DataProcessor computing max: %s, time = %.4f sec, batch time = %.4f sec *thread = %d".format( max.toString, getElapsedTime(t0), getElapsedTime, Thread.currentThread().getId))
+    max
+  }
+
 }
 
 object DataLogger extends Loggable {
