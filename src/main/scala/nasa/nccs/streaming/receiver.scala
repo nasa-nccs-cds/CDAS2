@@ -19,20 +19,15 @@ import org.apache.spark.streaming._
 import org.apache.spark.streaming.dstream.{DStream, ReceiverInputDStream}
 
 class TimeTracker {
-  val threadTimes = new ConcurrentLinkedHashMap.Builder[Long, Long].initialCapacity(4).maximumWeightedCapacity(100).build()
-
-  def setCurrentTime = {
-    val tid = Thread.currentThread().getId;
-    val currtime = System.nanoTime()
-    threadTimes.put( tid, currtime )
-  }
+  val threadTimes = new ConcurrentLinkedHashMap.Builder[ Long, (Int, Float) ].initialCapacity(4).maximumWeightedCapacity(100).build()
 
   def getElapsedTime: Float = {
     val tid = Thread.currentThread().getId;
-    val lastTime = threadTimes.getOrDefault( tid, 0L )
-    val currtime = System.nanoTime()
-    threadTimes.put( tid, currtime )
-    if( lastTime == 0L ) Float.NaN else (currtime - lastTime) / 1.0E9f
+    val ( count, timeSum ) = threadTimes.getOrDefault( tid, ( 0, 0f ) )
+    val currtime = System.nanoTime() / 1.0E9f
+    val new_rec = (count+1, timeSum+currtime)
+    threadTimes.put( tid, new_rec )
+    new_rec._2 / new_rec._1
   }
 
   def getElapsedTime( t0: Long ): Float = (System.nanoTime() - t0) / 1.0E9f
