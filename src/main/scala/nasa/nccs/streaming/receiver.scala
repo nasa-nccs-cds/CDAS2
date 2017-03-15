@@ -16,7 +16,7 @@ import ucar.nc2.Variable
 import ucar.nc2.dataset.NetcdfDataset
 import ucar.ma2
 import org.apache.spark.streaming._
-import org.apache.spark.streaming.dstream.ReceiverInputDStream
+import org.apache.spark.streaming.dstream.{DStream, ReceiverInputDStream}
 
 import scala.concurrent.Future
 
@@ -101,11 +101,19 @@ class SectionReader( val ncmlFile: String, val varName: String ) extends Seriali
 object DataProcessor extends Loggable {
   var currentTime = 0L
   def apply( data: HeapFltArray ): Float = {
-    val result = data.toCDFloatArray.max().getStorageValue(0)
-    logger.info( "DataProcessor computing max: " + result )
-    if( currentTime > 0L ) { println("Elapsed batch time = %.4f sec".format( (System.nanoTime() - currentTime) / 1.0E9)) }
+    val result = computeMax(data)
+    if( currentTime > 0L ) { println("Elapsed batch time = %.4f sec, thread = %d".format( (System.nanoTime() - currentTime) / 1.0E9, Thread.currentThread().getId )) }
     currentTime = System.nanoTime()
     result
+  }
+  def computeMax( data: HeapFltArray ): Float = {
+    val t0 = System.nanoTime()
+    var max = Float.MinValue
+    val datasize = data.shape.size
+    for( index <- 0 until datasize; dval = data.data(index); if !dval.isNaN ) { max = Math.max(max, dval) }
+    if (max == Float.MinValue) max = Float.NaN
+    logger.info( "DataProcessor computing max: %s, time = %.4f sec, thread = %d".format( max.toString, (System.nanoTime() - currentTime) / 1.0E9, Thread.currentThread().getId))
+    max
   }
 }
 
@@ -131,8 +139,8 @@ object streamingTest extends Loggable {
     val section = new CDSection( Array(0,10,0,0), Array(53668,1,361,576) )
     val sectionsStream: ReceiverInputDStream[String] = ssc.receiverStream(new SectionFeeder( section, nRecords, recordSize ) )
     val sectionReader = new SectionReader( ncmlFile, varName )
-    val inputStream = sectionsStream.map( sectionSpec => sectionReader.read(sectionSpec) )
-    val maxStream = inputStream.map { DataProcessor(_) }
+    val inputStream: DStream[HeapFltArray] = sectionsStream.map( sectionSpec => sectionReader.read(sectionSpec) )
+    val maxStream: DStream[Float] = inputStream.map { DataProcessor(_) }
     maxStream.foreachRDD { DataLogger(_)  }
     ssc.start()
     ssc.awaitTermination()
