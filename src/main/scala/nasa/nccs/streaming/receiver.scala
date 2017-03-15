@@ -1,5 +1,6 @@
 package nasa.nccs.streaming
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.cdapi.data.HeapFltArray
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.esgf.process.CDSection
@@ -13,6 +14,41 @@ import ucar.ma2
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.dstream.ReceiverInputDStream
 
+import scala.concurrent.Future
+
+object DatasetReader extends Loggable {
+  val datasets = new ConcurrentLinkedHashMap.Builder[String, NetcdfDataset].initialCapacity(4).maximumWeightedCapacity(100).build()
+  val variables = new ConcurrentLinkedHashMap.Builder[String, Variable].initialCapacity(10).maximumWeightedCapacity(400).build()
+
+  private def getDataset( filePath: String ): NetcdfDataset = datasets.putIfAbsent( filePath, openDataset(filePath) )
+
+  private def openDataset( filePath: String ): NetcdfDataset = {
+    try {
+      NetcdfDataset.openDataset( filePath, true, -1, null, null)
+    } catch {
+      case e: java.io.IOException =>
+        logger.error("Couldn't open dataset %s".format(filePath))
+        throw e
+      case ex: Exception =>
+        logger.error("Something went wrong while reading %s".format(filePath))
+        throw ex
+    }
+  }
+
+  def getVariable( filePath: String, varName: String ): Variable = {
+    val varPath = filePath + "|" + varName
+    variables.putIfAbsent( varPath, findVariable(varPath) )
+  }
+
+  private def findVariable( varPath: String ): Variable = {
+    val ( filepath, varName ) = varPath.split('|')
+    val dataset = getDataset( filepath )
+    Option(dataset.findVariable(varName)) match {
+      case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
+      case Some(ncVar) => ncVar
+    }
+  }
+}
 
 class SectionFeeder( section: CDSection, nRecords: Int, recordSize: Int = 1, storageLevel: StorageLevel = StorageLevel.MEMORY_ONLY )
                                                                                         extends Receiver[String](storageLevel) {
@@ -40,26 +76,16 @@ class SectionFeeder( section: CDSection, nRecords: Int, recordSize: Int = 1, sto
 
 class SectionReader( val ncmlFile: String, val varName: String ) extends Serializable with Loggable {
     def read( sectionSpec: String ): HeapFltArray = {
-      try {
-        val datset = NetcdfDataset.openDataset( ncmlFile, true, -1, null, null)
-        Option(datset.findVariable(varName)) match {
-          case None => throw new IllegalStateException("Variable '%s' was not loaded".format(varName))
-          case Some(ncVar) => HeapFltArray( ncVar.read( CDSection(sectionSpec).toSection ), Array(0,0,0,0), "", Map.empty[String,String], Float.NaN )
-        }
-      } catch {
-        case e: java.io.IOException =>
-          logger.error("Couldn't open dataset %s".format(ncmlFile))
-          throw e
-        case ex: Exception =>
-          logger.error("Something went wrong while reading %s".format(ncmlFile))
-          throw ex
-      }
+      val ncVar = DatasetReader.getVariable(ncmlFile, varName)
+      HeapFltArray(ncVar.read(CDSection(sectionSpec).toSection), Array(0, 0, 0, 0), "", Map.empty[String, String], Float.NaN)
     }
 }
 
-object DataProcessor {
+object DataProcessor extends Loggable {
   def apply( data: HeapFltArray ): Float = {
-    data.toCDFloatArray.max().getStorageValue(0)
+    val result = data.toCDFloatArray.max().getStorageValue(0)
+    logger.info( "DataProcessor computing max: " + result )
+    result
   }
 }
 
@@ -77,7 +103,7 @@ object streamingTest extends Loggable {
     val sectionReader = new SectionReader( ncmlFile, varName )
     val inputStream = sectionsStream.map( sectionSpec => sectionReader.read(sectionSpec) )
     val maxStream = inputStream.map( DataProcessor(_) )
-    maxStream.print(nRecords)
+    maxStream.foreachRDD( rdd => println( "------>>>> Result: " + rdd.collect().mkString(", ") ) )
     ssc.start()
     ssc.awaitTermination()
   }
