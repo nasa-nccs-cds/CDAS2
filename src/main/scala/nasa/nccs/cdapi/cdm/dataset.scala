@@ -677,7 +677,7 @@ object profilingTest extends Loggable {
     val full_shape = variable.getShape
     var total_read_time = 0.0
     var total_compute_time = 0.0
-    val chunk_size = 2
+    val chunk_size = 1
     println("Processing data, full shape = " + full_shape.mkString(", "))
     (0 until full_shape(1)) foreach (ilevel => {
       (0 until full_shape(0) by chunk_size) foreach (itime => {
