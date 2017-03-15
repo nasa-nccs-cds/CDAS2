@@ -23,7 +23,7 @@ class TimeTracker {
 
   def getElapsedTime: ( Int, Float ) = {
     val tid = Thread.currentThread().getId;
-    val ( count, timeSum, lastTime ) = threadTimes.getOrDefault( tid, ( 0, 0f ) )
+    val ( count, timeSum ) = threadTimes.getOrDefault( tid, ( 0, 0f ) )
     val currtime = System.nanoTime() / 1.0E9f
     val new_rec = (count+1, timeSum+currtime)
     threadTimes.put( tid, new_rec )
