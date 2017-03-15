@@ -87,8 +87,9 @@ class SectionReader( val ncmlFile: String, val varName: String ) extends Seriali
     def read( sectionSpec: String ): HeapFltArray = {
       val ncVar = DatasetReader.getVariable(ncmlFile, varName)
       try {
+        val t0 = System.nanoTime()
         val data = ncVar.read(CDSection(sectionSpec).toSection)
-        logger.info( "SectionReader accessing data for sectionSpec: " + sectionSpec )
+        logger.info( "SectionReader accessing data for sectionSpec: %s, read time = %.4f sec,  *thread = %d".format( sectionSpec, (System.nanoTime() - t0) / 1.0E9,Thread.currentThread().getId  ) )
         HeapFltArray(data, Array(0, 0, 0, 0), "", Map.empty[String, String], Float.NaN)
       } catch {
         case e: Exception =>
@@ -102,17 +103,17 @@ object DataProcessor extends Loggable {
   var currentTime = 0L
   def apply( data: HeapFltArray ): Float = {
     val result = computeMax(data)
-    if( currentTime > 0L ) { println("Elapsed batch time = %.4f sec, thread = %d".format( (System.nanoTime() - currentTime) / 1.0E9, Thread.currentThread().getId )) }
+    if( currentTime > 0L ) { println("Elapsed batch time = %.4f sec,  *thread = %d".format( (System.nanoTime() - currentTime) / 1.0E9, Thread.currentThread().getId )) }
     currentTime = System.nanoTime()
     result
   }
   def computeMax( data: HeapFltArray ): Float = {
     val t0 = System.nanoTime()
     var max = Float.MinValue
-    val datasize = data.shape.size
+    val datasize = data.data.length
     for( index <- 0 until datasize; dval = data.data(index); if !dval.isNaN ) { max = Math.max(max, dval) }
     if (max == Float.MinValue) max = Float.NaN
-    logger.info( "DataProcessor computing max: %s, time = %.4f sec, thread = %d".format( max.toString, (System.nanoTime() - currentTime) / 1.0E9, Thread.currentThread().getId))
+    logger.info( "DataProcessor computing max: %s, time = %.4f sec,  *thread = %d".format( max.toString, (System.nanoTime() - currentTime) / 1.0E9, Thread.currentThread().getId))
     max
   }
 }
