@@ -116,7 +116,7 @@ class SectionReader( val ncmlFile: String, val varName: String ) extends TimeTra
         val t0 = System.nanoTime()
         val data = ncVar.read(CDSection(sectionSpec).toSection)
         val ( count, etime ) = getElapsedTime
-        if( count % 100 == 99 ) {
+        if( count % 100 == 50 ) {
           logger.info("SectionReader accessing data for sectionSpec: %s, read time = %.4f sec, cycle time = %.4f sec,  *thread = %d".format(sectionSpec, getElapsedTime(t0), etime, Thread.currentThread().getId))
         }
         HeapFltArray(data, Array(0, 0, 0, 0), "", Map.empty[String, String], Float.NaN)
@@ -150,7 +150,7 @@ object DataProcessor extends TimeTracker with Loggable {
     val ( count, etime ) = getElapsedTime
     while( data.hasNext ) { val dval: Float = data.nextFloat; if( !dval.isNaN ) { max = Math.max( max, dval ) } }
     if (max == Float.MinValue) max = Float.NaN
-    if( count % 100 == 99 ) {
+    if( count % 100 == 50 ) {
       logger.info("DataProcessor computing max: %s, time = %.4f sec, batch time = %.4f sec *thread = %d".format(max.toString, getElapsedTime(t0), etime, Thread.currentThread().getId))
     }
     max
@@ -158,12 +158,11 @@ object DataProcessor extends TimeTracker with Loggable {
 
 }
 
-object DataLogger extends Loggable {
-  var currentTime = 0L
-  def apply( rdd: RDD[Float] ): Unit = {
-    logger.info( "------>>>> Result: " + rdd.collect().mkString(", ") )
-    if( currentTime > 0L ) { println("Elapsed batch time = %.4f sec".format( (System.nanoTime() - currentTime) / 1.0E9)) }
-    currentTime = System.nanoTime()
+object DataLogger extends TimeTracker with Loggable {
+  def apply( data: Array[Float] ): Unit = {
+    val ( count, etime ) = getElapsedTime
+    logger.info( "------>>>> Result: " + data.mkString(", ") )
+    if( count > 0  ) { println("Elapsed batch[%d] time = %.4f sec".format( count, etime ) ) }
   }
 }
 
@@ -177,12 +176,13 @@ object streamingTest extends Loggable {
     val conf = new SparkConf().setMaster(s"local[$nRecords]").setAppName("StreamingTest")
     val ssc = new StreamingContext( conf, Milliseconds(1000) )
     ssc.sparkContext.setLogLevel( "WARN" )
-    val section = new CDSection( Array(0,10,0,0), Array(53668,1,361,576) )
+    val full_section = new CDSection( Array(0,10,0,0), Array(53668,1,361,576) )
+    val section = new CDSection( Array(0,10,100,100), Array(80,1,120,120) )
     val sectionsStream: ReceiverInputDStream[String] = ssc.receiverStream(new SectionFeeder( section, nRecords, recordSize ) )
     val sectionReader = new SectionReader( ncmlFile, varName )
     val inputStream: DStream[HeapFltArray] = sectionsStream.map( sectionSpec => sectionReader.read(sectionSpec) )
     val maxStream: DStream[Float] = inputStream.map { DataProcessor(_) }
-    maxStream.foreachRDD { DataLogger(_)  }
+    maxStream.foreachRDD { rdd => DataLogger( rdd.collect() ) }
     ssc.start()
     ssc.awaitTermination()
   }
