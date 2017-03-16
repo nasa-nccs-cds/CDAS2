@@ -175,7 +175,7 @@ object streamingTest extends Loggable {
     val nRecords = 8
     val recordSize = 1
     val conf = new SparkConf().setMaster(s"local[$nRecords]").setAppName("StreamingTest")
-    val ssc = new StreamingContext( conf, Milliseconds(1000) )
+    val ssc = new StreamingContext( conf, Milliseconds(1) )
     ssc.sparkContext.setLogLevel( "WARN" )
     val full_section = new CDSection( Array(0,10,0,0), Array(53668,1,361,576) )
     val section = new CDSection( Array(0,10,100,100), Array(80,1,120,120) )
