@@ -2,14 +2,9 @@ package nasa.nccs.streaming
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.cdapi.data.HeapFltArray
-import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.esgf.process.CDSection
-import nasa.nccs.streaming.DataProcessor.logger
-import nasa.nccs.streaming.DatasetReader.logger
-import nasa.nccs.streaming.streamingTest.logger
 import nasa.nccs.utilities.Loggable
 import org.apache.spark.SparkConf
-import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.receiver.Receiver
 import ucar.nc2.Variable
@@ -86,15 +81,15 @@ object DatasetReader extends Loggable {
   }
 }
 
-class SectionFeeder( section: CDSection, nRecords: Int, recordSize: Int = 1, storageLevel: StorageLevel = StorageLevel.MEMORY_ONLY )
-                                                                                        extends Receiver[String](storageLevel) {
+class DemoSectionFeeder( section: CDSection, nRecords: Int, recordSize: Int = 1, storageLevel: StorageLevel = StorageLevel.MEMORY_ONLY )
+                                                                                        extends Receiver[String](storageLevel) with Loggable {
   def onStart() {
     new Thread("Feeder Thread") {
       override def run() { feedSections() }
     }.start()
   }
 
-  def onStop() { System.exit(0) }
+  def onStop() { logger.info( "\n\n ** SHUTTING DOWN ** " );System.exit(0) }
 
   private def feedSections() = {
     var startIndex = section.getOrigin(0)
@@ -180,7 +175,7 @@ object streamingTest extends Loggable {
     ssc.sparkContext.setLogLevel( "WARN" )
     val full_section = new CDSection( Array(0,10,0,0), Array(53668,1,361,576) )
     val section = new CDSection( Array(0,10,100,100), Array(80,1,120,120) )
-    val sectionsStream: ReceiverInputDStream[String] = ssc.receiverStream(new SectionFeeder( section, nRecords, recordSize ) )
+    val sectionsStream: ReceiverInputDStream[String] = ssc.receiverStream(new DemoSectionFeeder( section, nRecords, recordSize ) )
     val sectionReader = new SectionReader( ncmlFile, varName )
     val inputStream: DStream[HeapFltArray] = sectionsStream.map( sectionSpec => sectionReader.read(sectionSpec) )
     val maxStream: DStream[Float] = inputStream.map { DataProcessor(_) }
