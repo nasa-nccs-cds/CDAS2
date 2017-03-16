@@ -94,7 +94,7 @@ class SectionFeeder( section: CDSection, nRecords: Int, recordSize: Int = 1, sto
     }.start()
   }
 
-  def onStop() { }
+  def onStop() { System.exit(0) }
 
   private def feedSections() = {
     var startIndex = section.getOrigin(0)
@@ -104,6 +104,7 @@ class SectionFeeder( section: CDSection, nRecords: Int, recordSize: Int = 1, sto
         val recEnd = Math.min( recStart + recordSize, endIndex )
         section.subserialize( 0, recStart, recEnd-recStart )
       }
+      logger.info( "\n\n ** Feeding sections[%d,%d]: %s\n".format( startIndex, endIndex, sections.map( _.toString ).mkString( ", ") ) )
       store( sections.toIterator )
       startIndex = startIndex + nRecords * recordSize
     }
@@ -175,7 +176,7 @@ object streamingTest extends Loggable {
     val nRecords = 8
     val recordSize = 1
     val conf = new SparkConf().setMaster(s"local[$nRecords]").setAppName("StreamingTest")
-    val ssc = new StreamingContext( conf, Milliseconds(1) )
+    val ssc = new StreamingContext( conf, Milliseconds(10) )
     ssc.sparkContext.setLogLevel( "WARN" )
     val full_section = new CDSection( Array(0,10,0,0), Array(53668,1,361,576) )
     val section = new CDSection( Array(0,10,100,100), Array(80,1,120,120) )
