@@ -33,6 +33,7 @@ class TimeStamp( val index: Int, val timeStamp: Float, val eTimeSum: Float ) {
 
 class TimeTracker {
   val threadTimes = new ConcurrentLinkedHashMap.Builder[ Long, TimeStamp ].initialCapacity(4).maximumWeightedCapacity(100).build()
+  val modCount = 1
 
   def getElapsedTime: ( Int, Float ) = {
     val tid = Thread.currentThread().getId;
@@ -116,7 +117,7 @@ class SectionReader( val ncmlFile: String, val varName: String ) extends TimeTra
         val t0 = System.nanoTime()
         val data = ncVar.read(CDSection(sectionSpec).toSection)
         val ( count, etime ) = getElapsedTime
-        if( count % 100 == 50 ) {
+        if( count % modCount == 0 ) {
           logger.info("SectionReader accessing data for sectionSpec: %s, read time = %.4f sec, cycle time = %.4f sec,  *thread = %d".format(sectionSpec, getElapsedTime(t0), etime, Thread.currentThread().getId))
         }
         HeapFltArray(data, Array(0, 0, 0, 0), "", Map.empty[String, String], Float.NaN)
@@ -150,7 +151,7 @@ object DataProcessor extends TimeTracker with Loggable {
     val ( count, etime ) = getElapsedTime
     while( data.hasNext ) { val dval: Float = data.nextFloat; if( !dval.isNaN ) { max = Math.max( max, dval ) } }
     if (max == Float.MinValue) max = Float.NaN
-    if( count % 100 == 50 ) {
+    if( count % modCount == 0 ) {
       logger.info("DataProcessor computing max: %s, time = %.4f sec, batch time = %.4f sec *thread = %d".format(max.toString, getElapsedTime(t0), etime, Thread.currentThread().getId))
     }
     max
@@ -161,7 +162,7 @@ object DataProcessor extends TimeTracker with Loggable {
 object DataLogger extends TimeTracker with Loggable {
   def apply( data: Array[Float] ): Unit = {
     val ( count, etime ) = getElapsedTime
-    logger.info( "------>>>> Result: " + data.mkString(", ") )
+    logger.info( "------>>>> Result (len = %d): %s".format( data.length, data.mkString(", ") ) )
     if( count > 0  ) { println("Elapsed batch[%d] time = %.4f sec".format( count, etime ) ) }
   }
 }
