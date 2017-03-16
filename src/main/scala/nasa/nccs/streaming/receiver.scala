@@ -85,11 +85,13 @@ class DemoSectionFeeder( section: CDSection, nRecords: Int, recordSize: Int = 1,
                                                                                         extends Receiver[String](storageLevel) with Loggable {
   def onStart() {
     new Thread("Feeder Thread") {
-      override def run() { feedSections() }
+      override def run() {
+        feedSections()
+      }
     }.start()
   }
 
-  def onStop() { logger.info( "\n\n ** SHUTTING DOWN ** " );System.exit(0) }
+  def onStop() { logger.info( "\n\n ** SHUTTING DOWN ** " ); }
 
   private def feedSections() = {
     var startIndex = section.getOrigin(0)
