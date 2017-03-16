@@ -18,16 +18,28 @@ import ucar.ma2
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.dstream.{DStream, ReceiverInputDStream}
 
+object TimeStamp {
+  def apply()  = new TimeStamp( 0, currTime, 0f )
+  def currTime = System.nanoTime() / 1.0E9f
+}
+
+class TimeStamp( val index: Int, val timeStamp: Float, val eTimeSum: Float ) {
+  def update() : (Float, TimeStamp ) = {
+    val currtime =  TimeStamp.currTime
+    val eTime = currtime - timeStamp
+    ( eTime, new TimeStamp( index+1, currtime, eTimeSum + eTime )   )
+  }
+}
+
 class TimeTracker {
-  val threadTimes = new ConcurrentLinkedHashMap.Builder[ Long, (Int, Float) ].initialCapacity(4).maximumWeightedCapacity(100).build()
+  val threadTimes = new ConcurrentLinkedHashMap.Builder[ Long, TimeStamp ].initialCapacity(4).maximumWeightedCapacity(100).build()
 
   def getElapsedTime: ( Int, Float ) = {
     val tid = Thread.currentThread().getId;
-    val ( count, timeSum ) = threadTimes.getOrDefault( tid, ( 0, 0f ) )
-    val currtime = System.nanoTime() / 1.0E9f
-    val new_rec = (count+1, timeSum+currtime)
-    threadTimes.put( tid, new_rec )
-    ( new_rec._1, new_rec._2 / new_rec._1 )
+    val tstamp = threadTimes.getOrDefault( tid, TimeStamp())
+    val (etime, new_tstamp) = tstamp.update()
+    threadTimes.put( tid, new_tstamp )
+    (new_tstamp.index, etime)
   }
 
   def getElapsedTime( t0: Long ): Float = (System.nanoTime() - t0) / 1.0E9f
@@ -86,8 +98,8 @@ class SectionFeeder( section: CDSection, nRecords: Int, recordSize: Int = 1, sto
   private def feedSections() = {
     var startIndex = section.getOrigin(0)
     val endIndex = startIndex + section.getShape(0)
-    while( ( startIndex < endIndex ) ) {
-      val sections = for( iRecord <- (0 until nRecords); recStart = startIndex + iRecord * recordSize; if recStart < endIndex ) yield {
+    while( startIndex < endIndex ) {
+      val sections = for( iRecord <- 0 until nRecords; recStart = startIndex + iRecord * recordSize; if recStart < endIndex ) yield {
         val recEnd = Math.min( recStart + recordSize, endIndex )
         section.subserialize( 0, recStart, recEnd-recStart )
       }
@@ -164,7 +176,7 @@ object streamingTest extends Loggable {
     val recordSize = 1
     val conf = new SparkConf().setMaster(s"local[$nRecords]").setAppName("StreamingTest")
     val ssc = new StreamingContext( conf, Milliseconds(1000) )
-    ssc.sparkContext.setLogLevel("WARN" )
+    ssc.sparkContext.setLogLevel( "WARN" )
     val section = new CDSection( Array(0,10,0,0), Array(53668,1,361,576) )
     val sectionsStream: ReceiverInputDStream[String] = ssc.receiverStream(new SectionFeeder( section, nRecords, recordSize ) )
     val sectionReader = new SectionReader( ncmlFile, varName )
