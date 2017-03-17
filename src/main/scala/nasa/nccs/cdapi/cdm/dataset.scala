@@ -717,7 +717,7 @@ object profilingTest extends Loggable {
         total_compute_time_per_ts += compute_time_per_ts
         println("Computed max = %.4f [time=%d, level=%d, nts=%d] in %.4f sec per ts, data read time per ts = %.4f sec, compute time per ts = %.4f sec".format( result.data(0), itime, ilevel, chunk_size, (read_time_per_ts + compute_time_per_ts), read_time_per_ts, compute_time_per_ts ))
         println("Aggretate time for %d cycles = %.4f sec".format(ncycle, (ts2 - t0) / 1.0E9))
-        println("Average over %d cycles: read time per tstep = %.4f sec, compute time per tstep = %.4f sec".format(ncycle, total_read_time_per_ts / ncycle, total_compute_time_per_ts / ncycle ) ))
+        println("Average over %d cycles: read time per tstep = %.4f sec, compute time per tstep = %.4f sec".format(ncycle, total_read_time_per_ts / ncycle, total_compute_time_per_ts / ncycle ) )
       })
     })
     println("Completed data processing for '%s' in %.4f sec".format(variable.getFullName, (System.nanoTime() - t0) / 1.0E9))
