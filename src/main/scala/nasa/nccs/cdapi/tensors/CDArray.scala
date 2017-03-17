@@ -564,6 +564,7 @@ object CDByteArray {
 class CDByteArray( cdIndexMap: CDIndexMap, val byteStorage: ByteBuffer ) extends CDArray[Byte](cdIndexMap,byteStorage) {
 
   protected def getData: ByteBuffer = byteStorage
+  def reduce( reductionOp: CDArray.ReduceOp[Byte], reduceDims: Array[Int], initVal: Byte ): CDArray[Byte] = { throw new Exception( "UNIMPLEMENTED METHOD") }
 
   def this( shape: Array[Int], storage: ByteBuffer ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage )
 
@@ -595,6 +596,7 @@ class CDIntArray( cdIndexMap: CDIndexMap, val intStorage: IntBuffer ) extends CD
   protected def getData: IntBuffer = intStorage
   def getStorageValue( index: StorageIndex ): Int = intStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Int ): Unit = intStorage.put( index, value )
+  def reduce( reductionOp: CDArray.ReduceOp[Int], reduceDims: Array[Int], initVal: Int ): CDArray[Int] = { throw new Exception( "UNIMPLEMENTED METHOD") }
 
   def this( shape: Array[Int], storage: IntBuffer ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage )
   def valid( value: Int ): Boolean = true
@@ -638,6 +640,7 @@ class CDLongArray( cdIndexMap: CDIndexMap, val longStorage: LongBuffer ) extends
   protected def getData: LongBuffer = longStorage
   def getStorageValue( index: StorageIndex ): Long = longStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Long ): Unit = longStorage.put( index, value )
+  def reduce( reductionOp: CDArray.ReduceOp[Long], reduceDims: Array[Int], initVal: Long ): CDArray[Long] = { throw new Exception( "UNIMPLEMENTED METHOD") }
 
   def this( shape: Array[Int], storage: LongBuffer ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage )
   def valid( value: Long ): Boolean = true
@@ -677,6 +680,7 @@ class CDShortArray( cdIndexMap: CDIndexMap, val shortStorage: ShortBuffer ) exte
   def getInvalid: Short = Short.MinValue
   def getStorageValue( index: StorageIndex ): Short = shortStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Short ): Unit = shortStorage.put( index, value )
+  def reduce( reductionOp: CDArray.ReduceOp[Short], reduceDims: Array[Int], initVal: Short ): CDArray[Short] = { throw new Exception( "UNIMPLEMENTED METHOD") }
 
   def this( shape: Array[Int], storage: ShortBuffer ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage )
   def valid( value: Short ): Boolean = true
@@ -748,6 +752,7 @@ class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, pr
   def getInvalid = invalid
   def getStorageValue( index: StorageIndex ): Double = doubleStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Double ): Unit = doubleStorage.put( index, value )
+  def reduce( reductionOp: CDArray.ReduceOp[Double], reduceDims: Array[Int], initVal: Double ): CDArray[Double] = { throw new Exception( "UNIMPLEMENTED METHOD") }
 
   def this( shape: Array[Int], storage: DoubleBuffer, invalid: Double ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage, invalid )
   def toUcarArray: ma2.Array = ma2.Array.factory(ma2.DataType.DOUBLE, getShape, getSectionData() )
