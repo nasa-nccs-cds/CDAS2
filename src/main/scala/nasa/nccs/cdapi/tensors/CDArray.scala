@@ -10,6 +10,7 @@ import ucar.ma2
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.reflect.ClassTag
 
 object CDArray {
 
@@ -33,6 +34,15 @@ object CDArray {
     }
   }
 
+  def toBuffer[T]( array: Array[T] ): Buffer = array.head match {
+    case u: Float  => FloatBuffer.wrap( array.asInstanceOf[Array[Float]] )
+    case u: Double  => DoubleBuffer.wrap( array.asInstanceOf[Array[Double]] )
+    case u: Int  => IntBuffer.wrap( array.asInstanceOf[Array[Int]] )
+    case u: Short  => ShortBuffer.wrap( array.asInstanceOf[Array[Short]] )
+    case u: Long  =>  LongBuffer.wrap( array.asInstanceOf[Array[Long]] )
+    case x                => ByteBuffer.wrap( array.asInstanceOf[Array[Byte]] )
+  }
+
   def toBuffer( array: ucar.ma2.Array ): Buffer = array.getElementType.toString match {
     case "float"  => FloatBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Float]] )
     case "double" => DoubleBuffer.wrap( array.get1DJavaArray( array.getElementType ).asInstanceOf[Array[Double]] )
@@ -43,6 +53,7 @@ object CDArray {
   }
 
   def apply[T <: AnyVal]( array: ucar.ma2.Array, invalid: T ): CDArray[T] = apply( new CDIndexMap( array.getShape ), toBuffer( array), invalid )
+  def apply[T <: AnyVal]( shape: Array[Int], array: Array[T], invalid: T ): CDArray[T] = apply( new CDIndexMap( shape ), toBuffer( array), invalid )
 
   def getDataType( storage: Buffer ): ma2.DataType = storage match {
     case x: DoubleBuffer => ma2.DataType.DOUBLE
@@ -134,17 +145,29 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 //    rv
 //  }
 
-  def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T ): CDArray[T] = {
-    val accumulator: CDArray[T] = getAccumulator( reduceDims, initVal )
-    val iter = getIterator
-    for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
-      if (valid(array_value)) {
-        val reduced_value = reductionOp(accumulator.getValue(coordIndices), array_value)
-        accumulator.setValue(coordIndices, reduced_value)
+  def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T )(implicit tag: ClassTag[T]): CDArray[T] = {
+    if( reduceDims.isEmpty ) {
+      var value: T = initVal
+      val datasize = getSize
+      val t0 = System.nanoTime()
+      for( index <- 0 until datasize; dval = getFlatValue(index); if !(dval == getInvalid) ) { value = reductionOp(value, dval) }
+      val t1 = System.nanoTime()
+      logger.info( s"Computing reduce, time = %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
+      if (value == initVal) value = getInvalid
+      val shape = Array.fill[Int](getRank)(1)
+      CDArray[T]( shape, Array[T](value), getInvalid )
+    } else {
+      val accumulator: CDArray[T] = getAccumulator(reduceDims, initVal)
+      val iter = getIterator
+      for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
+        if (valid(array_value)) {
+          val reduced_value = reductionOp(accumulator.getValue(coordIndices), array_value)
+          accumulator.setValue(coordIndices, reduced_value)
+        }
       }
+      val rv = accumulator.getReducedArray
+      rv
     }
-    val rv = accumulator.getReducedArray
-    rv
   }
 
   def createRanges( origin: Array[Int], shape: Array[Int], strideOpt: Option[Array[Int]] = None ): List[ma2.Range] = {
@@ -408,11 +431,11 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def *(value: Float) = CDFloatArray.combine( multiplyOp, this, value )
   def :=(value: Float) = CDFloatArray.combine( eqOp, this, value )
 
-  def max(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( maxOp, reduceDims, -Float.MaxValue )
-  def min(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( minOp, reduceDims, Float.MaxValue )
-  def maxMag(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( maxMagOp, reduceDims, 0f )
-  def minMag(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( minMagOp, reduceDims, Float.MaxValue )
-  def sum(reduceDims: Array[Int]=Array.range(0,rank-1)): CDFloatArray = reduce( addOp, reduceDims, 0f )
+  def max(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray = reduce( maxOp, reduceDims, -Float.MaxValue )
+  def min(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray = reduce( minOp, reduceDims, Float.MaxValue )
+  def maxMag(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray = reduce( maxMagOp, reduceDims, 0f )
+  def minMag(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray = reduce( minMagOp, reduceDims, Float.MaxValue )
+  def sum(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray = reduce( addOp, reduceDims, 0f )
   def mean = sum()/this.getSize
   def maxScaledDiff( other: CDFloatArray ): Float = ( ( this - other ) / this.mean ).maxMag().getArrayData()(0)
 

@@ -605,7 +605,7 @@ object TestType {
 
 object profilingTest extends Loggable {
 
-  def computeMax(data: ma2.Array): Float = {
+  def computeMax1(data: ma2.Array): Float = {
     var max = Float.MinValue
     while (data.hasNext()) {
       val dval = data.nextFloat();
@@ -616,7 +616,19 @@ object profilingTest extends Loggable {
     if (max == Float.MinValue) Float.NaN else max
   }
 
-  def computeMax( data: CDFloatArray ): Float = {
+  def computeMax(data: ma2.Array): Float = CDFloatArray.factory(data,Float.NaN).max().getStorageData.get(0)
+
+  def computeMax3(data: ma2.Array): Float = {
+    val fltArray = CDFloatArray.factory(data,Float.NaN)
+    var max = Float.MinValue
+    for ( index <-( 0 until fltArray.getSize ) ) {
+      val dval = fltArray.getStorageValue( index )
+      if (!dval.isNaN) { max = Math.max(max, dval) }
+    }
+    if (max == Float.MinValue) Float.NaN else max
+  }
+
+  def computeMax2( data: CDFloatArray ): Float = {
     var max = Float.MinValue
     val datasize = data.getSize
     for( index <- 0 until datasize; dval = data.getFlatValue(index); if !dval.isNaN ) { max = Math.max(max, dval) }
@@ -677,7 +689,7 @@ object profilingTest extends Loggable {
     val full_shape = variable.getShape
     var total_read_time = 0.0
     var total_compute_time = 0.0
-    val chunk_size = 2
+    val chunk_size = 1
     println("Processing data, full shape = " + full_shape.mkString(", "))
     (0 until full_shape(1)) foreach (ilevel => {
       (0 until full_shape(0) by chunk_size) foreach (itime => {
@@ -709,7 +721,7 @@ object profilingTest extends Loggable {
     val roi_origin = Array[Int](0, iLevel, 0, 0)
     val roi_shape = Array[Int](53668, 1, 361, 576)
     val roi = new ma2.Section(roi_origin, roi_shape)
-    processCacheData(cache_id, roi)
+    processFileData( ncmlFile, varName )
   }
 }
 
