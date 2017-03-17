@@ -362,12 +362,13 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def reduce( reductionOp: CDArray.ReduceOp[Float], reduceDims: Array[Int], initVal: Float ): CDArray[Float] = {
     if( reduceDims.isEmpty ) {
       var value: Float = initVal
-      val datasize = getSize
       val t0 = System.nanoTime()
-      for( index <- 0 until datasize; dval = getFlatValue(index); if !(dval == getInvalid) ) { value = Math.max( value, dval )  } // { value = reductionOp(value, dval) }
-      val t1 = System.nanoTime()
-      logger.info( s"Computing reduce, time = %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
+      for ( index <-( 0 until getSize ) ) {
+        val dval = getStorageValue( index )
+        if (!dval.isNaN) { value = Math.max(value, dval) }
+      }
       if (value == initVal) value = getInvalid
+      logger.info( s"Computing reduce, time = %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
       val shape = Array.fill[Int](getRank)(1)
       CDArray[Float]( shape, Array[Float](value), getInvalid )
     } else {
