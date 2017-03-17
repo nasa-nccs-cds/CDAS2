@@ -703,10 +703,11 @@ object profilingTest extends Loggable {
         val ts0 = System.nanoTime()
         val data = variable.read(chunk_origin, chunk_shape)
         val ts1 = System.nanoTime()
+        val rID = "r" + ncycle.toString
         val metadata: Map[String, String] = Map( "name" -> variable.getShortName, "collection" -> "npana", "gridfile" -> gridFile, "dimensions" -> variable.getDimensionsString,
             "units" -> variable.getUnitsString, "longname" -> variable.getFullName, "uid" -> variable.getShortName, "roi" -> CDSection.serialize(new ma2.Section(chunk_origin,chunk_shape)) )
         worker.sendRequestInput( variable.getShortName, HeapFltArray( data, chunk_origin, gridFile, metadata, Float.NaN ) )
-        worker.sendRequest("numpyModule.max", Array(variable.getShortName), Map.empty[String,String] )
+        worker.sendRequest("python.numpyModule.max-"+rID, Array(variable.getShortName), Map.empty[String,String] )
         val tvar: TransVar = worker.getResult()
         val result = HeapFltArray( tvar, Some(Float.NaN), Some(gridFile) )
         val ts2 = System.nanoTime()
