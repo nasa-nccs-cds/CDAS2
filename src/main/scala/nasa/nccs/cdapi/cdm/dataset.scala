@@ -31,7 +31,7 @@ import org.apache.commons.io.IOUtils
 import nasa.nccs.cdas.loaders.Collections
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
-import nasa.nccs.esgf.process.DataSource
+import nasa.nccs.esgf.process.{CDSection, DataSource}
 import ucar.nc2._
 import ucar.nc2.ncml.NcMLReader
 
@@ -703,8 +703,10 @@ object profilingTest extends Loggable {
         val ts0 = System.nanoTime()
         val data = variable.read(chunk_origin, chunk_shape)
         val ts1 = System.nanoTime()
+        val metadata: Map[String, String] = Map( "name" -> variable.getShortName, "collection" -> "npana", "gridfile" -> gridFile, "dimensions" -> variable.getDimensionsString,
+            "units" -> variable.getUnitsString, "longname" -> variable.getFullName, "uid" -> variable.getShortName, "roi" -> CDSection.serialize(new ma2.Section(chunk_origin,chunk_shape)) )
         worker.sendRequestInput( variable.getShortName, HeapFltArray( data, chunk_origin, gridFile, Map.empty[String,String], Float.NaN ) )
-        worker.sendRequest("numpyModule.max", Array(variable.getShortName), Map.empty[String,String] )
+        worker.sendRequest("numpyModule.max", Array(variable.getShortName), metadata )
         val tvar: TransVar = worker.getResult()
         val result = HeapFltArray( tvar, Some(Float.NaN), Some(gridFile) )
         val ts2 = System.nanoTime()
