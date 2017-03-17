@@ -699,7 +699,7 @@ object profilingTest extends Loggable {
         val ts0 = System.nanoTime()
         val data = variable.read(chunk_origin, chunk_shape)
         val ts1 = System.nanoTime()
-        val max = computeMax1(data)
+        val max = computeMax(data)
         val ts2 = System.nanoTime()
         val read_time = (ts1 - ts0) / 1.0E9
         val compute_time = (ts2 - ts1) / 1.0E9
