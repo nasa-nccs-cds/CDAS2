@@ -145,30 +145,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 //    rv
 //  }
 
-  def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T )(implicit tag: ClassTag[T]): CDArray[T] = {
-    if( reduceDims.isEmpty ) {
-      var value: T = initVal
-      val datasize = getSize
-      val t0 = System.nanoTime()
-      for( index <- 0 until datasize; dval = getFlatValue(index); if !(dval == getInvalid) ) { value = reductionOp(value, dval) }
-      val t1 = System.nanoTime()
-      logger.info( s"Computing reduce, time = %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
-      if (value == initVal) value = getInvalid
-      val shape = Array.fill[Int](getRank)(1)
-      CDArray[T]( shape, Array[T](value), getInvalid )
-    } else {
-      val accumulator: CDArray[T] = getAccumulator(reduceDims, initVal)
-      val iter = getIterator
-      for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
-        if (valid(array_value)) {
-          val reduced_value = reductionOp(accumulator.getValue(coordIndices), array_value)
-          accumulator.setValue(coordIndices, reduced_value)
-        }
-      }
-      val rv = accumulator.getReducedArray
-      rv
-    }
-  }
+  def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T ): CDArray[T]
 
   def createRanges( origin: Array[Int], shape: Array[Int], strideOpt: Option[Array[Int]] = None ): List[ma2.Range] = {
     val strides: Array[Int] = strideOpt match {
@@ -379,6 +356,31 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     try{ floatStorage.get( index ) } catch {
       case ex: Exception =>
         Float.NaN
+    }
+  }
+
+  def reduce( reductionOp: CDArray.ReduceOp[Float], reduceDims: Array[Int], initVal: Float ): CDArray[Float] = {
+    if( reduceDims.isEmpty ) {
+      var value: Float = initVal
+      val datasize = getSize
+      val t0 = System.nanoTime()
+      for( index <- 0 until datasize; dval = getFlatValue(index); if !(dval == getInvalid) ) { value = Math.max( value, dval )  } // { value = reductionOp(value, dval) }
+      val t1 = System.nanoTime()
+      logger.info( s"Computing reduce, time = %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
+      if (value == initVal) value = getInvalid
+      val shape = Array.fill[Int](getRank)(1)
+      CDArray[Float]( shape, Array[Float](value), getInvalid )
+    } else {
+      val accumulator: CDArray[Float] = getAccumulator(reduceDims, initVal)
+      val iter = getIterator
+      for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
+        if (valid(array_value)) {
+          val reduced_value = reductionOp(accumulator.getValue(coordIndices), array_value)
+          accumulator.setValue(coordIndices, reduced_value)
+        }
+      }
+      val rv = accumulator.getReducedArray
+      rv
     }
   }
 
