@@ -146,7 +146,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 //  }
 
   def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T )(implicit tag: ClassTag[T]): CDArray[T] = {
-    if( reduceDims.isEmpty ) {
+    if( false ) { // reduceDims.isEmpty ) {
       var value: T = initVal
       val t0 = System.nanoTime()
       for ( index <-( 0 until getSize ) ) {
