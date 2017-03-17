@@ -374,6 +374,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
       val shape = Array.fill[Int](getRank)(1)
       CDArray[Float]( shape, Array[Float](value), getInvalid )
     } else {
+      val t0 = System.nanoTime()
       val accumulator: CDArray[Float] = getAccumulator(reduceDims, initVal)
       val iter = getIterator
       for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
@@ -383,6 +384,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
         }
       }
       val rv = accumulator.getReducedArray
+      logger.info( s"Computing generalized reduce, time = %.4f sec, value = %.2f".format( (System.nanoTime() - t0) / 1.0E9, rv.getStorageValue(0) ) )
       rv
     }
   }
