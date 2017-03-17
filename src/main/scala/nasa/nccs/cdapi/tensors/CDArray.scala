@@ -362,10 +362,9 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
 
 
   def reduce( reductionOp: CDArray.ReduceOp[Float], reduceDims: Array[Int], initVal: Float ): CDArray[Float] = {
-    if( false ) { // reduceDims.isEmpty ) {
+    if( reduceDims.isEmpty ) {
       var value: Float = initVal
       val t0 = System.nanoTime()
-      val iter = getIterator
       for ( index <-( 0 until getSize ) ) {
         val dval = getStorageValue( index )
         if( valid(dval) ) { value = reductionOp(value, dval) }
@@ -376,9 +375,8 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
       CDArray[Float]( shape, Array[Float](value), getInvalid )
     } else {
       val accumulator: CDArray[Float] = getAccumulator(reduceDims, initVal)
-      for ( index <-( 0 until getSize ) ) {
-        val array_value = getStorageValue( index )
-        val coordIndices = cdIndexMap.getCoordIndices(index).toArray
+      val iter = getIterator
+      for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
         if (valid(array_value)) {
           val reduced_value = reductionOp(accumulator.getValue(coordIndices), array_value)
           accumulator.setValue(coordIndices, reduced_value)
