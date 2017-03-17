@@ -159,7 +159,7 @@ class CDIndexMap( protected val shape: Array[Int], _stride: Array[Int]=Array.emp
     val full_shape = getShape
     val new_shape: IndexedSeq[Int] = for( ii <-(0 until rank )  ) yield cMaps.get(ii) match {
       case Some(cmap) => cmap.nBins
-      case None => if( reduceDims.contains(ii) ) 1 else full_shape(ii)
+      case None => if( reduceDims.contains(ii) || reduceDims.isEmpty ) 1 else full_shape(ii)
     }
     val rv = CDIndexMap( new_shape.toArray, cMaps ).broadcast( full_shape )
     rv
