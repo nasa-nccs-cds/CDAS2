@@ -691,9 +691,9 @@ object profilingTest extends Loggable {
     val worker: PythonWorker = workerManager.getPythonWorker();
     val t0 = System.nanoTime()
     val full_shape = variable.getShape
-    var total_read_time_per_ts = 0.0
-    var total_compute_time_per_ts = 0.0
-    val chunk_size = 4
+    var total_read_time = 0.0
+    var total_compute_time = 0.0
+    val chunk_size = 2
     println("Processing data, full shape = " + full_shape.mkString(", "))
     (0 until full_shape(1)) foreach (ilevel => {
       (0 until full_shape(0) by chunk_size) foreach (itime => {
@@ -711,13 +711,13 @@ object profilingTest extends Loggable {
         val tvar: TransVar = worker.getResult()
         val result = HeapFltArray( tvar, Some(Float.NaN), Some(gridFile) )
         val ts2 = System.nanoTime()
-        val read_time_per_ts = (ts1 - ts0) / ( 1.0E9 * chunk_size )
-        val compute_time_per_ts = (ts2 - ts1) / ( 1.0E9 * chunk_size )
-        total_read_time_per_ts += read_time_per_ts
-        total_compute_time_per_ts += compute_time_per_ts
-        println("Computed max = %.4f [time=%d, level=%d, nts=%d] in %.4f sec per ts, data read time per ts = %.4f sec, compute time per ts = %.4f sec".format( result.data(0), itime, ilevel, chunk_size, (read_time_per_ts + compute_time_per_ts), read_time_per_ts, compute_time_per_ts ))
+        val read_time = (ts1 - ts0) / 1.0E9
+        val compute_time = (ts2 - ts1) / 1.0E9
+        total_read_time += read_time
+        total_compute_time += compute_time
+        println("Computed max = %.4f [time=%d, level=%d, nts=%d] in %.4f sec per ts, data read time per ts = %.4f sec, compute time per ts = %.4f sec".format( result.data(0), itime, ilevel, chunk_size, (read_time + compute_time)/chunk_size, read_time/chunk_size, compute_time/chunk_size))
         println("Aggretate time for %d cycles = %.4f sec".format(ncycle, (ts2 - t0) / 1.0E9))
-        println("Average over %d cycles: read time per tstep = %.4f sec, compute time per tstep = %.4f sec".format(ncycle, total_read_time_per_ts / ncycle, total_compute_time_per_ts / ncycle ) )
+        println("Average over %d cycles: read time per tstep = %.4f sec, compute time per tstep = %.4f sec".format(ncycle, total_read_time / ncycle, total_compute_time / ncycle ))
       })
     })
     println("Completed data processing for '%s' in %.4f sec".format(variable.getFullName, (System.nanoTime() - t0) / 1.0E9))
