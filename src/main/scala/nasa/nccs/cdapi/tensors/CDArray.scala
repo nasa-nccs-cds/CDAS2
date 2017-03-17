@@ -382,7 +382,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
           val v0 = accumulator.getValue(coordIndices)
           val reduced_value = reductionOp( v0, array_value)
           accumulator.setValue(coordIndices, reduced_value)
-          logger.info( "I-%d %.2f %.2f %.2f: (%s)".format( cdIndexMap.getStorageIndex(coordIndices), array_value, v0, reduced_value, coordIndices.mkString(", ") ) )
+          logger.info( "I-%d %.2f %.2f %.2f: coords = (%s), val = %.2f".format( accumulator.getIndex.getStorageIndex(coordIndices), array_value, v0, reduced_value, coordIndices.mkString(", "), accumulator.getValue(coordIndices) ) )
         }
       }
       val rv = accumulator.getReducedArray
