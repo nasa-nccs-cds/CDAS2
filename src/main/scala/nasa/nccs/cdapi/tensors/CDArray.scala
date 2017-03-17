@@ -145,7 +145,36 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 //    rv
 //  }
 
-  def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T ): CDArray[T]
+  def reduce( reductionOp: CDArray.ReduceOp[T], reduceDims: Array[Int], initVal: T )(implicit tag: ClassTag[T]): CDArray[T] = {
+    if( reduceDims.isEmpty ) {
+      var value: T = initVal
+      val t0 = System.nanoTime()
+      for ( index <-( 0 until getSize ) ) {
+        val dval = getStorageValue( index )
+        if( valid(dval) ) { value = reductionOp(value, dval) }
+      }
+      if (value == initVal) value = getInvalid
+      logger.info( s"Computing reduce, time = %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
+      val shape = Array.fill[Int](getRank)(1)
+      CDArray[T]( shape, Array[T](value), getInvalid )
+    } else {
+      val t0 = System.nanoTime()
+      val accumulator: CDArray[T] = getAccumulator(reduceDims, initVal)
+      val iter = getIterator
+      for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
+        if (valid(array_value)) {
+          val v0 = accumulator.getValue(coordIndices)
+          val reduced_value = reductionOp( v0, array_value)
+          accumulator.setValue(coordIndices, reduced_value)
+ //         logger.info( "I-%d %.2f %.2f %.2f: coords = (%s), val = %.2f".format( accumulator.getIndex.getStorageIndex(coordIndices), array_value, v0, reduced_value, coordIndices.mkString(", "), accumulator.getValue(coordIndices) ) )
+        }
+      }
+      val rv = accumulator.getReducedArray
+      logger.info( s"Computing generalized reduce, time = %.4f sec, value = %.2f".format( (System.nanoTime() - t0) / 1.0E9, rv.getStorageValue(0) ) )
+      rv
+    }
+  }
+
 
   def createRanges( origin: Array[Int], shape: Array[Int], strideOpt: Option[Array[Int]] = None ): List[ma2.Range] = {
     val strides: Array[Int] = strideOpt match {
@@ -361,20 +390,20 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
 
 
 
-  def reduce( reductionOp: CDArray.ReduceOp[Float], reduceDims: Array[Int], initVal: Float ): CDArray[Float] = {
-    if( false ) { // reduceDims.isEmpty ) {
+  def reduce1( reductionOp: CDArray.ReduceOp[Float], reduceDims: Array[Int], initVal: Float ): CDArray[Float] = {
+    if( reduceDims.isEmpty ) {
       var value: Float = initVal
-      val t0 = System.nanoTime()
+//      val t0 = System.nanoTime()
       for ( index <-( 0 until getSize ) ) {
         val dval = getStorageValue( index )
         if( valid(dval) ) { value = reductionOp(value, dval) }
       }
       if (value == initVal) value = getInvalid
-      logger.info( s"Computing reduce, time = %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
+//      logger.info( s"Computing reduce, time = %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
       val shape = Array.fill[Int](getRank)(1)
       CDArray[Float]( shape, Array[Float](value), getInvalid )
     } else {
-      val t0 = System.nanoTime()
+//      val t0 = System.nanoTime()
       val accumulator: CDArray[Float] = getAccumulator(reduceDims, initVal)
       val iter = getIterator
       for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
@@ -386,7 +415,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
         }
       }
       val rv = accumulator.getReducedArray
-      logger.info( s"Computing generalized reduce, time = %.4f sec, value = %.2f".format( (System.nanoTime() - t0) / 1.0E9, rv.getStorageValue(0) ) )
+//      logger.info( s"Computing generalized reduce, time = %.4f sec, value = %.2f".format( (System.nanoTime() - t0) / 1.0E9, rv.getStorageValue(0) ) )
       rv
     }
   }
@@ -604,7 +633,7 @@ class CDIntArray( cdIndexMap: CDIndexMap, val intStorage: IntBuffer ) extends CD
   protected def getData: IntBuffer = intStorage
   def getStorageValue( index: StorageIndex ): Int = intStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Int ): Unit = intStorage.put( index, value )
-  def reduce( reductionOp: CDArray.ReduceOp[Int], reduceDims: Array[Int], initVal: Int ): CDArray[Int] = { throw new Exception( "UNIMPLEMENTED METHOD") }
+//  def reduce( reductionOp: CDArray.ReduceOp[Int], reduceDims: Array[Int], initVal: Int ): CDArray[Int] = { throw new Exception( "UNIMPLEMENTED METHOD") }
 
   def this( shape: Array[Int], storage: IntBuffer ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage )
   def valid( value: Int ): Boolean = true
@@ -648,7 +677,7 @@ class CDLongArray( cdIndexMap: CDIndexMap, val longStorage: LongBuffer ) extends
   protected def getData: LongBuffer = longStorage
   def getStorageValue( index: StorageIndex ): Long = longStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Long ): Unit = longStorage.put( index, value )
-  def reduce( reductionOp: CDArray.ReduceOp[Long], reduceDims: Array[Int], initVal: Long ): CDArray[Long] = { throw new Exception( "UNIMPLEMENTED METHOD") }
+//  def reduce( reductionOp: CDArray.ReduceOp[Long], reduceDims: Array[Int], initVal: Long ): CDArray[Long] = { throw new Exception( "UNIMPLEMENTED METHOD") }
 
   def this( shape: Array[Int], storage: LongBuffer ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage )
   def valid( value: Long ): Boolean = true
@@ -688,7 +717,7 @@ class CDShortArray( cdIndexMap: CDIndexMap, val shortStorage: ShortBuffer ) exte
   def getInvalid: Short = Short.MinValue
   def getStorageValue( index: StorageIndex ): Short = shortStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Short ): Unit = shortStorage.put( index, value )
-  def reduce( reductionOp: CDArray.ReduceOp[Short], reduceDims: Array[Int], initVal: Short ): CDArray[Short] = { throw new Exception( "UNIMPLEMENTED METHOD") }
+//  def reduce( reductionOp: CDArray.ReduceOp[Short], reduceDims: Array[Int], initVal: Short ): CDArray[Short] = { throw new Exception( "UNIMPLEMENTED METHOD") }
 
   def this( shape: Array[Int], storage: ShortBuffer ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage )
   def valid( value: Short ): Boolean = true
@@ -760,7 +789,7 @@ class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, pr
   def getInvalid = invalid
   def getStorageValue( index: StorageIndex ): Double = doubleStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Double ): Unit = doubleStorage.put( index, value )
-  def reduce( reductionOp: CDArray.ReduceOp[Double], reduceDims: Array[Int], initVal: Double ): CDArray[Double] = { throw new Exception( "UNIMPLEMENTED METHOD") }
+//  def reduce( reductionOp: CDArray.ReduceOp[Double], reduceDims: Array[Int], initVal: Double ): CDArray[Double] = { throw new Exception( "UNIMPLEMENTED METHOD") }
 
   def this( shape: Array[Int], storage: DoubleBuffer, invalid: Double ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage, invalid )
   def toUcarArray: ma2.Array = ma2.Array.factory(ma2.DataType.DOUBLE, getShape, getSectionData() )
