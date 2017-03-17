@@ -362,7 +362,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
 
 
   def reduce( reductionOp: CDArray.ReduceOp[Float], reduceDims: Array[Int], initVal: Float ): CDArray[Float] = {
-    if( reduceDims.isEmpty ) {
+    if( false ) { // reduceDims.isEmpty ) {
       var value: Float = initVal
       val t0 = System.nanoTime()
       for ( index <-( 0 until getSize ) ) {
