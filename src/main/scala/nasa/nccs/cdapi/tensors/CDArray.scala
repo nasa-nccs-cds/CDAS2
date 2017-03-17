@@ -368,7 +368,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
       val t0 = System.nanoTime()
       for ( index <-( 0 until getSize ) ) {
         val dval = getStorageValue( index )
-        if(isValid(dval)) { value = Math.max(value, dval) }
+        if(isValid(dval)) { value = reductionOp(value, dval) }
       }
       if (value == initVal) value = getInvalid
       logger.info( s"Computing reduce, time = %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
