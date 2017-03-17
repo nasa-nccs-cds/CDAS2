@@ -73,6 +73,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
 
   def isStorageCongruent: Boolean = cdIndexMap.isStorageCongruent(getStorageSize)
   def getInvalid: T
+  def isValid( value: T ): Boolean
   def getStorageSize: Int = storage.capacity
   def getElementSize: Int = dataType.getSize
   def getIndex: CDIndexMap = new CDIndexMap( this.cdIndexMap )
@@ -359,13 +360,15 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     }
   }
 
+
+
   def reduce( reductionOp: CDArray.ReduceOp[Float], reduceDims: Array[Int], initVal: Float ): CDArray[Float] = {
     if( reduceDims.isEmpty ) {
       var value: Float = initVal
       val t0 = System.nanoTime()
       for ( index <-( 0 until getSize ) ) {
         val dval = getStorageValue( index )
-        if (!dval.isNaN) { value = Math.max(value, dval) }
+        if(isValid(dval)) { value = Math.max(value, dval) }
       }
       if (value == initVal) value = getInvalid
       logger.info( s"Computing reduce, time = %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
@@ -418,6 +421,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def zeros: CDFloatArray = new CDFloatArray( getShape, FloatBuffer.wrap( Array.fill[Float]( getSize )(0) ), invalid )
   def invalids: CDFloatArray = new CDFloatArray( getShape, FloatBuffer.wrap( Array.fill[Float]( getSize )(invalid) ), invalid )
   def getInvalid = invalid
+  def isValid( value: Float ): Boolean = if( invalid.isNaN ) { !value.isNaN } else { value != invalid }
   def toHeap = new CDFloatArray( cdIndexMap, if(isMapped) copySectionData() else getData, getInvalid )
 
   def -(array: CDFloatArray) = CDFloatArray.combine( subtractOp, this, array )
@@ -566,6 +570,7 @@ class CDByteArray( cdIndexMap: CDIndexMap, val byteStorage: ByteBuffer ) extends
 
   protected def getData: ByteBuffer = byteStorage
   def reduce( reductionOp: CDArray.ReduceOp[Byte], reduceDims: Array[Int], initVal: Byte ): CDArray[Byte] = { throw new Exception( "UNIMPLEMENTED METHOD") }
+  def isValid( value: Byte ): Boolean = true
 
   def this( shape: Array[Int], storage: ByteBuffer ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage )
 
@@ -598,6 +603,7 @@ class CDIntArray( cdIndexMap: CDIndexMap, val intStorage: IntBuffer ) extends CD
   def getStorageValue( index: StorageIndex ): Int = intStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Int ): Unit = intStorage.put( index, value )
   def reduce( reductionOp: CDArray.ReduceOp[Int], reduceDims: Array[Int], initVal: Int ): CDArray[Int] = { throw new Exception( "UNIMPLEMENTED METHOD") }
+  def isValid( value: Int ): Boolean = true
 
   def this( shape: Array[Int], storage: IntBuffer ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage )
   def valid( value: Int ): Boolean = true
@@ -642,6 +648,7 @@ class CDLongArray( cdIndexMap: CDIndexMap, val longStorage: LongBuffer ) extends
   def getStorageValue( index: StorageIndex ): Long = longStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Long ): Unit = longStorage.put( index, value )
   def reduce( reductionOp: CDArray.ReduceOp[Long], reduceDims: Array[Int], initVal: Long ): CDArray[Long] = { throw new Exception( "UNIMPLEMENTED METHOD") }
+  def isValid( value: Long ): Boolean = true
 
   def this( shape: Array[Int], storage: LongBuffer ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage )
   def valid( value: Long ): Boolean = true
@@ -682,6 +689,7 @@ class CDShortArray( cdIndexMap: CDIndexMap, val shortStorage: ShortBuffer ) exte
   def getStorageValue( index: StorageIndex ): Short = shortStorage.get( index )
   def setStorageValue( index: StorageIndex, value: Short ): Unit = shortStorage.put( index, value )
   def reduce( reductionOp: CDArray.ReduceOp[Short], reduceDims: Array[Int], initVal: Short ): CDArray[Short] = { throw new Exception( "UNIMPLEMENTED METHOD") }
+  def isValid( value: Short ): Boolean = true
 
   def this( shape: Array[Int], storage: ShortBuffer ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage )
   def valid( value: Short ): Boolean = true
@@ -757,6 +765,7 @@ class CDDoubleArray( cdIndexMap: CDIndexMap, val doubleStorage: DoubleBuffer, pr
 
   def this( shape: Array[Int], storage: DoubleBuffer, invalid: Double ) = this( CDIndexMap(shape,Map.empty[Int,CDCoordMap]), storage, invalid )
   def toUcarArray: ma2.Array = ma2.Array.factory(ma2.DataType.DOUBLE, getShape, getSectionData() )
+  def isValid( value: Double ): Boolean = if( invalid.isNaN ) { !value.isNaN } else { value != invalid }
 
   def valid( value: Double ) = ( value != invalid )
 
