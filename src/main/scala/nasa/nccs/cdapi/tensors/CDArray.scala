@@ -366,7 +366,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
       var value: Float = initVal
       val t0 = System.nanoTime()
       val iter = getIterator
-      for ( index <- iter; dval = getStorageValue(index) ) {
+      for ( index <- iter; dval = getStorageValue(index); coordIndices = iter.getCoordinateIndices ) {
 //      for ( index <-( 0 until getSize ) ) {
 //        val dval = getStorageValue( index )
         if( valid(dval) ) { value = reductionOp(value, dval) }
