@@ -704,8 +704,10 @@ object profilingTest extends Loggable {
     val ilevel = 0
     (0 until full_shape(0) by chunk_size) foreach (itime => {
       val ncycle = ilevel * full_shape(0) + itime + 1
-      val chunk_origin = Array[Int](itime, ilevel, test_origin(0), test_origin(1) )
-      val chunk_shape = Array[Int]( chunk_size, 1, test_section(0), test_section(1) )
+//      val chunk_origin = Array[Int](itime, ilevel, test_origin(0), test_origin(1) )
+//      val chunk_shape = Array[Int]( chunk_size, 1, test_section(0), test_section(1) )
+      val chunk_origin = Array[Int](itime, ilevel, 0, 0 )
+      val chunk_shape = Array[Int]( chunk_size, 1, full_shape(2), full_shape(3) )
       val ts0 = System.nanoTime()
       val data = variable.read(chunk_origin, chunk_shape)
       val ts1 = System.nanoTime()
