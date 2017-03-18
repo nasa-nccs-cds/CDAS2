@@ -691,6 +691,7 @@ object profilingTest extends Loggable {
     val worker: PythonWorker = workerManager.getPythonWorker();
     val t0 = System.nanoTime()
     val full_shape = variable.getShape
+    val test_section = Array( 10, 10 )
     var total_read_time = 0.0
     var total_compute_time = 0.0
     val chunk_size = 10
@@ -702,7 +703,7 @@ object profilingTest extends Loggable {
       (0 until full_shape(0) by chunk_size) foreach (itime => {
         val ncycle = ilevel * full_shape(0) + itime + 1
         val chunk_origin = Array[Int](itime, ilevel, 0, 0)
-        val chunk_shape = Array[Int](chunk_size, 1, full_shape(2), full_shape(3))
+        val chunk_shape = Array[Int]( chunk_size, 1, test_section(0), test_section(1) )
         val ts0 = System.nanoTime()
         val data = variable.read(chunk_origin, chunk_shape)
         val ts1 = System.nanoTime()
