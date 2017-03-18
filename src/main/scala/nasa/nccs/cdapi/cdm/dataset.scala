@@ -701,7 +701,7 @@ object profilingTest extends Loggable {
     val missing = variable.findAttributeIgnoreCase("fmissing_value").getNumericValue.floatValue()
     println("Processing data, full shape = %s, attrs = %s".format( full_shape.mkString(", "), attrs ))
 //    (0 until full_shape(1)) foreach (ilevel => {
-    val ilevel = 20
+    val ilevel = 0
     (0 until full_shape(0) by chunk_size) foreach (itime => {
       val ncycle = ilevel * full_shape(0) + itime + 1
       val chunk_origin = Array[Int](itime, ilevel, test_origin(0), test_origin(1) )
