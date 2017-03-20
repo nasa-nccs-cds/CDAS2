@@ -197,6 +197,19 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     response
   }
 
+  def generateProductChunked( requestCx: RequestContext, node: WorkflowNode  ): WPSProcessExecuteResponse = {
+    val kernelContext = node.generateKernelContext( requestCx )
+    val t0 = System.nanoTime()
+    var pre_result: RDDPartition = mapReduce( node, kernelContext, requestCx )
+    val t1 = System.nanoTime()
+    val result = node.kernel.postRDDOp( pre_result, kernelContext  )
+    val t2 = System.nanoTime()
+    logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec, postOp time = %.3f sec   ********** \n".format(node.kernel.name,node.kernel.id, node.operation.identifier, (t2 - t0) / 1.0E9, (t2 - t1) / 1.0E9))
+    val response = createResponse( result, requestCx, node )
+    if( Try( requestCx.config("unitTest","false").toBoolean ).getOrElse(false)  ) { node.kernel.cleanUp(); }
+    response
+  }
+
 
   def createResponse( result: RDDPartition, context: RequestContext, node: WorkflowNode ): WPSProcessExecuteResponse = {
     val resultId = cacheResult( result, context, node )
