@@ -699,7 +699,10 @@ object profilingTest extends Loggable {
     val attrs = variable.getAttributes.iterator().map( _.getShortName ).mkString(", ")
     val mem_size = (chunk_size*4*full_shape(2)*full_shape(3))/1.0E6
     val missing = variable.findAttributeIgnoreCase("fmissing_value").getNumericValue.floatValue()
+    val isNaN = missing.isNaN
     println("Processing data, full shape = %s, attrs = %s".format( full_shape.mkString(", "), attrs ))
+    println(s"Missing value = %.4f, isNaN = %s".format( missing, isNaN.toString ) )
+
 //    (0 until full_shape(1)) foreach (ilevel => {
     val ilevel = 0
     (0 until full_shape(0) by chunk_size) foreach (itime => {
