@@ -703,14 +703,12 @@ object profilingTest extends Loggable {
     println("Processing data, full shape = %s, attrs = %s".format( full_shape.mkString(", "), attrs ))
     println(s"Missing value = %.4f, isNaN = %s".format( missing, isNaN.toString ) )
 
-//    (0 until full_shape(1)) foreach (ilevel => {
-    val ilevel = 0
     (0 until full_shape(0) by chunk_size) foreach (itime => {
-      val ncycle = ilevel * full_shape(0) + itime + 1
+      val ncycle = (full_shape(1) * (itime + 1))
 //      val chunk_origin = Array[Int](itime, ilevel, test_origin(0), test_origin(1) )
 //      val chunk_shape = Array[Int]( chunk_size, 1, test_section(0), test_section(1) )
-      val chunk_origin = Array[Int](itime, ilevel, 0, 0 )
-      val chunk_shape = Array[Int]( chunk_size, 1, full_shape(2), full_shape(3) )
+      val chunk_origin = Array[Int](itime, 0, 0, 0 )
+      val chunk_shape = Array[Int]( chunk_size, full_shape(1), full_shape(2), full_shape(3) )
       val ts0 = System.nanoTime()
       val data = variable.read(chunk_origin, chunk_shape)
       val ts1 = System.nanoTime()
@@ -732,7 +730,6 @@ object profilingTest extends Loggable {
       println("Aggretate time for %d cycles = %.4f sec, chunk mem size = %.2f MB".format( ncycle, (ts2 - t0) / 1.0E9, mem_size ))
       println("Average over %d cycles: read time per tstep = %.4f sec, compute time per tstep = %.4f sec".format(ncycle, total_read_time / ncycle, total_compute_time / ncycle ))
     })
- //   })
     println("Completed data processing for '%s' in %.4f sec".format(variable.getFullName, (System.nanoTime() - t0) / 1.0E9))
   }
 
