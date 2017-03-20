@@ -726,7 +726,7 @@ object profilingTest extends Loggable {
       val compute_time = (ts2 - ts1) / 1.0E9
       total_read_time += read_time
       total_compute_time += compute_time
-      println("Computed max = %.4f [time=%d, level=%d, nts=%d] in %.4f sec per ts, data read time per ts = %.4f sec, compute time per ts = %.4f sec".format( result.data(0), itime, ilevel, chunk_size, (read_time + compute_time)/chunk_size, read_time/chunk_size, compute_time/chunk_size))
+      println("Computed max = %.4f [time=%d, nts=%d] in %.4f sec per ts, data read time per ts = %.4f sec, compute time per ts = %.4f sec".format( result.data(0), itime, chunk_size, (read_time + compute_time)/chunk_size, read_time/chunk_size, compute_time/chunk_size))
       println("Aggretate time for %d cycles = %.4f sec, chunk mem size = %.2f MB".format( ncycle, (ts2 - t0) / 1.0E9, mem_size ))
       println("Average over %d cycles: read time per tstep = %.4f sec, compute time per tstep = %.4f sec".format(ncycle, total_read_time / ncycle, total_compute_time / ncycle ))
     })
