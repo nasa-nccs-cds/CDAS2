@@ -90,10 +90,10 @@ class npArray(CDArray):
             data_array = raw_data[0:-1].reshape(shape)
             undef_value = raw_data[-1]
             if (np.isnan(undef_value)):
-                logger.info(" *** Masking with NaN")
+                logger.info("\n----------------------------------------------------------------\n *** Masking with NaN\n----------------------------------------------------------------")
                 nparray = ma.masked_invalid( data_array )
             else:
-                logger.info(" *** Masking with " + str(undef_value) )
+                logger.info("\n----------------------------------------------------------------\n *** Masking with " + str(undef_value) + "\n----------------------------------------------------------------")
                 nparray =  ma.masked_equal(data_array,undef_value) if ( undef_value != 1.0 ) else data_array
         else:
             nparray = None
