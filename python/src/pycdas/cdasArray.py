@@ -89,7 +89,6 @@ class npArray(CDArray):
             logger.info(" *** Creating Input, id = {0}, buffer len = {1}, shape = {2}, undef = {3}".format( id, str(len(raw_data)), str(shape), str(raw_data[-1]) ) )
             data_array = ma.masked_invalid( raw_data[0:-1].reshape(shape) )
             undef_value = raw_data[-1]
-            logger.info("\n----------------------------------------------------------------\n *** Masking with " + str(undef_value) + "\n----------------------------------------------------------------")
             nparray =  ma.masked_equal(data_array,undef_value) if ( undef_value != 1.0 ) else data_array
         else:
             nparray = None
