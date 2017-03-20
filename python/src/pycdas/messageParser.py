@@ -8,8 +8,8 @@ class MessageParser:
         metadata = {}
         for item in mdataStr.split(";"):
             toks = item.split(":")
-            if len(toks) == 2:
-                metadata[ toks[0] ] = toks[1]
+            if len(toks) > 1:
+                metadata[ toks[0] ] = ":".join(toks[1:])
         return metadata
 
     def s2ia(self, mdataStr ):

@@ -10,6 +10,7 @@ class AverageKernel(CDMSKernel):
         self._debug = False
 
     def executeOperation(self, task, _input):
+        self.logger.info( "Executing AverageKernel, input metadata = " + str(_input.metadata) )
         dset_address = _input.metadata.get("uri", _input.metadata.get("dataPath") )
         vname = _input.metadata.get("name")
         dset = cdms2.open( dset_address )
