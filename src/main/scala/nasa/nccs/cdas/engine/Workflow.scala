@@ -103,7 +103,24 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def createKernel(id: String): Kernel = executionMgr.getKernel(id)
 
-  def stream(requestCx: RequestContext): List[ WPSProcessExecuteResponse ] = {
+  def generateProduct( requestCx: RequestContext, node: WorkflowNode  ): WPSProcessExecuteResponse = {
+    val result = executeKernel( requestCx, node )
+    createResponse( result, requestCx, node )
+  }
+
+  def executeKernel( requestCx: RequestContext, node: WorkflowNode  ): RDDPartition = {
+    val kernelContext = node.generateKernelContext( requestCx )
+    val t0 = System.nanoTime()
+    var pre_result: RDDPartition = mapReduce( node, kernelContext, requestCx )
+    val t1 = System.nanoTime()
+    val result = node.kernel.postRDDOp( pre_result, kernelContext  )
+    val t2 = System.nanoTime()
+    logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec, postOp time = %.3f sec   ********** \n".format(node.kernel.name,node.kernel.id, node.operation.identifier, (t2 - t0) / 1.0E9, (t2 - t1) / 1.0E9))
+    if( Try( requestCx.config("unitTest","false").toBoolean ).getOrElse(false)  ) { node.kernel.cleanUp(); }
+    result
+  }
+
+  def executeRequest(requestCx: RequestContext): List[ WPSProcessExecuteResponse ] = {
     linkNodes( requestCx )
     val product_nodes = DAGNode.sort( nodes.filter( _.isRoot ) )
     for (product_node <- product_nodes) yield {
@@ -120,7 +137,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     result.configure( "gid", kernelContext.grid.uid )
   }
 
-  def stream( node: WorkflowNode, requestCx: RequestContext ):  RDD[(PartitionKey,RDDPartition)] = {
+  def stream(node: WorkflowNode, requestCx: RequestContext ):  RDD[(PartitionKey,RDDPartition)] = {
     val kernelContext = node.generateKernelContext( requestCx )
     val inputs = prepareInputs( node, kernelContext, requestCx )
     node.map( inputs, kernelContext )
@@ -128,7 +145,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def prepareInputs( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext ): RDD[(PartitionKey,RDDPartition)] = {
     val opInputs = getNodeInputs( requestCx, node )
-    domainRDDPartition( opInputs, kernelContext, requestCx, node )
+    domainRDDPartition( opInputs, kernelContext, requestCx, node )    // -> stream dependent map-only nodes
   }
 
   def linkNodes(requestCx: RequestContext): Unit = {
@@ -182,34 +199,6 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     }
     Map(items: _*)
   }
-
-
-  def generateProduct( requestCx: RequestContext, node: WorkflowNode  ): WPSProcessExecuteResponse = {
-    val kernelContext = node.generateKernelContext( requestCx )
-    val t0 = System.nanoTime()
-    var pre_result: RDDPartition = mapReduce( node, kernelContext, requestCx )
-    val t1 = System.nanoTime()
-    val result = node.kernel.postRDDOp( pre_result, kernelContext  )
-    val t2 = System.nanoTime()
-    logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec, postOp time = %.3f sec   ********** \n".format(node.kernel.name,node.kernel.id, node.operation.identifier, (t2 - t0) / 1.0E9, (t2 - t1) / 1.0E9))
-    val response = createResponse( result, requestCx, node )
-    if( Try( requestCx.config("unitTest","false").toBoolean ).getOrElse(false)  ) { node.kernel.cleanUp(); }
-    response
-  }
-
-  def generateProductChunked( requestCx: RequestContext, node: WorkflowNode  ): WPSProcessExecuteResponse = {
-    val kernelContext = node.generateKernelContext( requestCx )
-    val t0 = System.nanoTime()
-    var pre_result: RDDPartition = mapReduce( node, kernelContext, requestCx )
-    val t1 = System.nanoTime()
-    val result = node.kernel.postRDDOp( pre_result, kernelContext  )
-    val t2 = System.nanoTime()
-    logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec, postOp time = %.3f sec   ********** \n".format(node.kernel.name,node.kernel.id, node.operation.identifier, (t2 - t0) / 1.0E9, (t2 - t1) / 1.0E9))
-    val response = createResponse( result, requestCx, node )
-    if( Try( requestCx.config("unitTest","false").toBoolean ).getOrElse(false)  ) { node.kernel.cleanUp(); }
-    response
-  }
-
 
   def createResponse( result: RDDPartition, context: RequestContext, node: WorkflowNode ): WPSProcessExecuteResponse = {
     val resultId = cacheResult( result, context, node )

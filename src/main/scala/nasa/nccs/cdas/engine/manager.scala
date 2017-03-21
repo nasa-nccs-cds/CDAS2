@@ -431,7 +431,7 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
   }
 
   def streamWorkflows( request: TaskRequest, requestCx: RequestContext ): List[WPSProcessExecuteResponse] = {
-    request.workflow.stream( requestCx )
+    request.workflow.executeRequest( requestCx )
   }
 
   def executeUtility( operationCx: OperationContext, requestCx: RequestContext ): UtilityExecutionResult = {

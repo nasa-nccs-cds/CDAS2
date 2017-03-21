@@ -151,7 +151,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     if (nItems == 0) throw new Exception("Invalid RDD: all partitions are empty: " + uid)
     val partitioner = RangePartitioner(rddPartSpecs.map(_.timeRange))
     val parallelized_rddspecs = sparkContext parallelize rddPartSpecs keyBy (_.timeRange) partitionBy partitioner
-    parallelized_rddspecs mapValues (spec => spec.getRDDPartition) repartitionAndSortWithinPartitions partitioner
+    parallelized_rddspecs mapValues (spec => spec.getRDDPartition)                                                   // repartitionAndSortWithinPartitions partitioner
   }
 
   def getRDD( uid: String, extInput: ExternalInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(PartitionKey,RDDPartition)] = {

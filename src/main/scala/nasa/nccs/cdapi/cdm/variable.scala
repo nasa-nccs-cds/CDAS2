@@ -165,28 +165,28 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
     RDDPartition( Map( spec.uid -> HeapFltArray(data, fragSpec.getOrigin, spec.getMetadata(), None) ) )
   }
 
-  def domainRDDPartition(partIndex: Int, optSection: Option[ma2.Section] ): Option[RDDPartition] = domainCDDataSection( partIndex, optSection ) match {
-    case Some((uid, section, metadata, data)) => Some(  RDDPartition( Map( uid -> HeapFltArray(data, section.getOrigin, metadata, None ) ) ) )
-    case None => None
-  }
+//  def domainRDDPartition(partIndex: Int, optSection: Option[ma2.Section] ): Option[RDDPartition] = domainCDDataSection( partIndex, optSection ) match {
+//    case Some((uid, section, metadata, data)) => Some(  RDDPartition( Map( uid -> HeapFltArray(data, section.getOrigin, metadata, None ) ) ) )
+//    case None => None
+//  }
 
-  def domainDataFragment(partIndex: Int, optSection: Option[ma2.Section] ): Option[DataFragment] = domainDataSection( partIndex, optSection ) match {
-    case Some((spec, data)) => Some( DataFragment(spec, data) )
-    case None => None
-  }
-
-  def domainDataSection( partIndex: Int,  optSection: Option[ma2.Section] ): Option[ ( DataFragmentSpec, CDFloatArray )] = {
-    try {
-      val partition = partitions.getPart(partIndex)
-      val partition_data = partition.data(fragmentSpec.missing_value)
-      domainSection(partition, optSection) map {
-        case (fragSpec, section) => (fragSpec, CDFloatArray(partition_data.section(section)))
-      }
-    } catch {
-      case ex: Exception => logger.warn(s"Failed getting data fragment $partIndex: " + ex.toString)
-        None
-    }
-  }
+//  def domainDataFragment(partIndex: Int, optSection: Option[ma2.Section] ): Option[DataFragment] = domainDataSection( partIndex, optSection ) match {
+//    case Some((spec, data)) => Some( DataFragment(spec, data) )
+//    case None => None
+//  }
+//
+//  def domainDataSection( partIndex: Int,  optSection: Option[ma2.Section] ): Option[ ( DataFragmentSpec, CDFloatArray )] = {
+//    try {
+//      val partition = partitions.getPart(partIndex)
+//      val partition_data = partition.data(fragmentSpec.missing_value)
+//      domainSection(partition, optSection) map {
+//        case (fragSpec, section) => (fragSpec, CDFloatArray(partition_data.section(section)))
+//      }
+//    } catch {
+//      case ex: Exception => logger.warn(s"Failed getting data fragment $partIndex: " + ex.toString)
+//        None
+//    }
+//  }
 
 //  def domainDataFragment( partIndex: Int, context: CDASExecutionContext ): Option[DataFragment] = {
 //    val optSection: Option[ma2.Section] = context.getOpSections match {
@@ -203,18 +203,19 @@ class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByt
 //    }
 //  }
 
-  def domainCDDataSection( partIndex: Int,  optSection: Option[ma2.Section] ): Option[ ( String, ma2.Section, Map[String,String], CDFloatArray )] = {
-    try {
-      val partition = partitions.getPart(partIndex)
-      val partition_data = partition.data(fragmentSpec.missing_value)
-      domainSection( partition, optSection ) map {
-        case ( domFragSpec, section )  => ( domFragSpec.uid, section, domFragSpec.getMetadata(optSection), CDFloatArray( partition_data.section( section ) ) )
-      }
-    } catch {
-      case ex: Exception => logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )
-        None
-    }
-  }
+//  def domainCDDataSection( partIndex: Int,  optSection: Option[ma2.Section] ): Option[ ( String, ma2.Section, Map[String,String], CDFloatArray )] = {
+//    try {
+//      val partition = partitions.getPart(partIndex)
+//      val partition_data = partition.data(fragmentSpec.missing_value)
+//      domainSection( partition, optSection ) map {
+//        case ( domFragSpec, section )  => ( domFragSpec.uid, section, domFragSpec.getMetadata(optSection), CDFloatArray( partition_data.section( section ) ) )
+//      }
+//    } catch {
+//      case ex: Exception => logger.warn( s"Failed getting data fragment $partIndex: " + ex.toString )
+//        None
+//    }
+//  }
+
   def getRDDVariableSpec( uid: String, partition: Partition,  optSection: Option[ma2.Section] ): RDDVariableSpec =
     domainSection(partition,optSection) match {
       case Some( ( domFragSpec, section ) ) =>
