@@ -199,26 +199,16 @@ class UID {
 }
 
 object TaskRequest extends Loggable {
-  def apply(process_name: String,
-            datainputs: Map[String, Seq[Map[String, Any]]]) = {
-    logger.info(
-      "TaskRequest--> process_name: %s, datainputs: %s"
-        .format(process_name, datainputs.toString))
+  def apply(process_name: String, datainputs: Map[String, Seq[Map[String, Any]]]) = {
+    logger.info( "TaskRequest--> process_name: %s, datainputs: %s".format(process_name, datainputs.toString))
     val uid = UID()
-    val data_list: List[DataContainer] = datainputs
-      .getOrElse("variable", List())
-      .flatMap(DataContainer.factory(uid, _))
-      .toList
+    val opSpecs: Seq[Map[String, Any]] = datainputs .getOrElse("operation", List())
+    val data_list: List[DataContainer] = datainputs.getOrElse("variable", List()).flatMap(DataContainer.factory(uid, _, opSpecs.isEmpty )).toList
     val domain_list: List[DomainContainer] =
       datainputs.getOrElse("domain", List()).map(DomainContainer(_)).toList
-    val operation_list: List[OperationContext] = datainputs
-      .getOrElse("operation", List())
-      .zipWithIndex
-      .map {
-        case (op, index) =>
-          OperationContext(index, uid, process_name, data_list.map(_.uid), op)
-      }
-      .toList
+    val operation_list: List[OperationContext] = opSpecs.zipWithIndex.map {
+        case (op, index) => OperationContext(index, uid, process_name, data_list.map(_.uid), op)
+      } .toList
     val variableMap = buildVarMap(data_list, operation_list)
     val domainMap = buildDomainMap(domain_list)
     val gridId = datainputs
@@ -328,16 +318,12 @@ class PartitionSpec(val axisIndex: Int, val nPart: Int, val partIndex: Int = 0) 
 class DataSource(val name: String,
                  val collection: Collection,
                  val domain: String,
+                 val autoCache: Boolean,
                  val fragIdOpt: Option[String] = None) {
   val debug = 1
-  def this(dsource: DataSource) =
-    this(dsource.name, dsource.collection, dsource.domain)
-  override def toString =
-    s"DataSource { name = $name, collection = %s, domain = $domain, %s }"
-      .format(collection.toString,
-              fragIdOpt.map(", fragment = " + _).getOrElse(""))
-  def toXml =
-    <dataset name={name} domain={domain}> {collection.toXml} </dataset>
+  def this(dsource: DataSource) = this(dsource.name, dsource.collection, dsource.domain, dsource.autoCache )
+  override def toString = s"DataSource { name = $name, collection = %s, domain = $domain, %s }" .format(collection.toString, fragIdOpt.map(", fragment = " + _).getOrElse(""))
+  def toXml =  <dataset name={name} domain={domain}> {collection.toXml} </dataset>
   def isDefined = (!collection.isEmpty && !name.isEmpty)
   def isReadable = (!collection.isEmpty && !name.isEmpty && !domain.isEmpty)
   def getKey: Option[DataFragmentKey] = fragIdOpt.map(DataFragmentKey.apply(_))
@@ -511,7 +497,9 @@ class DataFragmentSpec(val uid: String = "",
                        private val _section: ma2.Section = new ma2.Section(),
                        private val _domSectOpt: Option[ma2.Section],
                        val missing_value: Float,
-                       val mask: Option[String] = None) extends Loggable with Serializable {
+                       val mask: Option[String] = None,
+                       val autoCache: Boolean = false
+                      ) extends Loggable with Serializable {
   logger.debug("DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s".format(_section, _domSectOpt.getOrElse("null").toString))
   override def toString = "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format(varname, collection, dimensions, units, longname, CDSection.serialize(roi))
   def sameVariable(otherCollection: String, otherVarName: String): Boolean = {
@@ -563,7 +551,7 @@ class DataFragmentSpec(val uid: String = "",
     val combined_varname = varname + ":" + other.varname
     val combined_longname = longname + ":" + other.longname
     val (combined_section, mergeStatus) = if (sectionMerge) combineRoi(other.roi) else (roi, SectionMerge.Overlap)
-    new DataFragmentSpec(uid, combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, missing_value, mask) -> mergeStatus
+    new DataFragmentSpec(uid, combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, missing_value, mask, autoCache ) -> mergeStatus
   }
   def roi = targetGridOpt match {
     case None =>
@@ -589,7 +577,7 @@ class DataFragmentSpec(val uid: String = "",
                          new ma2.Section(newSection),
                          domainSectOpt,
                          missing_value,
-                         mask)
+                         mask, autoCache )
 
   def getBounds(section: Option[ma2.Section] = None): Array[Double] = {
     val bndsOpt = targetGridOpt.flatMap(targetGrid =>
@@ -661,7 +649,7 @@ class DataFragmentSpec(val uid: String = "",
                            roi.intersect(cutSection),
                            domainSectOpt,
                            missing_value,
-                           mask)
+                           mask, autoCache )
   }
 
   def intersectRoi(cutSection: ma2.Section): ma2.Section = {
@@ -716,7 +704,7 @@ class DataFragmentSpec(val uid: String = "",
                              intersection,
                              domainSectOpt,
                              missing_value,
-                             mask))
+                             mask, autoCache ))
     } else None
   }
 
@@ -803,7 +791,7 @@ class DataFragmentSpec(val uid: String = "",
                          new ma2.Section(newRanges),
                          domainSectOpt,
                          missing_value,
-                         mask)
+                         mask, autoCache )
   }
   def reSection(fkey: DataFragmentKey): DataFragmentSpec =
     reSection(fkey.getRoi)
@@ -949,26 +937,23 @@ object DataContainer extends ContainerBase {
     }
   }
 
-  def factory(uid: UID, metadata: Map[String, Any]): Array[DataContainer] = {
+  def factory(uid: UID, metadata: Map[String, Any], noOp: Boolean ): Array[DataContainer] = {
     try {
       val fullname =
-        if (metadata.keySet.contains("id"))
-          metadata.getOrElse("id", "").toString
+        if (metadata.keySet.contains("id")) metadata.getOrElse("id", "").toString
         else metadata.getOrElse("name", "").toString
       val domain = metadata.getOrElse("domain", "").toString
       val (collectionOpt, fragIdOpt) = getCollection(metadata)
       val base_index = random.nextInt(Integer.MAX_VALUE)
+      val autocache = metadata.getOrElse( "cache", noOp ).toString.toBoolean
       collectionOpt match {
         case None =>
           val var_names: Array[String] = fullname.toString.split(',')
-          val dataPath =
-            metadata.getOrElse("uri", metadata.getOrElse("url", uid)).toString
+          val dataPath = metadata.getOrElse("uri", metadata.getOrElse("url", uid)).toString
           val collection = Collection(uid.toString, dataPath)
           for ((name, index) <- var_names.zipWithIndex) yield {
             val name_items = name.split(Array(':', '|'))
-            val dsource = new DataSource(stripQuotes(name_items.head),
-                                         collection,
-                                         normalize(domain))
+            val dsource = new DataSource( stripQuotes(name_items.head), collection, normalize(domain), autocache )
             val vid = stripQuotes(name_items.last)
             val vname = normalize(name_items.head)
             val dcid =
@@ -984,10 +969,7 @@ object DataContainer extends ContainerBase {
           fragIdOpt match {
             case Some(fragId) =>
               val name_items = var_names.head.split(Array(':', '|'))
-              val dsource = new DataSource(stripQuotes(name_items.head),
-                                           collection,
-                                           normalize(domain),
-                                           fragIdOpt)
+              val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain), autocache, fragIdOpt)
               val vid = normalize(name_items.last)
               Array(
                 new DataContainer(if (vid.isEmpty) uid + s"c-$base_index"
@@ -996,9 +978,7 @@ object DataContainer extends ContainerBase {
             case None =>
               for ((name, index) <- var_names.zipWithIndex) yield {
                 val name_items = name.split(Array(':', '|'))
-                val dsource = new DataSource(stripQuotes(name_items.head),
-                                             collection,
-                                             normalize(domain))
+                val dsource = new DataSource(stripQuotes(name_items.head), collection, normalize(domain), autocache )
                 val vid = stripQuotes(name_items.last)
                 val vname = normalize(name_items.head)
                 val dcid =

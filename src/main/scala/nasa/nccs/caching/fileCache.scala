@@ -14,7 +14,7 @@ import nasa.nccs.cdas.utilities.{GeoTools, appParameters, runtime}
 import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
 import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
-import nasa.nccs.cdas.engine.spark.{PartitionKey, RangePartitioner}
+import nasa.nccs.cdas.engine.spark.PartitionKey
 import nasa.nccs.cdas.kernels.TransientFragment
 import nasa.nccs.cdas.loaders.Masks
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
@@ -50,6 +50,10 @@ class CacheChunk(val offset: Int,
   def byteOffset = offset * elemSize
 }
 
+case class BatchSpec( iStartPart: Int, nParts: Int ) {
+  def included( part_index: Int ): Boolean = (part_index >= iStartPart ) && ( nParts > (part_index-iStartPart)  )
+}
+
 class Partitions(val id: String,
                  private val _section: ma2.Section,
                  val parts: Array[Partition]) {
@@ -59,6 +63,7 @@ class Partitions(val id: String,
   def getPartData(partId: Int, missing_value: Float): CDFloatArray = parts(partId).data(missing_value)
   def roi: ma2.Section = new ma2.Section(_section.getRanges)
   def delete = parts.map(_.delete)
+  def getBatch( batch: BatchSpec): Array[Partition] = parts.filter( p => batch.included(p.index) )
 }
 
 object Partition {

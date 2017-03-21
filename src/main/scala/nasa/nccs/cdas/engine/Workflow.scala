@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.engine
 
-import nasa.nccs.caching.{RDDTransientVariable, collectionDataCache}
+import nasa.nccs.caching.{BatchSpec, RDDTransientVariable, collectionDataCache}
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.tensors.CDFloatArray
@@ -130,22 +130,23 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def mapReduce( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext ): RDDPartition = {
-    val inputs = prepareInputs( node, kernelContext, requestCx )
+    val batch = BatchSpec(0,100)
+    val inputs = prepareInputs( node, kernelContext, requestCx, batch )
     val mapresult = node.map( inputs, kernelContext )
     val nparts = mapresult.getNumPartitions
     val result = if(nparts == 1) { mapresult.collect()(0)._2 } else { node.reduce( mapresult, kernelContext ) }
     result.configure( "gid", kernelContext.grid.uid )
   }
 
-  def stream(node: WorkflowNode, requestCx: RequestContext ):  RDD[(PartitionKey,RDDPartition)] = {
+  def stream(node: WorkflowNode, requestCx: RequestContext, batch: BatchSpec ):  RDD[(PartitionKey,RDDPartition)] = {
     val kernelContext = node.generateKernelContext( requestCx )
-    val inputs = prepareInputs( node, kernelContext, requestCx )
+    val inputs = prepareInputs( node, kernelContext, requestCx, batch )
     node.map( inputs, kernelContext )
   }
 
-  def prepareInputs( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext ): RDD[(PartitionKey,RDDPartition)] = {
+  def prepareInputs( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext, batch: BatchSpec ): RDD[(PartitionKey,RDDPartition)] = {
     val opInputs = getNodeInputs( requestCx, node )
-    domainRDDPartition( opInputs, kernelContext, requestCx, node )    // -> stream dependent map-only nodes
+    domainRDDPartition( opInputs, kernelContext, requestCx, node, batch )    // -> stream dependent map-only nodes
   }
 
   def linkNodes(requestCx: RequestContext): Unit = {
@@ -234,18 +235,21 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     rdd
   }
 
-  def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ): RDD[(PartitionKey,RDDPartition)] = {
+  def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode, batch: BatchSpec ): RDD[(PartitionKey,RDDPartition)] = {
     logger.info( "Generating RDD for inputs: " + opInputs.keys.mkString(", ") )
     val rawRddMap: Map[String,RDD[(PartitionKey,RDDPartition)]] = opInputs.map { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
           val opSection: Option[ma2.Section] = getOpSectionIntersection( dataInput.getGrid, node )
-          uid -> executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node )
+          uid -> executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node, batch )
+        case ( streamInput: StreamInput ) =>
+          val opSection: Option[ma2.Section] = getOpSectionIntersection( streamInput.getGrid, node )
+          uid -> executionMgr.serverContext.spark.getRDD( uid, streamInput, requestCx, opSection, node, batch )
         case ( extInput: ExternalInput ) =>
           val opSection: Option[ma2.Section] = getOpSectionIntersection( extInput.getGrid, node )
           uid -> executionMgr.serverContext.spark.getRDD( uid, extInput, requestCx, opSection, node )
         case ( kernelInput: DependencyOperationInput  ) =>
           logger.info( "\n\n ----------------------- Stream DEPENDENCY Node: %s, opID = %s, rID = %s -------\n".format( kernelInput.workflowNode.getNodeId(), kernelInput.workflowNode.operation.identifier, kernelInput.workflowNode.getResultId ))
-          uid -> stream( kernelInput.workflowNode, requestCx )
+          uid -> stream( kernelInput.workflowNode, requestCx, batch )
         case (  x ) =>
           throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
       }

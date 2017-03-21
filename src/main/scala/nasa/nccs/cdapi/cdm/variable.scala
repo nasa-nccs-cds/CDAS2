@@ -1,6 +1,6 @@
 package nasa.nccs.cdapi.cdm
 
-import nasa.nccs.caching.{Partition, Partitions, RDDTransientVariable}
+import nasa.nccs.caching.{CDASPartitioner, Partition, Partitions, RDDTransientVariable}
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition, RDDVariableSpec}
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.cdas.engine.WorkflowNode
@@ -81,7 +81,6 @@ class OperationTransientInput( val variable: RDDTransientVariable ) extends Oper
     case Some( dataFrag )=> dataFrag.getKeyString
     case None => variable.operation.inputs.mkString(":")
   }
-
 }
 
 abstract class OperationDataInput( val fragmentSpec: DataFragmentSpec, val metadata: Map[String,nc2.Attribute] = Map.empty ) extends OperationInput with Loggable {
@@ -100,7 +99,7 @@ abstract class OperationDataInput( val fragmentSpec: DataFragmentSpec, val metad
   def delete
 }
 
-class ExternalInput( fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty  ) extends OperationDataInput(fragSpec,metadata) {
+class NonCachedInput( fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty  ) extends OperationDataInput(fragSpec,metadata) {
   def data(partIndex: Int ): CDFloatArray = CDFloatArray.empty
   def delete: Unit = Unit
 
@@ -132,6 +131,15 @@ class ExternalInput( fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attrib
       case _ =>
         fragSpec.getPartitionKey -> new RDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
     }
+}
+
+class StreamInput( fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty ) extends NonCachedInput(fragSpec,metadata) {
+  def getPartitioner( optSection: Option[ma2.Section] = None ): Option[CDASPartitioner] = domainSection( optSection ) map { case( frag1, section) => new CDASPartitioner( fragSpec.uid, section ) }
+  override def data(partIndex: Int ): CDFloatArray = CDFloatArray.empty
+}
+
+class ExternalInput( fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty ) extends NonCachedInput(fragSpec,metadata) {
+  override def data(partIndex: Int ): CDFloatArray = CDFloatArray.empty
 }
 
 class PartitionedFragment( val partitions: Partitions, val maskOpt: Option[CDByteArray], fragSpec: DataFragmentSpec, mdata: Map[String,nc2.Attribute] = Map.empty ) extends OperationDataInput(fragSpec,mdata) with Loggable {

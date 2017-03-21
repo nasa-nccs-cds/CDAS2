@@ -528,11 +528,15 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
   def getConfiguration: Map[String,String] = appParameters.getParameterMap
 
   def getOperationInput( fragSpec: DataFragmentSpec ): OperationInput = {
-    val fragFut = dataLoader.getExistingFragment( fragSpec ) match {
-      case Some( fragFut ) => fragFut
-      case None => cacheInputData( fragSpec )
+    dataLoader.getExistingFragment( fragSpec ) match {
+      case Some( fragFut ) => Await.result( fragFut, Duration.Inf )
+      case None =>
+        if(fragSpec.autoCache) {
+          val fragFut = cacheInputData( fragSpec )
+          Await.result( fragFut, Duration.Inf )
+        }
+        else { new StreamInput( fragSpec ) }
     }
-    Await.result( fragFut, Duration.Inf )
   }
 
   def getAxisData( fragSpec: DataFragmentSpec, axis: Char ): Option[( Int, ma2.Array )] = {
@@ -598,7 +602,7 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
     val fragSpec: Option[DataFragmentSpec] = optSection map { section =>
       val shape = section.getShape
       new DataFragmentSpec( dataContainer.uid, variable.name, variable.collection, data_source.fragIdOpt, Some(targetGrid), variable.dims.mkString(","),
-        variable.units, variable.getAttributeValue("long_name", variable.fullname), section, optDomainSect, variable.missing, maskOpt)
+        variable.units, variable.getAttributeValue("long_name", variable.fullname), section, optDomainSect, variable.missing, maskOpt, data_source.autoCache )
     }
     val t2 = System.nanoTime
     val rv = dataContainer.uid -> fragSpec
@@ -637,7 +641,7 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
     if( optSection == None ) logger.warn( "Attempt to cache empty segment-> No caching will occur: " + dataContainer.toString )
     optSection map { section =>
       val fragSpec = new DataFragmentSpec( dataContainer.uid, variable.name, variable.collection, data_source.fragIdOpt, Some(targetGrid), variable.dims.mkString(","),
-      variable.units, variable.getAttributeValue("long_name", variable.fullname), section, optDomainSect, variable.missing, maskOpt)
+      variable.units, variable.getAttributeValue("long_name", variable.fullname), section, optDomainSect, variable.missing, maskOpt, data_source.autoCache )
       logger.info( "cache fragSpec: " + fragSpec.getKey.toString )
       dataLoader.getExistingFragment(fragSpec) match {
         case Some(partFut) =>
