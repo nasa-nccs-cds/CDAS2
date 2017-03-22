@@ -1,6 +1,6 @@
 package nasa.nccs.cdapi.data
 
-import nasa.nccs.caching.Partition
+import nasa.nccs.caching.{CachePartition, Partition}
 import nasa.nccs.cdapi.cdm.{Collection, NetcdfDatasetMgr, RemapElem, TimeConversionSpec}
 import nasa.nccs.cdapi.tensors._
 import nasa.nccs.cdas.engine.WorkflowNode
@@ -277,10 +277,10 @@ object RDDPartition {
 }
 
 object RDDPartSpec {
-  def apply( partition: Partition, tgrid: TargetGrid, varSpecs: List[ RDDVariableSpec ] ): RDDPartSpec = new RDDPartSpec( partition, partition.getPartitionKey(tgrid), varSpecs )
+  def apply( partition: CachePartition, tgrid: TargetGrid, varSpecs: List[ RDDVariableSpec ] ): RDDPartSpec = new RDDPartSpec( partition, partition.getPartitionKey(tgrid), varSpecs )
 }
 
-class RDDPartSpec(val partition: Partition, val timeRange: PartitionKey, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
+class RDDPartSpec(val partition: CachePartition, val timeRange: PartitionKey, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
 
   def getRDDPartition: RDDPartition = {
     val t0 = System.nanoTime()
@@ -308,11 +308,32 @@ class RDDPartSpec(val partition: Partition, val timeRange: PartitionKey, val var
 
 }
 
-object RDDExtPartSpec {
-  def apply( timeRange: PartitionKey, varSpecs: List[ RDDVariableSpec ] ): RDDExtPartSpec = new RDDExtPartSpec( timeRange, varSpecs )
+object DirectRDDPartSpec {
+  def apply( partition: Partition, tgrid: TargetGrid, varSpecs: List[ DirectRDDVariableSpec ] ): DirectRDDPartSpec = new DirectRDDPartSpec( partition, partition.getPartitionKey(tgrid), varSpecs )
 }
 
-class RDDExtPartSpec( val timeRange: PartitionKey, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
+class DirectRDDPartSpec(val partition: Partition, val timeRange: PartitionKey, val varSpecs: List[ DirectRDDVariableSpec ] ) extends Serializable with Loggable {
+
+  def getRDDPartition: RDDPartition = {
+    val t0 = System.nanoTime()
+    val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition)) ): _* )
+    val rv = RDDPartition( elements )
+    logger.debug( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
+    rv
+  }
+
+  def empty( uid: String ): Boolean = varSpecs.find( _.uid == uid ) match {
+    case Some( varSpec ) => varSpec.empty
+    case None => true
+  }
+
+}
+
+object ExtRDDPartSpec {
+  def apply( timeRange: PartitionKey, varSpecs: List[ RDDVariableSpec ] ): ExtRDDPartSpec = new ExtRDDPartSpec( timeRange, varSpecs )
+}
+
+class ExtRDDPartSpec(val timeRange: PartitionKey, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
 
   def getRDDPartition: RDDPartition = {
     val t0 = System.nanoTime()
@@ -325,7 +346,7 @@ class RDDExtPartSpec( val timeRange: PartitionKey, val varSpecs: List[ RDDVariab
 }
 
 class DirectRDDVariableSpec( uid: String, metadata: Map[String,String], missing: Float, section: CDSection, val varShortName: String, val dataPath: String  ) extends RDDVariableSpec( uid, metadata, missing, section  ) with Loggable {
-  override def toHeapArray( partition: Partition ) = {
+  def toHeapArray( partition: Partition ) = {
     val fltData: CDFloatArray =  CDFloatArray.factory( readVariableData( partition.partSection(section.toSection) ), missing )
     logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
     HeapFltArray( fltData, section.getOrigin, metadata, None )
@@ -335,7 +356,7 @@ class DirectRDDVariableSpec( uid: String, metadata: Map[String,String], missing:
 
 class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val missing: Float, val section: CDSection  ) extends Serializable with Loggable {
 
-  def toHeapArray( partition: Partition ) = {
+  def toHeapArray( partition: CachePartition ) = {
     val rv = HeapFltArray( partition.dataSection(section, missing), section.getOrigin, metadata, None )
     logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
     rv

@@ -11,7 +11,7 @@ import java.util.Formatter
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
-import nasa.nccs.caching.CDASPartitioner
+import nasa.nccs.caching.{CDASCachePartitioner, CDASPartitioner}
 import nasa.nccs.cdapi.data.HeapFltArray
 import nasa.nccs.cdapi.tensors.{CDDoubleArray, CDFloatArray, CDLongArray}
 import nasa.nccs.cdas.loaders.XmlResource
@@ -622,13 +622,13 @@ object profilingTest extends Loggable {
   }
 
   def processCacheData(cache_id: String, roi: ma2.Section) = {
-    val partitioner = new CDASPartitioner(cache_id, roi)
+    val partitioner = new CDASCachePartitioner(cache_id, roi)
     val t0 = System.nanoTime()
     val full_shape = partitioner.getShape
     var total_read_time = 0.0
     var total_compute_time = 0.0
     println("Processing data, full shape = " + full_shape.mkString(", "))
-    val partitions = partitioner.getPartitions
+    val partitions = partitioner.getCachePartitions
     for (partition <- partitions) {
       val itime = partition.startIndex
       val chunk_size = partition.shape(0)

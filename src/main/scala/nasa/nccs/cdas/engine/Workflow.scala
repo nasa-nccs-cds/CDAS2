@@ -37,16 +37,16 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
     new KernelContext( operation, gridMap, sectionMap, requestCx.domains, requestCx.getConfiguration)
   }
 
-  def reduce(mapresult: RDD[(PartitionKey,RDDPartition)], context: KernelContext ): RDDPartition = {
+  def reduce(mapresult: RDD[(PartitionKey,RDDPartition)], context: KernelContext ): (PartitionKey,RDDPartition) = {
     logger.debug( "\n\n ----------------------- BEGIN reduce Operation: %s (%s) ----------------------- \n".format( context.operation.identifier, context.operation.rid ) )
     val t0 = System.nanoTime()
-    if( ! kernel.parallelizable ) { mapresult.collect()(0)._2 }
+    if( ! kernel.parallelizable ) { mapresult.collect()(0) }
     else {
-      val partitioner: RangePartitioner = CDSparkContext.getPartitioner(mapresult).colaesce
-      var repart_mapresult = mapresult repartitionAndSortWithinPartitions  partitioner
-      val result = repart_mapresult reduce kernel.getReduceOp(context)
+ //     val partitioner: RangePartitioner = CDSparkContext.getPartitioner(mapresult).colaesce
+//      var repart_mapresult = mapresult repartitionAndSortWithinPartitions  partitioner
+      val result = mapresult reduce kernel.getReduceOp(context)
       logger.debug("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
-      result._2
+      result
     }
   }
 
@@ -129,24 +129,35 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     }
   }
 
+  def mapReduceBatch( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext, batchIndex: Int ): Option[ ( PartitionKey, RDDPartition ) ] =
+    prepareInputs(node, kernelContext, requestCx, batchIndex) map ( inputs => {
+      val mapresult = node.map(inputs, kernelContext)
+      val nparts = mapresult.getNumPartitions
+      val result: ( PartitionKey, RDDPartition ) = if (nparts == 1) { mapresult.collect()(0) } else { node.reduce(mapresult, kernelContext) }
+      mapReduceBatch( node, kernelContext, requestCx, batchIndex + 1 ) match {
+        case Some( next_result ) =>
+          val reduceOp = node.kernel.getReduceOp(kernelContext)
+          reduceOp( result, next_result )
+        case None => result
+      }
+    })
+
+
   def mapReduce( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext ): RDDPartition = {
-    val batch = BatchSpec(0,100)
-    val inputs = prepareInputs( node, kernelContext, requestCx, batch )
-    val mapresult = node.map( inputs, kernelContext )
-    val nparts = mapresult.getNumPartitions
-    val result = if(nparts == 1) { mapresult.collect()(0)._2 } else { node.reduce( mapresult, kernelContext ) }
-    result.configure( "gid", kernelContext.grid.uid )
+    mapReduceBatch( node, kernelContext, requestCx, 0 ) match {
+      case Some( ( key, rddPart ) ) => rddPart.configure("gid", kernelContext.grid.uid)
+      case None => throw new Exception( "No partitions in mapReduce" )
+    }
   }
 
-  def stream(node: WorkflowNode, requestCx: RequestContext, batch: BatchSpec ):  RDD[(PartitionKey,RDDPartition)] = {
+  def stream(node: WorkflowNode, requestCx: RequestContext, batchIndex: Int ): Option[ RDD[ (PartitionKey,RDDPartition) ] ] = {
     val kernelContext = node.generateKernelContext( requestCx )
-    val inputs = prepareInputs( node, kernelContext, requestCx, batch )
-    node.map( inputs, kernelContext )
+    mapReduceBatch( node, kernelContext, requestCx, 0 ) map { keyValuePair => executionMgr.serverContext.spark.sparkContext parallelize Seq( keyValuePair ) }   // TODO: Partition section broadcast!
   }
 
-  def prepareInputs( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext, batch: BatchSpec ): RDD[(PartitionKey,RDDPartition)] = {
+  def prepareInputs( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext, batchIndex: Int ): Option[RDD[(PartitionKey,RDDPartition)]] = {
     val opInputs = getNodeInputs( requestCx, node )
-    domainRDDPartition( opInputs, kernelContext, requestCx, node, batch )    // -> stream dependent map-only nodes
+    domainRDDPartition( opInputs, kernelContext, requestCx, node, batchIndex )    // -> stream dependent map-only nodes
   }
 
   def linkNodes(requestCx: RequestContext): Unit = {
@@ -185,7 +196,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
       requestCx.getInputSpec(uid) match {
         case Some(inputSpec) =>
           logger.info("getInputSpec: %s -> %s ".format(uid, inputSpec.longname))
-           if( workflowNode.kernel.extInputs ) {  uid -> new ExternalDataInput( inputSpec )                           }
+           if( workflowNode.kernel.extInputs ) {  uid -> new ExternalDataInput( inputSpec )                       }
            else                                {  uid -> executionMgr.serverContext.getOperationInput(inputSpec)  }
         case None =>
           nodes.find(_.getResultId.equals(uid)) match {
@@ -235,28 +246,31 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     rdd
   }
 
-  def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode, batch: BatchSpec ): RDD[(PartitionKey,RDDPartition)] = {
+  def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode, batchIndex: Int ): Option[RDD[(PartitionKey,RDDPartition)]] = {
     logger.info( "Generating RDD for inputs: " + opInputs.keys.mkString(", ") )
-    val rawRddMap: Map[String,RDD[(PartitionKey,RDDPartition)]] = opInputs.map { case ( uid, opinput ) => opinput match {
+    val rawRddMap: Map[String,RDD[(PartitionKey,RDDPartition)]] = opInputs flatMap { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
           val opSection: Option[ma2.Section] = getOpSectionIntersection( dataInput.getGrid, node )
-          uid -> executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node, batch )
-        case ( streamInput: CDASDirectDataInput ) =>
-          val opSection: Option[ma2.Section] = getOpSectionIntersection( streamInput.getGrid, node )
-          uid -> executionMgr.serverContext.spark.getRDD( uid, streamInput, requestCx, opSection, node, batch )
+          executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node, batchIndex ) map ( result => uid -> result )
+        case ( directInput: CDASDirectDataInput ) =>
+          val opSection: Option[ma2.Section] = getOpSectionIntersection( directInput.getGrid, node )
+          executionMgr.serverContext.spark.getRDD( uid, directInput, requestCx, opSection, node, batchIndex ) map ( result => uid -> result )
         case ( extInput: ExternalDataInput ) =>
           val opSection: Option[ma2.Section] = getOpSectionIntersection( extInput.getGrid, node )
-          uid -> executionMgr.serverContext.spark.getRDD( uid, extInput, requestCx, opSection, node )
+          executionMgr.serverContext.spark.getRDD( uid, extInput, requestCx, opSection, node ) map ( result => uid -> result )
         case ( kernelInput: DependencyOperationInput  ) =>
           logger.info( "\n\n ----------------------- Stream DEPENDENCY Node: %s, opID = %s, rID = %s -------\n".format( kernelInput.workflowNode.getNodeId(), kernelInput.workflowNode.operation.identifier, kernelInput.workflowNode.getResultId ))
-          uid -> stream( kernelInput.workflowNode, requestCx, batch )
+          stream( kernelInput.workflowNode, requestCx, batchIndex ) map ( result => uid -> result )
         case (  x ) =>
           throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )
       }
     }
-    logger.info( "\n\n ----------------------- Completed RDD input map, keys: { %s }-------\n".format( rawRddMap.keys.mkString(", ") ))
-    val unifiedRDD = unifyRDDs( rawRddMap, kernelContext, requestCx, node )
-    unifyGrids( unifiedRDD, requestCx, kernelContext, node )
+    if( rawRddMap.isEmpty ) { None }
+    else {
+      logger.info("\n\n ----------------------- Completed RDD input map, keys: { %s }-------\n".format(rawRddMap.keys.mkString(", ")))
+      val unifiedRDD = unifyRDDs(rawRddMap, kernelContext, requestCx, node)
+      Some(unifyGrids(unifiedRDD, requestCx, kernelContext, node))
+    }
   }
 
   def unifyRDDs( rddMap: Map[String,RDD[(PartitionKey,RDDPartition)]], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode ) : RDD[(PartitionKey,RDDPartition)] = {
