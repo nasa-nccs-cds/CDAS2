@@ -1,7 +1,7 @@
 package nasa.nccs.cdapi.data
 
 import nasa.nccs.caching.Partition
-import nasa.nccs.cdapi.cdm.{Collection, RemapElem, TimeConversionSpec}
+import nasa.nccs.cdapi.cdm.{Collection, NetcdfDatasetMgr, RemapElem, TimeConversionSpec}
 import nasa.nccs.cdapi.tensors._
 import nasa.nccs.cdas.engine.WorkflowNode
 import nasa.nccs.cdas.engine.spark.{PartitionKey, RangePartitioner}
@@ -12,6 +12,7 @@ import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.spark.rdd.RDD
 import ucar.nc2.constants.AxisType
 import ucar.ma2
+import ucar.nc2.dataset.NetcdfDataset
 import ucar.nc2.time.CalendarDate
 
 import scala.collection.JavaConversions._
@@ -323,9 +324,14 @@ class RDDExtPartSpec( val timeRange: PartitionKey, val varSpecs: List[ RDDVariab
 
 }
 
-
-
-class DirectRDDVariableSpec( uid: String, metadata: Map[String,String], missing: Float, section: CDSection, val varName: String, val collection: Collection  ) extends RDDVariableSpec( uid, metadata, missing, section  ) with Loggable {}
+class DirectRDDVariableSpec( uid: String, metadata: Map[String,String], missing: Float, section: CDSection, val varShortName: String, val dataPath: String  ) extends RDDVariableSpec( uid, metadata, missing, section  ) with Loggable {
+  override def toHeapArray( partition: Partition ) = {
+    val fltData: CDFloatArray =  CDFloatArray.factory( readVariableData( partition.partSection(section.toSection) ), missing )
+    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
+    HeapFltArray( fltData, section.getOrigin, metadata, None )
+  }
+  def readVariableData(section: ma2.Section): ma2.Array =  NetcdfDatasetMgr.readVariableData(varShortName, dataPath, section )
+}
 
 class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val missing: Float, val section: CDSection  ) extends Serializable with Loggable {
 

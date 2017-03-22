@@ -316,24 +316,7 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
     }
   }
 
-  def readVariableData(varShortName: String, section: ma2.Section): ma2.Array = {
-    val ncDataset: NetcdfDataset = NetcdfDatasetMgr.open( dataPath )
-    val result = ncDataset.getVariables.toList.find( v => v.getShortName equals varShortName ) match {
-      case Some(variable) =>
-        try {
-          variable.read(section)
-        } catch {
-          case err: Exception =>
-            logger.error("Can't read data for variable %s in dataset %s due to error: %s".format(varShortName, ncDataset.getLocation, err.toString));
-            logger.error("Variable shape: (%s),  section: { o:(%s) s:(%s) }".format(variable.getShape.mkString(","), section.getOrigin.mkString(","), section.getShape.mkString(",")));
-            logger.error(err.getStackTrace.map(_.toString).mkString("\n"))
-            throw err
-        }
-      case None => throw new Exception( s"Can't find variable $varShortName in dataset $dataPath ")
-    }
-    NetcdfDatasetMgr.close( dataPath )
-    result
-  }
+  def readVariableData(varShortName: String, section: ma2.Section): ma2.Array = NetcdfDatasetMgr.readVariableData(varShortName, dataPath, section )
 
   private def _aggCollection(dataset: NetcdfDataset): xml.Elem = {
     val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => Collections.getVariableString(v)).toList
@@ -876,6 +859,24 @@ object NetcdfDatasetMgr extends Loggable {
 //  NetcdfDataset.initNetcdfFileCache(10,1000,3600)   // Bugs in Netcdf file caching cause NullPointerExceptions on MERRA2 npana datasets (var T): ( 3/3/2017 )
   val datasetCache = new ConcurrentLinkedHashMap.Builder[String, NetcdfDataset].initialCapacity(64).maximumWeightedCapacity(1000).build()
 
+  def readVariableData(varShortName: String, dataPath: String, section: ma2.Section): ma2.Array = {
+    val ncDataset: NetcdfDataset = open( dataPath )
+    val result = ncDataset.getVariables.toList.find( v => v.getShortName equals varShortName ) match {
+      case Some(variable) =>
+        try {
+          variable.read(section)
+        } catch {
+          case err: Exception =>
+            logger.error("Can't read data for variable %s in dataset %s due to error: %s".format(varShortName, ncDataset.getLocation, err.toString));
+            logger.error("Variable shape: (%s),  section: { o:(%s) s:(%s) }".format(variable.getShape.mkString(","), section.getOrigin.mkString(","), section.getShape.mkString(",")));
+            logger.error(err.getStackTrace.map(_.toString).mkString("\n"))
+            throw err
+        }
+      case None => throw new Exception( s"Can't find variable $varShortName in dataset $dataPath ")
+    }
+    close( dataPath )
+    result
+  }
 
   def keys: Set[String] = datasetCache.keySet().toSet
   def values: Iterable[NetcdfDataset] = datasetCache.values()

@@ -528,10 +528,9 @@ class DataFragmentSpec(val uid: String = "",
     case None => throw new Exception( "Missing target grid ")
   }
 
-  def readData(section: ma2.Section) =
-    collection.readVariableData(varname, section)
-  def getVariableMetadata: Map[String, nc2.Attribute] =
-    nc2.Attribute.makeMap(collection.getVariableMetadata(varname)).toMap
+  def readData(section: ma2.Section) = collection.readVariableData(varname, section)
+  def getVariableMetadata: Map[String, nc2.Attribute] = nc2.Attribute.makeMap(collection.getVariableMetadata(varname)).toMap
+
   def getMetadata(section: Option[ma2.Section] = None): Map[String, String] =
     Map(
       "name" -> varname,

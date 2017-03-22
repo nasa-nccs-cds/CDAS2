@@ -127,16 +127,16 @@ class DirectOpDataInput(fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Att
 
   def getRDDVariableSpec( uid: String, optSection: Option[ma2.Section] ): DirectRDDVariableSpec  =
     domainSection(optSection) match {
-      case Some( ( domFragSpec, section ) ) => new DirectRDDVariableSpec( uid, domFragSpec.getMetadata(Some(section)), domFragSpec.missing_value, CDSection(section), fragSpec.varname, fragSpec.collection )
-      case _ => new DirectRDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank), fragSpec.varname, fragSpec.collection )
+      case Some( ( domFragSpec, section ) ) => new DirectRDDVariableSpec( uid, domFragSpec.getMetadata(Some(section)), domFragSpec.missing_value, CDSection(section), fragSpec.varname, fragSpec.collection.dataPath )
+      case _ => new DirectRDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank), fragSpec.varname, fragSpec.collection.dataPath )
     }
 
   def getKeyedRDDVariableSpec( uid: String, optSection: Option[ma2.Section] ): ( PartitionKey, DirectRDDVariableSpec ) =
     domainSection(optSection) match {
       case Some( ( domFragSpec, section ) ) =>
-        domFragSpec.getPartitionKey -> new DirectRDDVariableSpec( uid, domFragSpec.getMetadata(Some(section)), domFragSpec.missing_value, CDSection(section), fragSpec.varname, fragSpec.collection )
+        domFragSpec.getPartitionKey -> new DirectRDDVariableSpec( uid, domFragSpec.getMetadata(Some(section)), domFragSpec.missing_value, CDSection(section), fragSpec.varname, fragSpec.collection.dataPath )
       case _ =>
-        fragSpec.getPartitionKey -> new DirectRDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank), fragSpec.varname, fragSpec.collection )
+        fragSpec.getPartitionKey -> new DirectRDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank), fragSpec.varname, fragSpec.collection.dataPath )
     }
 }
 
