@@ -1,7 +1,7 @@
 package nasa.nccs.cdapi.cdm
 
 import nasa.nccs.caching.{CDASPartitioner, Partition, Partitions, RDDTransientVariable}
-import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition, RDDVariableSpec}
+import nasa.nccs.cdapi.data.{DirectRDDVariableSpec, HeapFltArray, RDDPartition, RDDVariableSpec}
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.cdas.engine.WorkflowNode
 import nasa.nccs.cdas.engine.spark.PartitionKey
@@ -101,6 +101,7 @@ abstract class OperationDataInput( val fragmentSpec: DataFragmentSpec, val metad
 
 class NonCachedInput( fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty  ) extends OperationDataInput(fragSpec,metadata) {
   def data(partIndex: Int ): CDFloatArray = CDFloatArray.empty
+
   def delete: Unit = Unit
 
   def domainSection( optSection: Option[ma2.Section] ): Option[ ( DataFragmentSpec, ma2.Section )] = {
@@ -124,12 +125,18 @@ class NonCachedInput( fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attri
     }
   }
 
-  def getKeyedRDDVariableSpec( uid: String, optSection: Option[ma2.Section] ): ( PartitionKey, RDDVariableSpec ) =
+  def getRDDVariableSpec( uid: String, optSection: Option[ma2.Section] ): DirectRDDVariableSpec  =
+    domainSection(optSection) match {
+      case Some( ( domFragSpec, section ) ) => new DirectRDDVariableSpec( uid, domFragSpec.getMetadata(Some(section)), domFragSpec.missing_value, CDSection(section), fragSpec.varname, fragSpec.collection )
+      case _ => new DirectRDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank), fragSpec.varname, fragSpec.collection )
+    }
+
+  def getKeyedRDDVariableSpec( uid: String, optSection: Option[ma2.Section] ): ( PartitionKey, DirectRDDVariableSpec ) =
     domainSection(optSection) match {
       case Some( ( domFragSpec, section ) ) =>
-        domFragSpec.getPartitionKey -> new RDDVariableSpec( uid, domFragSpec.getMetadata(Some(section)), domFragSpec.missing_value, CDSection(section) )
+        domFragSpec.getPartitionKey -> new DirectRDDVariableSpec( uid, domFragSpec.getMetadata(Some(section)), domFragSpec.missing_value, CDSection(section), fragSpec.varname, fragSpec.collection )
       case _ =>
-        fragSpec.getPartitionKey -> new RDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
+        fragSpec.getPartitionKey -> new DirectRDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank), fragSpec.varname, fragSpec.collection )
     }
 }
 

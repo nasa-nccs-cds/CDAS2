@@ -10,6 +10,7 @@ import org.joda.time.{DateTime, DateTimeZone}
 import nasa.nccs.utilities.Loggable
 import java.util.UUID
 
+import nasa.nccs.cdapi.data.RDDVariableSpec
 import nasa.nccs.cdas.engine.spark.PartitionKey
 import nasa.nccs.cdas.engine.{CDS2ExecutionManager, Workflow}
 import nasa.nccs.cdas.kernels.AxisIndices

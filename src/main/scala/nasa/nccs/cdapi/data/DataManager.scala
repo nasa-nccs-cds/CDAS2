@@ -1,7 +1,7 @@
 package nasa.nccs.cdapi.data
 
 import nasa.nccs.caching.Partition
-import nasa.nccs.cdapi.cdm.{RemapElem, TimeConversionSpec}
+import nasa.nccs.cdapi.cdm.{Collection, RemapElem, TimeConversionSpec}
 import nasa.nccs.cdapi.tensors._
 import nasa.nccs.cdas.engine.WorkflowNode
 import nasa.nccs.cdas.engine.spark.{PartitionKey, RangePartitioner}
@@ -322,6 +322,10 @@ class RDDExtPartSpec( val timeRange: PartitionKey, val varSpecs: List[ RDDVariab
   }
 
 }
+
+
+
+class DirectRDDVariableSpec( uid: String, metadata: Map[String,String], missing: Float, section: CDSection, val varName: String, val collection: Collection  ) extends RDDVariableSpec( uid, metadata, missing, section  ) with Loggable {}
 
 class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val missing: Float, val section: CDSection  ) extends Serializable with Loggable {
 

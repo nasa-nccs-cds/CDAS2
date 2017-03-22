@@ -156,17 +156,17 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
   def getRDD( uid: String, streamInput: StreamInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode, batch: BatchSpec ): RDD[(PartitionKey,RDDPartition)] = {
     streamInput.getPartitioner(opSection) match {
       case Some( partMgr ) =>
-        val partitions = partMgr.getPartitions
-        val tgrid: TargetGrid = pFrag.getGrid
+        val partitions = partMgr.partitions
+        val tgrid: TargetGrid = requestCx.getTargetGrid(uid).getOrElse( throw new Exception("Missing target grid for uid " + uid ) )
         val rddPartSpecs: Array[RDDPartSpec] = partitions.getBatch (batch) map (partition =>
-        RDDPartSpec (partition, tgrid, List (pFrag.getRDDVariableSpec (uid, partition, opSection) ) )
+        RDDPartSpec (partition, tgrid, List ( streamInput.getRDDVariableSpec(uid, opSection) ) )
         ) filterNot (_.empty (uid) )
         logger.info ("Discarded empty partitions: Creating RDD with <<%d>> items".format (batch.nParts) )
         if (batch.nParts == 0) throw new Exception ("Invalid RDD: all partitions are empty: " + uid)
         val partitioner = RangePartitioner (rddPartSpecs.map (_.timeRange) )
         val parallelized_rddspecs = sparkContext parallelize rddPartSpecs keyBy (_.timeRange) partitionBy partitioner
         parallelized_rddspecs mapValues (spec => spec.getRDDPartition)
-      case None => RDD[(PartitionKey,RDDPartition)]
+      case None => throw new Exception( "No partition manager for uid " + uid )
     }
   }
 

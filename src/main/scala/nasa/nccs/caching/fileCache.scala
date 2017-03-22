@@ -188,6 +188,8 @@ class CDASPartitioner(val cache_id: String, private val _section: ma2.Section, d
   def getPartitions: Array[Partition] =
     (0 until nPartitions).map(getPartition(_)).toArray
 
+  def partitions = new Partitions( cache_id, _section, getPartitions )
+
   def getBlockSize: Int = math.ceil(nPartitions / nProcessors.toDouble).toInt
 
   def partIndexArray: Array[IndexedSeq[Int]] = {
