@@ -535,7 +535,7 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
           val fragFut = cacheInputData( fragSpec )
           Await.result( fragFut, Duration.Inf )
         }
-        else { new StreamInput( fragSpec ) }
+        else { new CDASDirectDataInput( fragSpec ) }
     }
   }
 

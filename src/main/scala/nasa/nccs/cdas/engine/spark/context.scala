@@ -153,7 +153,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     parallelized_rddspecs mapValues (spec => spec.getRDDPartition)                                                   // repartitionAndSortWithinPartitions partitioner
   }
 
-  def getRDD( uid: String, streamInput: StreamInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode, batch: BatchSpec ): RDD[(PartitionKey,RDDPartition)] = {
+  def getRDD(uid: String, streamInput: CDASDirectDataInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode, batch: BatchSpec ): RDD[(PartitionKey,RDDPartition)] = {
     streamInput.getPartitioner(opSection) match {
       case Some( partMgr ) =>
         val partitions = partMgr.partitions
@@ -170,7 +170,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     }
   }
 
-  def getRDD( uid: String, extInput: ExternalInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(PartitionKey,RDDPartition)] = {
+  def getRDD(uid: String, extInput: ExternalDataInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): RDD[(PartitionKey,RDDPartition)] = {
     val tgrid: TargetGrid = extInput.getGrid
     val ( key, varSpec ) = extInput.getKeyedRDDVariableSpec(uid, opSection)
     val rddPartSpec = RDDExtPartSpec( key, List(varSpec) )

@@ -99,7 +99,7 @@ abstract class OperationDataInput( val fragmentSpec: DataFragmentSpec, val metad
   def delete
 }
 
-class NonCachedInput( fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty  ) extends OperationDataInput(fragSpec,metadata) {
+class DirectOpDataInput(fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty  ) extends OperationDataInput(fragSpec,metadata) {
   def data(partIndex: Int ): CDFloatArray = CDFloatArray.empty
 
   def delete: Unit = Unit
@@ -140,12 +140,14 @@ class NonCachedInput( fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attri
     }
 }
 
-class StreamInput( fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty ) extends NonCachedInput(fragSpec,metadata) {
+class CDASDirectDataInput(fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty ) extends DirectOpDataInput(fragSpec,metadata) {
   def getPartitioner( optSection: Option[ma2.Section] = None ): Option[CDASPartitioner] = domainSection( optSection ) map { case( frag1, section) => new CDASPartitioner( fragSpec.uid, section ) }
-  override def data(partIndex: Int ): CDFloatArray = CDFloatArray.empty
+  override def data(partIndex: Int ): CDFloatArray = {
+    CDFloatArray.empty
+  }
 }
 
-class ExternalInput( fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty ) extends NonCachedInput(fragSpec,metadata) {
+class ExternalDataInput(fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty ) extends DirectOpDataInput(fragSpec,metadata) {
   override def data(partIndex: Int ): CDFloatArray = CDFloatArray.empty
 }
 

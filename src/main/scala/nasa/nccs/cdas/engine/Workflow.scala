@@ -185,7 +185,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
       requestCx.getInputSpec(uid) match {
         case Some(inputSpec) =>
           logger.info("getInputSpec: %s -> %s ".format(uid, inputSpec.longname))
-           if( workflowNode.kernel.extInputs ) {  uid -> new ExternalInput( inputSpec )                           }
+           if( workflowNode.kernel.extInputs ) {  uid -> new ExternalDataInput( inputSpec )                           }
            else                                {  uid -> executionMgr.serverContext.getOperationInput(inputSpec)  }
         case None =>
           nodes.find(_.getResultId.equals(uid)) match {
@@ -241,10 +241,10 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
         case ( dataInput: PartitionedFragment) =>
           val opSection: Option[ma2.Section] = getOpSectionIntersection( dataInput.getGrid, node )
           uid -> executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node, batch )
-        case ( streamInput: StreamInput ) =>
+        case ( streamInput: CDASDirectDataInput ) =>
           val opSection: Option[ma2.Section] = getOpSectionIntersection( streamInput.getGrid, node )
           uid -> executionMgr.serverContext.spark.getRDD( uid, streamInput, requestCx, opSection, node, batch )
-        case ( extInput: ExternalInput ) =>
+        case ( extInput: ExternalDataInput ) =>
           val opSection: Option[ma2.Section] = getOpSectionIntersection( extInput.getGrid, node )
           uid -> executionMgr.serverContext.spark.getRDD( uid, extInput, requestCx, opSection, node )
         case ( kernelInput: DependencyOperationInput  ) =>
