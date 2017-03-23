@@ -7,6 +7,7 @@ import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data._
 import ucar.nc2.time.CalendarDate
 import nasa.nccs.cdas.engine.WorkflowNode
+import nasa.nccs.cdas.kernels.{Kernel, KernelContext}
 import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.Loggable
@@ -86,16 +87,22 @@ object CDSparkContext extends Loggable {
     }
   }
 
-  def coalesce( rdd: RDD[(PartitionKey,RDDPartition)] ): RDD[(PartitionKey,RDDPartition)] = {
+  def coalesce( rdd: RDD[(PartitionKey,RDDPartition)], context: KernelContext ): RDD[(PartitionKey,RDDPartition)] = {
     if ( rdd.getNumPartitions > 1 ) {
-      val partitioner: RangePartitioner = getPartitioner(rdd).colaesce
-      var repart_rdd = rdd repartitionAndSortWithinPartitions partitioner
-      val result_rdd = repart_rdd glom() map (_.fold((partitioner.range.startPoint, RDDPartition.empty))((x, y) => {
-        (x._1 + y._1, x._2.append(y._2))
-      })) // .sortWith(_._1 < _._1)
-      result_rdd partitionBy partitioner
+//      val partitioner: RangePartitioner = getPartitioner(rdd).colaesce
+//      var repart_rdd = rdd repartitionAndSortWithinPartitions partitioner
+      val partitioner: RangePartitioner = getPartitioner(rdd)
+      rdd.sortByKey( true, 1 ) glom() map (_.fold((partitioner.range.startPoint, RDDPartition.empty))((x, y) => { (x._1 + y._1, x._2.append(y._2)) }))
     } else { rdd }
   }
+
+//  def coalesce( rdd: RDD[(PartitionKey,RDDPartition)], context: KernelContext ): RDD[(PartitionKey,RDDPartition)] = {
+//    if ( rdd.getNumPartitions > 1 ) {
+//      val partitioner: RangePartitioner = getPartitioner(rdd)
+//      rdd.sortByKey(true,1) reduceByKey Kernel.mergeRDD(context)
+//      rdd.sortByKey( true, 1 ) reduce Kernel.mergeRDD(context)
+//    } else { rdd }
+//  }
 
   def splitPartition( key: PartitionKey, part: RDDPartition, partitioner: RangePartitioner ): IndexedSeq[(PartitionKey,RDDPartition)] = {
     logger.info( s"CDSparkContext.splitPartition: KEY-${key.toString} -> PART-${part.getShape.mkString(",")}")

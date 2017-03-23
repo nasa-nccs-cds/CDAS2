@@ -38,7 +38,9 @@ class LongRange(val start: Long, val end: Long ) extends Serializable {
   def disjoint( other: LongRange ) = ( end < other.start ) || ( other.end < start )
   def merge( other: LongRange ): Option[LongRange] = if( disjoint(other) ) None else Some( union(other) )
   def union( other: LongRange ): LongRange = new LongRange( Math.min( start, other.start ), Math.max( end, other.end ) )
-  def +( that: LongRange ): LongRange = {
+
+  def +( that: LongRange ): LongRange = LongRange( Math.min(start, that.start), Math.max( end, that.end ) )
+  def +!( that: LongRange ): LongRange = {
     if( end != that.start ) { throw new Exception( s"Attempt to concat non-contiguous ranges: first = ${toString} <-> second = ${that.toString}" )}
     LongRange( start, that.end )
   }
@@ -74,7 +76,12 @@ class PartitionKey( start: Long, end: Long, val elemStart: Int, val numElems: In
   def estElemIndexAtLoc( loc: Long ): Int =  ( elemStart + getRelPos(loc) * numElems ).toInt
   def compare( that: PartitionKey ): Int = start.compare( that.start )
   def elemRange: (Int,Int) = ( elemStart, elemStart + numElems )
+
   def +( that: PartitionKey ): PartitionKey = {
+    PartitionKey( Math.min(start,that.start), Math.max(end,that.end), Math.min(elemStart,that.elemStart), numElems + that.numElems )
+  }
+
+  def +!( that: PartitionKey ): PartitionKey = {
     if( (end != that.start) || (elemEnd != that.elemStart) ) { throw new Exception( s"Attempt to concat non-contiguous partition keys: first = ${toString} <-> second = ${that.toString}" )}
     PartitionKey( start, that.end, elemStart, numElems + that.numElems )
   }

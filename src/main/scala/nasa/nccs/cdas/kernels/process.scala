@@ -2,6 +2,7 @@ package nasa.nccs.cdas.kernels
 
 import java.io._
 
+import nasa.nccs.cdapi.cdm.BoundsRole.Value
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.{HeapFltArray, _}
 import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
@@ -50,6 +51,7 @@ class KernelContext( val operation: OperationContext, val grids: Map[String,Opti
   private def getCRS: Option[String] = operation.getDomain flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("crs") ) )
   private def getTRS: Option[String] = operation.getDomain flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("trs") ) )
   def conf( params: Map[String,String] ): KernelContext = new KernelContext( operation, grids, sectionMap, domains, configuration ++ params )
+  def commutativeReduction: Boolean = if( getAxes.includes(0) ) { true } else { false }
 
   private def getTargetGridContext: GridContext = crsOpt match {
     case Some( crs ) =>
@@ -103,7 +105,7 @@ class AxisIndices( private val axisIds: Set[Int] = Set.empty ) {
   override def toString = axisIds.mkString(",")
 }
 
-object Kernel {
+object Kernel extends Loggable {
   val customKernels = List[Kernel]( new CDMSRegridKernel() )
   type RDDKeyValPair = ( PartitionKey, RDDPartition )
 
@@ -113,6 +115,19 @@ object Kernel {
     val resultFile = new File( resultsDirPath + s"/$resultId.nc" )
     if( deleteExisting && resultFile.exists ) resultFile.delete
     resultFile
+  }
+
+  def mergeRDD(context: KernelContext)(a0: RDDKeyValPair, a1: RDDKeyValPair ): RDDKeyValPair = {
+    val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
+    val ( k0, k1 ) = ( a0._1, a1._1 )
+    val t0 = System.nanoTime
+    logger.info("&MERGE: start (%s <-> %s)".format( k0.toString, k1.toString  ) )
+    val new_key = k0 + k1
+    val new_elements = rdd0.elements.flatMap {
+      case (elkey, element0) =>  rdd1.elements.get(elkey).map( element1 => elkey -> { element0.append(element1) } )
+    }
+    logger.info("&MERGE: complete in time = %.4f s".format( (System.nanoTime - t0) / 1.0E9 ) )
+    new_key -> RDDPartition( new_elements, rdd0.mergeMetadata("merge", rdd1) )
   }
 
   def apply(module: String, kernelSpec: String, api: String): Kernel = {
@@ -170,7 +185,6 @@ object KernelUtilities extends Loggable {
 }
 
 class KIType { val Op = 0; val MData = 1 }
-
 
 abstract class Kernel( val options: Map[String,String] ) extends Loggable with Serializable with WPSProcess {
   import Kernel._
@@ -245,19 +259,6 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
   def customReduceRDD(context: KernelContext)(a0: RDDKeyValPair, a1: RDDKeyValPair ): RDDKeyValPair = {
     logger.warn( s"No reducer defined for parallel op '$name', executing simple merge." )
     mergeRDD(context)( a0, a1 )
-  }
-
-  def mergeRDD(context: KernelContext)(a0: RDDKeyValPair, a1: RDDKeyValPair ): RDDKeyValPair = {
-    val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
-    val ( k0, k1 ) = ( a0._1, a1._1 )
-    val t0 = System.nanoTime
-    logger.info("&MERGE: start (%s <-> %s)".format( k0.toString, k1.toString  ) )
-    val new_key = k0 + k1
-    val new_elements = rdd0.elements.flatMap {
-      case (key, element0) =>  rdd1.elements.get(key).map( element1 => key -> { element0.append(element1) } )
-    }
-    logger.info("&MERGE: complete in time = %.4f s".format( (System.nanoTime - t0) / 1.0E9 ) )
-    new_key -> RDDPartition( new_elements, rdd0.mergeMetadata("merge", rdd1) )
   }
 
   def postOp(result: DataFragment, context: KernelContext): DataFragment = result

@@ -5,7 +5,7 @@ import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.RDDPartition
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.engine.spark.{PartitionKey, _}
-import nasa.nccs.cdas.kernels.{CDMSRegridKernel, Kernel, KernelContext, zmqPythonKernel}
+import nasa.nccs.cdas.kernels._
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.{DAGNode, Loggable}
 import nasa.nccs.wps._
@@ -37,14 +37,14 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
     new KernelContext( operation, gridMap, sectionMap, requestCx.domains, requestCx.getConfiguration)
   }
 
-  def reduce(mapresult: RDD[(PartitionKey,RDDPartition)], context: KernelContext ): (PartitionKey,RDDPartition) = {
-    logger.debug( "\n\n ----------------------- BEGIN reduce Operation: %s (%s) ----------------------- \n".format( context.operation.identifier, context.operation.rid ) )
+  def reduce(mapresult: RDD[(PartitionKey,RDDPartition)], context: KernelContext, batchIndex: Int ): (PartitionKey,RDDPartition) = {
+    logger.debug( "\n\n ----------------------- BEGIN reduce[%d] Operation: %s (%s): thread(%s) ----------------------- \n".format( batchIndex, context.operation.identifier, context.operation.rid, Thread.currentThread().getId ) )
     val t0 = System.nanoTime()
-    if( ! kernel.parallelizable ) { mapresult.collect()(0) }
+    val nparts = mapresult.getNumPartitions
+    if( !kernel.parallelizable || (nparts==1) ) { mapresult.collect()(0) }
     else {
- //     val partitioner: RangePartitioner = CDSparkContext.getPartitioner(mapresult).colaesce
-//      var repart_mapresult = mapresult repartitionAndSortWithinPartitions  partitioner
-      val result = mapresult reduce kernel.getReduceOp(context)
+      val nParts: Int = if( context.commutativeReduction ) { mapresult.partitions.length } else { 1 }
+      val result = mapresult.sortByKey(true,nParts) reduce kernel.getReduceOp(context)
       logger.debug("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
       result
     }
@@ -81,7 +81,7 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
       requestCx.getTargetGrid(uid).getOrElse(throw new Exception("Missing Target Grid: " + uid))
         .getTimeCoordinateAxis.getOrElse(throw new Exception("Missing Time Axis: " + uid) )    }
     val conversionMap: Map[Int,TimeConversionSpec] = fromAxisMap mapValues ( fromAxis => { val converter = TimeAxisConverter( toAxis, fromAxis, toAxisRange ); converter.computeWeights(); } ) map (identity)
-    CDSparkContext.coalesce( input ).map { case ( pkey, rdd_part ) => ( new_partitioner.range, rdd_part.reinterp( conversionMap ) ) } repartitionAndSortWithinPartitions new_partitioner
+    CDSparkContext.coalesce( input, context ).map { case ( pkey, rdd_part ) => ( new_partitioner.range, rdd_part.reinterp( conversionMap ) ) } repartitionAndSortWithinPartitions new_partitioner
   }
 
   def map(input: RDD[(PartitionKey,RDDPartition)], context: KernelContext ): RDD[(PartitionKey,RDDPartition)] = {
@@ -131,9 +131,9 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def mapReduceBatch( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext, batchIndex: Int ): Option[ ( PartitionKey, RDDPartition ) ] =
     prepareInputs(node, kernelContext, requestCx, batchIndex) map ( inputs => {
+      logger.info( s"Executing mapReduce Batch ${batchIndex.toString}" )
       val mapresult = node.map(inputs, kernelContext)
-      val nparts = mapresult.getNumPartitions
-      val result: ( PartitionKey, RDDPartition ) = if (nparts == 1) { mapresult.collect()(0) } else { node.reduce(mapresult, kernelContext) }
+      val result: ( PartitionKey, RDDPartition ) = node.reduce( mapresult, kernelContext, batchIndex )
       mapReduceBatch( node, kernelContext, requestCx, batchIndex + 1 ) match {
         case Some( next_result ) =>
           val reduceOp = node.kernel.getReduceOp(kernelContext)
@@ -256,8 +256,10 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
           val opSection: Option[ma2.Section] = getOpSectionIntersection( directInput.getGrid, node )
           executionMgr.serverContext.spark.getRDD( uid, directInput, requestCx, opSection, node, batchIndex ) map ( result => uid -> result )
         case ( extInput: ExternalDataInput ) =>
-          val opSection: Option[ma2.Section] = getOpSectionIntersection( extInput.getGrid, node )
-          executionMgr.serverContext.spark.getRDD( uid, extInput, requestCx, opSection, node ) map ( result => uid -> result )
+          if( batchIndex > 0 ) { None } else {
+            val opSection: Option[ma2.Section] = getOpSectionIntersection( extInput.getGrid, node )
+            executionMgr.serverContext.spark.getRDD(uid, extInput, requestCx, opSection, node) map (result => uid -> result)
+          }
         case ( kernelInput: DependencyOperationInput  ) =>
           logger.info( "\n\n ----------------------- Stream DEPENDENCY Node: %s, opID = %s, rID = %s -------\n".format( kernelInput.workflowNode.getNodeId(), kernelInput.workflowNode.operation.identifier, kernelInput.workflowNode.getResultId ))
           stream( kernelInput.workflowNode, requestCx, batchIndex ) map ( result => uid -> result )
@@ -267,7 +269,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     }
     if( rawRddMap.isEmpty ) { None }
     else {
-      logger.info("\n\n ----------------------- Completed RDD input map, keys: { %s }-------\n".format(rawRddMap.keys.mkString(", ")))
+      logger.info("\n\n ----------------------- Completed RDD input map[%d], keys: { %s }, thread: %s -------\n".format(batchIndex,rawRddMap.keys.mkString(", "), Thread.currentThread().getId ))
       val unifiedRDD = unifyRDDs(rawRddMap, kernelContext, requestCx, node)
       Some(unifyGrids(unifiedRDD, requestCx, kernelContext, node))
     }
@@ -297,7 +299,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
           CDSparkContext.repartition(convertedResult, tPartitioner)
         }
         if(parallelizable) { repart_result }
-        else { CDSparkContext.coalesce(repart_result) }
+        else { CDSparkContext.coalesce(repart_result,kernelContext) }
       })
     }
     if( convertedRdds.size == 1 ) convertedRdds.head

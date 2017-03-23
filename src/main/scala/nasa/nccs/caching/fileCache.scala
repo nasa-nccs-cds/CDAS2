@@ -57,9 +57,10 @@ object BatchSpec {
 
 case class BatchSpec( iStartPart: Int, nParts: Int ) {
   def included( part_index: Int ): Boolean = (part_index >= iStartPart ) && ( nParts > (part_index-iStartPart)  )
+  override def toString(): String = "Batch{start: %d, size: %d}".format( iStartPart, nParts )
 }
 
-class CachePartitions( val id: String, private val _section: ma2.Section, val parts: Array[CachePartition]) {
+class CachePartitions( val id: String, private val _section: ma2.Section, val parts: Array[CachePartition]) extends Loggable {
   private val baseShape = _section.getShape
   def getShape = baseShape
   def getPart(partId: Int): CachePartition = parts(partId)
@@ -69,7 +70,9 @@ class CachePartitions( val id: String, private val _section: ma2.Section, val pa
 
   def getBatch( batchIndex: Int ): Array[CachePartition] = {
     val batch = BatchSpec(batchIndex)
-    parts.filter( p => batch.included(p.index) )
+    val rv = parts.filter( p => batch.included(p.index) )
+    logger.info( "Get [%d]%s, selection size = %d".format( batchIndex, batch.toString, rv.length ) )
+    rv
   }
 }
 
