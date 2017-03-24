@@ -32,6 +32,7 @@ import nasa.nccs.cdas.loaders.Collections
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
 import nasa.nccs.esgf.process.{CDSection, DataSource}
+import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import ucar.nc2._
 import ucar.nc2.ncml.NcMLReader
 
@@ -588,6 +589,49 @@ object TestType {
   val Map = 3
   val NcFile = 4
 }
+
+object bigDataTest extends Loggable {
+  val serverConfiguration = Map[String,String]()
+  val webProcessManager = new ProcessManager( serverConfiguration )
+  val service = "cds2"
+
+  def main(args: Array[String]): Unit = {
+    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"file://att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml","name":"T:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"t"}]]"""
+    val result_node = executeTest(datainputs)
+//    val result_data = getResultData( result_node )
+  }
+
+  def getDataNodes( result_node: xml.Elem, print_result: Boolean = false  ): xml.NodeSeq = {
+    if(print_result) { println( s"Result Node:\n${result_node.toString}\n" ) }
+    result_node.label match {
+      case "response" => result_node \\ "outputs" \\ "data"
+      case _ => result_node \\ "Output" \\ "LiteralData"
+    }
+  }
+
+  def getResultData( result_node: xml.Elem, print_result: Boolean = false ): CDFloatArray = {
+    val data_nodes: xml.NodeSeq = getDataNodes( result_node, print_result )
+    try{  CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue ) } catch { case err: Exception => CDFloatArray.empty }
+  }
+
+  def getResultValue( result_node: xml.Elem ): Float = {
+    val data_nodes: xml.NodeSeq = getDataNodes( result_node )
+    try{ data_nodes.head.text.toFloat } catch { case err: Exception => Float.NaN }
+  }
+
+  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
+    val t0 = System.nanoTime()
+    val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString, "unitTest" -> "true" )
+    val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
+    val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
+    for( child_node <- response.child ) if ( child_node.label.startsWith("exception")) { throw new Exception( child_node.toString ) }
+    println("Completed test '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+    response
+  }
+
+}
+
+
 
 object profilingTest extends Loggable {
 
