@@ -600,7 +600,6 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
     val optSection: Option[ma2.Section] = fragRoiOpt match { case Some(roi) => Some(roi); case None => targetGrid.grid.getSection }
     val optDomainSect: Option[ma2.Section] = domain_container_opt.flatMap( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
     val fragSpec: Option[DataFragmentSpec] = optSection map { section =>
-      val shape = section.getShape
       new DataFragmentSpec( dataContainer.uid, variable.name, variable.collection, data_source.fragIdOpt, Some(targetGrid), variable.dims.mkString(","),
         variable.units, variable.getAttributeValue("long_name", variable.fullname), section, optDomainSect, variable.missing, maskOpt, data_source.autoCache )
     }
@@ -632,10 +631,8 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
     val variable: CDSVariable = dataContainer.getVariable
     val maskOpt: Option[String] = domain_container_opt.flatMap( domain_container => domain_container.mask )
     val optSection: Option[ma2.Section] = data_source.fragIdOpt match {
-      case Some(fragId) =>
-        Some(DataFragmentKey(fragId).getRoi);
-      case None =>
-        targetGrid.grid.getSection
+      case Some(fragId) => Some(DataFragmentKey(fragId).getRoi);
+      case None => targetGrid.grid.getSection
     }
     val optDomainSect: Option[ma2.Section] = domain_container_opt.flatMap( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
     if( optSection == None ) logger.warn( "Attempt to cache empty segment-> No caching will occur: " + dataContainer.toString )

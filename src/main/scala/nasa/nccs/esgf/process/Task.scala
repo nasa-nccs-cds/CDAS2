@@ -316,11 +316,7 @@ class PartitionSpec(val axisIndex: Int, val nPart: Int, val partIndex: Int = 0) 
     s"PartitionSpec { axis = $axisIndex, nPart = $nPart, partIndex = $partIndex }"
 }
 
-class DataSource(val name: String,
-                 val collection: Collection,
-                 val domain: String,
-                 val autoCache: Boolean,
-                 val fragIdOpt: Option[String] = None) {
+class DataSource(val name: String, val collection: Collection, val domain: String, val autoCache: Boolean, val fragIdOpt: Option[String] = None) {
   val debug = 1
   def this(dsource: DataSource) = this(dsource.name, dsource.collection, dsource.domain, dsource.autoCache )
   override def toString = s"DataSource { name = $name, collection = %s, domain = $domain, %s }" .format(collection.toString, fragIdOpt.map(", fragment = " + _).getOrElse(""))
@@ -330,13 +326,9 @@ class DataSource(val name: String,
   def getKey: Option[DataFragmentKey] = fragIdOpt.map(DataFragmentKey.apply(_))
 }
 
-class DataFragmentKey(val varname: String,
-                      val collId: String,
-                      val origin: Array[Int],
-                      val shape: Array[Int])
-    extends Serializable {
+class DataFragmentKey(val varname: String, val collId: String, val origin: Array[Int], val shape: Array[Int] ) extends Serializable {
   override def toString = "DataFragmentKey{ name = %s, collection = %s, origin = [ %s ], shape = [ %s ] }".format(varname, collId, origin.mkString(", "), shape.mkString(", "))
-  def toStrRep = "%s|%s|%s|%s|%d".format(varname,  collId,  origin.mkString(","),  shape.mkString(","), CDASPartitioner.nProcessors)
+  def toStrRep = "%s|%s|%s|%s".format(varname,  collId,  origin.mkString(","),  shape.mkString(",") )
   def sameVariable(otherCollId: String, otherVarName: String): Boolean = (varname == otherVarName) && (collId == otherCollId)
   def getRoi: ma2.Section = new ma2.Section(origin, shape)
   def equalRoi(df: DataFragmentKey): Boolean = shape.sameElements(df.shape) && origin.sameElements(df.origin)
@@ -352,14 +344,9 @@ object DataFragmentKey {
   }
   def apply(fkeyStr: String): DataFragmentKey = {
     val toks = fkeyStr.split('|')
-    new DataFragmentKey(toks(0),
-                        toks(1),
-                        parseArray(toks(2)),
-                        parseArray(toks(3)))
+    new DataFragmentKey( toks(0), toks(1), parseArray(toks(2)), parseArray(toks(3)) )
   }
-  def sameVariable(fkeyStr: String,
-                   otherCollection: String,
-                   otherVarName: String): Boolean = {
+  def sameVariable(fkeyStr: String, otherCollection: String, otherVarName: String): Boolean = {
     val toks = fkeyStr.split('|')
     (toks(0) == otherVarName) && (toks(1) == otherCollection)
   }
@@ -368,11 +355,8 @@ object DataFragmentKey {
 object DataFragmentSpec {
 
   def offset(section: ma2.Section, newOrigin: ma2.Section): ma2.Section = {
-    assert(newOrigin.getRank == section.getRank,
-           "Invalid Section rank in offset")
-    val new_ranges = for (i <- (0 until section.getRank);
-                          range = section.getRange(i);
-                          origin = newOrigin.getRange(i))
+    assert(newOrigin.getRank == section.getRank, "Invalid Section rank in offset")
+    val new_ranges = for (i <- (0 until section.getRank); range = section.getRange(i); origin = newOrigin.getRange(i))
       yield range.shiftOrigin(-origin.first())
     new ma2.Section(new_ranges)
   }
@@ -501,6 +485,7 @@ class DataFragmentSpec(val uid: String = "",
                        val mask: Option[String] = None,
                        val autoCache: Boolean = false
                       ) extends Loggable with Serializable {
+
   logger.debug("DATA FRAGMENT SPEC: section: %s, _domSectOpt: %s".format(_section, _domSectOpt.getOrElse("null").toString))
   override def toString = "DataFragmentSpec { varname = %s, collection = %s, dimensions = %s, units = %s, longname = %s, roi = %s }".format(varname, collection, dimensions, units, longname, CDSection.serialize(roi))
   def sameVariable(otherCollection: String, otherVarName: String): Boolean = {
@@ -618,18 +603,10 @@ class DataFragmentSpec(val uid: String = "",
 
 //  def getAxisType( cfName: String ):  DomainAxis.Type.Value = targetGridOpt.flatMap( _.grid.getAxisSpec(cfName).map( _.getAxisType ) )
 
-  def getAxes: List[DomainAxis] =
-    roi.getRanges
-      .map(
-        (range: ma2.Range) =>
-          new DomainAxis(DomainAxis.fromCFAxisName(range.getName),
-                         range.first,
-                         range.last,
-                         "indices"))
-      .toList
+  def getAxes: List[DomainAxis] = roi.getRanges.map( (range: ma2.Range) => new DomainAxis( DomainAxis.fromCFAxisName(range.getName), range.first, range.last,  "indices") ).toList
 
   def getKey: DataFragmentKey = {
-    new DataFragmentKey(varname, collection.id, roi.getOrigin, roi.getShape)
+    new DataFragmentKey(varname, collection.id, roi.getOrigin, roi.getShape )
   }
   def getSize: Int = roi.getShape.product
 
@@ -743,8 +720,7 @@ class DataFragmentSpec(val uid: String = "",
 
   }
 
-  def getVariableMetadata(
-      serverContext: ServerContext): Map[String, nc2.Attribute] = {
+  def getVariableMetadata(serverContext: ServerContext): Map[String, nc2.Attribute] = {
     var v: CDSVariable = serverContext.getVariable(collection, varname)
     v.attributes ++ Map(
       "description" -> new nc2.Attribute("description", v.description),
