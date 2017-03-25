@@ -188,8 +188,8 @@ class Partition(val index: Int, val dimIndex: Int, val startIndex: Int, val part
 object CDASPartitioner {
   implicit def int2String(x: Int): String = x.toString
   val M = 1024 * 1024
-  val maxRecordSize = 2000*M
-  val defaultRecordSize = 2000*M
+  val maxRecordSize = 200*M
+  val defaultRecordSize = 200*M
   val defaultPartSize = 1000*M
   val recordSize = math.min( cdsutils.parseMemsize( appParameters( "record.size", defaultRecordSize ) ), maxRecordSize )
   val partitionSize = math.max( cdsutils.parseMemsize( appParameters( "partition.size", defaultPartSize) ), recordSize )
@@ -229,7 +229,7 @@ class CDASPartitioner( private val _section: ma2.Section, dataType: ma2.DataType
 
   def getShape = baseShape
   def roi: ma2.Section = new ma2.Section(_section.getRanges)
-  logger.info(  s" ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, sliceMemorySize: $sliceMemorySize, nSlicesPerRecord: $nSlicesPerRecord, recordMemorySize: $recordMemorySize, nRecordsPerPart: $nRecordsPerPart, partMemorySize: $partMemorySize, nPartitions: $nPartitions, ")
+  logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, sliceMemorySize: $sliceMemorySize, nSlicesPerRecord: $nSlicesPerRecord, recordMemorySize: $recordMemorySize, nRecordsPerPart: $nRecordsPerPart, partMemorySize: $partMemorySize, nPartitions: $nPartitions \n---------------------------------------------\n")
 
   def getPartition(partIndex: Int): Partition = {
     val startIndex = partIndex * nSlicesPerPart
