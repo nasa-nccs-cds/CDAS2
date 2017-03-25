@@ -20,8 +20,8 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
 object CDSparkContext extends Loggable {
-  val kyro_buffer_mb = 24
-  val kyro_buffer_max_mb = 300
+  val kyro_buffer_mb = "64m"
+  val default_kyro_buffer_max = "1000m"
   val default_master = "local[%d]".format( CDASPartitioner.localMaxProcessors )
 
   def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = true, enableMetrics: Boolean = false ) : CDSparkContext = {
@@ -66,11 +66,8 @@ object CDSparkContext extends Loggable {
       .setAppName( appName )
       .set("spark.logConf", logConf.toString )
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer") //
-      .set("spark.kryoserializer.buffer",kyro_buffer_mb.toString)
-      .set("spark.kryoserializer.buffer.max",kyro_buffer_max_mb.toString)
-      .set("spark.network.timeout", "400s" )
-      .set("spark.executor.heartbeatInterval", "60s" )
-      .set("spark.executor.memory", "30g" )
+      .set("spark.kryoserializer.buffer",kyro_buffer_mb)
+      .set("spark.kryoserializer.buffer.max", appParameters( "kryoserializer.buffer.max", default_kyro_buffer_max ) )
       .set( "spark.local.dir", cdas_cache_dir )
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     sc
