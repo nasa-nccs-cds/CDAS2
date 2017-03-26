@@ -81,7 +81,7 @@ object CDSparkContext extends Loggable {
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     utilities.runtime.printMemoryUsage
     utilities.runtime.printMemoryUsage(logger)
-    logger.info( "Initialize Spark Configuration:\n\t" +  sc.getAll.map { case (k,v) => "** " + k + ": " + v } mkString ("\n\t") )
+    logger.info( "Initialize Spark Configuration:\n\t" +  (sc.getAll.map { case (k,v) => "** " + k + ": " + v }).mkString ("\n\t") )
     sc
   }
 

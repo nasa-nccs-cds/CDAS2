@@ -590,7 +590,7 @@ object TestType {
   val NcFile = 4
 }
 
-object bigDataTest extends Loggable {
+class bigDataTest extends Loggable {
   val serverConfiguration = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
   val service = "cds2"
@@ -633,7 +633,7 @@ object bigDataTest extends Loggable {
 
 
 
-object profilingTest extends Loggable {
+class profilingTest extends Loggable {
 
   def computeMax1(data: ma2.Array): Float = {
     var max = Float.MinValue
