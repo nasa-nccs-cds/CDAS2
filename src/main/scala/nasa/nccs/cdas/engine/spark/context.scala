@@ -12,6 +12,7 @@ import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.Loggable
 import org.apache.spark.rdd.RDD
+import nasa.nccs.cdas.utilities
 import org.apache.spark.{Partitioner, SparkConf, SparkContext}
 import ucar.ma2
 import ucar.nc2.dataset.CoordinateAxis1DTime
@@ -20,11 +21,13 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
 object CDSparkContext extends Loggable {
+  val mb = 1024 * 1024
   val kyro_buffer_mb = "64m"
   val default_kyro_buffer_max = "1000m"
-  val default_executor_memory = "25000m"
-  val default_executor_cores = "5"
-  val default_num_executors = "3"
+  val runtime = Runtime.getRuntime
+  val default_executor_memory = ((runtime.totalMemory/mb)-1).toString
+  val default_executor_cores = (runtime.availableProcessors-1).toString
+  val default_num_executors = "1"
   val default_master = "local[%d]".format( CDASPartitioner.localMaxProcessors )
 
   def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = true, enableMetrics: Boolean = false ) : CDSparkContext = {
@@ -76,7 +79,9 @@ object CDSparkContext extends Loggable {
       .set("spark.executor.cores", appParameters( "executor.cores", default_executor_cores ) )
       .set("spark.num.executors", appParameters( "num.executors", default_num_executors ) )
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
-    logger.info( "Initialize Spark Configuration: " + sc.toDebugString )
+    utilities.runtime.printMemoryUsage
+    utilities.runtime.printMemoryUsage(logger)
+    logger.info( "Initialize Spark Configuration:\n\t" +  sc.getAll map { case (k,v) => "** " + k + ": " + v } mkString ("\n\t") )
     sc
   }
 
