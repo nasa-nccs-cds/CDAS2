@@ -188,7 +188,7 @@ class AppThread(Thread):
             CDAS_DRIVER_MEM = os.environ.get( 'CDAS_DRIVER_MEM', str( total_ram - 1000 ) + 'M' )
             cdas_startup = "cdas2 connect {0} {1} -J-Xmx{2} -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC".format( self._request_port, self._response_port, CDAS_DRIVER_MEM )
             self.process = subprocess.Popen(shlex.split(cdas_startup))
-            print "Staring CDAS with command: {0}, total RAM: {1}\n".format(cdas_startup,mem.tota)
+            print "Staring CDAS with command: {0}, total RAM: {1}\n".format( cdas_startup, mem.total )
             self.process.wait()
         except KeyboardInterrupt as ex:
             print "  ----------------- CDAS TERM ----------------- "
