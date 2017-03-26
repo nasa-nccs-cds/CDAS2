@@ -2,6 +2,8 @@ import zmq, traceback, time, logging
 from threading import Thread
 from pycdas.cdasArray import npArray
 import random, string
+from psutil import virtual_memory
+MB = 1024 * 1024
 
 class ConnectionMode():
     BIND = 1
@@ -181,7 +183,9 @@ class AppThread(Thread):
     def run(self):
         import subprocess, shlex, os
         try:
-            CDAS_DRIVER_MEM = os.environ.get( 'CDAS_DRIVER_MEM', '8000M' )
+            mem = virtual_memory()
+            total_ram = mem.total / MB
+            CDAS_DRIVER_MEM = os.environ.get( 'CDAS_DRIVER_MEM', str( total_ram - 1000 ) + 'M' )
             cdas_startup = "cdas2 connect {0} {1} -J-Xmx{2} -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC".format( self._request_port, self._response_port, CDAS_DRIVER_MEM )
             self.process = subprocess.Popen(shlex.split(cdas_startup))
             print "Staring CDAS with command: {0}\n".format(cdas_startup)
