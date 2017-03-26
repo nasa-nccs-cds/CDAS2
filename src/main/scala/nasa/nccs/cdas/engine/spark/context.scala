@@ -15,6 +15,8 @@ import org.apache.spark.rdd.RDD
 import nasa.nccs.cdas.utilities
 import org.apache.spark.{Partitioner, SparkConf, SparkContext}
 import ucar.ma2
+import java.lang.management.ManagementFactory
+import com.sun.management.OperatingSystemMXBean
 import ucar.nc2.dataset.CoordinateAxis1DTime
 
 import scala.collection.JavaConversions._
@@ -22,10 +24,11 @@ import scala.collection.JavaConverters._
 
 object CDSparkContext extends Loggable {
   val mb = 1024 * 1024
+  val totalRAM = ManagementFactory.getOperatingSystemMXBean().asInstanceOf[OperatingSystemMXBean].getTotalPhysicalMemorySize / mb
   val kyro_buffer_mb = "64m"
   val default_kyro_buffer_max = "1000m"
   val runtime = Runtime.getRuntime
-  val default_executor_memory = ((runtime.totalMemory/mb)-1).toString
+  val default_executor_memory = ((totalRAM/mb)-10).toString + "m"
   val default_executor_cores = (runtime.availableProcessors-1).toString
   val default_num_executors = "1"
   val default_master = "local[%d]".format( CDASPartitioner.localMaxProcessors )
