@@ -28,7 +28,7 @@ object CDSparkContext extends Loggable {
   val kyro_buffer_mb = "64m"
   val default_kyro_buffer_max = "1000m"
   val runtime = Runtime.getRuntime
-  val default_executor_memory = ((totalRAM/mb)-10).toString + "m"
+  val default_executor_memory = (totalRAM-10).toString + "m"
   val default_executor_cores = (runtime.availableProcessors-1).toString
   val default_num_executors = "1"
   val default_master = "local[%d]".format( CDASPartitioner.localMaxProcessors )
