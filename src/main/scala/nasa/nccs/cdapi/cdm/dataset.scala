@@ -15,7 +15,7 @@ import nasa.nccs.caching.{CDASCachePartitioner, CDASPartitioner}
 import nasa.nccs.cdapi.data.HeapFltArray
 import nasa.nccs.cdapi.tensors.{CDDoubleArray, CDFloatArray, CDLongArray}
 import nasa.nccs.cdas.loaders.XmlResource
-import nasa.nccs.cdas.utilities.appParameters
+import nasa.nccs.cdas.utilities.{appParameters, runtime}
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.nc2.constants.AxisType
 import ucar.nc2.dataset._
@@ -902,12 +902,15 @@ class ncReadTest extends Loggable {
 object NetcdfDatasetMgr extends Loggable {
 //  NetcdfDataset.initNetcdfFileCache(10,1000,3600)   // Bugs in Netcdf file caching cause NullPointerExceptions on MERRA2 npana datasets (var T): ( 3/3/2017 )
   val datasetCache = new ConcurrentLinkedHashMap.Builder[String, NetcdfDataset].initialCapacity(64).maximumWeightedCapacity(1000).build()
+  val MB = 1024*1024
 
   def readVariableData(varShortName: String, dataPath: String, section: ma2.Section): ma2.Array = {
     val ncDataset: NetcdfDataset = open( dataPath )
     val result = ncDataset.getVariables.toList.find( v => v.getShortName equals varShortName ) match {
       case Some(variable) =>
         try {
+          runtime.printMemoryUsage(logger)
+          logger.info( "Reading variable %s section, shape: (%s), size = %.2f M".format( varShortName, section.getShape.mkString(","), (section.computeSize*4.0)/MB ))
           variable.read(section)
         } catch {
           case err: Exception =>
