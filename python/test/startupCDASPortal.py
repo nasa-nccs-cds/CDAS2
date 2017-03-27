@@ -2,6 +2,7 @@ import subprocess, shlex, os
 from psutil import virtual_memory
 request_port = 4356
 response_port = 4357
+MB = 1024 * 1024
 mem = virtual_memory()
 total_ram = mem.total / MB
 CDAS_MAX_MEM = os.environ.get( 'CDAS_MAX_MEM', str( total_ram - 1000 ) + 'M' )
