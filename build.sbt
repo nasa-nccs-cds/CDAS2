@@ -23,8 +23,8 @@ resolvers += "Geotoolkit" at "http://maven.geotoolkit.org/"
 
 enablePlugins(JavaAppPackaging)
 
-mainClass in (Compile, run) := Some("nasa.nccs.cdas.portal.CDASApplication")
-mainClass in (Compile, packageBin) := Some("nasa.nccs.cdas.portal.CDASApplication")
+// mainClass in (Compile, run) := Some("nasa.nccs.cdas.portal.CDASApplication")
+// mainClass in (Compile, packageBin) := Some("nasa.nccs.cdas.portal.CDASApplication")
 
 libraryDependencies ++= Dependencies.scala
 
