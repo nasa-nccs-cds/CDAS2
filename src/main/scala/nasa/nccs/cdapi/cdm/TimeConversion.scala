@@ -1,7 +1,7 @@
 package nasa.nccs.cdapi.cdm
 import nasa.nccs.cdapi.data.HeapFltArray
 import nasa.nccs.cdapi.tensors.CDFloatArray
-import nasa.nccs.cdas.engine.spark.PartitionKey
+import nasa.nccs.cdas.engine.spark.{RecordKey, RecordKey$}
 import nasa.nccs.utilities.Loggable
 import ucar.nc2.dataset.CoordinateAxis1DTime
 import ucar.ma2
@@ -18,7 +18,7 @@ class TimeConversionSpec( val weights: Map[Int,RemapElem], val toAxisRange: (Int
     old_origin.zipWithIndex.map{ case (o,i) => if( i == 0 ) toAxisRange._1 else o }
   }
   def toSize = toAxisRange._2 - toAxisRange._1 + 1
-  def getPartKey: PartitionKey = PartitionKey( toCoordRange._1, toCoordRange._2, toAxisRange._1, toAxisRange._2-toAxisRange._1 )
+  def getPartKey: RecordKey = RecordKey( toCoordRange._1, toCoordRange._2, toAxisRange._1, toAxisRange._2-toAxisRange._1 )
 }
 
 object TimeAxisConverter {

@@ -1,7 +1,7 @@
 package nasa.nccs.wps
 
 import nasa.nccs.caching.RDDTransientVariable
-import nasa.nccs.cdapi.data.RDDPartition
+import nasa.nccs.cdapi.data.{RDDRecord, RDDRecord$}
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.process.{DataFragmentSpec, TargetGrid}
@@ -151,7 +151,7 @@ class MergedWPSExecuteResponse( serviceInstance: String, responses: List[WPSProc
   }
 }
 
-class RDDExecutionResult( serviceInstance: String, process: WPSProcess, id: String, val result: RDDPartition,  resultId: String ) extends WPSReferenceExecuteResponse( serviceInstance, process, resultId )  with Loggable {
+class RDDExecutionResult(serviceInstance: String, process: WPSProcess, id: String, val result: RDDRecord, resultId: String ) extends WPSReferenceExecuteResponse( serviceInstance, process, resultId )  with Loggable {
   def getProcessOutputs( syntax: ResponseSyntax.Value, process_id: String, output_id: String  ): Iterable[xml.Elem] = {
     result.elements map { case (id, array) => getData( syntax, id, array.toCDFloatArray, array.metadata.getOrElse("units","") ) }
   }

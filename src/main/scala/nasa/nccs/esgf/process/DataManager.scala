@@ -8,7 +8,7 @@ import java.util.Formatter
 
 import nasa.nccs.cdapi.data._
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDDoubleArray, CDFloatArray}
-import nasa.nccs.cdas.engine.spark.{CDSparkContext, PartitionKey, RangePartitioner}
+import nasa.nccs.cdas.engine.spark.{CDSparkContext, RangePartitioner, RecordKey, RecordKey$}
 import nasa.nccs.cdas.kernels.{AxisIndices, KernelContext}
 import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
@@ -307,10 +307,10 @@ class  GridSection( val grid: CDGrid, val axes: IndexedSeq[GridCoordSpec] ) exte
       throw new Exception("Can't get time axis for grid " + grid.name)
   }
 
-  def getTimeRange: PartitionKey = grid.getTimeCoordinateAxis match {
+  def getTimeRange: RecordKey = grid.getTimeCoordinateAxis match {
     case Some(axis) =>
       val ( t0, t1 ) = ( axis.getCalendarDate(0), axis.getCalendarDate( axis.getSize.toInt-1 ) )
-      PartitionKey( t0.getMillis/1000, t1.getMillis/1000, 0, axis.getSize.toInt )
+      RecordKey( t0.getMillis/1000, t1.getMillis/1000, 0, axis.getSize.toInt )
     case None =>
       throw new Exception("Can't get time axis for grid " + grid.name)
   }

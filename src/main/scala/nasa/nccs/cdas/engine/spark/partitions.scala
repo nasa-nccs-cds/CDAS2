@@ -1,5 +1,5 @@
 package nasa.nccs.cdas.engine.spark
-import nasa.nccs.cdapi.data.RDDPartition
+import nasa.nccs.cdapi.data.RDDRecord$
 import nasa.nccs.utilities.Loggable
 import org.apache.spark.Partitioner
 import org.apache.spark.rdd.RDD
@@ -50,23 +50,23 @@ class LongRange(val start: Long, val end: Long ) extends Serializable {
   override def toString = print
 }
 
-object PartitionKey {
-  def apply( start: Long, end: Long, elemStart: Int, numElems: Int ): PartitionKey = new PartitionKey( start, end, elemStart, numElems )
+object RecordKey {
+  def apply( start: Long, end: Long, elemStart: Int, numElems: Int ): RecordKey = new RecordKey( start, end, elemStart, numElems )
 
-  def apply( ranges: Iterable[PartitionKey] ): PartitionKey = {
+  def apply( ranges: Iterable[RecordKey] ): RecordKey = {
     val startMS = ranges.foldLeft( Long.MaxValue )( ( tval, key ) => Math.min( tval, key.start ) )
     val endMS = ranges.foldLeft( Long.MinValue )( ( tval, key ) => Math.max( tval, key.end) )
     val nElems = ranges.foldLeft( 0 )( ( tval, key ) => tval + key.numElems )
-    new PartitionKey( startMS, endMS, ranges.head.elemStart, nElems )
+    new RecordKey( startMS, endMS, ranges.head.elemStart, nElems )
   }
   implicit val strRep: LongRange.StrRep = _.toString
 
 }
 
-class PartitionKey( start: Long, end: Long, val elemStart: Int, val numElems: Int ) extends LongRange( start, end ) with Ordered[PartitionKey] with Serializable with Loggable {
+class RecordKey(start: Long, end: Long, val elemStart: Int, val numElems: Int ) extends LongRange( start, end ) with Ordered[RecordKey] with Serializable with Loggable {
   import LongRange._
   override def equals(other: Any): Boolean = other match {
-    case tp: PartitionKey => ( tp.start == start) && ( tp.end == end) && ( tp.numElems == numElems) && ( tp.elemStart == elemStart )
+    case tp: RecordKey => ( tp.start == start) && ( tp.end == end) && ( tp.numElems == numElems) && ( tp.elemStart == elemStart )
     case lr: LongRange => ( lr.start == start ) && ( lr.end == end )
     case _ => false
   }
@@ -74,24 +74,24 @@ class PartitionKey( start: Long, end: Long, val elemStart: Int, val numElems: In
   def elemEnd = elemStart + numElems
   def sameRange( lr: LongRange ): Boolean = ( lr.start == start ) && ( lr.end == end )
   def estElemIndexAtLoc( loc: Long ): Int =  ( elemStart + getRelPos(loc) * numElems ).toInt
-  def compare( that: PartitionKey ): Int = start.compare( that.start )
+  def compare( that: RecordKey ): Int = start.compare( that.start )
   def elemRange: (Int,Int) = ( elemStart, elemStart + numElems )
 
-  def +( that: PartitionKey ): PartitionKey = {
-    PartitionKey( Math.min(start,that.start), Math.max(end,that.end), Math.min(elemStart,that.elemStart), numElems + that.numElems )
+  def +( that: RecordKey ): RecordKey = {
+    RecordKey( Math.min(start,that.start), Math.max(end,that.end), Math.min(elemStart,that.elemStart), numElems + that.numElems )
   }
 
-  def +!( that: PartitionKey ): PartitionKey = {
+  def +!( that: RecordKey ): RecordKey = {
     if( (end != that.start) || (elemEnd != that.elemStart) ) { throw new Exception( s"Attempt to concat non-contiguous partition keys: first = ${toString} <-> second = ${that.toString}" )}
-    PartitionKey( start, that.end, elemStart, numElems + that.numElems )
+    RecordKey( start, that.end, elemStart, numElems + that.numElems )
   }
-  def startPoint: PartitionKey  = PartitionKey( start, start, elemStart, 0 )
+  def startPoint: RecordKey  = RecordKey( start, start, elemStart, 0 )
 
-  def intersect( other: PartitionKey ): Option[PartitionKey] = {
+  def intersect( other: RecordKey ): Option[RecordKey] = {
     val ( istart, iend ) = ( Math.max( start, other.start ),  Math.min( end, other.end ) )
     if ( istart <= iend ) {
       val ( ielemStart, ielemEnd ) = ( Math.max( elemStart, other.elemStart ),  Math.min( elemEnd, other.elemEnd ) )
-      val result = Some( PartitionKey( istart, iend, ielemStart, ielemEnd-ielemStart ) )
+      val result = Some( RecordKey( istart, iend, ielemStart, ielemEnd-ielemStart ) )
       logger.debug( s"  @@ PartitionKey Intersect: ${toString} + ${other.toString} => ${result.toString} ")
       result
     }  else {
@@ -103,10 +103,10 @@ class PartitionKey( start: Long, end: Long, val elemStart: Int, val numElems: In
 }
 
 object RangePartitioner {
-  def apply( partitions: Map[Int,PartitionKey] ): RangePartitioner = {
+  def apply( partitions: Map[Int,RecordKey] ): RangePartitioner = {
     new RangePartitioner( partitions )
   }
-  def apply( ranges: Iterable[PartitionKey] ): RangePartitioner = {
+  def apply( ranges: Iterable[RecordKey] ): RangePartitioner = {
     val indexed_ranges = ranges.zipWithIndex map { case (range, index) => index -> range }
     new RangePartitioner( Map( indexed_ranges.toSeq: _* ) )
   }
@@ -119,8 +119,8 @@ object RangePartitioner {
 }
 
 
-class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitioner with Loggable {
-  val range = PartitionKey(partitions.values)
+class RangePartitioner( val partitions: Map[Int,RecordKey] ) extends Partitioner with Loggable {
+  val range = RecordKey(partitions.values)
   val numParts = partitions.size
   val numElems = range.numElems
   val psize: Double = range.size / numParts
@@ -137,7 +137,7 @@ class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitio
     case x => super.equals(x)
   }
 
-  def differentPartitions( parts: Map[Int,PartitionKey] ): Boolean =
+  def differentPartitions( parts: Map[Int,RecordKey] ): Boolean =
     partitions.exists { case (index,partkey) => parts.get(index) match { case Some(partkey1) => !partkey1.equals(partkey); case None => true } }
 
   def findPartIndex( index: Int, loc: Long ): Int = partitions.get(index) match {
@@ -148,7 +148,7 @@ class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitio
     }
   }
 
-  def intersect( key: PartitionKey ): IndexedSeq[PartitionKey]= {
+  def intersect( key: RecordKey ): IndexedSeq[RecordKey]= {
     val (startIndex, endIndex) = (getPartIndexFromLocation(key.start), getPartIndexFromLocation(key.end-1))
     val partKeys = (startIndex to endIndex) flatMap ( index => partitions.get(index) )
     partKeys flatMap ( partkey => partkey.intersect(key) )
@@ -173,9 +173,9 @@ class RangePartitioner( val partitions: Map[Int,PartitionKey] ) extends Partitio
     index
   }
 
-  def newPartitionKey( irange: LongRange ): Option[PartitionKey] = irange.intersect( range ) flatMap ( keyrange => partitions.get( getPartIndexFromLocation(keyrange.center) ) )
-  def newPartitionKeyOpt( location: Long ): Option[PartitionKey] = partitions.get( getPartIndexFromLocation(location) )
-  def newPartitionKey( location: Long ): PartitionKey = partitions.get( getPartIndexFromLocation(location) ) getOrElse( throw new Exception( s"Location of new key ${location} is out of bounds for partitioner"))
+  def newPartitionKey( irange: LongRange ): Option[RecordKey] = irange.intersect( range ) flatMap (keyrange => partitions.get( getPartIndexFromLocation(keyrange.center) ) )
+  def newPartitionKeyOpt( location: Long ): Option[RecordKey] = partitions.get( getPartIndexFromLocation(location) )
+  def newPartitionKey( location: Long ): RecordKey = partitions.get( getPartIndexFromLocation(location) ) getOrElse( throw new Exception( s"Location of new key ${location} is out of bounds for partitioner"))
 }
 
 //object PartitionManager {

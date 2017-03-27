@@ -1,10 +1,10 @@
 package nasa.nccs.cdapi.cdm
 
 import nasa.nccs.caching._
-import nasa.nccs.cdapi.data.{DirectRDDVariableSpec, HeapFltArray, RDDPartition, RDDVariableSpec}
+import nasa.nccs.cdapi.data._
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.cdas.engine.WorkflowNode
-import nasa.nccs.cdas.engine.spark.PartitionKey
+import nasa.nccs.cdas.engine.spark.{RecordKey, RecordKey$}
 import nasa.nccs.esgf.process.{DataFragmentSpec, _}
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
@@ -131,7 +131,7 @@ class DirectOpDataInput(fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Att
       case _ => new DirectRDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank), fragSpec.varname, fragSpec.collection.dataPath )
     }
 
-  def getKeyedRDDVariableSpec( uid: String, optSection: Option[ma2.Section] ): ( PartitionKey, DirectRDDVariableSpec ) =
+  def getKeyedRDDVariableSpec( uid: String, optSection: Option[ma2.Section] ): ( RecordKey, DirectRDDVariableSpec ) =
     domainSection(optSection) match {
       case Some( ( domFragSpec, section ) ) =>
         domFragSpec.getPartitionKey -> new DirectRDDVariableSpec( uid, domFragSpec.getMetadata(Some(section)), domFragSpec.missing_value, CDSection(section), fragSpec.varname, fragSpec.collection.dataPath )
@@ -175,11 +175,11 @@ class PartitionedFragment( val partitions: CachePartitions, val maskOpt: Option[
     DataFragment( partFragSpec(partIndex), partition.data( fragmentSpec.missing_value ) )
   }
 
-  def partRDDPartition( partIndex: Int ): RDDPartition = {
+  def partRDDPartition( partIndex: Int ): RDDRecord = {
     val partition = partitions.getPart(partIndex)
     val data: CDFloatArray = partition.data( fragmentSpec.missing_value )
     val spec: DataFragmentSpec = partFragSpec(partIndex)
-    RDDPartition( Map( spec.uid -> HeapFltArray(data, fragSpec.getOrigin, spec.getMetadata(), None) ) )
+    RDDRecord( Map( spec.uid -> HeapFltArray(data, fragSpec.getOrigin, spec.getMetadata(), None) ) )
   }
 
 //  def domainRDDPartition(partIndex: Int, optSection: Option[ma2.Section] ): Option[RDDPartition] = domainCDDataSection( partIndex, optSection ) match {

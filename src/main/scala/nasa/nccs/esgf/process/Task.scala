@@ -11,7 +11,7 @@ import nasa.nccs.utilities.Loggable
 import java.util.UUID
 
 import nasa.nccs.cdapi.data.RDDVariableSpec
-import nasa.nccs.cdas.engine.spark.PartitionKey
+import nasa.nccs.cdas.engine.spark.{RecordKey, RecordKey$}
 import nasa.nccs.cdas.engine.{CDS2ExecutionManager, Workflow}
 import nasa.nccs.cdas.kernels.AxisIndices
 import nasa.nccs.esgf.process.OperationContext.OpResultType
@@ -500,7 +500,7 @@ class DataFragmentSpec(val uid: String = "",
     }
   }
 
-  def getPartitionKey: PartitionKey = targetGridOpt match {
+  def getPartitionKey: RecordKey = targetGridOpt match {
       case Some(grid) =>
         val trange = roi.getRange(0)
         val start = trange.first()
@@ -509,7 +509,7 @@ class DataFragmentSpec(val uid: String = "",
         val end = trange.last()
         val endDate = grid.getCalendarDate(end)
         val endTime = endDate.getMillis / 1000
-        PartitionKey(startTime, endTime, start, end-start )
+        RecordKey(startTime, endTime, start, end-start )
     case None => throw new Exception( "Missing target grid ")
   }
 

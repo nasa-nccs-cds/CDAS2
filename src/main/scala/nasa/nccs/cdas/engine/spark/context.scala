@@ -53,7 +53,7 @@ object CDSparkContext extends Loggable {
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
   def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, true, false ) ) )
 
-  def merge(rdd0: RDD[(PartitionKey,RDDPartition)], rdd1: RDD[(PartitionKey,RDDPartition)] ): RDD[(PartitionKey,RDDPartition)] = {
+  def merge(rdd0: RDD[(RecordKey,RDDRecord)], rdd1: RDD[(RecordKey,RDDRecord)] ): RDD[(RecordKey,RDDRecord)] = {
     val mergedRdd = rdd0.join( rdd1 ) mapValues { case (part0,part1) => part0 ++ part1  } map identity
     if ( mergedRdd.isEmpty() ) {
       val keys0 = rdd0.keys.collect()
@@ -66,7 +66,7 @@ object CDSparkContext extends Loggable {
     result
   }
 
-  def append(p0: (PartitionKey,RDDPartition), p1: (PartitionKey,RDDPartition) ): (PartitionKey,RDDPartition) = ( p0._1 + p1._1, p0._2.append(p1._2) )
+  def append(p0: (RecordKey,RDDRecord), p1: (RecordKey,RDDRecord) ): (RecordKey,RDDRecord) = ( p0._1 + p1._1, p0._2.append(p1._2) )
 
   def getSparkConf( master: String, appName: String, logConf: Boolean, enableMetrics: Boolean  ) = {
     val cdas_cache_dir = sys.env.getOrElse( "CDAS_CACHE_DIR", "~/.cdas/cache" )
@@ -88,7 +88,7 @@ object CDSparkContext extends Loggable {
     sc
   }
 
-  def getPartitioner( rdd: RDD[(PartitionKey,RDDPartition)] ): RangePartitioner = {
+  def getPartitioner( rdd: RDD[(RecordKey,RDDRecord)] ): RangePartitioner = {
     rdd.partitioner match {
       case Some( partitioner ) => partitioner match {
         case range_partitioner: RangePartitioner => range_partitioner
@@ -99,12 +99,12 @@ object CDSparkContext extends Loggable {
     }
   }
 
-  def coalesce( rdd: RDD[(PartitionKey,RDDPartition)], context: KernelContext ): RDD[(PartitionKey,RDDPartition)] = {
+  def coalesce(rdd: RDD[(RecordKey,RDDRecord)], context: KernelContext ): RDD[(RecordKey,RDDRecord)] = {
     if ( rdd.getNumPartitions > 1 ) {
 //      val partitioner: RangePartitioner = getPartitioner(rdd).colaesce
 //      var repart_rdd = rdd repartitionAndSortWithinPartitions partitioner
       val partitioner: RangePartitioner = getPartitioner(rdd)
-      rdd.sortByKey( true, 1 ) glom() map (_.fold((partitioner.range.startPoint, RDDPartition.empty))((x, y) => { (x._1 + y._1, x._2.append(y._2)) }))
+      rdd.sortByKey( true, 1 ) glom() map (_.fold((partitioner.range.startPoint, RDDRecord.empty))((x, y) => { (x._1 + y._1, x._2.append(y._2)) }))
     } else { rdd }
   }
 
@@ -116,17 +116,17 @@ object CDSparkContext extends Loggable {
 //    } else { rdd }
 //  }
 
-  def splitPartition( key: PartitionKey, part: RDDPartition, partitioner: RangePartitioner ): IndexedSeq[(PartitionKey,RDDPartition)] = {
+  def splitPartition(key: RecordKey, part: RDDRecord, partitioner: RangePartitioner ): IndexedSeq[(RecordKey,RDDRecord)] = {
     logger.info( s"CDSparkContext.splitPartition: KEY-${key.toString} -> PART-${part.getShape.mkString(",")}")
     val rv = partitioner.intersect(key) map ( partkey =>
       (partkey -> part.slice(partkey.elemStart, partkey.numElems)) )
     rv
   }
 
-  def applyPartitioner( partitioner: RangePartitioner )( elems: Iterator[(PartitionKey,RDDPartition)] ): Iterator[(PartitionKey,RDDPartition)] =
+  def applyPartitioner( partitioner: RangePartitioner )( elems: Iterator[(RecordKey,RDDRecord)] ): Iterator[(RecordKey,RDDRecord)] =
     elems.map { case (key,part ) => splitPartition(key,part,partitioner) } reduce ( _ ++ _ ) toIterator
 
-  def repartition( rdd: RDD[(PartitionKey,RDDPartition)], partitioner: RangePartitioner ): RDD[(PartitionKey,RDDPartition)] =
+  def repartition(rdd: RDD[(RecordKey,RDDRecord)], partitioner: RangePartitioner ): RDD[(RecordKey,RDDRecord)] =
     rdd.mapPartitions( applyPartitioner(partitioner), true ) repartitionAndSortWithinPartitions partitioner reduceByKey(_ ++ _)
 
 }
@@ -142,7 +142,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
 
   def getConf: SparkConf = sparkContext.getConf
 
-  def cacheRDDPartition( partFrag: PartitionedFragment ): RDD[RDDPartition] = {
+  def cacheRDDPartition( partFrag: PartitionedFragment ): RDD[RDDRecord] = {
     val nPart = partFrag.partitions.parts.length
     val indexRDD: RDD[Int] = sparkContext.makeRDD( 0 to nPart-1, nPart )
     indexRDD.map( iPart => partFrag.partRDDPartition( iPart ) )
@@ -156,12 +156,12 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     None
   }
 
-  def parallelize( partition: RDDPartition, partitioner: RangePartitioner ): RDD[(PartitionKey,RDDPartition)] = {
+  def parallelize(partition: RDDRecord, partitioner: RangePartitioner ): RDD[(RecordKey,RDDRecord)] = {
     val new_partitions = partitioner.partitions.values.map( partKey => partKey -> partition.slice( partKey.elemStart, partKey.numElems ) )
     sparkContext parallelize new_partitions.toSeq repartitionAndSortWithinPartitions partitioner
   }
 
-  def getRDD( uid: String, pFrag: PartitionedFragment, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode, batchIndex: Int ): Option[ RDD[(PartitionKey,RDDPartition)] ] = {
+  def getRDD( uid: String, pFrag: PartitionedFragment, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode, batchIndex: Int ): Option[ RDD[(RecordKey,RDDRecord)] ] = {
     val partitions = pFrag.partitions
     val tgrid: TargetGrid = pFrag.getGrid
     val rddPartSpecs: Array[RDDPartSpec] = partitions.getBatch(batchIndex) map (partition =>
@@ -176,22 +176,22 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     }
   }
 
-  def getRDD(uid: String, directInput: CDASDirectDataInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode, batchIndex: Int ): Option[RDD[(PartitionKey,RDDPartition)]] = {
+  def getRDD(uid: String, directInput: CDASDirectDataInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode, batchIndex: Int ): Option[RDD[(RecordKey,RDDRecord)]] = {
     directInput.getPartitioner(opSection) flatMap ( partMgr => {
       val partitions = partMgr.partitions
       val tgrid: TargetGrid = requestCx.getTargetGrid(uid).getOrElse(throw new Exception("Missing target grid for uid " + uid))
       val rddPartSpecs: Array[DirectRDDPartSpec] = partitions.getBatch(batchIndex) map ( partition => DirectRDDPartSpec(partition, tgrid, List(directInput.getRDDVariableSpec(uid, opSection)))) filterNot (_.empty(uid))
-      logger.info("Discarded empty partitions: Creating RDD with <<%d>> items".format(rddPartSpecs.length))
+      logger.info("Discarded empty partitions: Creating RDD with <<%d>> partitions".format(rddPartSpecs.length))
       if (rddPartSpecs.length == 0) { None }
       else {
         val partitioner = RangePartitioner(rddPartSpecs.map(_.timeRange))
-        val parallelized_rddspecs = sparkContext parallelize rddPartSpecs keyBy (_.timeRange) partitionBy partitioner
+        val parallelized_rddspecs = sparkContext parallelize rddPartSpecs.flatMap( _.getRDDRecordSpecs() ) keyBy (_.timeRange) partitionBy partitioner
         Some(parallelized_rddspecs mapValues (spec => spec.getRDDPartition) )
       }
     } )
   }
 
-  def getRDD(uid: String, extInput: ExternalDataInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): Option[ RDD[ (PartitionKey,RDDPartition) ] ] = {
+  def getRDD(uid: String, extInput: ExternalDataInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode ): Option[ RDD[ (RecordKey,RDDRecord) ] ] = {
     val tgrid: TargetGrid = extInput.getGrid
     val ( key, varSpec ) = extInput.getKeyedRDDVariableSpec(uid, opSection)
     val rddPartSpec = ExtRDDPartSpec( key, List(varSpec) )

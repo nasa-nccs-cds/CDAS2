@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.engine.spark.api
 
-import nasa.nccs.cdapi.data.{RDDPartition, RDDataManager}
+import nasa.nccs.cdapi.data.{RDDRecord, RDDataManager}
 import nasa.nccs.cdas.engine.CDS2ExecutionManager
 import nasa.nccs.cdas.loaders.Collections
 import org.apache.spark.rdd.RDD
@@ -20,7 +20,7 @@ abstract class CDASparkDataManager( val executionMgr: CDS2ExecutionManager ) ext
   override def getDataProducts(): Set[String] = Set.empty
   override def getDataProductMetadata( pid: String ): Map[String,String] = Map.empty
 
-  def getDataRDD( id: String, domain: Map[AxisType,(Int,Int)] ): RDD[RDDPartition]
+  def getDataRDD( id: String, domain: Map[AxisType,(Int,Int)] ): RDD[RDDRecord]
 
   def attrValue( attribute: nc2.Attribute  ) =  attribute.toString.split('=').last.trim
 

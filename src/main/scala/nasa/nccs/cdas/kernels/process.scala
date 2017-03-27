@@ -2,12 +2,11 @@ package nasa.nccs.cdas.kernels
 
 import java.io._
 
-import nasa.nccs.cdapi.cdm.BoundsRole.Value
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.{HeapFltArray, _}
 import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
 import nasa.nccs.cdapi.tensors.{CDArray, CDCoordMap, CDFloatArray, CDTimeCoordMap}
-import nasa.nccs.cdas.engine.spark.{PartitionKey, PartitionKey$}
+import nasa.nccs.cdas.engine.spark.RecordKey
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
 import nasa.nccs.cdas.utilities.appParameters
@@ -17,7 +16,6 @@ import nasa.nccs.wps.{WPSProcess, WPSProcessOutput}
 import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
-import scala.collection.GenTraversableOnce
 import scala.collection.JavaConversions._
 
 object Port {
@@ -107,7 +105,7 @@ class AxisIndices( private val axisIds: Set[Int] = Set.empty ) {
 
 object Kernel extends Loggable {
   val customKernels = List[Kernel]( new CDMSRegridKernel() )
-  type RDDKeyValPair = ( PartitionKey, RDDPartition )
+  type RDDKeyValPair = ( RecordKey, RDDRecord )
 
   def getResultFile( resultId: String, deleteExisting: Boolean = false ): File = {
     val resultsDirPath = appParameters("wps.results.dir", "~/.wps/results").replace( "~",  System.getProperty("user.home") ).replaceAll("[()]","-").replace("=","~")
@@ -127,7 +125,7 @@ object Kernel extends Loggable {
       case (elkey, element0) =>  rdd1.elements.get(elkey).map( element1 => elkey -> { element0.append(element1) } )
     }
     logger.info("&MERGE: complete in time = %.4f s".format( (System.nanoTime - t0) / 1.0E9 ) )
-    new_key -> RDDPartition( new_elements, rdd0.mergeMetadata("merge", rdd1) )
+    new_key -> RDDRecord( new_elements, rdd0.mergeMetadata("merge", rdd1) )
   }
 
   def apply(module: String, kernelSpec: String, api: String): Kernel = {
@@ -220,7 +218,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
 
   def getOpName(context: KernelContext): String = "%s(%s)".format(name, context.operation.inputs.mkString(","))
   def map(partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext): Option[DataFragment] = inputs.head
-  def map( rdd: RDDPartition, context: KernelContext ): RDDPartition = rdd // , inputs: Map[String,KIType]
+  def map(rdd: RDDRecord, context: KernelContext ): RDDRecord = rdd // , inputs: Map[String,KIType]
 
   def combine(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices): DataFragment = reduceCombineOp match {
     case Some(combineOp) =>
@@ -238,7 +236,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     throw new Exception( " Missing gridfile in kernel inputs: " + name )
   }
 
-  def combineRDD(context: KernelContext)(rdd0: RDDPartition, rdd1: RDDPartition, axes: AxisIndices): RDDPartition = {
+  def combineRDD(context: KernelContext)(rdd0: RDDRecord, rdd1: RDDRecord, axes: AxisIndices): RDDRecord = {
     val t0 = System.nanoTime
     val new_elements = rdd0.elements.flatMap { case (key, element0) =>
       rdd1.elements.get(key) match {
@@ -253,7 +251,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
       }
     }
     logger.debug("&COMBINE: %s, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
-    RDDPartition( new_elements, rdd0.mergeMetadata(context.operation.name, rdd1))
+    RDDRecord( new_elements, rdd0.mergeMetadata(context.operation.name, rdd1))
   }
 
   def customReduceRDD(context: KernelContext)(a0: RDDKeyValPair, a1: RDDKeyValPair ): RDDKeyValPair = {
@@ -263,7 +261,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
 
   def postOp(result: DataFragment, context: KernelContext): DataFragment = result
 
-  def postRDDOp(pre_result: RDDPartition, context: KernelContext): RDDPartition = pre_result
+  def postRDDOp(pre_result: RDDRecord, context: KernelContext): RDDRecord = pre_result
 
   def reduceOp(context: KernelContext)(a0op: Option[DataFragment], a1op: Option[DataFragment]): Option[DataFragment] = {
     val t0 = System.nanoTime
@@ -362,25 +360,25 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
   //      result
   //  }
 
-  def fltArray(a0: RDDPartition, elem: String): CDFloatArray = a0.element(elem) match {
+  def fltArray(a0: RDDRecord, elem: String): CDFloatArray = a0.element(elem) match {
     case Some(data) => data.toCDFloatArray;
     case None => throw new Exception("Error missing array element: " + elem)
   }
-  def optFltArray(a0: RDDPartition, elem: String): Option[CDFloatArray] = a0.element(elem).map(_.toCDFloatArray)
+  def optFltArray(a0: RDDRecord, elem: String): Option[CDFloatArray] = a0.element(elem).map(_.toCDFloatArray)
 
-  def wtArray(a0: RDDPartition, elem: String): Option[CDFloatArray] = a0.element(elem).flatMap( _.toCDWeightsArray )
+  def wtArray(a0: RDDRecord, elem: String): Option[CDFloatArray] = a0.element(elem).flatMap( _.toCDWeightsArray )
 
-  def originArray(a0: RDDPartition, elem: String): Array[Int]  = a0.element(elem) match {
+  def originArray(a0: RDDRecord, elem: String): Array[Int]  = a0.element(elem) match {
     case Some(data) => data.origin;
     case None => throw new Exception("Error missing array element: " + elem)
   }
 
-  def arrayMdata(a0: RDDPartition, elem: String): Map[String, String] = a0.element(elem) match {
+  def arrayMdata(a0: RDDRecord, elem: String): Map[String, String] = a0.element(elem) match {
     case Some(data) => data.metadata;
     case None => Map.empty
   }
 
-  def weightedValueSumRDDCombiner(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices): RDDPartition = {
+  def weightedValueSumRDDCombiner(context: KernelContext)(a0: RDDRecord, a1: RDDRecord, axes: AxisIndices): RDDRecord = {
     if (axes.includes(0)) {
       val rid = context.operation.rid
       val vTot: CDFloatArray = fltArray(a0, rid) + fltArray(a1, rid)
@@ -390,21 +388,21 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
       val element = rid -> HeapFltArray( vTot, vOrigin, array_mdata, wTotOpt )
       val part_mdata = MetadataOps.mergeMetadata( context.operation.name )( a0.metadata, a1.metadata )
       logger.info("weightedValueSumCombiner, values shape = %s, result spec = %s".format(vTot.getShape.mkString(","), a0.metadata.toString))
-      new RDDPartition( Map(element), part_mdata)
+      new RDDRecord( Map(element), part_mdata)
     }
     else {
       a0 ++ a1
     }
   }
 
-  def weightedValueSumRDDPostOp(result: RDDPartition, context: KernelContext): RDDPartition = {
+  def weightedValueSumRDDPostOp(result: RDDRecord, context: KernelContext): RDDRecord = {
     val rid = context.operation.rid
     wtArray( result, rid ) match {
       case Some(weights_sum) =>
         val values = fltArray(result, rid)
         val vOrigin: Array[Int] = originArray(result, rid)
         logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(values.getShape.mkString(","), weights_sum.getShape.mkString(","), result.metadata.toString))
-        new RDDPartition( Map(rid -> HeapFltArray( values / weights_sum, vOrigin, arrayMdata(result, "value"), Some( weights_sum.getArrayData() ) ) ), result.metadata )
+        new RDDRecord( Map(rid -> HeapFltArray( values / weights_sum, vOrigin, arrayMdata(result, "value"), Some( weights_sum.getArrayData() ) ) ), result.metadata )
       case None =>
         result
     }
@@ -524,7 +522,7 @@ abstract class DualOperationKernel extends Kernel {
 //}
 
 abstract class SingularRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
-  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
@@ -545,12 +543,12 @@ abstract class SingularRDDKernel( options: Map[String,String] ) extends Kernel(o
       case None => throw new Exception( "Missing input to '" + this.getClass.getName + "' map op: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
     }
     logger.info("Executed Kernel %s map op, time = %.4f s".format(name, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( Map( elem ) )
+    RDDRecord( Map( elem ) )
   }
 }
 
 abstract class DualRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
-  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
@@ -564,13 +562,13 @@ abstract class DualRDDKernel( options: Map[String,String] ) extends Kernel(optio
     }
     val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
     logger.info("Executed Kernel %s map op, time = %.4f s".format(name,  (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( Map( context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
+    RDDRecord( Map( context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
   }
 }
 
 abstract class MultiRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
 
-  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
@@ -585,13 +583,13 @@ abstract class MultiRDDKernel( options: Map[String,String] ) extends Kernel(opti
     } else { throw new Exception("Undefined operation in MultiRDDKernel") }
     logger.info("&MAP: Finished Kernel %s, time = %.4f s".format(name, (System.nanoTime - t0) / 1.0E9))
     val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
-    RDDPartition( Map( context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
+    RDDRecord( Map( context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
   }
 }
 
 class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "Regridder", "Regrids the inputs using UVCDAT", Map( "parallelize" -> "True" ) ) {
 
-  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
     val t0 = System.nanoTime
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance
     val worker: PythonWorker = workerManager.getPythonWorker
@@ -620,7 +618,7 @@ class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "
         val array_metadata = input_arrays.head.metadata ++ List("uid" -> context.operation.rid, "gridSpec" -> targetGridSpec )
         val array_metadata_crs = context.crsOpt.map( crs => array_metadata + ( "crs" -> crs ) ).getOrElse( array_metadata )
         logger.info("&MAP: Finished Kernel %s, time = %.4f s, metadata = %s".format(name, (System.nanoTime - t0) / 1.0E9, array_metadata_crs.mkString(";")))
-        RDDPartition(Map(resultItems: _*) ++ acceptable_array_map, array_metadata_crs)
+        RDDRecord(Map(resultItems: _*) ++ acceptable_array_map, array_metadata_crs)
       }
     } finally {
       workerManager.releaseWorker( worker )
@@ -640,7 +638,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
 
   override def cleanUp = PythonWorkerPortal.getInstance.shutdown
 
-  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
     val t0 = System.nanoTime
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance();
     val worker: PythonWorker = workerManager.getPythonWorker();
@@ -666,13 +664,13 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
       }
       val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
       logger.info("&MAP: Finished Kernel %s, time = %.4f s, metadata = %s".format(name, (System.nanoTime - t0) / 1.0E9, result_metadata.mkString(";") ) )
-      RDDPartition( Map(resultItems:_*), result_metadata )
+      RDDRecord( Map(resultItems:_*), result_metadata )
     } finally {
       workerManager.releaseWorker( worker )
     }
   }
 
-  override def customReduceRDD(context: KernelContext)(a0: ( PartitionKey, RDDPartition ), a1: ( PartitionKey, RDDPartition ) ): ( PartitionKey, RDDPartition ) = {
+  override def customReduceRDD(context: KernelContext)(a0: ( RecordKey, RDDRecord ), a1: ( RecordKey, RDDRecord ) ): ( RecordKey, RDDRecord ) = {
     val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
     val ( k0, k1 ) = ( a0._1, a1._1 )
     val t0 = System.nanoTime
@@ -697,7 +695,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
         context.operation.rid + ":" + element0.uid -> result
     }
     logger.debug("&MERGE %s: finish, time = %.4f s".format( context.operation.identifier, (System.nanoTime - t0) / 1.0E9 ) )
-    new_key -> RDDPartition( resultItems, rdd0.mergeMetadata("merge", rdd1) )
+    new_key -> RDDRecord( resultItems, rdd0.mergeMetadata("merge", rdd1) )
   }
 
   def indexAxisConf( metadata: Map[String,String], axisIndexMap: Map[String,Int] ): Map[String,String] = {

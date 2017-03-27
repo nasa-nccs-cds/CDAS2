@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.modules.CDSpark
 
-import nasa.nccs.cdapi.data.{HeapFltArray, RDDPartition}
+import nasa.nccs.cdapi.data.{HeapFltArray, RDDRecord, RDDRecord$}
 import nasa.nccs.cdapi.tensors.CDFloatArray._
 import nasa.nccs.cdapi.tensors.{CDFloatArray, CDIndexMap}
 import nasa.nccs.cdas.kernels._
@@ -118,7 +118,7 @@ class average extends SingularRDDKernel(Map.empty) {
   val title = "Space/Time Mean"
   val description = "Computes (weighted) means of element values from input variable data over specified axes and roi"
 
-  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
@@ -132,10 +132,10 @@ class average extends SingularRDDKernel(Map.empty) {
       case None => throw new Exception( "Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
     })
     logger.info("Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+    RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
-  override def combineRDD(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices ): RDDPartition =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
-  override def postRDDOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = weightedValueSumRDDPostOp( pre_result, context )
+  override def combineRDD(context: KernelContext)(a0: RDDRecord, a1: RDDRecord, axes: AxisIndices ): RDDRecord =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
+  override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
 }
 
 class subset extends Kernel(Map.empty) {
@@ -151,7 +151,7 @@ class timeBin extends Kernel(Map.empty) {
   val title = "Time Binning"
   override val description = "Aggregates data into bins over time using specified reduce function and binning specifications"
 
-  override def map( inputs: RDDPartition, context: KernelContext  ): RDDPartition = {
+  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val period = context.config("period", "1" ).toInt
@@ -164,10 +164,10 @@ class timeBin extends Kernel(Map.empty) {
     val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index )
     val result_array = HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), Some( weights_sum_masked.getArrayData() ) )
     logger.info("Executed Kernel %s map op, input = %s, index=%s, time = %.4f s".format(name, id, result_array.toCDFloatArray.getIndex.toString , (System.nanoTime - t0) / 1.0E9))
-    RDDPartition( Map( context.operation.rid -> result_array ), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+    RDDRecord( Map( context.operation.rid -> result_array ), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
-  override def combineRDD(context: KernelContext)(a0: RDDPartition, a1: RDDPartition, axes: AxisIndices ): RDDPartition =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
-  override def postRDDOp( pre_result: RDDPartition, context: KernelContext ):  RDDPartition = weightedValueSumRDDPostOp( pre_result, context )
+  override def combineRDD(context: KernelContext)(a0: RDDRecord, a1: RDDRecord, axes: AxisIndices ): RDDRecord =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
+  override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
 }
 
 

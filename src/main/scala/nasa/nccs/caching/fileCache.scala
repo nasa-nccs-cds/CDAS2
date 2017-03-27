@@ -12,9 +12,9 @@ import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EntryWei
 import nasa.nccs.cdapi.cdm.FileHeader.logger
 import nasa.nccs.cdas.utilities.{GeoTools, appParameters, runtime}
 import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
-import nasa.nccs.cdapi.data.RDDPartition
+import nasa.nccs.cdapi.data.{RDDRecord, RDDRecord$}
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
-import nasa.nccs.cdas.engine.spark.PartitionKey
+import nasa.nccs.cdas.engine.spark.{RecordKey, RecordKey$}
 import nasa.nccs.cdas.kernels.TransientFragment
 import nasa.nccs.cdas.loaders.Masks
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
@@ -141,7 +141,7 @@ object Partition {
 class Partition(val index: Int, val dimIndex: Int, val startIndex: Int, val partSize: Int, val recordSize: Int, val sliceMemorySize: Long, val origin: Array[Int], val shape: Array[Int]) extends Loggable with Serializable {
   val partitionOrigin: Array[Int] = origin.zipWithIndex map { case (value, ival) => if( ival == 0 ) value + startIndex else value }
 
-  def recordSection(iRecord: Int, section: ma2.Section): ma2.Section = {
+  def recordSection( section: ma2.Section, iRecord: Int ): ma2.Section = {
     new ma2.Section(section.getRanges).replaceRange(dimIndex, recordRange(iRecord)).intersect(section)
   }
   def partSection(section: ma2.Section): ma2.Section = {
@@ -150,7 +150,7 @@ class Partition(val index: Int, val dimIndex: Int, val startIndex: Int, val part
   def nRecords: Int = math.ceil(partSize / recordSize.toDouble).toInt
   def endIndex: Int = startIndex + partSize - 1
 
-  def getPartitionKey( grid: TargetGrid ): PartitionKey = {
+  def getPartitionRecordKey(grid: TargetGrid ): RecordKey = {
     val start = origin(0)+startIndex
     val startDate = grid.getCalendarDate(start)
     val startDateStr = startDate.toString
@@ -159,7 +159,19 @@ class Partition(val index: Int, val dimIndex: Int, val startIndex: Int, val part
     val endDate = grid.getCalendarDate(end)
     val endDateStr = endDate.toString
     val endTime =  grid.getCalendarDate(end).getMillis/1000
-    PartitionKey( startTime, endTime, startIndex, partSize )
+    RecordKey( startTime, endTime, startIndex, partSize )
+  }
+
+  def getRecordKey( iRecord: Int, grid: TargetGrid ): RecordKey = {
+    val start = recordStartIndex(iRecord)
+    val startDate = grid.getCalendarDate(start)
+    val startDateStr = startDate.toString
+    val startTime = startDate.getMillis/1000
+    val end = Math.min( start+recordSize, grid.shape(0)-1 )
+    val endDate = grid.getCalendarDate(end)
+    val endDateStr = endDate.toString
+    val endTime =  grid.getCalendarDate(end).getMillis/1000
+    RecordKey( startTime, endTime, startIndex, recordSize )
   }
 
   def recordRange(iRecord: Int): ma2.Range = {
@@ -293,7 +305,7 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, val maskOpt: Option[
 
   def cacheRecord(partition: Partition,  iRecord: Int, outStr: BufferedOutputStream) = {
     logger.info( "CacheRecord: part=%d, record=%d".format(partition.index, iRecord))
-    val subsection: ma2.Section = partition.recordSection(iRecord, roi)
+    val subsection: ma2.Section = partition.recordSection(roi,iRecord)
     val t0 = System.nanoTime()
     logger.info( " ---> Reading data record %d, part %d, startTimIndex = %d, shape [%s], subsection [%s:%s], nElems = %d ".format(iRecord, partition.index, partition.startIndex, getAttributeValue("shape", ""), subsection.getOrigin.mkString(","), subsection.getShape.mkString(","), subsection.getShape.foldLeft(1L)(_ * _)))
     val data = fragmentSpec.readData( subsection )
@@ -499,7 +511,7 @@ class JobRecord(val id: String) {
   def toXml: xml.Elem = <job id={id} />
 }
 
-class RDDTransientVariable(val result: RDDPartition,
+class RDDTransientVariable(val result: RDDRecord,
                            val operation: OperationContext,
                            val request: RequestContext) {
   val timeFormatter = new SimpleDateFormat("MM.dd-HH:mm:ss")
