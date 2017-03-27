@@ -181,7 +181,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
       val partitions = partMgr.partitions
       val tgrid: TargetGrid = requestCx.getTargetGrid(uid).getOrElse(throw new Exception("Missing target grid for uid " + uid))
       val rddPartSpecs: Array[DirectRDDPartSpec] = partitions.getBatch(batchIndex) map ( partition => DirectRDDPartSpec(partition, tgrid, List(directInput.getRDDVariableSpec(uid, opSection)))) filterNot (_.empty(uid))
-      logger.info("Discarded empty partitions: Creating RDD with <<%d>> partitions".format(rddPartSpecs.length))
+      logger.info("\n **************************************************************** \n ---> Processing Batch %d: Creating RDD with <<%d>> partitions".format(batchIndex,rddPartSpecs.length))
       if (rddPartSpecs.length == 0) { None }
       else {
         val partitioner = RangePartitioner(rddPartSpecs.map(_.timeRange))

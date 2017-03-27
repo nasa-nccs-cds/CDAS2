@@ -333,7 +333,7 @@ class DirectRDDRecordSpec(val partition: Partition, iRecord: Int, val timeRange:
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition,iRecord)) ): _* )
     val rv = RDDRecord( elements )
-    logger.debug( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
+    logger.debug( "DirectRDDRecordSpec{ partition = %s, record = %d, cube size = %d }: completed data input in %.4f sec".format( partition.toString, iRecord, partition.recordMemorySize, (System.nanoTime() - t0) / 1.0E9) )
     rv
   }
 
