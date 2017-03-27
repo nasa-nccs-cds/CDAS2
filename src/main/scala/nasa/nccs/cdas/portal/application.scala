@@ -52,16 +52,16 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
   }
 }
 
-//class CDASApplication extends Loggable {
-//  def main(args: Array[String]) {
-//    import CDASapp._
-//    logger.info(s"Executing CDAS with args: ${args.mkString(",")}, nprocs: ${Runtime.getRuntime.availableProcessors()}")
-//    val connect_mode = elem(args, 0, "bind")
-//    val request_port = elem(args, 1, "0").toInt
-//    val response_port = elem(args, 2, "0").toInt
-//    val appConfiguration = Map.empty[String, String]
-//    val cmode = if (connect_mode.toLowerCase.startsWith("c")) CONNECT else BIND
-//    val app = new CDASapp(cmode, request_port, response_port, appConfiguration)
-//    app.run()
-//  }
-//}
+object CDASApplication extends Loggable {
+  def main(args: Array[String]) {
+    import CDASapp._
+    logger.info(s"Executing CDAS with args: ${args.mkString(",")}, nprocs: ${Runtime.getRuntime.availableProcessors()}")
+    val connect_mode = elem(args, 0, "bind")
+    val request_port = elem(args, 1, "0").toInt
+    val response_port = elem(args, 2, "0").toInt
+    val appConfiguration = Map.empty[String, String]
+    val cmode = if (connect_mode.toLowerCase.startsWith("c")) CONNECT else BIND
+    val app = new CDASapp(cmode, request_port, response_port, appConfiguration)
+    app.run()
+  }
+}

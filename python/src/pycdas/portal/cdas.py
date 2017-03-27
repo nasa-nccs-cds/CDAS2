@@ -2,7 +2,6 @@ import zmq, traceback, time, logging
 from threading import Thread
 from pycdas.cdasArray import npArray
 import random, string
-from psutil import virtual_memory
 MB = 1024 * 1024
 
 class ConnectionMode():
@@ -182,6 +181,7 @@ class AppThread(Thread):
 
     def run(self):
         import subprocess, shlex, os
+        from psutil import virtual_memory
         try:
             mem = virtual_memory()
             total_ram = mem.total / MB

@@ -590,7 +590,7 @@ object TestType {
   val NcFile = 4
 }
 
-object bigDataTest extends Loggable {
+class bigDataTest extends Loggable {
   val serverConfiguration = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
   val service = "cds2"

@@ -1,7 +1,10 @@
 import subprocess, shlex, os
+from psutil import virtual_memory
 request_port = 4356
 response_port = 4357
-CDAS_MAX_MEM = os.environ.get( 'CDAS_MAX_MEM', '32000M' )
+mem = virtual_memory()
+total_ram = mem.total / MB
+CDAS_MAX_MEM = os.environ.get( 'CDAS_MAX_MEM', str( total_ram - 1000 ) + 'M' )
 
 try:
     cdas_startup = "cdas2 bind {0} {1} -J-Xmx{2} -J-Xms512M -J-Xss1M -J-XX:+CMSClassUnloadingEnabled -J-XX:+UseConcMarkSweepGC".format( request_port, response_port, CDAS_MAX_MEM )
