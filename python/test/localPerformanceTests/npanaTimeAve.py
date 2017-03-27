@@ -1,7 +1,7 @@
 from pycdas.portal.cdas import *
 import time, sys
 
-startServer = True
+startServer = False
 portal = None
 request_port = 4356
 response_port = 4357
