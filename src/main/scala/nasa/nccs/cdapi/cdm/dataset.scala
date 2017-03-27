@@ -590,13 +590,13 @@ object TestType {
   val NcFile = 4
 }
 
-class bigDataTest extends Loggable {
+object bigDataTest extends Loggable {
   val serverConfiguration = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
   val service = "cds2"
 
   def main(args: Array[String]): Unit = {
-    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"file://att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml","name":"T:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"t"}]]"""
+    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"file://att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml","name":"T:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"tz"}]]"""
     val result_node = executeTest(datainputs)
 //    val result_data = getResultData( result_node )
   }
