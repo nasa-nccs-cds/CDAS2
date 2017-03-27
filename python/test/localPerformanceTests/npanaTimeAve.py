@@ -11,7 +11,7 @@ try:
     if startServer:
         portal = CDASPortal()
         portal.start_CDAS()
-        time.sleep(6)
+        time.sleep(20)
     else:
         portal = CDASPortal(ConnectionMode.CONNECT, "localhost", request_port, response_port)
 
