@@ -167,7 +167,8 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
           ]""".replaceAll("\\s", "")
     val result_node = executeTest(datainputs)
     val result_data = CDFloatArray( getResultData( result_node, false ).slice(0,0,10) )
-    println( " ** Op Result:       " + result_data.mkDataString(", ") )
+    println( " ** Op Result:         " + result_data.mkDataString(", ") )
+    println( " ** Unverified Result: " + unverified_result.mkDataString(", ") )
     assert( result_data.maxScaledDiff( unverified_result )  < eps, s" Incorrect value computed for Max")
   }
 

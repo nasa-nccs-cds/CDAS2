@@ -181,8 +181,9 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     directInput.getPartitioner(opSection) flatMap ( partMgr => {
       val partitions = partMgr.partitions
       val tgrid: TargetGrid = requestCx.getTargetGrid(uid).getOrElse(throw new Exception("Missing target grid for uid " + uid))
-      val rddPartSpecs: Array[DirectRDDPartSpec] = partitions.getBatch(batchIndex) map ( partition => DirectRDDPartSpec(partition, tgrid, List(directInput.getRDDVariableSpec(uid, opSection)))) filterNot (_.empty(uid))
-      logger.info("\n **************************************************************** \n ---> Processing Batch %d: Creating RDD with <<%d>> partitions".format(batchIndex,rddPartSpecs.length))
+      val batch= partitions.getBatch(batchIndex)
+      val rddPartSpecs: Array[DirectRDDPartSpec] = batch map ( partition => DirectRDDPartSpec(partition, tgrid, List(directInput.getRDDVariableSpec(uid, opSection)))) filterNot (_.empty(uid))
+      logger.info("\n **************************************************************** \n ---> Processing Batch %d: Creating input RDD with <<%d>> partitions for node %s".format(batchIndex,rddPartSpecs.length,node.getNodeId))
       if (rddPartSpecs.length == 0) { None }
       else {
         val partitioner = RangePartitioner(rddPartSpecs.map(_.timeRange))

@@ -633,7 +633,7 @@ class bigDataTest extends Loggable {
 
 
 
-class profilingTest extends Loggable {
+object profilingTest extends Loggable {
 
   def computeMax1(data: ma2.Array): Float = {
     var max = Float.MinValue

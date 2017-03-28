@@ -149,11 +149,15 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
     if( reduceDims.isEmpty ) {
       var value: T = initVal
       val t0 = System.nanoTime()
+      var isInvalid = true
       for ( index <-( 0 until getSize ) ) {
         val dval = getStorageValue( index )
-        if( valid(dval) ) { value = reductionOp(value, dval) }
+        if( valid(dval) ) {
+          value = reductionOp(value, dval)
+          isInvalid = false
+        }
       }
-      if (value == initVal) value = getInvalid
+      if( isInvalid ) value = getInvalid
       logger.info( s"Computing reduce, time = %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
       val shape = Array.fill[Int](getRank)(1)
       CDArray[T]( shape, Array[T](value), getInvalid )
@@ -471,7 +475,8 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
 
   def max(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray = reduce( maxOp, reduceDims, -Float.MaxValue )
   def min(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray = reduce( minOp, reduceDims, Float.MaxValue )
-  def maxMag(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray = reduce( maxMagOp, reduceDims, 0f )
+  def maxMag(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray =
+    reduce( maxMagOp, reduceDims, 0f )
   def minMag(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray = reduce( minMagOp, reduceDims, Float.MaxValue )
   def sum(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray = reduce( addOp, reduceDims, 0f )
   def mean = sum()/this.getSize
