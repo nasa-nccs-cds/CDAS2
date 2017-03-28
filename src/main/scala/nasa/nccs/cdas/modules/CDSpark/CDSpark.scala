@@ -134,7 +134,7 @@ class average extends SingularRDDKernel(Map.empty) {
     logger.info("Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9))
     RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
-  override def combineRDD(context: KernelContext)(a0: RDDRecord, a1: RDDRecord, axes: AxisIndices ): RDDRecord =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
+  override def combineRDD(context: KernelContext)(a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)(a0, a1)
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
 }
 
@@ -166,7 +166,7 @@ class timeBin extends Kernel(Map.empty) {
     logger.info("Executed Kernel %s map op, input = %s, index=%s, time = %.4f s".format(name, id, result_array.toCDFloatArray.getIndex.toString , (System.nanoTime - t0) / 1.0E9))
     RDDRecord( Map( context.operation.rid -> result_array ), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
-  override def combineRDD(context: KernelContext)(a0: RDDRecord, a1: RDDRecord, axes: AxisIndices ): RDDRecord =  weightedValueSumRDDCombiner(context)(a0, a1, axes )
+  override def combineRDD(context: KernelContext)( a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)( a0, a1 )
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
 }
 

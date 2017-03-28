@@ -77,10 +77,11 @@ object CDSparkContext extends Loggable {
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer") //
       .set("spark.kryoserializer.buffer",kyro_buffer_mb)
       .set("spark.kryoserializer.buffer.max", appParameters( "kryoserializer.buffer.max", default_kyro_buffer_max ) )
-      .set( "spark.local.dir", cdas_cache_dir )
+      .set("spark.local.dir", cdas_cache_dir )
       .set("spark.executor.memory", appParameters( "executor.memory", default_executor_memory) )
       .set("spark.executor.cores", appParameters( "executor.cores", default_executor_cores ) )
       .set("spark.num.executors", appParameters( "num.executors", default_num_executors ) )
+      .set("spark.file.transferTo", "false" )
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     utilities.runtime.printMemoryUsage
     utilities.runtime.printMemoryUsage(logger)

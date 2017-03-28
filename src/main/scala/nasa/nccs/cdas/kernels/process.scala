@@ -50,6 +50,7 @@ class KernelContext( val operation: OperationContext, val grids: Map[String,Opti
   private def getTRS: Option[String] = operation.getDomain flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("trs") ) )
   def conf( params: Map[String,String] ): KernelContext = new KernelContext( operation, grids, sectionMap, domains, configuration ++ params )
   def commutativeReduction: Boolean = if( getAxes.includes(0) ) { true } else { false }
+  def doesTimeReduction: Boolean = getAxes.includes(0)
 
   private def getTargetGridContext: GridContext = crsOpt match {
     case Some( crs ) =>
@@ -203,8 +204,9 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
   val initValue: Float = 0f
   def cleanUp() = {}
 
+
   def getReduceOp(context: KernelContext): (RDDKeyValPair,RDDKeyValPair)=>RDDKeyValPair =
-    if (context.getAxes.includes(0)) {
+    if (context.doesTimeReduction) {
       reduceCombineOp match {
         case Some(redOp) => redOp match {
           case CDFloatArray.customOp => customReduceRDD(context)
@@ -236,8 +238,9 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     throw new Exception( " Missing gridfile in kernel inputs: " + name )
   }
 
-  def combineRDD(context: KernelContext)(rdd0: RDDRecord, rdd1: RDDRecord, axes: AxisIndices): RDDRecord = {
+  def combineRDD(context: KernelContext)(rdd0: RDDRecord, rdd1: RDDRecord ): RDDRecord = {
     val t0 = System.nanoTime
+    val axes = context.getAxes
     val new_elements = rdd0.elements.flatMap { case (key, element0) =>
       rdd1.elements.get(key) match {
         case Some(element1) =>
@@ -282,10 +285,7 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     rv
   }
 
-  def reduceRDDOp(context: KernelContext)(a0: RDDKeyValPair, a1: RDDKeyValPair ): RDDKeyValPair = {
-    val axes: AxisIndices = context.getAxes
-    (a0._1 + a1._1) -> combineRDD(context)( a0._2, a1._2, axes )
-  }
+  def reduceRDDOp(context: KernelContext)(a0: RDDKeyValPair, a1: RDDKeyValPair ): RDDKeyValPair = (a0._1 + a1._1) -> combineRDD(context)( a0._2, a1._2 )
 
   def getDataSample(result: CDFloatArray, sample_size: Int = 20): Array[Float] = {
     val result_array = result.floatStorage.array
@@ -378,7 +378,8 @@ abstract class Kernel( val options: Map[String,String] ) extends Loggable with S
     case None => Map.empty
   }
 
-  def weightedValueSumRDDCombiner(context: KernelContext)(a0: RDDRecord, a1: RDDRecord, axes: AxisIndices): RDDRecord = {
+  def weightedValueSumRDDCombiner( context: KernelContext)(a0: RDDRecord, a1: RDDRecord ): RDDRecord = {
+    val axes = context.getAxes
     if (axes.includes(0)) {
       val rid = context.operation.rid
       val vTot: CDFloatArray = fltArray(a0, rid) + fltArray(a1, rid)

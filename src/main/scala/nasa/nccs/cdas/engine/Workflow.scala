@@ -5,6 +5,7 @@ import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.{RDDRecord, RDDRecord$}
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.engine.spark.{RecordKey$, _}
+import nasa.nccs.cdas.kernels.Kernel.RDDKeyValPair
 import nasa.nccs.cdas.kernels._
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.{DAGNode, Loggable}
@@ -50,7 +51,8 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
     }
   }
 
-//  def collect(mapresult: RDD[(PartitionKey,RDDPartition)], context: KernelContext ): RDDPartition = {
+
+  //  def collect(mapresult: RDD[(PartitionKey,RDDPartition)], context: KernelContext ): RDDPartition = {
 //    logger.info( "\n\n ----------------------- BEGIN collect Operation: %s (%s) ----------------------- \n".format( context.operation.identifier, context.operation.rid ) )
 //    val t0 = System.nanoTime()
 //    var repart_mapresult = mapresult repartitionAndSortWithinPartitions PartitionManager.getPartitioner(mapresult)
@@ -98,7 +100,7 @@ object Workflow {
 }
 
 class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager ) extends Loggable {
-  val nodes = request.operations.map(opCx => WorkflowNode(opCx, createKernel( opCx.name.toLowerCase ) ) )
+  val nodes = request.operations.map(opCx => WorkflowNode( opCx, createKernel( opCx.name.toLowerCase ) ) )
   val roots = findRootNodes()
 
   def createKernel(id: String): Kernel = executionMgr.getKernel(id)
@@ -142,6 +144,32 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
       }
     })
 
+  def streamMapReduceBatch( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext, batchIndex: Int ): Option[RDD[(RecordKey,RDDRecord)]] =
+    prepareInputs(node, kernelContext, requestCx, batchIndex) flatMap ( inputs => {
+      logger.info( s"Executing mapReduce Batch ${batchIndex.toString}" )
+      val mapresult = node.map( inputs, kernelContext )
+      val result: RDD[(RecordKey,RDDRecord)] = streamReduceNode( mapresult, node, kernelContext, batchIndex )
+      streamMapReduceBatch( node, kernelContext, requestCx, batchIndex + 1 ) map { next_result =>
+        val reduceOp = node.kernel.getReduceOp(kernelContext)
+        result.join(next_result).mapValues(rdds => node.kernel.combineRDD(kernelContext)(rdds._1, rdds._2))
+      }})
+
+  def streamReduceNode(mapresult: RDD[(RecordKey,RDDRecord)], node: WorkflowNode, context: KernelContext, batchIndex: Int ): RDD[(RecordKey,RDDRecord)] = {
+    logger.debug( "\n\n ----------------------- BEGIN reduce[%d] Operation: %s (%s): thread(%s) ----------------------- \n".format( batchIndex, context.operation.identifier, context.operation.rid, Thread.currentThread().getId ) )
+    val t0 = System.nanoTime()
+    if( context.doesTimeReduction ) {
+      val nparts = mapresult.getNumPartitions
+      if( !node.kernel.parallelizable || (nparts==1) ) { mapresult }
+      else {
+        val inputNParts = mapresult.partitions.length
+        val intermediateNParts: Int = if (context.commutativeReduction) { inputNParts } else { 1 }
+        val result = mapresult.sortByKey( true, intermediateNParts ) reduce node.kernel.getReduceOp(context)
+        logger.debug("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
+        val results = List.fill(inputNParts)( result )
+        executionMgr.serverContext.spark.sparkContext.parallelize( results )
+      }
+    } else { mapresult }
+  }
 
   def mapReduce( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext ): RDDRecord = {
     mapReduceBatch( node, kernelContext, requestCx, 0 ) match {
@@ -152,7 +180,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def stream(node: WorkflowNode, requestCx: RequestContext, batchIndex: Int ): Option[ RDD[ (RecordKey,RDDRecord) ] ] = {
     val kernelContext = node.generateKernelContext( requestCx )
-    mapReduceBatch( node, kernelContext, requestCx, 0 ) map { keyValuePair => executionMgr.serverContext.spark.sparkContext parallelize Seq( keyValuePair ) }   // TODO: Partition section broadcast!
+    streamMapReduceBatch( node, kernelContext, requestCx, 0 )
   }
 
   def prepareInputs( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext, batchIndex: Int ): Option[RDD[(RecordKey,RDDRecord)]] = {
