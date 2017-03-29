@@ -105,14 +105,14 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def toCDLongArray: CDLongArray = CDLongArray( shape, data.map(_.toLong) )
   def verifyGrids( other: HeapFltArray ) = if( !sameGrid(other) ) throw new Exception( s"Error, attempt to combine arrays with different grids: $gridSpec vs ${other.gridSpec}")
 
-  def append( other: HeapFltArray ): HeapFltArray = {
+  def append( other: HeapFltArray, checkContiguous: Boolean = false ): HeapFltArray = {
     verifyGrids( other )
     logger.debug( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
     if( origin(0) < other.origin(0) ) {
-      if( origin(0) + shape(0) != other.origin(0) ) throw new Exception( "Appending non-contiguous arrays" )
+      if( checkContiguous && (origin(0) + shape(0) != other.origin(0)) ) throw new Exception( "Appending non-contiguous arrays" )
       HeapFltArray(toCDFloatArray.append(other.toCDFloatArray), origin, gridSpec, mergeMetadata("merge", other), toCDWeightsArray.map(_.append(other.toCDWeightsArray.get)))
     } else {
-      if( other.origin(0) + other.shape(0) != origin(0) ) throw new Exception( "Appending non-contiguous arrays" )
+      if( checkContiguous && (other.origin(0) + other.shape(0) != origin(0)) ) throw new Exception( "Appending non-contiguous arrays" )
       HeapFltArray(other.toCDFloatArray.append(toCDFloatArray), other.origin, gridSpec, mergeMetadata("merge", other), other.toCDWeightsArray.map(_.append(toCDWeightsArray.get)))
     }
   }
