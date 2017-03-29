@@ -82,7 +82,8 @@ class AverageKernel(CDMSKernel):
         action = task.metadata.get("action","average")
         returned = 0
         result_var = cdutil.averager( variable, axis=axis, weights=weights, action=action, returned=returned )
-        return self.createResult( result_var, _input, task )
+        rv = self.createResult( result_var, _input, task )
+        return rv
 
 if __name__ == "__main__":
     from cdms2 import timeslice

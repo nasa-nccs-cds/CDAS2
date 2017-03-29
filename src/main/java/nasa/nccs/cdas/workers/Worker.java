@@ -21,6 +21,7 @@ public abstract class Worker {
     private String errorCondition = null;
     private String withData = "1";
     private String withoutData = "0";
+    private long requestTime = 0;
 
     static int bindSocket( ZMQ.Socket socket, int init_port ) {
         int test_port = init_port;
@@ -43,7 +44,8 @@ public abstract class Worker {
     }
 
     private void addResult( String result_header, byte[] data ) {
-        logger.info( "Caching result from worker: " + result_header );
+        String elapsedTime = String.valueOf( ( System.currentTimeMillis() - requestTime )/1000.0 );
+        logger.info( "*********************************\n Caching result from worker: " + result_header + ", Worker time = " + elapsedTime + "\n*********************************\n");
         results.add( new TransVar( result_header, data ) );
     }
 
@@ -179,6 +181,7 @@ public abstract class Worker {
         List<String> slist = Arrays.asList(  "task", operation, sa2s(opInputs), m2s(metadata)  );
         String header = String.join("|", slist);
         logger.info( "Sending Task Request: " + header );
+        requestTime = System.currentTimeMillis();
         request_socket.send(header);
         errorCondition = null;
     }
