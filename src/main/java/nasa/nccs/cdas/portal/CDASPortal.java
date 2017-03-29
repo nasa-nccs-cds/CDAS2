@@ -4,6 +4,7 @@ import nasa.nccs.utilities.Logger;
 import org.zeromq.ZMQ;
 import nasa.nccs.utilities.CDASLogManager;
 import java.util.Arrays;
+import java.util.List;
 
 public abstract class CDASPortal {
     public enum ConnectionMode { BIND, CONNECT };
@@ -39,7 +40,8 @@ public abstract class CDASPortal {
     }
 
     public void sendResponse( String rId, String response  ) {
-        response_socket.send( String.join("!", rId, "response", response ) );
+        List<String> request_args = Arrays.asList( rId, "response", response );
+        response_socket.send( String.join( "!", request_args ) );
         logger.info( " Sent response: " + response );
     }
 
