@@ -108,7 +108,7 @@ class CachePartition( index: Int, val path: String, dimIndex: Int, startIndex: I
     val file = new RandomAccessFile(path, "r")
     val channel: FileChannel = file.getChannel()
     logger.debug(s" *** Mapping channel for Partition-$index with partSize=$partSize startIndex=$startIndex, recordSize=$recordSize, sliceMemorySize=$sliceMemorySize, shape=(%s), path=%s".format( shape.mkString(","), path ))
-    if( index == 0 ) { logger.debug( "\n    " + Thread.currentThread().getStackTrace.mkString("\n    ")) }
+//    if( index == 0 ) { logger.debug( "\n    " + Thread.currentThread().getStackTrace.mkString("\n    ")) }
     val buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, partSize * sliceMemorySize)
     channel.close(); file.close()
     runtime.printMemoryUsage(logger)
