@@ -42,7 +42,7 @@ public abstract class CDASPortal {
     public void sendResponse( String rId, String response  ) {
         List<String> request_args = Arrays.asList( rId, "response", response );
         response_socket.send( String.join( "!", request_args ) );
-        logger.info( " Sent response: " + response );
+        logger.info( " Sent response: " + rId );
     }
 
     public abstract void postArray( String header, byte[] data );
