@@ -159,8 +159,9 @@ class CDASPortal:
         sample = string.lowercase+string.digits+string.uppercase
         return ''.join(random.choice(sample) for i in range(length))
 
-    def sendMessage( self, type, msgStrs = [""] ):
+    def sendMessage( self, type, mDataList = [""] ):
         msgId = self.randomId(8)
+        msgStrs = [ str(mData).replace("'",'"') for mData in mDataList ]
         self.logger.info( "Sending {0} request {1} on port {2}.".format( type, msgStrs, self.request_port )  )
         try:
             message = "!".join( [msgId,type] + msgStrs )
