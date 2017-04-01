@@ -167,7 +167,7 @@ class CDASPortal:
             message = "!".join( [msgId,type] + msgStrs )
             self.request_socket.send( message )
         except zmq.error.ZMQError as err:
-            self.logger.error("Error sending message {0} on request socket: {1}".format( message, str(err) ) )
+            self.logger.error( "Error sending message {0} on request socket: {1}".format( message, str(err) ) )
         return msgId
 
 class AppThread(Thread):

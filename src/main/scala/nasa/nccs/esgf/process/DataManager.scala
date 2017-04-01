@@ -51,6 +51,7 @@ trait ScopeContext {
 class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[String, Option[DataFragmentSpec]], request: TaskRequest, private val configuration: Map[String,String] ) extends ScopeContext {
   val test = 1
   def getConfiguration = configuration.map(identity)
+  def getConf( key: String, default: String ) = configuration.getOrElse(key,default)
   def missing_variable(uid: String) = throw new Exception("Can't find Variable '%s' in uids: [ %s ]".format(uid, inputs.keySet.mkString(", ")))
   def getDataSources: Map[String, Option[DataFragmentSpec]] = inputs
   def getInputSpec( uid: String ): Option[DataFragmentSpec] = inputs.get( uid ).flatten

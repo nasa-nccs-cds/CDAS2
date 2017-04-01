@@ -2,6 +2,7 @@ package nasa.nccs.cdas.portal
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode._
 import nasa.nccs.utilities.Loggable
+import nasa.nccs.wps.WPSDirectExecuteResponse
 
 object CDASapp {
   def elem( array: Array[String], index: Int, default: String = "" ): String = if( array.length > index ) array(index) else default
@@ -38,7 +39,17 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
     val datainputs = if( taskSpec.length > 3 ) wpsObjectParser.parseDataInputs( taskSpec(3) ) else Map.empty[String, Seq[Map[String, Any]]]
     val runargs = if( taskSpec.length > 4 ) wpsObjectParser.parseMap( taskSpec(4) ) else Map.empty[String, Any]
     val response = processManager.executeProcess( process, process_name, datainputs, runargs.mapValues(_.toString) )
+    val responseType = runargs.getOrElse("result","xml")
     sendResponse( taskSpec(0), printer.format( response ) )
+    if( responseType == "cdms" ) { sendDirectResponse( response ) }
+  }
+
+  def sendDirectResponse( response: xml.Elem ): Unit =  {
+    val refs: xml.NodeSeq = response \\ "Output" \\ "Reference"
+    val resultHref = refs.flatMap( _.attribute("href") ).find( _.nonEmpty ).map( _.text ) match {
+      case Some( href ) => logger.info( "Do Nothing now- output written to disk")
+      case None => logger.error( "Can't find result Id in direct response")
+    }
   }
 
   override def getCapabilities(utilSpec: Array[String]) = {

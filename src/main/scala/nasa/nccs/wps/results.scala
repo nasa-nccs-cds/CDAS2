@@ -15,7 +15,7 @@ object ResponseSyntax extends Enumeration {
   val WPS, Generic = Value
 }
 
-trait WPSResponse {
+trait WPSResponse extends {
   val proxyAddress =  appParameters("wps.server.proxy.href","")
   val syntax =  appParameters("wps.response.syntax","") match {
     case "generic" => ResponseSyntax.Generic
@@ -124,16 +124,39 @@ abstract class WPSReferenceExecuteResponse( serviceInstance: String, val process
   val fileHref: String = proxyAddress + s"/wps/file?id=$resultId"
   val resultHref: String = proxyAddress + s"/wps/result?id=$resultId"
   def getReference: xml.Elem = syntax match {
-    case ResponseSyntax.WPS => <wps:Reference encoding="UTF-8" mimeType="text/xml" href={statusHref}/>
-    case ResponseSyntax.Generic => <reference href={statusHref}/>
+    case ResponseSyntax.WPS => <wps:Reference id="status" encoding="UTF-8" mimeType="text/xml" href={statusHref}/>
+    case ResponseSyntax.Generic => <reference id="status" href={statusHref}/>
   }
   def getFileReference: xml.Elem = syntax match {
-    case ResponseSyntax.WPS => <wps:Reference encoding="UTF-8" mimeType="text/xml" href={fileHref}/>
-    case ResponseSyntax.Generic =>   <reference href={fileHref}/>
+    case ResponseSyntax.WPS => <wps:Reference id="file" encoding="UTF-8" mimeType="text/xml" href={fileHref}/>
+    case ResponseSyntax.Generic =>   <reference id="file" href={fileHref}/>
   }
   def getResultReference: xml.Elem = syntax match {
-    case ResponseSyntax.WPS =>  <wps:Reference encoding="UTF-8" mimeType="text/xml" href={resultHref}/>
-    case ResponseSyntax.Generic => <reference href={resultHref}/>
+    case ResponseSyntax.WPS =>  <wps:Reference id="result" encoding="UTF-8" mimeType="text/xml" href={resultHref}/>
+    case ResponseSyntax.Generic => <reference id="result" href={resultHref}/>
+  }
+  def getResultId: String = resultId
+}
+
+abstract class WPSDirectExecuteResponse( serviceInstance: String, val process: WPSProcess, val resultId: String, resultFileOpt: Option[String] )  extends WPSProcessExecuteResponse( serviceInstance, process )  {
+  val statusHref: String = ""
+  val fileHref: String = "file://" + resultFileOpt.getOrElse("")
+  val resultHref: String = s"result://$resultId"
+  def getOutputTag = syntax match {
+    case ResponseSyntax.WPS => "Output"
+    case ResponseSyntax.Generic => "output"
+  }
+  def getReference: xml.Elem = syntax match {
+    case ResponseSyntax.WPS => <wps:Reference id="status" href={statusHref}/>
+    case ResponseSyntax.Generic => <reference id="status" href={statusHref}/>
+  }
+  def getFileReference: xml.Elem = syntax match {
+    case ResponseSyntax.WPS => <wps:Reference id="file" href={fileHref}/>
+    case ResponseSyntax.Generic =>   <reference id="file" href={fileHref}/>
+  }
+  def getResultReference: xml.Elem = syntax match {
+    case ResponseSyntax.WPS =>  <wps:Reference id="result" href={resultHref}/>
+    case ResponseSyntax.Generic => <reference id="result" href={resultHref}/>
   }
   def getResultId: String = resultId
 }
@@ -156,6 +179,11 @@ class RDDExecutionResult(serviceInstance: String, process: WPSProcess, id: Strin
     result.elements map { case (id, array) => getData( syntax, id, array.toCDFloatArray, array.metadata.getOrElse("units","") ) }
   }
 }
+
+class RefExecutionResult(serviceInstance: String, process: WPSProcess, id: String, resultId: String, resultFileOpt: Option[String] ) extends WPSDirectExecuteResponse( serviceInstance, process, resultId, resultFileOpt )  with Loggable {
+  def getProcessOutputs( syntax: ResponseSyntax.Value, process_id: String, output_id: String  ): Iterable[xml.Elem] = Iterable.empty[xml.Elem]
+}
+
 
 class ExecutionErrorReport( serviceInstance: String, process: WPSProcess, id: String, val err: Throwable ) extends WPSReferenceExecuteResponse( serviceInstance, process, "" )  with Loggable {
   print_error
