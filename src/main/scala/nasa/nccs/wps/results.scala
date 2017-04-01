@@ -140,7 +140,7 @@ abstract class WPSReferenceExecuteResponse( serviceInstance: String, val process
 
 abstract class WPSDirectExecuteResponse( serviceInstance: String, val process: WPSProcess, val resultId: String, resultFileOpt: Option[String] )  extends WPSProcessExecuteResponse( serviceInstance, process )  {
   val statusHref: String = ""
-  val fileHref: String = "file://" + resultFileOpt.getOrElse("")
+  val fileHref: String = "file:/" + resultFileOpt.getOrElse("")
   val resultHref: String = s"result://$resultId"
   def getOutputTag = syntax match {
     case ResponseSyntax.WPS => "Output"
