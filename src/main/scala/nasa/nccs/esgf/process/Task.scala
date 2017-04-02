@@ -581,7 +581,7 @@ class DataFragmentSpec(val uid: String = "",
         new ma2.Range(range.getName, range.first(), range.last, incr)
     }
   def getRange(dimension_name: String): Option[ma2.Range] = {
-    val dims = dimensions.toLowerCase.split(' ')
+    val dims = dimensions.toLowerCase.split(',')
     dims.indexOf(dimension_name.toLowerCase) match {
       case -1 => None
       case x => Option(roi.getRange(x))
