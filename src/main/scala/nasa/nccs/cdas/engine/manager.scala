@@ -198,7 +198,6 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
       val dimsMap: Map[String, nc2.Dimension] = Map(dims.map(dim => (dim.getFullName -> dim)): _*)
       val newCoordVars: List[(nc2.Variable, ma2.Array)] = (for (coordAxis <- coordAxes) yield optInputSpec flatMap { inputSpec => inputSpec.getRange(coordAxis.getFullName) match {
         case Some(range) =>
-          logger.info("R-->" + coordAxis.getFullName )
           val coordVar: nc2.Variable = writer.addVariable(null, coordAxis.getFullName, coordAxis.getDataType, coordAxis.getFullName)
           for (attr <- coordAxis.getAttributes) writer.addVariableAttribute(coordVar, attr)
           val newRange = dimsMap.get(coordAxis.getFullName) match {
@@ -206,14 +205,11 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
             case Some(dim) => if (dim.getLength < range.length) new ma2.Range(dim.getLength) else range
           }
           Some(coordVar, coordAxis.read(List(newRange)))
-        case None =>
-          logger.info("XX"); None
+        case None => None
       } }).flatten
       logger.info("Writing result %s to file '%s', varname=%s, dims=(%s), shape=[%s], coords = [%s]".format(
         resultId, resultFile.getAbsolutePath, varname, dims.map(_.toString).mkString(","), maskedTensor.getShape.mkString(","),
         newCoordVars.map { case (cvar, data) => "%s: (%s)".format(cvar.getFullName, data.getShape.mkString(",")) }.mkString(",")))
-      logger.info( "Coord axes: " +  coordAxes.map( _.getFullName()).mkString(",") )
-      logger.info( "RANGES: " +  optInputSpec.getOrElse("XX").asInstanceOf[DataFragmentSpec].dimensions )
       val variable: nc2.Variable = writer.addVariable(null, varname, ma2.DataType.FLOAT, dims.toList)
       varMetadata map {case (key, value) => variable.addAttribute( new Attribute(key, value)) }
       variable.addAttribute(new nc2.Attribute("missing_value", maskedTensor.getInvalid))
