@@ -317,7 +317,8 @@ class Collection( val ctype: String, val id: String, val uri: String, val fileFi
     }
   }
 
-  def readVariableData(varShortName: String, section: ma2.Section): ma2.Array = NetcdfDatasetMgr.readVariableData(varShortName, dataPath, section )
+  def readVariableData(varShortName: String, section: ma2.Section): ma2.Array =
+    NetcdfDatasetMgr.readVariableData(varShortName, dataPath, section )
 
   private def _aggCollection(dataset: NetcdfDataset): xml.Elem = {
     val vars = dataset.getVariables.filter(!_.isCoordinateVariable).map(v => Collections.getVariableString(v)).toList

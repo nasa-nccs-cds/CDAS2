@@ -481,6 +481,7 @@ class DataFragmentSpec(val uid: String = "",
                        val longname: String = "",
                        private val _section: ma2.Section = new ma2.Section(),
                        private val _domSectOpt: Option[ma2.Section],
+                       private val _metadata: Map[String,String],
                        val missing_value: Float,
                        val mask: Option[String] = None,
                        val autoCache: Boolean = false
@@ -499,6 +500,7 @@ class DataFragmentSpec(val uid: String = "",
         <input uid={uid} varname={varname} longname={longname} units={units} roi={roi.toString} mask={maskId} >{collection.toXml}</input>
     }
   }
+  def getMetadata( key: String ): Option[String] = _metadata.get( key )
 
   def getPartitionKey: RecordKey = targetGridOpt match {
       case Some(grid) =>
@@ -536,7 +538,7 @@ class DataFragmentSpec(val uid: String = "",
     val combined_varname = varname + ":" + other.varname
     val combined_longname = longname + ":" + other.longname
     val (combined_section, mergeStatus) = if (sectionMerge) combineRoi(other.roi) else (roi, SectionMerge.Overlap)
-    new DataFragmentSpec(uid, combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, missing_value, mask, autoCache ) -> mergeStatus
+    new DataFragmentSpec(uid, combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, _metadata, missing_value, mask, autoCache ) -> mergeStatus
   }
   def roi = targetGridOpt match {
     case None =>
@@ -561,6 +563,7 @@ class DataFragmentSpec(val uid: String = "",
                          longname,
                          new ma2.Section(newSection),
                          domainSectOpt,
+                         _metadata,
                          missing_value,
                          mask, autoCache )
 
@@ -625,6 +628,7 @@ class DataFragmentSpec(val uid: String = "",
                            longname,
                            roi.intersect(cutSection),
                            domainSectOpt,
+                           _metadata,
                            missing_value,
                            mask, autoCache )
   }
@@ -680,6 +684,7 @@ class DataFragmentSpec(val uid: String = "",
                              longname,
                              intersection,
                              domainSectOpt,
+                             _metadata,
                              missing_value,
                              mask, autoCache ))
     } else None
@@ -766,6 +771,7 @@ class DataFragmentSpec(val uid: String = "",
                          longname,
                          new ma2.Section(newRanges),
                          domainSectOpt,
+                          _metadata,
                          missing_value,
                          mask, autoCache )
   }
