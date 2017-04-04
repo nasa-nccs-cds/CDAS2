@@ -185,7 +185,7 @@ object KernelUtilities extends Loggable {
 
 class KIType { val Op = 0; val MData = 1 }
 
-abstract class Kernel( val options: Map[String,String] ) extends Loggable with Serializable with WPSProcess {
+abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Loggable with Serializable with WPSProcess {
   import Kernel._
   val identifiers = this.getClass.getName.split('$').flatMap(_.split('.'))
   def operation: String = identifiers.last.toLowerCase
@@ -522,7 +522,7 @@ abstract class DualOperationKernel extends Kernel {
 //  }
 //}
 
-abstract class SingularRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
+abstract class SingularRDDKernel( options: Map[String,String] = Map.empty ) extends Kernel(options)  {
   override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )

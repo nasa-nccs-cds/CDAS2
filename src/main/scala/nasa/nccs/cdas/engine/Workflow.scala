@@ -236,12 +236,12 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
       requestCx.getInputSpec(uid) match {
         case Some(inputSpec) =>
           logger.info("getInputSpec: %s -> %s ".format(uid, inputSpec.longname))
-           if( workflowNode.kernel.extInputs ) {  uid -> new ExternalDataInput( inputSpec )                       }
-           else                                {  uid -> executionMgr.serverContext.getOperationInput(inputSpec)  }
+           if( workflowNode.kernel.extInputs ) {  uid -> new ExternalDataInput( inputSpec, workflowNode )                       }
+           else                                {  uid -> executionMgr.serverContext.getOperationInput(inputSpec, workflowNode )  }
         case None =>
           nodes.find(_.getResultId.equals(uid)) match {
             case Some(inode) =>
-              uid -> new DependencyOperationInput(inode)
+              uid -> new DependencyOperationInput( inode, workflowNode )
             case None =>
               val errorMsg = " ** Unidentified input in workflow node %s: %s, input ids = %s".format(workflowNode.getNodeId(), uid, requestCx.inputs.keySet.mkString(", "))
               logger.error(errorMsg)
@@ -306,9 +306,9 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
             executionMgr.serverContext.spark.getRDD(uid, extInput, requestCx, opSection, node) map (result => uid -> result)
           }
         case ( kernelInput: DependencyOperationInput  ) =>
-          val keyValOpt = stream( kernelInput.workflowNode, requestCx, batchIndex ) map ( result => uid -> result )
+          val keyValOpt = stream( kernelInput.inputNode, requestCx, batchIndex ) map ( result => uid -> result )
           logger.info( "\n\n ----------------------- NODE %s => Stream DEPENDENCY Node: %s, batch = %d, rID = %s, nParts = %d -------\n".format(
-            node.getNodeId(), kernelInput.workflowNode.getNodeId(), batchIndex, kernelInput.workflowNode.getResultId, keyValOpt.map( _._2.partitions.length ).getOrElse(-1) ) )
+            node.getNodeId(), kernelInput.inputNode.getNodeId(), batchIndex, kernelInput.inputNode.getResultId, keyValOpt.map( _._2.partitions.length ).getOrElse(-1) ) )
           keyValOpt
         case (  x ) =>
           throw new Exception( "Unsupported OperationInput class: " + x.getClass.getName )

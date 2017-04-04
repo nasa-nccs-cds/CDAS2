@@ -44,6 +44,15 @@ class max extends SingularRDDKernel(Map("mapreduceOp" -> "max")) {
 //    }
 //  }
 
+
+
+class partition extends Kernel() {
+  val inputs = List( WPSDataInput("input variables", 1, 1 ) )
+  val outputs = List( WPSProcessOutput( "operation result" ) )
+  val title = "Partitioner"
+  val description = "Configures various data partitioning and filtering operations"
+}
+
 class min2 extends DualRDDKernel(Map("mapOp" -> "min")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )

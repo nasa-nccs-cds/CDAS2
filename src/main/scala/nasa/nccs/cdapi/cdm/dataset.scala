@@ -666,36 +666,36 @@ class profilingTest extends Loggable {
     if (max == Float.MinValue) Float.NaN else max
   }
 
-  def processCacheData(cache_id: String, roi: ma2.Section) = {
-    val partitioner = new CDASCachePartitioner(cache_id, roi)
-    val t0 = System.nanoTime()
-    val full_shape = partitioner.getShape
-    var total_read_time = 0.0
-    var total_compute_time = 0.0
-    println("Processing data, full shape = " + full_shape.mkString(", "))
-    val partitions = partitioner.getCachePartitions
-    for (partition <- partitions) {
-      val itime = partition.startIndex
-      val chunk_size = partition.shape(0)
-      val ncycle = chunk_size * (partition.index + 1)
-      val chunk_origin = partition.origin
-      val chunk_shape = partition.shape
-      val ts0 = System.nanoTime()
-      val cfdata: CDFloatArray = partition.data(Float.NaN)
-      println("Mapped data, P[%d]: data shape = (%s), datasize = %d, ncycles = %d, chunk_size = %d".format( partition.index, cfdata.getShape.mkString(", "), cfdata.getSize, cfdata.getSize/(full_shape(2)*full_shape(3)), chunk_size ) )
-      val ts1 = System.nanoTime()
-      val max = computeMax(cfdata)
-      val ts2 = System.nanoTime()
-      val read_time = (ts1 - ts0) / 1.0E9
-      val compute_time = (ts2 - ts1) / 1.0E9
-      total_read_time += read_time
-      total_compute_time += compute_time
-      println("Computed max = %.4f [time=%d] in %.4f sec, data read time = %.4f sec, compute time = %.4f sec".format(max, itime, read_time + compute_time, read_time, compute_time) )
-      println("Aggretate time for %d cycles = %.4f sec".format(ncycle, (ts2 - t0) / 1.0E9))
-      println("Average over %d cycles: read time per cycle = %.4f sec, compute time per cycle = %.4f sec".format(ncycle, total_read_time / ncycle, total_compute_time / ncycle))
-    }
-    println("Completed data processing for collection '%s' in %.4f sec".format(partitioner.cache_id, (System.nanoTime() - t0) / 1.0E9))
-  }
+//  def processCacheData(cache_id: String, roi: ma2.Section) = {
+//    val partitioner = new CDASCachePartitioner(cache_id, roi)
+//    val t0 = System.nanoTime()
+//    val full_shape = partitioner.getShape
+//    var total_read_time = 0.0
+//    var total_compute_time = 0.0
+//    println("Processing data, full shape = " + full_shape.mkString(", "))
+//    val partitions = partitioner.getCachePartitions
+//    for (partition <- partitions) {
+//      val itime = partition.startIndex
+//      val chunk_size = partition.shape(0)
+//      val ncycle = chunk_size * (partition.index + 1)
+//      val chunk_origin = partition.origin
+//      val chunk_shape = partition.shape
+//      val ts0 = System.nanoTime()
+//      val cfdata: CDFloatArray = partition.data(Float.NaN)
+//      println("Mapped data, P[%d]: data shape = (%s), datasize = %d, ncycles = %d, chunk_size = %d".format( partition.index, cfdata.getShape.mkString(", "), cfdata.getSize, cfdata.getSize/(full_shape(2)*full_shape(3)), chunk_size ) )
+//      val ts1 = System.nanoTime()
+//      val max = computeMax(cfdata)
+//      val ts2 = System.nanoTime()
+//      val read_time = (ts1 - ts0) / 1.0E9
+//      val compute_time = (ts2 - ts1) / 1.0E9
+//      total_read_time += read_time
+//      total_compute_time += compute_time
+//      println("Computed max = %.4f [time=%d] in %.4f sec, data read time = %.4f sec, compute time = %.4f sec".format(max, itime, read_time + compute_time, read_time, compute_time) )
+//      println("Aggretate time for %d cycles = %.4f sec".format(ncycle, (ts2 - t0) / 1.0E9))
+//      println("Average over %d cycles: read time per cycle = %.4f sec, compute time per cycle = %.4f sec".format(ncycle, total_read_time / ncycle, total_compute_time / ncycle))
+//    }
+//    println("Completed data processing for collection '%s' in %.4f sec".format(partitioner.cache_id, (System.nanoTime() - t0) / 1.0E9))
+//  }
 
   def processFileData(ncmlFile: String, gridFile: String, varName: String) = {
     try {

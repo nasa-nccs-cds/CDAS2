@@ -14,6 +14,7 @@ import nasa.nccs.cdas.utilities.{GeoTools, appParameters, runtime}
 import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
 import nasa.nccs.cdapi.data.{RDDRecord, RDDRecord$}
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
+import nasa.nccs.cdas.engine.WorkflowNode
 import nasa.nccs.cdas.engine.spark.{RecordKey, RecordKey$}
 import nasa.nccs.cdas.kernels.TransientFragment
 import nasa.nccs.cdas.loaders.Masks
@@ -210,7 +211,7 @@ object CDASPartitioner {
   val nCoresPerPart = 1
 }
 
-class CDASCachePartitioner(val cache_id: String, _section: ma2.Section, dataType: ma2.DataType = ma2.DataType.FLOAT, cacheType: String = "fragment") extends CDASPartitioner(_section,dataType,cacheType) {
+class CDASCachePartitioner(val cache_id: String, _section: ma2.Section, workflowNodeOpt: Option[WorkflowNode], dataType: ma2.DataType = ma2.DataType.FLOAT, cacheType: String = "fragment") extends CDASPartitioner(_section,workflowNodeOpt,dataType,cacheType) {
 
   def getCacheFilePath(partIndex: Int): String = {
     val cache_file = cache_id + "-" + partIndex.toString
@@ -226,7 +227,7 @@ class CDASCachePartitioner(val cache_id: String, _section: ma2.Section, dataType
   def getCachePartitions: Array[CachePartition] = (0 until nPartitions).map(getPartition(_)).toArray
 }
 
-class CDASPartitioner( private val _section: ma2.Section, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment") extends Loggable {
+class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: Option[WorkflowNode], dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment") extends Loggable {
   import CDASPartitioner._
   protected lazy val elemSize = dataType.getSize
   protected lazy val baseShape = _section.getShape
@@ -234,6 +235,7 @@ class CDASPartitioner( private val _section: ma2.Section, dataType: ma2.DataType
   protected lazy val sliceMemorySize: Long = getMemorySize(1)
   protected lazy val nSlicesPerRecord: Int = math.max( recordSize.toFloat/sliceMemorySize, 1.0 ).round.toInt
   protected lazy val recordMemorySize: Long = getMemorySize(nSlicesPerRecord)
+  protected val kernelConfig = workflowNodeOpt.map( _.operation.getConfiguration ).getOrElse( Map.empty )
   lazy val nRecordsPerPart: Int = math.max( partitionSize.toFloat/recordMemorySize, 1.0 ).round.toInt
   protected lazy val partMemorySize: Long = nRecordsPerPart*recordMemorySize
   protected lazy val nSlicesPerPart: Int = nRecordsPerPart*nSlicesPerRecord
@@ -259,7 +261,7 @@ class CDASPartitioner( private val _section: ma2.Section, dataType: ma2.DataType
   }
 }
 
-class FileToCacheStream(val fragmentSpec: DataFragmentSpec, val maskOpt: Option[CDByteArray], val cacheType: String = "fragment") extends Loggable {
+class FileToCacheStream(val fragmentSpec: DataFragmentSpec, workflowNodeOpt: Option[WorkflowNode], val maskOpt: Option[CDByteArray], val cacheType: String = "fragment") extends Loggable {
   val attributes = fragmentSpec.getVariableMetadata
   val _section = fragmentSpec.roi
   val missing_value: Float = getAttributeValue("missing_value", "") match { case "" => Float.MaxValue; case x => x.toFloat }
@@ -268,7 +270,7 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, val maskOpt: Option[
   val sType = getAttributeValue("dtype", "FLOAT")
   val dType = ma2.DataType.getType( sType )
   def roi: ma2.Section = new ma2.Section(_section.getRanges)
-  val partitioner = new CDASCachePartitioner(cacheId, roi, dType)
+  val partitioner = new CDASCachePartitioner(cacheId, roi, workflowNodeOpt, dType)
   def getAttributeValue(key: String, default_value: String) =
     attributes.get(key) match {
       case Some(attr_val) => attr_val.toString.split('=').last.replace('"',' ').trim
@@ -393,7 +395,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
 //    }
 //  }\\
 
-  def restore( fragSpec: DataFragmentSpec): Option[Future[PartitionedFragment]] = {
+  def restore( fragSpec: DataFragmentSpec, workflowNodeOpt: Option[WorkflowNode]): Option[Future[PartitionedFragment]] = {
     val fragKey = fragSpec.getKey
 //    logger.info("FragmentPersistence.restore: fragKey: " + fragKey)
     findEnclosingFragmentData(fragSpec) match {
@@ -405,7 +407,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
               case Some(cache_id_fut) =>
                 Some(cache_id_fut.map((cache_id: String) => {
                   val roi = DataFragmentKey(foundFragKey).getRoi
-                  val partitioner = new CDASCachePartitioner(cache_id, roi)
+                  val partitioner = new CDASCachePartitioner(cache_id, roi, workflowNodeOpt )
                   fragSpec.cutIntersection(roi) match {
                     case Some(section) =>
                       new PartitionedFragment( new CachePartitions( cache_id, roi, partitioner.getCachePartitions ), None, section)
@@ -655,19 +657,19 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
 //      case x => x
 //    }
 
-  private def cacheFragmentFromFilesFut(fragSpec: DataFragmentSpec)( p: Promise[PartitionedFragment] ): Unit =
+  private def cacheFragmentFromFilesFut( fragSpec: DataFragmentSpec, workflowNodeOpt: Option[WorkflowNode] )( p: Promise[PartitionedFragment] ): Unit =
     try {
-      val result = cacheFragmentFromFiles(fragSpec)
+      val result = cacheFragmentFromFiles(fragSpec, workflowNodeOpt )
       p.success(result)
     } catch { case e: Exception => p.failure(e) }
 
 
-  private def cacheFragmentFromFiles(fragSpec: DataFragmentSpec): PartitionedFragment = {
+  private def cacheFragmentFromFiles(fragSpec: DataFragmentSpec, workflowNodeOpt: Option[WorkflowNode]): PartitionedFragment = {
     val t0 = System.nanoTime()
     val result: PartitionedFragment = fragSpec.targetGridOpt match {
       case Some(targetGrid) =>
         val maskOpt = fragSpec.mask.flatMap(maskId => produceMask(maskId, fragSpec.getBounds(), fragSpec.getGridShape, targetGrid.getAxisIndices("xy").args))
-        targetGrid.loadFileDataIntoCache( fragSpec, maskOpt)
+        targetGrid.loadFileDataIntoCache( fragSpec, workflowNodeOpt, maskOpt)
       case None =>
         throw new Exception( "Missing target grid for fragSpec: " + fragSpec.toString )
 //        val targetGrid = new TargetGrid( new CDSVariable(),  Some(fragSpec.getAxes) )
@@ -737,12 +739,12 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   private def clearRedundantFragments(fragSpec: DataFragmentSpec) =
     findEnclosedFragSpecs(fragmentCache.keys, fragSpec.getKey).foreach(fragmentCache.remove(_))
 
-  def cacheFragmentFuture( fragSpec: DataFragmentSpec): Future[PartitionedFragment] = {
+  def cacheFragmentFuture( fragSpec: DataFragmentSpec, workflowNodeOpt: Option[WorkflowNode]): Future[PartitionedFragment] = {
     val keyStr = fragSpec.getKey.toStrRep
     val cacheExecutionMode = appParameters("cache.execution.mode","futures")
     val resultFut = if( cacheExecutionMode.toLowerCase.startsWith("fut") ) {
       val fragFuture = fragmentCache(keyStr) {
-        cacheFragmentFromFilesFut(fragSpec) _
+        cacheFragmentFromFilesFut(fragSpec,workflowNodeOpt) _
       }
       fragFuture onComplete {
         case Success(fragment) => logger.info(" cache fragment: Success ")
@@ -753,7 +755,7 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
       fragmentCache.get(keyStr) match {
         case Some(fragFuture) => fragFuture
         case None =>
-          val result = cacheFragmentFromFiles(fragSpec)
+          val result = cacheFragmentFromFiles(fragSpec,workflowNodeOpt)
           Future(result)
       }
     } else { throw new Exception( "Unrecognized cacheExecutionMode: " + cacheExecutionMode ) }
@@ -813,11 +815,11 @@ class CollectionDataCacheMgr extends nasa.nccs.esgf.process.DataLoader with Frag
   def getFragment(fragKey: String): Option[Future[PartitionedFragment]] =
     fragmentCache.get(fragKey)
 
-  def getExistingFragment( fragSpec: DataFragmentSpec): Option[Future[PartitionedFragment]] = {
+  def getExistingFragment( fragSpec: DataFragmentSpec, workflowNodeOpt: Option[WorkflowNode] ): Option[Future[PartitionedFragment]] = {
     val fkey = fragSpec.getKey.toStrRep
     if (!fragmentCache.keys.contains(fkey)) {
 //      logger.info("Restoring frag from cache: " + fkey.toString )
-      FragmentPersistence.restore(fragSpec) match {
+      FragmentPersistence.restore(fragSpec, workflowNodeOpt) match {
         case Some(partFragFut) =>
           val partFrag = Await.result(partFragFut, Duration.Inf)
           logger.info(" fragmentCache.put, fkey = " + fkey)

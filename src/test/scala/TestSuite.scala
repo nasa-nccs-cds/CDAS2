@@ -140,7 +140,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("pyZADemo") {
-    val datainputs = s"""[domain=[{"name":"d0","filter":"DJF"}],variable=[{"uri":"file:///Users/tpmaxwel/Dropbox/Tom/Data/MERRA/atmos_ua.nc","name":"ua:v1","domain":"d0"}],operation=[{"name":"python.cdmsModule.ave","input":"v1","domain":"d0","axes":"xt"}]]"""
+    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"file:///Users/tpmaxwel/Dropbox/Tom/Data/MERRA/atmos_ua.nc","name":"ua:v1","domain":"d0"}],operation=[{"name":"CDSpark.partition","input":"v1","domain":"d0","filter":"DJF","id":"v1p"},{"name":"python.cdmsModule.ave","input":"v1p","axes":"xt"}]]"""
     val result_node = executeTest(datainputs)
     val result_data = CDFloatArray( getResultData( result_node ) )
     println( " ** CDMS Result:       " + result_data.getArrayData(50).mkString(", ") )

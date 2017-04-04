@@ -150,12 +150,12 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
     rv
   }
 
-  def cacheInputData(request: TaskRequest, run_args: Map[String, String]): Iterable[Option[(DataFragmentKey, Future[PartitionedFragment])]] = {
+  def cacheInputData(request: TaskRequest, run_args: Map[String, String] ): Iterable[Option[(DataFragmentKey, Future[PartitionedFragment])]] = {
     val sourceContainers = request.variableMap.values.filter(_.isSource)
     for (data_container: DataContainer <- request.variableMap.values;
          if data_container.isSource;
          domainOpt = request.getDomain(data_container.getSource))
-      yield serverContext.cacheInputData(data_container, domainOpt, request.getTargetGrid(data_container) )
+      yield serverContext.cacheInputData(data_container, domainOpt, request.getTargetGrid(data_container), None )
   }
 
   def deleteFragments( fragIds: Iterable[String] ) = {

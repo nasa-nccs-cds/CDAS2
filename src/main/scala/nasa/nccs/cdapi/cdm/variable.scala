@@ -71,8 +71,8 @@ trait OperationInput {
 }
 class EmptyOperationInput() extends OperationInput { def getKeyString: String = ""; }
 
-class DependencyOperationInput( val workflowNode: WorkflowNode ) extends OperationInput with Loggable {
-  def getKeyString: String =  workflowNode.getNodeId()
+class DependencyOperationInput( val inputNode: WorkflowNode, val opNode: WorkflowNode ) extends OperationInput with Loggable {
+  def getKeyString: String =  inputNode.getNodeId() + "->" + opNode.getNodeId()
 }
 
 class OperationTransientInput( val variable: RDDTransientVariable ) extends OperationInput with Loggable {
@@ -99,7 +99,9 @@ abstract class OperationDataInput( val fragmentSpec: DataFragmentSpec, val metad
   def delete
 }
 
-class DirectOpDataInput(fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty  ) extends OperationDataInput(fragSpec,metadata) {
+class DirectOpDataInput(fragSpec: DataFragmentSpec, workflowNode: WorkflowNode  )
+  extends OperationDataInput( fragSpec, workflowNode.operation.getConfiguration.map { case (key,value) => key -> new nc2.Attribute( key, value) } ) {
+
   def data(partIndex: Int ): CDFloatArray = CDFloatArray.empty
 
   def delete: Unit = Unit
@@ -140,14 +142,14 @@ class DirectOpDataInput(fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Att
     }
 }
 
-class CDASDirectDataInput(fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty ) extends DirectOpDataInput(fragSpec,metadata) {
-  def getPartitioner( optSection: Option[ma2.Section] = None ): Option[CDASPartitioner] = domainSection( optSection ) map { case( frag1, section) => new CDASPartitioner( section ) }
+class CDASDirectDataInput(fragSpec: DataFragmentSpec, workflowNode: WorkflowNode ) extends DirectOpDataInput(fragSpec,workflowNode) {
+  def getPartitioner( optSection: Option[ma2.Section] = None ): Option[CDASPartitioner] = domainSection( optSection ) map { case( frag1, section) => new CDASPartitioner( section, Some(workflowNode) ) }
   override def data(partIndex: Int ): CDFloatArray = {
     CDFloatArray.empty
   }
 }
 
-class ExternalDataInput(fragSpec: DataFragmentSpec, metadata: Map[String,nc2.Attribute] = Map.empty ) extends DirectOpDataInput(fragSpec,metadata) {
+class ExternalDataInput(fragSpec: DataFragmentSpec, workflowNode: WorkflowNode ) extends DirectOpDataInput(fragSpec,workflowNode) {
   override def data(partIndex: Int ): CDFloatArray = CDFloatArray.empty
 }
 
