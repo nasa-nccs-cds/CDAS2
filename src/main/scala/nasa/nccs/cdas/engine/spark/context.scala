@@ -31,7 +31,7 @@ object CDSparkContext extends Loggable {
   val default_executor_memory = (totalRAM-10).toString + "m"
   val default_executor_cores = (runtime.availableProcessors-1).toString
   val default_num_executors = "1"
-  val default_master = "local[%d]".format( CDASPartitioner.localMaxProcessors )
+  lazy val default_master = "local[%d]".format( BatchSpec.localNProcessors )
 
   def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = true, enableMetrics: Boolean = false ) : CDSparkContext = {
     logger.info( "--------------------------------------------------------")

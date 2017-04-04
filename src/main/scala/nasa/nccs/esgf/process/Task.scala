@@ -28,6 +28,7 @@ import nasa.nccs.esgf.utilities.wpsNameMatchers
 import nasa.nccs.esgf.wps.cds2ServiceProvider
 import nasa.nccs.wps.{WPSDataInput, WPSProcess, WPSProcessOutput, WPSWorkflowProcess}
 import org.apache.commons.lang.RandomStringUtils
+import ucar.nc2.dataset.CoordinateAxis1DTime
 
 import scala.util.Random
 
@@ -501,6 +502,8 @@ class DataFragmentSpec(val uid: String = "",
     }
   }
   def getMetadata( key: String ): Option[String] = _metadata.get( key )
+
+  def getTimeCoordinateAxis: Option[CoordinateAxis1DTime] = targetGridOpt flatMap ( _.getTimeCoordinateAxis )
 
   def getPartitionKey: RecordKey = targetGridOpt match {
       case Some(grid) =>

@@ -26,7 +26,7 @@ Here are descriptions of the currently active parameters:
      * procs.maxnum: The maximum number of processers that CDAS ia allowed to utilize.
      * record.maxsize: The maximum memory size of a Spark RDD record (i.e. size of the array data partition).
      * ncml.recreate: When set to true the server will recreate the NCML files associated with all registered collections.  When false (the default) it will use the existing NCML files.
-     
+     * spark.log.level: Spark framework log level: "WARN", "ERROR", "INFO", or "DEBuG" (note this is separate from the cdas log level).    
 
 ###  Kernel Development
 
@@ -98,7 +98,7 @@ its own parallelization internally.  If a kernel is parallelizable then CDAS wil
 By default the python kernels are passed data input arrays that are injested and subsetted by CDAS using it's caching framework.
 However, using the handlesInput configuration parameter a kernel developer can specify that the python kernel should
 perform its own data access  _(handlesInput=True)_.   In this case the CDAS data injest and caching framework will be bypassed
-and a data access URI will be passed to the kernel.  Until furhter notice _(handlesInput=True)_ implies _(parallelize=False)_.
+and a data access URI will be passed to the kernel.  Until further notice _(handlesInput=True)_ implies _(parallelize=False)_.
  For an example please see the AverageKernel in the cdmsExt KernelModule.
 
 ###  Rebuilding

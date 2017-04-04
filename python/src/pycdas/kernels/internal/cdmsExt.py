@@ -18,8 +18,9 @@ class AverageKernel(CDMSKernel):
         self.logger.info( "exec *EXT* AverageKernel, selector: " + str( selector ) )
         variable = dset( vname, **selector )
         axes = task.metadata.get("axis","xy")
-        weights = task.metadata.get( "weights", "" ).split(",")
-        if weights == [""]: weights = [ ("generate" if( axis == 'y' ) else "equal") for axis in axes ]
+#        weights = task.metadata.get( "weights", "" ).split(",")
+#        if weights == [""]: weights = [ ("generate" if( axis == 'y' ) else "equal") for axis in axes ]
+        weights = task.metadata.get("weights","generate").split(",")
         if( len(weights) == 1 ): weights = weights[0]
         action = task.metadata.get("action","average")
         returned = 0

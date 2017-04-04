@@ -77,8 +77,9 @@ class AverageKernel(CDMSKernel):
     def executeOperation(self, task, _input):
         variable = _input.getVariable()
         axis = task.metadata.get("axis","xy")
-        weights = task.metadata.get( "weights", "" ).split(",")
-        if weights == [""]: weights = [ ("generate" if( axis == 'y' ) else "equal") for axis in axes ]
+#        weights = task.metadata.get( "weights", "" ).split(",")
+#        if weights == [""]: weights = [ ("generate" if( axis == 'y' ) else "equal") for axis in axes ]
+        weights = task.metadata.get("weights","generate").split(",")
         if( len(weights) == 1 ): weights = weights[0]
         action = task.metadata.get("action","average")
         returned = 0
