@@ -18,8 +18,8 @@ try:
     response_manager = portal.createResponseManager()
 
     t0 = time.time()
-#    datainputs = """[domain=[{"name":"d0","time":{"start":'2013-01-16',"end":'2015-12-16',"system":"values"}}],variable=[{"uri":"file:///Users/tpmaxwel/Dropbox/Tom/Data/MERRA/atmos_ua.nc","name":"ua:v1","domain":"d0"}],operation=[{"name":""python.cdmsExt.zaDemo"","input":"v1","domain":"d0"}]]"""
-    datainputs = """[domain=[{"name":"d0","filter":"DJF"}],variable=[{"uri":"file:///Users/tpmaxwel/Dropbox/Tom/Data/MERRA/atmos_ua.nc","name":"ua:v1","domain":"d0"}],operation=[{"name":""python.cdmsExt.zaDemo"","input":"v1","domain":"d0"}]]"""
+    data_path = "file:///Users/tpmaxwel/Dropbox/Tom/Data/MERRA/atmos_ua.nc"
+    datainputs = '[domain=[{"name":"d0"}],variable=[{"uri":"{0}","name":"ua:v1","domain":"d0"}],operation=[{"name":"python.cdmsModule.ave","input":"v1","axes":"xt","filter":"DJF"}]]'.format(data_path)
     print "Sending request on port {0}: {1}".format( portal.request_port, datainputs ); sys.stdout.flush()
     rId = portal.sendMessage( "execute", [ "CDSpark.workflow", datainputs, ""] )
     responses = response_manager.getResponses(rId)
