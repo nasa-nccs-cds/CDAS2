@@ -9,21 +9,20 @@ import java.util.concurrent.TimeUnit
 import java.util.{Calendar, Comparator}
 
 import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EntryWeigher, EvictionListener}
-import nasa.nccs.cdapi.cdm.FileHeader.logger
 import nasa.nccs.cdas.utilities.{GeoTools, appParameters, runtime}
 import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
-import nasa.nccs.cdapi.data.{RDDRecord, RDDRecord$}
+import nasa.nccs.cdapi.data.RDDRecord
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray}
 import nasa.nccs.cdas.engine.WorkflowNode
-import nasa.nccs.cdas.engine.spark.{RecordKey, RecordKey$}
+import nasa.nccs.cdas.engine.spark.RecordKey
 import nasa.nccs.cdas.kernels.TransientFragment
 import nasa.nccs.cdas.loaders.Masks
 import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.esgf.wps.cds2ServiceProvider
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.commons.io.{FileUtils, IOUtils}
-import org.apache.spark.SparkContext
 import ucar.nc2.dataset.CoordinateAxis1DTime
+import ucar.nc2.time.CalendarPeriod.Field.{Month, Year}
 import ucar.{ma2, nc2}
 
 import scala.collection.JavaConversions._
@@ -101,12 +100,16 @@ object CachePartition {
     val partShape = getPartitionShape(partSize, fragShape)
     new CachePartition(index, path, dimIndex, startIndex, partSize, recordSize, sliceMemorySize, origin, partShape)
   }
+  def apply(path: String, partition: RegularPartition ): CachePartition = {
+    val partShape = getPartitionShape( partition.partSize, partition.shape )
+    new CachePartition( partition.index, path, partition.dimIndex, partition.startIndex, partition.partSize, partition.recordSize, partition.sliceMemorySize, partition.origin, partShape )
+  }
   def getPartitionShape(partSize: Int, fragShape: Array[Int]): Array[Int] = {
     var shape = fragShape.clone(); shape(0) = partSize; shape
   }
 }
 
-class CachePartition( index: Int, val path: String, dimIndex: Int, startIndex: Int, partSize: Int, recordSize: Int, sliceMemorySize: Long, origin: Array[Int], shape: Array[Int]) extends Partition(index, dimIndex, startIndex, partSize, recordSize, sliceMemorySize, origin, shape) {
+class CachePartition( index: Int, val path: String, dimIndex: Int, startIndex: Int, partSize: Int, recordSize: Int, sliceMemorySize: Long, origin: Array[Int], shape: Array[Int]) extends RegularPartition(index, dimIndex, startIndex, partSize, recordSize, sliceMemorySize, origin, shape) {
 
   def data(missing_value: Float): CDFloatArray = {
     val file = new RandomAccessFile(path, "r")
@@ -133,17 +136,9 @@ class CachePartition( index: Int, val path: String, dimIndex: Int, startIndex: I
     }
 }
 
-object Partition {
-  def apply(index: Int, dimIndex: Int, startIndex: Int, partSize: Int, recordSize: Int, sliceMemorySize: Long, origin: Array[Int], fragShape: Array[Int]): Partition = {
-    val partShape = getPartitionShape(partSize, fragShape)
-    new Partition( index, dimIndex, startIndex, partSize, recordSize, sliceMemorySize, origin, partShape )
-  }
-  def getPartitionShape(partSize: Int, fragShape: Array[Int]): Array[Int] = {
-    var shape = fragShape.clone(); shape(0) = partSize; shape
-  }
-}
-class Partition(val index: Int, val dimIndex: Int, val startIndex: Int, val partSize: Int, val recordSize: Int, val sliceMemorySize: Long, val origin: Array[Int], val shape: Array[Int]) extends Loggable with Serializable {
-  val partitionOrigin: Array[Int] = origin.zipWithIndex map { case (value, ival) => if( ival == 0 ) value + startIndex else value }
+abstract class Partition(val index: Int, val dimIndex: Int, val startIndex: Int, val partSize: Int, val sliceMemorySize: Long, val origin: Array[Int], val shape: Array[Int]) extends Loggable with Serializable {
+  val partitionOrigin: Array[Int] = origin.zipWithIndex map { case (value, ival) => if( ival== 0 ) value + startIndex else value }
+  val endIndex: Int = startIndex + partSize - 1
 
   def recordSection( section: ma2.Section, iRecord: Int ): ma2.Section = {
     new ma2.Section(section.getRanges).replaceRange(dimIndex, recordRange(iRecord)).intersect(section)
@@ -151,8 +146,11 @@ class Partition(val index: Int, val dimIndex: Int, val startIndex: Int, val part
   def partSection(section: ma2.Section): ma2.Section = {
     new ma2.Section(section.getRanges).replaceRange(dimIndex, partRange)
   }
-  def nRecords: Int = math.ceil(partSize / recordSize.toDouble).toInt
-  def endIndex: Int = startIndex + partSize - 1
+  def partRange: ma2.Range = { new ma2.Range( origin(0)+startIndex, origin(0)+endIndex) }
+
+  def recordRange(iRecord: Int): ma2.Range
+  def nRecords: Int
+  def recordStartIndex(iRecord: Int): Int
 
   def getPartitionRecordKey(grid: TargetGrid ): RecordKey = {
     val start = origin(0)+startIndex
@@ -166,7 +164,38 @@ class Partition(val index: Int, val dimIndex: Int, val startIndex: Int, val part
     RecordKey( startTime, endTime, startIndex, partSize )
   }
 
-  def getRecordKey( iRecord: Int, grid: TargetGrid ): RecordKey = {
+  def getRecordKey( iRecord: Int, grid: TargetGrid ): RecordKey
+
+  def getRelativeSection(global_section: ma2.Section): ma2.Section = {
+    val relative_ranges = for (ir <- global_section.getRanges.indices; r = global_section.getRange(ir)) yield {
+      if (ir == dimIndex) { r.shiftOrigin(startIndex) } else r
+    }
+    new ma2.Section(relative_ranges)
+  }
+}
+
+
+object RegularPartition {
+  def apply(index: Int, dimIndex: Int, startIndex: Int, partSize: Int, recordSize: Int, sliceMemorySize: Long, origin: Array[Int], fragShape: Array[Int]): RegularPartition = {
+    val partShape = getPartitionShape(partSize, fragShape)
+    new RegularPartition( index, dimIndex, startIndex, partSize, recordSize, sliceMemorySize, origin, partShape )
+  }
+  def getPartitionShape(partSize: Int, fragShape: Array[Int]): Array[Int] = {
+    var shape = fragShape.clone(); shape(0) = partSize; shape
+  }
+
+}
+class RegularPartition( index: Int,  dimIndex: Int,  startIndex: Int,  partSize: Int,  val recordSize: Int,  sliceMemorySize: Long,  origin: Array[Int],  shape: Array[Int]) extends Partition(index, dimIndex, startIndex, partSize, sliceMemorySize, origin, shape) {
+
+  override val toString: String = s"Part[$index]{dim:$dimIndex start:$startIndex partSize:$partSize recordSize:$recordSize sliceMemorySize:$sliceMemorySize origin:${origin.mkString(",")} shape:${shape.mkString(",")})"
+  override def nRecords: Int = math.ceil(partSize / recordSize.toDouble).toInt
+
+  override def recordRange(iRecord: Int): ma2.Range = {
+    val start = recordStartIndex(iRecord);
+    new ma2.Range(start, origin(0)+Math.min(start + recordSize - 1, endIndex))
+  }
+
+  override def getRecordKey( iRecord: Int, grid: TargetGrid ): RecordKey = {
     val start = recordStartIndex(iRecord)
     val startDate = grid.getCalendarDate(start)
     val startDateStr = startDate.toString
@@ -178,23 +207,30 @@ class Partition(val index: Int, val dimIndex: Int, val startIndex: Int, val part
     RecordKey( startTime, endTime, startIndex, recordSize )
   }
 
-  def recordRange(iRecord: Int): ma2.Range = {
-    val start = recordStartIndex(iRecord);
-    new ma2.Range(start, origin(0)+Math.min(start + recordSize - 1, endIndex))
-  }
-  def partRange: ma2.Range = { new ma2.Range( origin(0)+startIndex, origin(0)+endIndex) }
   def recordStartIndex(iRecord: Int) = { origin(0) + iRecord * recordSize + startIndex }
   def recordIndexArray: IndexedSeq[Int] = (0 until nRecords)
-  def recordMemorySize = recordSize * sliceMemorySize
-  override def toString = s"Part[$index]{dim=$dimIndex, start=$startIndex, size=$partSize, shape=(%s)}" .format(shape.mkString(","))
+}
 
-  def getRelativeSection(global_section: ma2.Section): ma2.Section = {
-    val relative_ranges = for (ir <- global_section.getRanges.indices; r = global_section.getRange(ir)) yield {
-      if (ir == dimIndex) { r.shiftOrigin(startIndex) } else r
-    }
-    new ma2.Section(relative_ranges)
+class FilteredPartition(index: Int, dimIndex: Int, startIndex: Int, partSize: Int, sliceMemorySize: Long, origin: Array[Int], shape: Array[Int], val records: IndexedSeq[FilteredRecordSpec] ) extends Partition( index, dimIndex, startIndex, partSize, sliceMemorySize, origin, shape ) {
+  override def recordStartIndex( iRecord: Int ) = records(iRecord).first
+  override def recordRange(iRecord: Int): ma2.Range = {
+    val start = recordStartIndex(iRecord);
+    new ma2.Range( start, origin(0)+records(iRecord).last )
   }
+  override def nRecords: Int = records.length
+  override val toString: String = s"Part[$index]{dim:$dimIndex start:$startIndex partSize:$partSize sliceMemorySize:$sliceMemorySize origin:${origin.mkString(",")} shape:${shape.mkString(",")} records: ${records.map(_.toString).mkString("\n\t")})"
 
+  override def getRecordKey( iRecord: Int, grid: TargetGrid ): RecordKey = {
+    val record = records(iRecord)
+    val startDate = grid.getCalendarDate(record.first)
+    val startDateStr = startDate.toString
+    val startTime = startDate.getMillis/1000
+    val end = Math.min( record.last+1, grid.shape(0)-1 )
+    val endDate = grid.getCalendarDate(end)
+    val endDateStr = endDate.toString
+    val endTime =  grid.getCalendarDate(end).getMillis/1000
+    RecordKey( startTime, endTime, record.first, record.length )
+  }
 }
 
 import ucar.nc2.time.{CalendarDate, CalendarDateRange, CalendarPeriod}
@@ -246,28 +282,51 @@ class CDASCachePartitioner(val cache_id: String, _section: ma2.Section, workflow
     DiskCacheFileMgr.getDiskCacheFilePath(cacheType, cache_file)
   }
 
-  override def getPartition(partIndex: Int): CachePartition = {
-    val cacheFilePath = getCacheFilePath(partIndex)
-    val startIndex = partIndex * spec.nSlicesPerPart
-    val partSize = Math.min(spec.nSlicesPerPart, baseShape(0) - startIndex)
-    CachePartition(partIndex, cacheFilePath, 0, startIndex, partSize, spec.nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape)
-  }
-  def getCachePartitions: Array[CachePartition] = (0 until spec.nPartitions).map(getPartition(_)).toArray
+  override def getPartition(partIndex: Int): CachePartition = CachePartition( getCacheFilePath(partIndex), spec.getParition(partIndex).asInstanceOf[RegularPartition] )
+  def getCachePartitions: Array[CachePartition] = (0 until spec.getNPartitions).map(getPartition(_)).toArray
 }
 
 object SeasonFilter {
   val months = "JFMAMJJASONDJFMAMJJASOND"
   def get(filterSpec: String): Option[SeasonFilter] = months.indexOfSlice(filterSpec) match {
     case -1 => None
-    case index => Some(new SeasonFilter(index, filterSpec.length))
+    case index => Some(new SeasonFilter( (index until (index+filterSpec.length)) map ( i => ((i-1)%12)+1 -> (i-1)/12 ) ) )
   }
 }
 
-class SeasonFilter( val first: Int, length: Int ) {
-  val last = first + length - 1
+class SeasonFilter( val months: IndexedSeq[(Int,Int)] ) extends Loggable {
+  val length = months.length
+  private val _records = new java.util.TreeMap[Int,FilteredRecordSpec]()
+  def pass( iMonth: Int ): Option[(Int,Int)] = months.find( _._1 == iMonth )
+  def getRecordSpec( iYear: Int ): FilteredRecordSpec = _records.getOrElseUpdate( iYear, new FilteredRecordSpec )
+  def getRecords = _records.values()
+  def getPartitionRecords( startIndex: Int, partSize: Int ) = _records.values().slice( startIndex, startIndex+partSize ).filter( _.length == length )
+  def getNRecords = _records.size()
+  def processTimestep( timeIndex: Int, date: CalendarDate ): Unit = {
+    val iYear = date.getFieldValue(Year)
+    val iMonth = date.getFieldValue(Month)
+    pass(iMonth) match {
+      case Some( (iMonth, iYearOffset) ) => getRecordSpec(iYear-iYearOffset).add( timeIndex )
+      case None => Unit
+    }
+  }
 }
 
-class CDASPartitionSpec( val nSlicesPerRecord: Int, val nSlicesPerPart: Int, val nPartitions: Int, val recordMemorySize: Long, val nRecordsPerPart: Int, val partMemorySize: Long ) {}
+class FilteredRecordSpec {
+  var first: Int = Int.MaxValue
+  var last: Int = -1
+  def add( timeIndex: Int ): Unit = {
+    first = Math.min( first, timeIndex )
+    last = Math.max( last, timeIndex )
+  }
+  def length = last - first + 1
+  override def toString = s"FilteredRecordSpec( first:$first last:$last length:$length )"
+}
+
+class CDASPartitionSpec( val _partitions: IndexedSeq[Partition] ) {
+  def getParition( index: Int ): Partition = { _partitions(index) }
+  def getNPartitions: Int = _partitions.length
+}
 
 class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: Option[WorkflowNode], timeAxisOpt: Option[CoordinateAxis1DTime], dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment") extends Loggable {
   import CDASPartitioner._
@@ -298,14 +357,20 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
 
   def computeRecordSizes( ): CDASPartitionSpec = {
     val _preferredNParts = math.ceil( sectionMemorySize / partitionSize.toFloat ).toInt
-    val rv = if( _preferredNParts > BatchSpec.nProcessors * 1.5 ) {
+    if( _preferredNParts > BatchSpec.nProcessors * 1.5 ) {
       val _nSlicesPerRecord: Int = math.max(recordSize.toFloat / sliceMemorySize, 1.0).round.toInt
       val _recordMemorySize: Long = getMemorySize(_nSlicesPerRecord)
       val _nRecordsPerPart: Int = math.max(partitionSize.toFloat / _recordMemorySize, 1.0).round.toInt
       val _partMemorySize: Long = _nRecordsPerPart * _recordMemorySize
       val _nSlicesPerPart: Int = _nRecordsPerPart * _nSlicesPerRecord
       val _nPartitions: Int = math.ceil(sectionMemorySize / _partMemorySize.toFloat).toInt
-      new CDASPartitionSpec(_nSlicesPerRecord, _nSlicesPerPart, _nPartitions, _recordMemorySize, _nRecordsPerPart, _partMemorySize)
+      val partitions = (0 until _nPartitions) map ( partIndex => {
+        val startIndex = partIndex * _nSlicesPerPart
+        val partSize = Math.min(_nSlicesPerPart, baseShape(0) - startIndex)
+        RegularPartition(partIndex, 0, startIndex, partSize, _nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape)
+      })
+      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, sliceMemorySize: $sliceMemorySize, nSlicesPerRecord: ${_nSlicesPerRecord}, recordMemorySize: ${_recordMemorySize}, nRecordsPerPart: ${_nRecordsPerPart}, partMemorySize: ${_partMemorySize}, nPartitions: ${_nPartitions} \n---------------------------------------------\n")
+      new CDASPartitionSpec( partitions )
     } else {
       if( filters.isEmpty ) {
         val __nPartitions: Int = BatchSpec.nProcessors - 1
@@ -314,27 +379,46 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
         val __nRecordsPerPart: Int = math.ceil(__nSlicesPerPart / __nSlicesPerRecord.toFloat).toInt
         val __recordMemorySize: Long = getMemorySize(__nSlicesPerRecord)
         val __partMemorySize: Long = __recordMemorySize * __nRecordsPerPart
-        new CDASPartitionSpec(__nSlicesPerRecord, __nSlicesPerPart, __nPartitions, __recordMemorySize, __nRecordsPerPart, __partMemorySize)
+        val partitions = (0 until __nPartitions) map ( partIndex => {
+          val startIndex = partIndex * __nSlicesPerPart
+          val partSize = Math.min(__nSlicesPerPart, baseShape(0) - startIndex)
+          RegularPartition(partIndex, 0, startIndex, partSize, __nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape)
+        })
+        logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, sliceMemorySize: $sliceMemorySize, nSlicesPerRecord: ${__nSlicesPerRecord}, recordMemorySize: ${__recordMemorySize}, nRecordsPerPart: ${__nRecordsPerPart}, partMemorySize: ${__partMemorySize}, nPartitions: ${__nPartitions} \n---------------------------------------------\n")
+        new CDASPartitionSpec( partitions )
       } else {
-        val seasonFilters = filters.flatMap( SeasonFilter.get(_) )
-
+        val seasonFilters = filters.flatMap( SeasonFilter.get )
+        if( seasonFilters.length < filters.length ) throw new Exception ( "Unrecognized filter: " + filters.mkString(",") )
+        val timeSteps: List[CalendarDate] = timeAxis.getCalendarDates.toList
+        for( (timeStep, timeIndex) <- timeSteps.zipWithIndex; seasonFilter <- seasonFilters ) { seasonFilter.processTimestep( timeIndex, timeStep  ) }
+        val all_records = for( seasonFilter <- seasonFilters; record <- seasonFilter.getRecords ) yield { record }
+        val partitions: IndexedSeq[Partition] = if( all_records.length < BatchSpec.nProcessors ) {
+          for( ( record, partIndex ) <- all_records.zipWithIndex ) yield {
+            new FilteredPartition(partIndex, 0, record.first, record.length, sliceMemorySize, _section.getOrigin, baseShape, Array(record))
+          }
+        } else {
+          val nRecs = seasonFilters(0).getNRecords
+          val seasonRecsPerPartition = Math.ceil( nRecs / ( BatchSpec.nProcessors - 1f ) ).toInt
+          val nParts = Math.ceil( nRecs / seasonRecsPerPartition.toFloat ).toInt
+          val partSize = Math.ceil( baseShape(0)/nParts.toFloat ).toInt
+          ( 0 until nParts ) map ( partIndex => {
+            val iRecStart = partIndex*seasonRecsPerPartition
+            val records = seasonFilters flatMap ( _.getPartitionRecords(iRecStart,seasonRecsPerPartition) )
+            new FilteredPartition(partIndex, 0, records.head.first, partSize, sliceMemorySize, _section.getOrigin, baseShape, records )
+          } )
+        }
+        logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions: \n ${partitions.map( _.toString ).mkString( "\n\t" )}  \n---------------------------------------------\n")
+        new CDASPartitionSpec( partitions )
       }
     }
-    rv
   }
-
   logger.info( "CDAS Partitioner: monthMemorySize = " + monthMemorySize )
 
   def getShape = baseShape
   def roi: ma2.Section = new ma2.Section(_section.getRanges)
-  logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, sliceMemorySize: $sliceMemorySize, nSlicesPerRecord: ${spec.nSlicesPerRecord}, recordMemorySize: ${spec.recordMemorySize}, nRecordsPerPart: ${spec.nRecordsPerPart}, partMemorySize: ${spec.partMemorySize}, nPartitions: ${spec.nPartitions} \n---------------------------------------------\n")
 
-  def getPartition(partIndex: Int): Partition = {
-    val startIndex = partIndex * spec.nSlicesPerPart
-    val partSize = Math.min(spec.nSlicesPerPart, baseShape(0) - startIndex)
-    Partition(partIndex, 0, startIndex, partSize, spec.nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape)
-  }
-  def getPartitions: Array[Partition] = (0 until spec.nPartitions).map( getPartition ).toArray
+  def getPartition(partIndex: Int): Partition = spec.getParition( partIndex )
+  def getPartitions: Array[Partition] = ( 0 until spec.getNPartitions ).map( getPartition ).toArray
 
   def partitions = new Partitions( _section, getPartitions )
 
@@ -415,7 +499,7 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, workflowNodeOpt: Opt
 
   def execute(missing_value: Float): CachePartitions = {
     val t0 = System.nanoTime()
-    val future_partitions: IndexedSeq[Future[CachePartition]] = for ( pIndices <- (0 until partitioner.spec.nPartitions) ) yield Future { processChunkedPartitions(cacheId, pIndices, missing_value) }
+    val future_partitions: IndexedSeq[Future[CachePartition]] = for ( pIndices <- ( 0 until partitioner.spec.getNPartitions ) ) yield Future { processChunkedPartitions(cacheId, pIndices, missing_value) }
     val partitions: Array[CachePartition] = Await.result(Future.sequence(future_partitions.toList), Duration.Inf).toArray
     logger.info("\n ********** Completed Cache Op, total time = %.3f min  ********** \n".format((System.nanoTime() - t0) / 6.0E10))
     new CachePartitions( cacheId, roi, partitions)
@@ -430,7 +514,7 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, workflowNodeOpt: Opt
     partition
   }
 
-  def cacheRecord(partition: Partition,  iRecord: Int, outStr: BufferedOutputStream) = {
+  def cacheRecord(partition: RegularPartition, iRecord: Int, outStr: BufferedOutputStream) = {
     logger.info( "CacheRecord: part=%d, record=%d".format(partition.index, iRecord))
     val subsection: ma2.Section = partition.recordSection(roi,iRecord)
     val t0 = System.nanoTime()
@@ -443,13 +527,13 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, workflowNodeOpt: Opt
     val t2 = System.nanoTime()
     IOUtils.write(dataBuffer.array(), outStr)
     val t3 = System.nanoTime()
-    logger.info( " -----> Writing record %d, size = %.2f M, write time = %.3f " .format(iRecord, partition.recordMemorySize / 1.0E6, (t3 - t2) / 1.0E9))
+    logger.info( " -----> Writing record %d, write time = %.3f " .format(iRecord, (t3 - t2) / 1.0E9))
     val t4 = System.nanoTime()
     logger.info( s"Persisted record %d, write time = %.2f " .format(iRecord, (t4 - t3) / 1.0E9))
     runtime.printMemoryUsage(logger)
   }
 
-  def cachePartition(partition: Partition, stream: BufferedOutputStream) = {
+  def cachePartition(partition: RegularPartition, stream: BufferedOutputStream) = {
     logger.info( "Caching Partition(%d): chunk start indices: (%s), roi: %s".format( partition.index, partition.recordIndexArray.map(partition.recordStartIndex).mkString(","), baseShape.mkString(",")))
     for (iRecord <- partition.recordIndexArray; startLoc = partition.recordStartIndex(iRecord); if startLoc <= _section.getRange(0).last())
       yield cacheRecord(partition, iRecord, stream)

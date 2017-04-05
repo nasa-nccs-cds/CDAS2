@@ -1,6 +1,6 @@
 package nasa.nccs.cdapi.data
 
-import nasa.nccs.caching.{CachePartition, Partition}
+import nasa.nccs.caching.{CachePartition, Partition, RegularPartition$}
 import nasa.nccs.cdapi.cdm.{Collection, NetcdfDatasetMgr, RemapElem, TimeConversionSpec}
 import nasa.nccs.cdapi.tensors._
 import nasa.nccs.cdas.engine.WorkflowNode
@@ -309,7 +309,7 @@ class RDDPartSpec(val partition: CachePartition, val timeRange: RecordKey, val v
 }
 
 object DirectRDDPartSpec {
-  def apply( partition: Partition, tgrid: TargetGrid, varSpecs: List[ DirectRDDVariableSpec ] ): DirectRDDPartSpec = new DirectRDDPartSpec( partition, partition.getPartitionRecordKey(tgrid), varSpecs )
+  def apply(partition: Partition, tgrid: TargetGrid, varSpecs: List[ DirectRDDVariableSpec ] ): DirectRDDPartSpec = new DirectRDDPartSpec( partition, partition.getPartitionRecordKey(tgrid), varSpecs )
 }
 
 class DirectRDDPartSpec(val partition: Partition, val timeRange: RecordKey, val varSpecs: List[ DirectRDDVariableSpec ] ) extends Serializable with Loggable {
@@ -333,7 +333,7 @@ class DirectRDDRecordSpec(val partition: Partition, iRecord: Int, val timeRange:
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition,iRecord)) ): _* )
     val rv = RDDRecord( elements )
-    logger.debug( "DirectRDDRecordSpec{ partition = %s, record = %d, cube size = %d }: completed data input in %.4f sec".format( partition.toString, iRecord, partition.recordMemorySize, (System.nanoTime() - t0) / 1.0E9) )
+    logger.debug( "DirectRDDRecordSpec{ partition = %s, record = %d }: completed data input in %.4f sec".format( partition.toString, iRecord, (System.nanoTime() - t0) / 1.0E9) )
     rv
   }
 
@@ -361,7 +361,7 @@ class ExtRDDPartSpec(val timeRange: RecordKey, val varSpecs: List[ RDDVariableSp
 }
 
 class DirectRDDVariableSpec( uid: String, metadata: Map[String,String], missing: Float, section: CDSection, val varShortName: String, val dataPath: String  ) extends RDDVariableSpec( uid, metadata, missing, section  ) with Loggable {
-  def toHeapArray( partition: Partition, iRecord: Int ) = {
+  def toHeapArray(partition: Partition, iRecord: Int ) = {
     val recordSection = partition.recordSection( section.toSection, iRecord )
     val fltData: CDFloatArray =  CDFloatArray.factory( readVariableData( recordSection ), missing )
     logger.debug( "toHeapArray: %s, part[%d]: dim=%d, origin=(%s), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, recordSection.getOrigin.mkString(","), recordSection.getShape.mkString(",") ) )

@@ -235,14 +235,14 @@ class PartitionedFragment( val partitions: CachePartitions, val maskOpt: Option[
 //    }
 //  }
 
-  def getRDDVariableSpec( uid: String, partition: Partition,  optSection: Option[ma2.Section] ): RDDVariableSpec =
+  def getRDDVariableSpec(uid: String, partition: RegularPartition, optSection: Option[ma2.Section] ): RDDVariableSpec =
     domainSection(partition,optSection) match {
       case Some( ( domFragSpec, section ) ) => new RDDVariableSpec( uid, domFragSpec.getMetadata(Some(section)), domFragSpec.missing_value, CDSection(section) )
       case _ => new RDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
     }
 
 
-  def domainSection( partition: Partition,  optSection: Option[ma2.Section] ): Option[ ( DataFragmentSpec, ma2.Section )] = {
+  def domainSection(partition: RegularPartition, optSection: Option[ma2.Section] ): Option[ ( DataFragmentSpec, ma2.Section )] = {
     try {
       val frag_section = partition.partSection(fragmentSpec.roi)
       val domain_section = fragmentSpec.domainSectOpt match {
