@@ -122,12 +122,14 @@ object CDGrid extends Loggable {
     val groupMap = mutable.HashMap.empty[String,nc2.Group]
     val varTups = for (cvar <- ncDataset.getVariables) yield {
       val dataType = cvar match {
-        case coordAxis: CoordinateAxis => if(coordAxis.getAxisType == AxisType.Time) ma2.DataType.LONG else cvar.getDataType
+        case coordAxis: CoordinateAxis =>
+          if(coordAxis.getAxisType == AxisType.Time) ma2.DataType.LONG
+          else cvar.getDataType
         case x => cvar.getDataType
       }
       val oldGroup = cvar.getGroup
       val newGroup = getNewGroup( groupMap, oldGroup, gridWriter )
-      val newVar = gridWriter.addVariable( newGroup, NCMLWriter.getName(cvar), dataType, getDimensionNames( cvar.getDimensionsString.split(' '), dimMap.keys ).mkString(" ")  )
+      val newVar: nc2.Variable = gridWriter.addVariable( newGroup, NCMLWriter.getName(cvar), dataType, getDimensionNames( cvar.getDimensionsString.split(' '), dimMap.keys ).mkString(" ")  )
 //      val newVar = gridWriter.addVariable( newGroup, NCMLWriter.getName(cvar), dataType, cvar.getDimensionsString  )
       NCMLWriter.getName(cvar) -> (cvar -> newVar)
     }
@@ -146,27 +148,37 @@ object CDGrid extends Loggable {
     globalAttrs.mapValues(attr => gridWriter.addGroupAttribute(null, attr))
     gridWriter.create()
     for ((cvar, newVar) <- varMap.values; if cvar.isCoordinateVariable && (cvar.getRank == 1) ) cvar match  {
-      case coordAxis: CoordinateAxis => if( coordAxis.getAxisType == AxisType.Time ) {
-        val ( time_values, bounds ) = FileHeader.getTimeValues( ncDataset, coordAxis )
-        newVar.addAttribute( new Attribute( CDM.UNITS, cdsutils.baseTimeUnits ) )
-        gridWriter.write( newVar, ma2.Array.factory( ma2.DataType.LONG, coordAxis.getShape, time_values ) )
-        varMap.get(coordAxis.getBoundaryRef) match {
-          case Some( ( cvarBnds, newVarBnds )  ) => gridWriter.write( newVarBnds, ma2.Array.factory( ma2.DataType.LONG, cvarBnds.getShape, bounds ) )
-          case None => Unit
+      case coordAxis: CoordinateAxis =>
+        val boundsVarOpt = Option(coordAxis.getBoundaryRef) match {
+          case Some(bref) => Some(bref)
+          case None => Option(coordAxis.findAttributeIgnoreCase("bounds")) match {
+            case Some(attr) => Some(attr.getStringValue)
+            case None =>
+              logger.warn("Can't locate bounds for axis " + coordAxis.getShortName + " in file " + datfilePath + ", vars = " + ncDataset.getVariables.map(_.getShortName).mkString(",") )
+              None
+          }
         }
-      } else {
-        gridWriter.write(newVar, coordAxis.read())
-        coordAxis match {
-          case coordAxis1D: CoordinateAxis1D =>
-            varMap.get(coordAxis1D.getBoundaryRef) match {
-              case Some( ( cvarBnds, newVarBnds )  ) =>
-                val bounds: Array[Double] = ((0 until coordAxis1D.getShape(0)) map ( index => coordAxis1D.getCoordBounds(index) )).toArray.flatten
-                gridWriter.write( newVarBnds, ma2.Array.factory( ma2.DataType.DOUBLE, cvarBnds.getShape, bounds ) )
-              case None => Unit
-            }
-          case x => Unit
+        if( coordAxis.getAxisType == AxisType.Time ) {
+          val ( time_values, bounds ) = FileHeader.getTimeValues( ncDataset, coordAxis )
+          newVar.addAttribute( new Attribute( CDM.UNITS, cdsutils.baseTimeUnits ) )
+          gridWriter.write( newVar, ma2.Array.factory( ma2.DataType.LONG, coordAxis.getShape, time_values ) )
+          boundsVarOpt flatMap varMap.get match {
+            case Some( ( cvarBnds, newVarBnds )  ) => gridWriter.write( newVarBnds, ma2.Array.factory( ma2.DataType.DOUBLE, cvarBnds.getShape, bounds ) )
+            case None => Unit
+          }
+        } else {
+          gridWriter.write(newVar, coordAxis.read())
+          coordAxis match {
+            case coordAxis1D: CoordinateAxis1D =>
+              boundsVarOpt flatMap varMap.get match {
+                case Some((cvarBnds, newVarBnds)) =>
+                  val bounds: Array[Double] = ((0 until coordAxis1D.getShape(0)) map (index => coordAxis1D.getCoordBounds(index))).toArray.flatten
+                  gridWriter.write(newVarBnds, ma2.Array.factory(ma2.DataType.DOUBLE, cvarBnds.getShape, bounds))
+                case None => Unit
+              }
+            case x => Unit
+          }
         }
-      }
       case x => Unit
     }
 //    for ( ( bndsvar, cvar ) <- boundsSpecs.flatten )  varMap.get(bndsvar) match {

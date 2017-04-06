@@ -378,23 +378,15 @@ object FileHeader extends Loggable {
     result
   }
 
-  def getTimeValues(ncDataset: NetcdfDataset,
-                    coordAxis: VariableDS,
-                    start_index: Int = 0,
-                    end_index: Int = -1,
-                    stride: Int = 1): (Array[Long], Array[Long]) = {
-    val timeAxis: CoordinateAxis1DTime =
-      CoordinateAxis1DTime.factory(ncDataset, coordAxis, new Formatter())
+  def getTimeValues(ncDataset: NetcdfDataset, coordAxis: VariableDS, start_index: Int = 0, end_index: Int = -1, stride: Int = 1): (Array[Long], Array[Double]) = {
+    val timeAxis: CoordinateAxis1DTime = CoordinateAxis1DTime.factory(ncDataset, coordAxis, new Formatter())
     val timeCalValues: List[CalendarDate] = timeAxis.getCalendarDates.toList
-    val bounds: Array[Long] =
-      ((0 until timeAxis.getShape(0)) map (index =>
-                                             timeAxis.getCoordBoundsDate(index) map (_.getMillis / 1000))).toArray
-        .flatten
-    (timeCalValues.map(_.getMillis / 1000).toArray, bounds)
+    val bounds: Array[Double] = ((0 until timeAxis.getShape(0)) map (index => timeAxis.getCoordBoundsDate(index) map (_.getMillis / 1000.0))).toArray.flatten
+    ( timeCalValues.map(_.getMillis / 1000 ).toArray, bounds )
   }
 
 
-  def getTimeCoordValues(ncFile: URI): (Array[Long], Array[Long]) = {
+  def getTimeCoordValues(ncFile: URI): (Array[Long], Array[Double]) = {
     val ncDataset: NetcdfDataset =  NetcdfDatasetMgr.open(ncFile.toString)
     val result = Option(ncDataset.findCoordinateAxis(AxisType.Time)) match {
       case Some(timeAxis) => getTimeValues(ncDataset, timeAxis)
@@ -416,7 +408,7 @@ class DatasetFileHeaders(val aggDim: String, val aggFileMap: Seq[FileHeader]) {
 
 class FileHeader(val filePath: String,
                  val axisValues: Array[Long],
-                 val boundsValues: Array[Long],
+                 val boundsValues: Array[Double],
                  val timeRegular: Boolean) {
   def nElem = axisValues.length
   def startValue: Long = axisValues.headOption.getOrElse(Long.MinValue)

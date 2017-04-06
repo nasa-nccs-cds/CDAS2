@@ -341,7 +341,8 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
   lazy val spec = computeRecordSizes()
 
   def timeAxis: CoordinateAxis1DTime = timeAxisOpt getOrElse( throw new Exception( "Missing time axis in Partitioner") )
-  def getCalDateBounds( time_index: Int ): Array[CalendarDate] = timeAxis.getCoordBoundsDate(time_index)
+  def getCalDateBounds( time_index: Int ): Array[CalendarDate] =
+    timeAxis.getCoordBoundsDate(time_index)
   def getCalDate( time_index: Int ): CalendarDate = timeAxis.getCalendarDate( time_index )
   def getBoundsStartDate( time_index: Int ): CalendarDate =  getCalDateBounds( time_index )(0)
   def getBoundsEndDate( time_index: Int ): CalendarDate =  getCalDateBounds( time_index )(1)
@@ -379,10 +380,10 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
         val __nRecordsPerPart: Int = math.ceil(__nSlicesPerPart / __nSlicesPerRecord.toFloat).toInt
         val __recordMemorySize: Long = getMemorySize(__nSlicesPerRecord)
         val __partMemorySize: Long = __recordMemorySize * __nRecordsPerPart
-        val partitions = (0 until __nPartitions) map ( partIndex => {
+        val partitions = (0 until __nPartitions) flatMap ( partIndex => {
           val startIndex = partIndex * __nSlicesPerPart
           val partSize = Math.min(__nSlicesPerPart, baseShape(0) - startIndex)
-          RegularPartition(partIndex, 0, startIndex, partSize, __nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape)
+          if(partSize>0) { Some( RegularPartition(partIndex, 0, startIndex, partSize, __nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape ) ) } else { None }
         })
         logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, sliceMemorySize: $sliceMemorySize, nSlicesPerRecord: ${__nSlicesPerRecord}, recordMemorySize: ${__recordMemorySize}, nRecordsPerPart: ${__nRecordsPerPart}, partMemorySize: ${__partMemorySize}, nPartitions: ${__nPartitions} \n---------------------------------------------\n")
         new CDASPartitionSpec( partitions )

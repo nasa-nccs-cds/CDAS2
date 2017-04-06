@@ -304,7 +304,11 @@ class  GridSection( val grid: CDGrid, val axes: IndexedSeq[GridCoordSpec] ) exte
   def getCalendarDate ( idx: Int ): CalendarDate = grid.getTimeCoordinateAxis match {
     case Some(axis) =>
       val testdate = axis.getCalendarDate(0);
-      axis.getCalendarDate(idx);
+      try { axis.getCalendarDate(idx); }
+      catch {
+        case err: IndexOutOfBoundsException =>
+          throw err;
+      }
     case None =>
       throw new Exception("Can't get time axis for grid " + grid.name)
   }
