@@ -27,7 +27,7 @@ try:
     print "Completed OP in time {0}".format( time.time()-t0 ); sys.stdout.flush()
 
 except Exception, err:
-    print "Exception occurred: " + err
+    print "Exception occurred: " + str(err)
 
 finally:
 
