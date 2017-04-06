@@ -134,8 +134,14 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   def mapReduceBatch( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext, batchIndex: Int ): Option[ ( RecordKey, RDDRecord ) ] =
     prepareInputs(node, kernelContext, requestCx, batchIndex) map ( inputs => {
       logger.info( s"Executing mapReduce Batch ${batchIndex.toString} for node ${node.getNodeId}" )
+      val t0 = System.nanoTime()
       val mapresult = node.map(inputs, kernelContext)
+      val t1 = System.nanoTime()
+      mapresult.count()
+      logger.debug("\n\n ----------------------- FINISHED map Operation: time = %.3f sec ----------------------- ".format( (t1 - t0) / 1.0E9))
       val result: ( RecordKey, RDDRecord ) = node.reduce( mapresult, kernelContext, batchIndex )
+      val t2 = System.nanoTime()
+      logger.debug("\n\n ----------------------- FINISHED reduce Operation: time = %.3f sec ----------------------- ".format( (t2 - t1) / 1.0E9))
       mapReduceBatch( node, kernelContext, requestCx, batchIndex + 1 ) match {
         case Some( next_result ) =>
           val reduceOp = node.kernel.getReduceOp(kernelContext)
@@ -173,7 +179,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
         val inputNParts = mapresult.partitions.length
         val intermediateNParts: Int = if (context.commutativeReduction) { inputNParts } else { 1 }
         val result = mapresult.sortByKey( true, intermediateNParts ) reduce node.kernel.getReduceOp(context)
-        logger.debug("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
+        logger.debug("\n\n ----------------------- FINISHED stream reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
         val results = List.fill(inputNParts)( result )
         executionMgr.serverContext.spark.sparkContext.parallelize( results )
       }
