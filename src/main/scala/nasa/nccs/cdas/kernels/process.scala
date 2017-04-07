@@ -196,6 +196,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   val parallelizable: Boolean = options.getOrElse( "parallelize", (!extInputs).toString ).toBoolean
   val identifier = name
   def matchesSpecs( specs: Array[String] ): Boolean = { (specs.size >= 2) && specs(0).equals(module) && specs(1).equals(operation) }
+  val nOutputsPerInput = options.getOrElse("nOutputsPerInput","1").toInt
 
   val mapCombineOp: Option[ReduceOpFlt] = options.get("mapOp").fold (options.get("mapreduceOp")) (Some(_)) map ( CDFloatArray.getOp(_) )
   val mapCombineNOp: Option[ReduceNOpFlt] = None
@@ -220,7 +221,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
 
   def getOpName(context: KernelContext): String = "%s(%s)".format(name, context.operation.inputs.mkString(","))
   def map(partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext): Option[DataFragment] = inputs.head
-  def map(rdd: RDDRecord, context: KernelContext ): RDDRecord = rdd // , inputs: Map[String,KIType]
+  def map(context: KernelContext )( rdd: RDDRecord ): RDDRecord = rdd // , inputs: Map[String,KIType]
 
   def combine(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices): DataFragment = reduceCombineOp match {
     case Some(combineOp) =>
@@ -241,20 +242,56 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   def combineRDD(context: KernelContext)(rdd0: RDDRecord, rdd1: RDDRecord ): RDDRecord = {
     val t0 = System.nanoTime
     val axes = context.getAxes
-    val new_elements = rdd0.elements.flatMap { case (key, element0) =>
-      rdd1.elements.get(key) match {
-        case Some(element1) =>
-          reduceCombineOp match {
-            case Some(combineOp) =>
-              if (axes.includes(0)) Some(key -> element0.combine(combineOp, element1))
-              else Some(key -> element0.append(element1) )
-            case None => Some(key -> element0.append(element1)  )
-          }
-        case None => None
+    val key_group_prefixes: Set[String] = rdd0.elements.keys.map( key => key.split(":").dropRight(1).mkString(":") ).toSet
+    val key_groups: Set[(String,IndexedSeq[String])] = key_group_prefixes map ( key_prefix =>  key_prefix -> rdd0.elements.keys.filter( _.startsWith( key_prefix )).toIndexedSeq )
+    val new_elements: IndexedSeq[(String,HeapFltArray)] = key_groups.toIndexedSeq.flatMap { case ( group_key, key_group ) =>
+      val elements0: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd0.elements.get(key).map(key->_) )
+      val elements1: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd1.elements.get(key).map(key->_) )
+      if( elements0.size != elements1.size ) { throw new Exception( s"Mismatched rdds in reduction for kernel ${context.operation.identifier}: ${elements0.size} != ${elements1.size}" ) }
+      if( elements0.size != nOutputsPerInput ) { throw new Exception( s"Missing elements in reduction rdds for kernel ${context.operation.identifier}: ${elements0.size} != ${nOutputsPerInput}" ) }
+      if( elements0.size == 1 ) {
+        reduceCombineOp match {
+          case Some(combineOp) =>
+            if (axes.includes(0)) IndexedSeq(group_key -> elements0(0)._2.combine(combineOp, elements1(0)._2))
+            else IndexedSeq(group_key -> elements0(0)._2.append(elements1(0)._2))
+          case None => IndexedSeq(group_key -> elements0(0)._2.append(elements1(0)._2))
+        }
+      } else {
+        reduceCombineOp match {
+          case Some(combineOp) =>
+            if (axes.includes(0)) combineElements( group_key, Map(elements0:_*), Map(elements1:_*) )
+            else appendElements( group_key, Map(elements0:_*), Map(elements1:_*) )
+          case None => appendElements( group_key, Map(elements0:_*), Map(elements1:_*) )
+        }
       }
     }
     logger.debug("&COMBINE: %s, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
-    RDDRecord( new_elements, rdd0.mergeMetadata(context.operation.name, rdd1))
+    RDDRecord( Map(new_elements:_*), rdd0.mergeMetadata(context.operation.name, rdd1))
+  }
+
+  def combineElements( key: String, elements0: Map[String,HeapFltArray], elements1: Map[String,HeapFltArray] ): IndexedSeq[(String,HeapFltArray)] = {
+    options.get("reduceOp") match {
+      case Some( reduceOp ) =>
+        if( reduceOp.toLowerCase == "sumw" ) {
+          weightedSumReduction( key, elements0, elements1 )
+        } else {
+          throw new Exception( s"Unimplemented multi-input reduce op for kernel ${identifier}: " + reduceOp )
+        }
+      case None =>
+        logger.warn( s"No reduce op defined for kernel ${identifier}, appending elements" )
+        appendElements( key, elements0, elements1 )
+    }
+  }
+
+  def weightedSumReduction( key: String, elements0: Map[String,HeapFltArray], elements1: Map[String,HeapFltArray] ): IndexedSeq[(String,HeapFltArray)] = {
+    val key_lists = elements0.keys.partition( _.endsWith("_WEIGHTS_") )
+    val weights_key = key_lists._1.headOption.getOrElse( throw new Exception( s"Can't find weignts key in weightedSumReduction for Kernel ${identifier}, keys: " + elements0.keys.mkString(",") ) )
+    val values_key  = key_lists._2.headOption.getOrElse( throw new Exception( s"Can't find values key in weightedSumReduction for Kernel ${identifier}, keys: " + elements0.keys.mkString(",") ) )
+    IndexedSeq( key -> elements0.head._2 )
+  }
+
+  def appendElements( key: String,  elements0: Map[String,HeapFltArray], elements1: Map[String,HeapFltArray] ): IndexedSeq[(String,HeapFltArray)] = {
+    elements0 flatMap { case (key,fltArray) => elements1.get(key) map ( fltArray1 => key -> fltArray.append(fltArray1) ) } toIndexedSeq
   }
 
   def customReduceRDD(context: KernelContext)(a0: RDDKeyValPair, a1: RDDKeyValPair ): RDDKeyValPair = {
@@ -523,7 +560,7 @@ abstract class DualOperationKernel extends Kernel {
 //}
 
 abstract class SingularRDDKernel( options: Map[String,String] = Map.empty ) extends Kernel(options)  {
-  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
+  override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
@@ -549,7 +586,7 @@ abstract class SingularRDDKernel( options: Map[String,String] = Map.empty ) exte
 }
 
 abstract class DualRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
-  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
+  override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
@@ -569,7 +606,7 @@ abstract class DualRDDKernel( options: Map[String,String] ) extends Kernel(optio
 
 abstract class MultiRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
 
-  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
+  override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
@@ -590,7 +627,7 @@ abstract class MultiRDDKernel( options: Map[String,String] ) extends Kernel(opti
 
 class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "Regridder", "Regrids the inputs using UVCDAT", Map( "parallelize" -> "True" ) ) {
 
-  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
+  override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance
     val worker: PythonWorker = workerManager.getPythonWorker
@@ -637,15 +674,15 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
   val title = _title
   val description = _description
 
-  override def cleanUp = PythonWorkerPortal.getInstance.shutdown
+  override def cleanUp(): Unit = PythonWorkerPortal.getInstance.shutdown()
 
-  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
+  override def map ( context: KernelContext ) ( inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime
-    val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance();
-    val worker: PythonWorker = workerManager.getPythonWorker();
+    val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance()
+    val worker: PythonWorker = workerManager.getPythonWorker
     try {
       val input_arrays: List[HeapFltArray] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[HeapFltArray]())( _ ++ _ )
-      assert(input_arrays.size > 0, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
+      assert( input_arrays.nonEmpty, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
       val operation_input_arrays = context.operation.inputs.flatMap( input_id => inputs.element( input_id ) )
 
       for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
@@ -658,10 +695,15 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
       logger.info( "Gateway: Executing operation %s".format( context.operation.identifier ) )
       val metadata = indexAxisConf( context.getConfiguration, context.grid.axisIndexMap )
       worker.sendRequest(context.operation.identifier, context.operation.inputs.toArray, metadata )
-      val resultItems = for( input_array <- operation_input_arrays ) yield {
-        val tvar = worker.getResult()
-        val result = HeapFltArray( tvar, input_array.missing )
-        context.operation.rid + ":" + input_array.uid -> result
+      val resultItems = for( iInput <-  0 until (operation_input_arrays.length * nOutputsPerInput)  ) yield {
+        val tvar: TransVar = worker.getResult
+        val uid = tvar.getMetaData.get( "uid" )
+        inputs.element( uid ) match {
+          case Some( input_array ) =>
+            val result = HeapFltArray( tvar, input_array.missing )
+            context.operation.rid + ":" + uid + ":" + tvar.id() -> result
+          case None => throw new Exception( "Missing input array, uid = " + uid )
+        }
       }
       val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
       logger.info("&MAP: Finished Kernel %s, time = %.4f s, metadata = %s".format(name, (System.nanoTime - t0) / 1.0E9, result_metadata.mkString(";") ) )

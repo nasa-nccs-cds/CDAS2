@@ -58,7 +58,7 @@ class SumKernel(Kernel):
 
 class SumwKernel(Kernel):
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("sum", "Sum","Computes the sum of the array elements along the given axes.", reduceOp="sum" ) )
+        Kernel.__init__( self, KernelSpec("sumw", "SumWithWeights","Computes the sum of the array elements along the given axes and computes weights.", reduceOp="sumw", nOutputsPerInput=2 ) )
 
     def executeOperations(self, task, inputs):
         self.logger.info("\n\n Execute Operations, inputs: " + str(inputs))
@@ -68,7 +68,7 @@ class SumwKernel(Kernel):
         for input in kernel_inputs:
             t0 = time.time()
             results.append( npArray.createResult( task, input,  input.array.sum(axis=self.getAxes(task.metadata),   keepdims=True ) ) )
-            results.append( npArray.createAuxResult( task.rId + "_WEIGHTS_", input.origin,  input.array.count(axis=self.getAxes(task.metadata), keepdims=True ) ) )
+            results.append( npArray.createAuxResult( task.rId + "_WEIGHTS_", input.origin, dict( input.metadata, **task.metadata ),  input.array.count(axis=self.getAxes(task.metadata), keepdims=True ) ) )
             t1 = time.time()
             self.logger.info( " ------------------------------- SUMW KERNEL: Operating on input '{0}', shape = {1}, origin = {2}, time = {3}".format( input.name, input.shape, input.origin, t1-t0 ))
         return results

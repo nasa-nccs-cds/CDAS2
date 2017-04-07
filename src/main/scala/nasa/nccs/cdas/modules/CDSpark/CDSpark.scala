@@ -127,7 +127,7 @@ class average extends SingularRDDKernel(Map.empty) {
   val title = "Space/Time Mean"
   val description = "Computes (weighted) means of element values from input variable data over specified axes and roi"
 
-  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
+  override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val async = context.config("async", "false").toBoolean
@@ -160,7 +160,7 @@ class timeBin extends Kernel(Map.empty) {
   val title = "Time Binning"
   override val description = "Aggregates data into bins over time using specified reduce function and binning specifications"
 
-  override def map(inputs: RDDRecord, context: KernelContext  ): RDDRecord = {
+  override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime
     val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
     val period = context.config("period", "1" ).toInt

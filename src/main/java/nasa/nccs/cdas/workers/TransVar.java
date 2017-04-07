@@ -12,6 +12,8 @@ import java.util.Map;
 
 public class TransVar {
     String _header;
+    String _id;
+    String _nodeId;
     byte[] _data;
     int[] _origin = null;
     int[] _shape = null;
@@ -21,6 +23,8 @@ public class TransVar {
         _header = header;
         _data = data;
         String[] header_items = header.split("[|]");
+        _nodeId = header_items[0].split("[-]")[1];
+        _id = header_items[1];
         _origin = s2ia( header_items[2] );
         _shape = s2ia( header_items[3] );
         _metadata = s2m( header_items[4] );
@@ -29,6 +33,7 @@ public class TransVar {
     public int[] getOrigin() { return _origin; }
     public int[] getShape() { return _shape; }
     public byte[] getData() { return _data; }
+    public String id() { return _id; }
     public ByteBuffer getDataBuffer() { return ByteBuffer.wrap(_data); }
     public Map<String, String> getMetaData() { return _metadata; }
 

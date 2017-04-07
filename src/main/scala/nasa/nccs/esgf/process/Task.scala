@@ -206,52 +206,32 @@ object TaskRequest extends Loggable {
     val uid = UID()
     val opSpecs: Seq[Map[String, Any]] = datainputs .getOrElse("operation", List())
     val data_list: List[DataContainer] = datainputs.getOrElse("variable", List()).flatMap(DataContainer.factory(uid, _, opSpecs.isEmpty )).toList
-    val domain_list: List[DomainContainer] =
-      datainputs.getOrElse("domain", List()).map(DomainContainer(_)).toList
-    val operation_list: List[OperationContext] = opSpecs.zipWithIndex.map {
-        case (op, index) => OperationContext(index, uid, process_name, data_list.map(_.uid), op)
-      } .toList
+    val domain_list: List[DomainContainer] = datainputs.getOrElse("domain", List()).map(DomainContainer(_)).toList
+    val operation_list: List[OperationContext] = opSpecs.zipWithIndex.map {  case (op, index) => OperationContext(index, uid, process_name, data_list.map(_.uid), op) } .toList
     val variableMap = buildVarMap(data_list, operation_list)
     val domainMap = buildDomainMap(domain_list)
-    val gridId = datainputs
-      .getOrElse("grid",
-                 data_list.headOption.map(dc => dc.uid).getOrElse("#META"))
-      .toString
+    val gridId = datainputs.getOrElse("grid", data_list.headOption.map(dc => dc.uid).getOrElse("#META")).toString
     val gridSpec = Map("id" -> gridId.toString)
-    new TaskRequest(uid,
-                    process_name,
-                    variableMap,
-                    domainMap,
-                    operation_list,
-                    gridSpec)
+    new TaskRequest( uid, process_name, variableMap, domainMap, operation_list, gridSpec )
   }
 
-  def buildVarMap(
-      data: List[DataContainer],
-      workflow: List[OperationContext]): Map[String, DataContainer] = {
+  def buildVarMap( data: List[DataContainer], workflow: List[OperationContext]): Map[String, DataContainer] = {
     var data_var_items = for (data_container <- data)
       yield data_container.uid -> data_container
     var op_var_items = for (operation <- workflow; if !operation.rid.isEmpty)
       yield operation.rid -> DataContainer(operation)
     val var_map = Map(op_var_items ++ data_var_items: _*)
 //    logger.info( "Created Variable Map: op_var_items = (%s), data_var_items = (%s)".format( op_var_items.map(_._1).mkString(","), data_var_items.map(_._1).mkString(",") ) )
-    logger.info(
-      "Created Variable Map: " + var_map.toString + " from data containers: " + data
-        .map(data_container => ("id:" + data_container.uid))
-        .mkString("[ ", ", ", " ]"))
+    logger.info( "Created Variable Map: " + var_map.toString + " from data containers: " + data.map(data_container => ("id:" + data_container.uid)).mkString("[ ", ", ", " ]"))
     for (operation <- workflow; vid <- operation.inputs; if !vid.isEmpty)
       var_map.get(vid) match {
         case Some(data_container) => data_container.addOpSpec(operation)
-        case None =>
-          throw new Exception(
-            "Unrecognized variable %s in varlist [%s]"
-              .format(vid, var_map.keys.mkString(",")))
+        case None => throw new Exception( "Unrecognized variable %s in varlist [%s]".format(vid, var_map.keys.mkString(",")))
       }
     var_map
   }
 
-  def buildDomainMap(domain_containers: List[DomainContainer])
-    : Map[String, DomainContainer] = {
+  def buildDomainMap(domain_containers: List[DomainContainer]): Map[String, DomainContainer] = {
     val domain_map = domain_containers
       .map(domain_container => domain_container.name -> domain_container)
       .toMap

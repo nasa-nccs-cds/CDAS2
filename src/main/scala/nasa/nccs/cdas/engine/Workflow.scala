@@ -63,7 +63,7 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
 
 
   def regridRDDElems(input: RDD[(RecordKey,RDDRecord)], context: KernelContext): RDD[(RecordKey,RDDRecord)] = {
-    val rdd = input.mapValues( rdd_part => regridKernel.map( rdd_part, context ) ) map(identity)
+    val rdd = input.mapValues( regridKernel.map( context ) ) map identity
     input.partitioner match { case Some( partitioner ) => rdd partitionBy partitioner; case None => rdd }
   }
   def timeConversion(input: RDD[(RecordKey,RDDRecord)], partitioner: RangePartitioner, context: KernelContext, requestCx: RequestContext ): RDD[(RecordKey,RDDRecord)] = {
@@ -88,8 +88,7 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
 
   def map(input: RDD[(RecordKey,RDDRecord)], context: KernelContext ): RDD[(RecordKey,RDDRecord)] = {
     logger.info( "Executing map OP for Kernel " + kernel.id + ", OP = " + context.operation.identifier )
-    val rdd = input.mapValues( rdd_part => kernel.map( rdd_part, context ) )
-    input.partitioner match { case Some( partitioner ) => rdd partitionBy partitioner; case None => rdd }
+    input.mapValues( kernel.map( context ) )
   }
 }
 
