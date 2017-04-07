@@ -1,6 +1,8 @@
 package nasa.nccs.cdas.kernels
 
 import java.io._
+import java.nio
+import java.nio.{ByteBuffer, ByteOrder, FloatBuffer}
 
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data.{HeapFltArray, _}
@@ -283,11 +285,53 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     }
   }
 
+  def missing_element( key: String ) = throw new Exception( s"Missing element in weightedSumReduction for Kernel ${identifier}, key: " + key )
+
+  def getFloatBuffer( size: Int ): FloatBuffer = {
+    val vbb: ByteBuffer = ByteBuffer.allocateDirect( size * 4 )
+    vbb.order( ByteOrder.nativeOrder() );    // use the device hardware's native byte order
+    vbb.asFloatBuffer();
+  }
+
   def weightedSumReduction( key: String, elements0: Map[String,HeapFltArray], elements1: Map[String,HeapFltArray] ): IndexedSeq[(String,HeapFltArray)] = {
     val key_lists = elements0.keys.partition( _.endsWith("_WEIGHTS_") )
     val weights_key = key_lists._1.headOption.getOrElse( throw new Exception( s"Can't find weignts key in weightedSumReduction for Kernel ${identifier}, keys: " + elements0.keys.mkString(",") ) )
     val values_key  = key_lists._2.headOption.getOrElse( throw new Exception( s"Can't find values key in weightedSumReduction for Kernel ${identifier}, keys: " + elements0.keys.mkString(",") ) )
-    IndexedSeq( key -> elements0.head._2 )
+    val weights0 = elements0.getOrElse( weights_key, missing_element(key) )
+    val weights1 = elements1.getOrElse( weights_key, missing_element(key) )
+    val values0 = elements0.getOrElse( values_key, missing_element(key) )
+    val values1 = elements1.getOrElse( values_key, missing_element(key) )
+    val t0 = System.nanoTime()
+    val resultWeights = FloatBuffer.allocate( values0.data.length )
+    val resultValues = FloatBuffer.allocate(  weights0.data.length )
+    values0.missing match {
+      case Some( undef ) =>
+        for( index <- 0 until values0.data.length; v0 = values0.data(index); v1 = values1.data(index) ) {
+          if( v0 == undef ) {
+            if( v1 == undef ) {
+              resultValues.put( index, undef )
+            } else {
+              resultValues.put( index, v1 )
+              resultWeights.put( index, weights1.data(index) )
+            }
+          } else if( v1 == undef ) {
+            resultValues.put( index, v0 )
+            resultWeights.put( index, weights0.data(index) )
+          } else {
+            resultValues.put( index, v0 + v1)
+            resultWeights.put( index, weights0.data(index) + weights1.data(index) )
+          }
+        }
+      case None =>
+        for( index <- 0 until values0.data.length ) {
+          resultValues.put( values0.data(index) + values1.data(index) )
+          resultWeights.put( weights0.data(index) + weights1.data(index) )
+        }
+    }
+    val valuesArray =  HeapFltArray( CDFloatArray( values0.shape,  resultValues.array,  values0.missing.getOrElse(Float.NaN) ),  values0.origin,  values0.metadata,  values0.weights  )
+    val weightsArray = HeapFltArray( CDFloatArray( weights0.shape, resultWeights.array, weights0.missing.getOrElse(Float.NaN) ), weights0.origin, weights0.metadata, weights0.weights )
+    logger.info("Completed weightedSumReduction '%s' in %.4f sec, shape = %s".format(identifier, ( System.nanoTime() - t0 ) / 1.0E9, values0.shape.mkString(",") ) )
+    IndexedSeq( values_key -> valuesArray, weights_key -> weightsArray )
   }
 
   def appendElements( key: String,  elements0: Map[String,HeapFltArray], elements1: Map[String,HeapFltArray] ): IndexedSeq[(String,HeapFltArray)] = {

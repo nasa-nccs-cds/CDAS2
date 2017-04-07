@@ -86,15 +86,14 @@ abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray
 
 }
 
-class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, private val _data:  Array[Float]=Array.emptyFloatArray, _missing: Option[Float]=None,
+class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Array.emptyIntArray, val data:  Array[Float]=Array.emptyFloatArray, _missing: Option[Float]=None,
                     val gridSpec: String = "", metadata: Map[String,String]=Map.empty, private val _optWeights: Option[Array[Float]]=None, indexMaps: List[CDCoordMap] = List.empty ) extends ArrayBase[Float](shape,origin,_missing,metadata,indexMaps) with Loggable {
   val bb = java.nio.ByteBuffer.allocate(4)
-  def data: Array[Float] = _data
   def weights: Option[Array[Float]] = _optWeights
   override def toCDWeightsArray: Option[CDFloatArray] = _optWeights.map( CDFloatArray( shape, _, getMissing() ) )
   def getMissing( default: Float = Float.MaxValue ): Float = _missing.getOrElse(default)
   def sameGrid( other: HeapFltArray) = gridSpec.equals( other.gridSpec )
-  def hasData = (_data.length > 0)
+  def hasData = (data.length > 0)
 
   def reinterp( weights: Map[Int,RemapElem], origin_mapper: Array[Int] => Array[Int] ): HeapFltArray = {
     val reinterpArray = toCDFloatArray.reinterp(weights)
@@ -104,7 +103,6 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), getMissing() )
   def toCDLongArray: CDLongArray = CDLongArray( shape, data.map(_.toLong) )
   def verifyGrids( other: HeapFltArray ) = if( !sameGrid(other) ) throw new Exception( s"Error, attempt to combine arrays with different grids: $gridSpec vs ${other.gridSpec}")
-
   def append( other: HeapFltArray, checkContiguous: Boolean = false ): HeapFltArray = {
     verifyGrids( other )
     logger.debug( "Appending arrays: {o:(%s), s:(%s)} + {o:(%s), s:(%s)} ".format( origin.mkString(","), shape.mkString(","), other.origin.mkString(","), other.shape.mkString(",")))
@@ -139,7 +137,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
     verifyGrids( other )
     HeapFltArray( CDFloatArray.combine( combineOp, toCDFloatArray, other.toCDFloatArray ), origin, gridSpec, mergeMetadata("merge",other), toCDWeightsArray.map( _.append( other.toCDWeightsArray.get ) ) )
   }
-  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={getMissing().toString}> {_data.mkString(",")} </array> % metadata
+  def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={getMissing().toString}> { data.mkString(",")} </array> % metadata
 }
 object HeapFltArray {
   def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[Array[Float]] ): HeapFltArray = {
