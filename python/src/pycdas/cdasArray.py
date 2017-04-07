@@ -72,6 +72,10 @@ class npArray(CDArray):
     def createResult(cls, task, input, result_array ):
         return npArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array )
 
+    @classmethod
+    def createAuxResult( cls, id, origin, result_array ):
+        return npArray( id, origin, result_array.shape, {}, result_array )
+
     def toBytes( self, dtype ):
         return self.array.astype(dtype).tobytes()
 
