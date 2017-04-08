@@ -42,12 +42,6 @@ class MinKernel(Kernel):
     def executeOperation( self, task, input ):
         return npArray.createResult( task, input, input.array.min( axis=self.getAxes(task.metadata), keepdims=True ) )
 
-class MeanKernel(Kernel):
-    def __init__( self ):
-        Kernel.__init__( self, KernelSpec("mean", "Mean","Computes the mean of the array elements along the given axes.", parallelize=False ) )
-
-    def executeOperation( self, task, input ):
-        return npArray.createResult( task, input, input.array.mean( axis=self.getAxes(task.metadata), keepdims=True ) )
 
 class SumKernel(Kernel):
     def __init__( self ):
@@ -56,9 +50,9 @@ class SumKernel(Kernel):
         self.logger.info( " ------------------------------- SUM KERNEL: Operating on input '{0}', shape = {1}, origin = {2}".format( input.name, input.shape, input.origin ) )
         return npArray.createResult( task, input, input.array.sum( axis=self.getAxes(task.metadata), keepdims=True ) )
 
-class SumwKernel(Kernel):
+class AverageKernel(Kernel):
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("sumw", "SumWithWeights","Computes the sum of the array elements along the given axes and computes weights.", reduceOp="sumw", nOutputsPerInput=2 ) )
+        Kernel.__init__( self, KernelSpec("ave", "Weighted Average Kernel","Computes the weighted average of the array elements along the given axes.", reduceOp="sumw", postOp="normw", nOutputsPerInput=2 ) )
 
     def executeOperations(self, task, inputs):
         self.logger.info("\n\n Execute Operations, inputs: " + str(inputs))

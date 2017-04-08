@@ -345,7 +345,30 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
 
   def postOp(result: DataFragment, context: KernelContext): DataFragment = result
 
-  def postRDDOp(pre_result: RDDRecord, context: KernelContext): RDDRecord = pre_result
+  def postRDDOp( pre_result: RDDRecord, context: KernelContext ): RDDRecord = {
+    options.get("postOp") match {
+      case Some( postOp ) =>
+        if( postOp == "normw") {
+          val key_lists = pre_result.elements.keys.partition( _.endsWith("_WEIGHTS_") )
+          val weights_key = key_lists._1.headOption.getOrElse( throw new Exception( s"Can't find weignts key in postRDDOp for Kernel ${identifier}, keys: " + pre_result.elements.keys.mkString(",") ) )
+          val values_key  = key_lists._2.headOption.getOrElse( throw new Exception( s"Can't find values key in postRDDOp for Kernel ${identifier}, keys: " + pre_result.elements.keys.mkString(",") ) )
+          val weights = pre_result.elements.getOrElse( weights_key, missing_element(weights_key) )
+          val values = pre_result.elements.getOrElse( values_key, missing_element(values_key) )
+          val averageValues = FloatBuffer.allocate(  values.data.length )
+          values.missing match {
+            case Some( undef ) =>
+              for( index <- 0 until values.data.length; value = values.data(index); weight = weights.data(index) ) {
+                if( value == undef ) { undef } else { averageValues.put( values.data(index) / weights.data(index) ) }
+              }
+            case None =>
+              for( index <- 0 until values.data.length ) { averageValues.put( values.data(index) / weights.data(index) ) }
+          }
+          val valuesArray =  HeapFltArray( CDFloatArray( values.shape,  averageValues.array,  values.missing.getOrElse(Float.NaN) ),  values.origin,  values.metadata,  values.weights  )
+          new RDDRecord( Map( values_key -> valuesArray ), pre_result.metadata)
+        } else { throw new Exception( "Unrecognized postOp configuration: " + postOp) }
+      case None => pre_result
+    }
+  }
 
   def reduceOp(context: KernelContext)(a0op: Option[DataFragment], a1op: Option[DataFragment]): Option[DataFragment] = {
     val t0 = System.nanoTime
