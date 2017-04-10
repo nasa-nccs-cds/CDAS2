@@ -1,5 +1,5 @@
 #get path
-pth1='/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/merra_mon_ua.xml'
+pth1='/home/tpmaxwel/.cdas/cache/cdscan/merra_mon_ua.xml'
 #pth1='https://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/reanalysis/MERRA2/mon/atmos/ua.ncml'
 #pth2='https://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/reanalysis/MERRA/mon/atmos/ua.ncml'
 # variable
