@@ -264,6 +264,7 @@ object CDFloatArray extends Loggable with Serializable {
   val eqOp: ReduceOpFlt = (x:Float, y:Float) => ( y )
   def getOp( opName: String ): ReduceOpFlt = opName match {
     case x if x.startsWith("sum") => addOp
+    case x if x.startsWith("ave") => addOp
     case x if x.startsWith("add") => addOp
     case x if x.startsWith("sub") => subtractOp
     case x if x.startsWith("mul") => multiplyOp

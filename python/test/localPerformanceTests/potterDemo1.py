@@ -16,6 +16,8 @@ import cdms2, vcs, genutil, cdutil
 import cdms2, cdutil
 import vcs, EzTemplate, sys
 
+print "Plotting " + plot_title
+
 cdmsfile=cdms2.open(pth1)
 cl = cdmsfile(varin)
 
@@ -25,7 +27,8 @@ cdutil.times.setTimeBoundsMonthly(cl)
 cl_djfclimatology = cdutil.times.DJF.climatology(cl)
 #Calculate zonal average
 cl_djfclimatology = cdutil.averager(cl_djfclimatology, axis=3,weights='equal')
-#Done with calculation
+
+print "Done with calculation, begin plotting"
 
 ## PLotting set up from here on down:
 
