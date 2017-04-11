@@ -40,7 +40,6 @@ iso = x.createisofill()
 iso.levels=levs
 iso.missing='grey'
 cl_djfclimatology.id=''
-x = vcs.init()
 x.drawlogooff()
 bg=False
 M=EzTemplate.Multi(rows=1,columns=1)
@@ -72,4 +71,6 @@ lines=vcs.createisoline()
 lines.levels=levs
 
 end=time.time()
-print (end-start)/60.
+print " Plot constructed, total time = {0} sec".format( str(end-start) )
+
+x.interact()
