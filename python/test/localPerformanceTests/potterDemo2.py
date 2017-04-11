@@ -89,4 +89,12 @@ end=time.time()
 png_file = outfile+'/'+varin+'.png'
 print " Plot constructed, total time = {0} sec, png_file = {1}".format( str(end-start), png_file )
 x.png(png_file)
-x.interact()
+x.showGUI()
+interactor = x.renWin.GetInteractor()
+if interactor:
+    print "Running interactor"
+    interactor.Start()
+else:
+    print "Sleeping for 30 sec."
+    time.sleep(30)
+#x.interact()
