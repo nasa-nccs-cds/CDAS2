@@ -151,6 +151,9 @@ object HeapFltArray {
   def apply( cdarray: CDFloatArray, origin: Array[Int], gridSpec: String, metadata: Map[String,String], optWeights: Option[CDFloatArray] ): HeapFltArray = {
     new HeapFltArray(cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), gridSpec, metadata, optWeights.map(_.getArrayData()), cdarray.getCoordMaps)
   }
+  def apply( heaparray: HeapFltArray, weights: CDFloatArray ): HeapFltArray = {
+    new HeapFltArray( heaparray.shape, heaparray.origin, heaparray.data, Some(heaparray.getMissing()), heaparray.gridSpec, heaparray.metadata, Some(weights.getArrayData()), heaparray.indexMaps )
+  }
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], gridSpec: String, metadata: Map[String,String], missing: Float ): HeapFltArray = HeapFltArray( CDArray(ucarray,missing), origin, gridSpec, metadata, None )
 
   def apply( tvar: TransVar, invalidOpt: Option[Float], _gridSpec: Option[String] = None ): HeapFltArray = {

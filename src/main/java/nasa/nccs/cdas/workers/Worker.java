@@ -149,7 +149,14 @@ public abstract class Worker {
     }
 
     public void sendRequestInput( String id, HeapFltArray array ) {
-        if( array.hasData() )   _sendArrayData( id, array.origin(), array.shape(), array.toByteArray(), array.mdata() );
+        if( array.hasData() )  {
+            _sendArrayData( id, array.origin(), array.shape(), array.toByteArray(), array.mdata() );
+            scala.Option<float[]> weightsOpt = array.weights();
+            if( weightsOpt.isDefined() ) {
+                float[] weights = weightsOpt.get();
+                _sendArrayData(id + "_WEIGHTS_", array.origin(), array.shape(), array.toByteArray(), array.mdata())
+            }
+        }
         else                    _sendArrayMetadata( id, array.origin(), array.shape(), array.mdata() );
     }
 

@@ -198,7 +198,8 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   val parallelizable: Boolean = options.getOrElse( "parallelize", (!extInputs).toString ).toBoolean
   val identifier = name
   def matchesSpecs( specs: Array[String] ): Boolean = { (specs.size >= 2) && specs(0).equals(module) && specs(1).equals(operation) }
-  val nOutputsPerInput = options.getOrElse("nOutputsPerInput","1").toInt
+  val nOutputsPerInput: Int = options.getOrElse("nOutputsPerInput","1").toInt
+  val computeWeights: Boolean = options.getOrElse("weights","false").toBoolean
 
   val mapCombineOp: Option[ReduceOpFlt] = options.get("mapOp").fold (options.get("mapreduceOp")) (Some(_)) map ( CDFloatArray.getOp(_) )
   val mapCombineNOp: Option[ReduceNOpFlt] = None
@@ -814,7 +815,12 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
 
       for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
         case Some( input_array ) =>
-          worker.sendRequestInput( input_id, input_array )
+          if(computeWeights) {
+            val weights: CDFloatArray = KernelUtilities.getWeights( input_id, context )
+            worker.sendRequestInput( input_id, HeapFltArray( input_array, weights ) )
+          } else {
+            worker.sendRequestInput(input_id, input_array)
+          }
           logger.info( "Kernel part-%d: Finished Sending data to worker" )
         case None =>
           worker.sendUtility( List( "input", input_id ).mkString(";") )
