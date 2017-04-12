@@ -3,7 +3,8 @@ import nasa.nccs.cdapi.data.ArrayBase;
 import nasa.nccs.cdapi.data.HeapFltArray;
 import org.zeromq.ZMQ;
 import nasa.nccs.utilities.Logger;
-
+import ucar.ma2.DataType;
+import ucar.ma2.Array;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -154,10 +155,12 @@ public abstract class Worker {
             scala.Option<float[]> weightsOpt = array.weights();
             if( weightsOpt.isDefined() ) {
                 float[] weights = weightsOpt.get();
-                _sendArrayData(id + "_WEIGHTS_", array.origin(), array.shape(), array.toByteArray(), array.mdata())
+                int[] shape = { weights.length };
+                byte[] weight_data = Array.factory(DataType.FLOAT, shape, weights ).getDataAsByteBuffer().array();
+                _sendArrayData(id + "_WEIGHTS_", array.origin(), shape, weight_data, new HashMap<String, String>()  );
             }
         }
-        else                    _sendArrayMetadata( id, array.origin(), array.shape(), array.mdata() );
+        else _sendArrayMetadata( id, array.origin(), array.shape(), array.mdata() );
     }
 
     public void sendArrayData( String id, HeapFltArray array ) {

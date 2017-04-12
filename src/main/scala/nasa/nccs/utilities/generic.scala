@@ -2,10 +2,10 @@ package nasa.nccs.utilities
 
 import java.io.{File, PrintWriter}
 import java.util.jar.JarFile
+import java.nio.file.{Files, Paths}
 
 import com.joestelmach.natty
 import ucar.nc2.time.CalendarDate
-import java.nio.file.Paths
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -33,7 +33,7 @@ object log4jInit {
 class Logger( val name: String, val test: Boolean ) extends Serializable {
   val logid = if( test ) name + "-test" else name
   val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", logid + ".log" ).toString
-  val writer = new PrintWriter(logFilePath)
+  val writer = if(Files.exists(Paths.get(logFilePath))) { new PrintWriter(logFilePath) } else { new PrintWriter( new File(logFilePath) ) }
   def log( level: String, msg: String  ) = {
     val output = logid + "-" + level + ": " + msg
     writer.println( output )

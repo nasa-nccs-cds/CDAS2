@@ -70,7 +70,7 @@ class AverageKernel(Kernel):
 
 class WeightedAverageKernel(Kernel):
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("avew", "Weighted Average Kernel","Computes the weighted average of the array elements along the given axes.", reduceOp="avew", nOutputsPerInput=2 ) )
+        Kernel.__init__( self, KernelSpec("avew", "Weighted Average Kernel","Computes the weighted average of the array elements along the given axes.", reduceOp="avew", nOutputsPerInput=2, weights=True ) )
 
     def executeOperations(self, task, inputs):
         kernel_inputs = [inputs.get(inputId.split('-')[0]) for inputId in task.inputs]
