@@ -1,11 +1,13 @@
 package nasa.nccs.cdas.workers;
 import nasa.nccs.cdapi.data.ArrayBase;
 import nasa.nccs.cdapi.data.HeapFltArray;
+import org.apache.commons.lang.ArrayUtils;
 import org.zeromq.ZMQ;
 import nasa.nccs.utilities.Logger;
 import ucar.ma2.DataType;
 import ucar.ma2.Array;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -23,6 +25,7 @@ public abstract class Worker {
     private String withData = "1";
     private String withoutData = "0";
     private long requestTime = 0;
+    ByteBuffer byteBuffer = java.nio.ByteBuffer.allocate(4);
 
     static int bindSocket( ZMQ.Socket socket, int init_port ) {
         int test_port = init_port;
@@ -129,6 +132,7 @@ public abstract class Worker {
         resultThread.start();
         result_port = resultThread.port;
         logger.info( String.format("Starting Worker, ports: %d %d",  request_port, result_port ) );
+        byteBuffer.putFloat( 0, Float.MAX_VALUE );
     }
 
     @Override
@@ -156,7 +160,7 @@ public abstract class Worker {
             if( weightsOpt.isDefined() ) {
                 float[] weights = weightsOpt.get();
                 int[] shape = { weights.length };
-                byte[] weight_data = Array.factory(DataType.FLOAT, shape, weights ).getDataAsByteBuffer().array();
+                byte[] weight_data = ArrayUtils.addAll( Array.factory(DataType.FLOAT, shape, weights ).getDataAsByteBuffer().array(), byteBuffer.array() );
                 _sendArrayData(id + "_WEIGHTS_", array.origin(), shape, weight_data, new HashMap<String, String>()  );
             }
         }
