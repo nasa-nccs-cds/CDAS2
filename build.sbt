@@ -64,16 +64,18 @@ lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
 lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
+lazy val ivy_cache_dir = settingKey[File]("The Ivy conf directory.")
 
+ivy_cache_dir := file(System.getProperty("user.home")) / ".cdas" / "cache"
 cdas_cache_dir := baseDirectory.value / "src" / "universal" / "conf"
 conda_lib_dir := getCondaLibDir
 
 unmanagedResourceDirectories in Test ++= Seq( cdas_cache_dir.value )
 unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_cache_dir.value )
-unmanagedClasspath in Test ++= Seq( conda_lib_dir.value )
-unmanagedClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value )
-dependencyClasspath in Test ++= Seq( conda_lib_dir.value )
-dependencyClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value )
+unmanagedClasspath in Test ++= Seq( conda_lib_dir.value, ivy_cache_dir.value )
+unmanagedClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value, ivy_cache_dir.value )
+dependencyClasspath in Test ++= Seq( conda_lib_dir.value, ivy_cache_dir.value )
+dependencyClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value, ivy_cache_dir.value )
 classpathTypes += "dylib"
 
 stage ~= { (file: File) => cdas2Patch( file / "bin" / "cdas2" ); file }
