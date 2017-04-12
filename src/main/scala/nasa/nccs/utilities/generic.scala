@@ -33,7 +33,11 @@ object log4jInit {
 class Logger( val name: String, val test: Boolean ) extends Serializable {
   val logid = if( test ) name + "-test" else name
   val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", logid + ".log" ).toString
-  val writer = if(Files.exists(Paths.get(logFilePath))) { new PrintWriter(logFilePath) } else { new PrintWriter( new File(logFilePath) ) }
+  val writer = if(Files.exists(Paths.get(logFilePath))) {
+    new PrintWriter(logFilePath)
+  } else {
+    new PrintWriter( new File(logFilePath) )
+  }
   def log( level: String, msg: String  ) = {
     val output = logid + "-" + level + ": " + msg
     writer.println( output )
