@@ -2,41 +2,42 @@ package nasa.nccs.utilities
 
 import java.io.{File, PrintWriter}
 import java.util.jar.JarFile
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
 
 import com.joestelmach.natty
 import ucar.nc2.time.CalendarDate
-
+import java.nio.file.{ Files, Path }
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
-object log4jInit {
-  import org.apache.log4j._
-  val console: ConsoleAppender = new ConsoleAppender();
-  val PATTERN = "%d [%p|%c|%C{1}] %m%n";
-  console.setLayout(new PatternLayout(PATTERN));
-  console.setThreshold(Level.FATAL);
-  console.activateOptions();
-  Logger.getRootLogger().addAppender(console);
-
-  val fa = new FileAppender();
-  fa.setName("FileLogger");
-  fa.setFile("${user.home}/.cdas/wps.log");
-  fa.setLayout(new PatternLayout("%d %-5p [%c{1}] %m%n"));
-  fa.setThreshold(Level.DEBUG);
-  fa.setAppend(true);
-  fa.activateOptions();
-  Logger.getRootLogger().addAppender(fa);
-}
+//object log4jInit {
+//  import org.apache.log4j._
+//  val console: ConsoleAppender = new ConsoleAppender();
+//  val PATTERN = "%d [%p|%c|%C{1}] %m%n";
+//  console.setLayout(new PatternLayout(PATTERN));
+//  console.setThreshold(Level.FATAL);
+//  console.activateOptions();
+//  Logger.getRootLogger().addAppender(console);
+//
+//  val fa = new FileAppender();
+//  fa.setName("FileLogger");
+//  fa.setFile("${user.home}/.cdas/wps.log");
+//  fa.setLayout(new PatternLayout("%d %-5p [%c{1}] %m%n"));
+//  fa.setThreshold(Level.DEBUG);
+//  fa.setAppend(true);
+//  fa.activateOptions();
+//  Logger.getRootLogger().addAppender(fa);
+//}
 
 class Logger( val name: String, val test: Boolean ) extends Serializable {
   val logid = if( test ) name + "-test" else name
-  val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", logid + ".log" ).toString
-  val writer = if(Files.exists(Paths.get(logFilePath))) {
-    new PrintWriter(logFilePath)
+  val logFilePath: Path = Paths.get( System.getProperty("user.home"), ".cdas", logid + ".log" )
+  val writer = if(Files.exists(logFilePath)) {
+    new PrintWriter(logFilePath.toString)
   } else {
-    new PrintWriter( new File(logFilePath) )
+    Files.createDirectories( logFilePath.getParent )
+    new PrintWriter( new File( logFilePath.toString ) )
   }
   def log( level: String, msg: String  ) = {
     val output = logid + "-" + level + ": " + msg
