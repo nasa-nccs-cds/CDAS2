@@ -148,14 +148,14 @@ object Kernel extends Loggable {
 }
 
 object KernelUtilities extends Loggable {
-  def getWeights( inputId: String, context: KernelContext ): CDFloatArray =  {
-    val weighting_type = context.config("weights", if (context.config("axes", "").contains('y')) "cosine" else "")
+  def getWeights( inputId: String, context: KernelContext, weighting_type_opt: Option[String]=None, broadcast: Boolean = true ): CDFloatArray =  {
+    val weighting_type = weighting_type_opt.getOrElse( context.config("weights", if (context.config("axes", "").contains('y')) "cosine" else "") )
     context.sectionMap.get( inputId ).flatten match {
       case Some(section) =>
         weighting_type match {
           case "cosine" =>
             context.grid.getSpatialAxisData('y', section) match {
-              case Some(axis_data) => computeWeights( weighting_type, Map('y' -> axis_data), section.getShape, Float.MaxValue )
+              case Some(axis_data) => computeWeights( weighting_type, Map('y' -> axis_data), section.getShape, Float.MaxValue, broadcast )
               case None => logger.warn("Can't access AxisData for variable %s => Using constant weighting.".format(inputId)); CDFloatArray.const(section.getShape, 1f)
             }
           case x =>
@@ -166,7 +166,7 @@ object KernelUtilities extends Loggable {
     }
   }
 
-  def computeWeights( weighting_type: String, axisDataMap: Map[ Char, ( Int, ma2.Array ) ], shape: Array[Int], invalid: Float ) : CDFloatArray  = {
+  def computeWeights( weighting_type: String, axisDataMap: Map[ Char, ( Int, ma2.Array ) ], shape: Array[Int], invalid: Float, broadcast: Boolean ) : CDFloatArray  = {
     weighting_type match {
       case "cosine" =>
         axisDataMap.get('y') match {
@@ -177,7 +177,8 @@ object KernelUtilities extends Loggable {
             val cosineWeights: CDFloatArray = axis_data.map( x => Math.cos( Math.toRadians(x) ).toFloat )
             val base_shape: Array[Int] = Array( (0 until shape.length).map(i => if(i==axisIndex) shape(axisIndex) else 1 ): _* )
             val weightsArray: CDArray[Float] =  CDArray( base_shape, cosineWeights.getStorage, invalid )
-            weightsArray.broadcast( shape )
+            if(broadcast) { weightsArray.broadcast( shape ) }
+            weightsArray
           case None => throw new NoSuchElementException( "Missing axis data in weights computation, type: %s".format( weighting_type ))
         }
       case x => throw new NoSuchElementException( "Can't recognize weighting method: %s".format( x ))
@@ -199,7 +200,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   val identifier = name
   def matchesSpecs( specs: Array[String] ): Boolean = { (specs.size >= 2) && specs(0).equals(module) && specs(1).equals(operation) }
   val nOutputsPerInput: Int = options.getOrElse("nOutputsPerInput","1").toInt
-  val computeWeights: Boolean = options.getOrElse("weights","false").toBoolean
+  val weightsOpt: Option[String] = options.get("weights")
 
   val mapCombineOp: Option[ReduceOpFlt] = options.get("mapOp").fold (options.get("mapreduceOp")) (Some(_)) map ( CDFloatArray.getOp(_) )
   val mapCombineNOp: Option[ReduceNOpFlt] = None
@@ -815,9 +816,9 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
 
       for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
         case Some( input_array ) =>
-          if(computeWeights) {
-            val weights: CDFloatArray = KernelUtilities.getWeights( input_id, context )
-            worker.sendRequestInput( input_id, HeapFltArray( input_array, weights ) )
+          if( weightsOpt.isDefined ) {
+            val weights: CDFloatArray = KernelUtilities.getWeights(input_id, context, weightsOpt, false)
+            worker.sendRequestInput(input_id, HeapFltArray(input_array, weights))
           } else {
             worker.sendRequestInput(input_id, input_array)
           }

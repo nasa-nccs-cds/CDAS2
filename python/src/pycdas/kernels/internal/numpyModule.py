@@ -70,16 +70,19 @@ class AverageKernel(Kernel):
 
 class WeightedAverageKernel(Kernel):
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("avew", "Weighted Average Kernel","Computes the weighted average of the array elements along the given axes.", reduceOp="avew", nOutputsPerInput=2, weights=True ) )
+        Kernel.__init__( self, KernelSpec("avew", "Weighted Average Kernel","Computes the weighted average of the array elements along the given axes.", reduceOp="avew", nOutputsPerInput=2, weights="cosine" ) )
 
     def executeOperations(self, task, inputs):
-        kernel_inputs = [inputs.get(inputId.split('-')[0]) for inputId in task.inputs]
-        if None in kernel_inputs: raise Exception( "ExecuteTask ERROR: required input {0} not available in task inputs: {1}".format(task.inputs, inputs.keys()))
+        input_ids = [ inputId.split('-')[0] for inputId in task.inputs ]
+        data_inputIds = [ inputId for inputId in input_ids if not inputId.endswith("_WEIGHTS_") ]
+        weight_inputIds = [ ( inputId+"_WEIGHTS_" if (inputId+"_WEIGHTS_" in input_ids) else None ) for inputId in data_inputIds ]
+        inputs_with_weights = zip( data_inputIds, weight_inputIds )
+        axes = self.getOrderedAxes(task.metadata)
         results = []
-        self.logger.info("\n\n Execute Operations, inputs: " + str( task.inputs ) + ", task metadata = " + str(task.metadata) )
-        for input in kernel_inputs:
-            (weights, axes) = self.getWeightsAndAxes(task,input)
-            result = input.array
+        self.logger.info("\n\n Execute Operations, inputs: " + str( task.inputs ) + ", task metadata = " + str(task.metadata) + ", axes = " + str( axes ) )
+        for input_pair in inputs_with_weights:
+            result = inputs.get( input_pair[0] ).array
+            weights = inputs.get( input_pair[1] ).array if( input_pair[1] != None ) else None
             t0 = time.time()
             for axis in axes:
                  result, weights = np.ma.average( result, axis=axis, weights=weights, returned=True )
@@ -90,14 +93,16 @@ class WeightedAverageKernel(Kernel):
             self.logger.info( " ------------------------------- AVEW KERNEL: Operating on input '{0}', shape = {1}, origin = {2}, time = {3}".format( input.name, input.shape, input.origin, t1-t0 ))
         return results
 
-    def getWeightsAndAxes(self,task,input):
-        weightsType = task.metadata.get("weights","equal")
+    def getOrderedAxes(self,task,input):
         axes=self.getAxes(task.metadata)
         dimensions = input.metadata.get("dimensions","").split(',')
-        axis_map = { dimensions[axis]: axis  for axis in axes }
-        self.logger.info(" Axis Map: " +  str(axis_map) )
+        axis_map = { dimensions[axis]: axis for axis in axes }
         y_axis = axis_map.get("lat",None)
-        return (None, axes)
+        if( y_axis != None ):
+            y_axis_index = axes.index( y_axis )
+            if( y_axis_index > 0 ):
+                axes[0], axes[y_axis_index] = axes[y_axis_index], axes[0]
+        return axes
 
 class PtpKernel(Kernel):
     def __init__( self ):
