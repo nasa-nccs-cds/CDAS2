@@ -77,16 +77,15 @@ class WeightedAverageKernel(Kernel):
         data_inputIds = [ inputId for inputId in input_ids if not inputId.endswith("_WEIGHTS_") ]
         weight_inputIds = [ ( inputId+"_WEIGHTS_" if (inputId+"_WEIGHTS_" in input_ids) else None ) for inputId in data_inputIds ]
         inputs_with_weights = zip( data_inputIds, weight_inputIds )
-        axes = self.getOrderedAxes(task.metadata)
         results = []
-        self.logger.info("\n\n Execute Operations, inputs: " + str( task.inputs ) + ", task metadata = " + str(task.metadata) + ", axes = " + str( axes ) )
         for input_pair in inputs_with_weights:
-            result = inputs.get( input_pair[0] ).array
+            input = inputs.get( input_pair[0] )
             weights = inputs.get( input_pair[1] ).array if( input_pair[1] != None ) else None
+            axes = self.getOrderedAxes(task,input)
+            self.logger.info("\n Execute Operation, input: " + str( input_pair[0] ) + ", task metadata = " + str(task.metadata) + ", axes = " + str( axes ) + ", input array shape = " + str(input.array.shape) )
             t0 = time.time()
-            for axis in axes:
-                 result, weights = np.ma.average( result, axis=axis, weights=weights, returned=True )
-            self.logger.info(" Input metadata: " + str( input.metadata ) + ", input shape = " + str(input.array.shape) + ", output shape = " + str(result.shape) )
+            ( result, weights ) = np.ma.average( input.array, axes, weights, True )
+            self.logger.info(" Input metadata: " + str( input.metadata ) + ", output shape = " + str(result.shape) )
             results.append( npArray.createResult( task, input, result ) )
             results.append( npArray.createAuxResult( task.rId + "_WEIGHTS_", input.origin, dict( input.metadata, **task.metadata ),  weights ) )
             t1 = time.time()
