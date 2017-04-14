@@ -259,6 +259,7 @@ class RDDRecord(val elements: Map[String,HeapFltArray], metadata: Map[String,Str
 //  def split( index: Int ): (RDDPartition,RDDPartition) = { }
   def getShape = elements.head._2.shape
   def getOrigin = elements.head._2.origin
+  def elems = elements.keys
   def element( id: String ): Option[HeapFltArray] = ( elements find { case (key,array) => key.split(':')(0).equals(id) } ) map ( _._2 )
   def findElements( id: String ): Iterable[HeapFltArray] = ( elements filter { case (key,array) => key.split(':').last.equals(id) } ) values
   def empty( id: String ) = { element(id).isEmpty }

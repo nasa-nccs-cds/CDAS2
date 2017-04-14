@@ -150,7 +150,8 @@ object Kernel extends Loggable {
 object KernelUtilities extends Loggable {
   def getWeights( inputId: String, context: KernelContext, weighting_type_opt: Option[String]=None, broadcast: Boolean = true ): CDFloatArray =  {
     val weighting_type = weighting_type_opt.getOrElse( context.config("weights", if (context.config("axes", "").contains('y')) "cosine" else "") )
-    context.sectionMap.get( inputId ).flatten match {
+    val t0 = System.nanoTime
+    val weights = context.sectionMap.get( inputId ).flatten match {
       case Some(section) =>
         weighting_type match {
           case "cosine" =>
@@ -164,6 +165,8 @@ object KernelUtilities extends Loggable {
         }
       case None => CDFloatArray.empty
     }
+    logger.info( "Computed weights in time %.4f s".format(  (System.nanoTime - t0) / 1.0E9 ) )
+    weights
   }
 
   def computeWeights( weighting_type: String, axisDataMap: Map[ Char, ( Int, ma2.Array ) ], shape: Array[Int], invalid: Float, broadcast: Boolean ) : CDFloatArray  = {
@@ -246,13 +249,17 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   def combineRDD(context: KernelContext)(rdd0: RDDRecord, rdd1: RDDRecord ): RDDRecord = {
     val t0 = System.nanoTime
     val axes = context.getAxes
-    val key_group_prefixes: Set[String] = rdd0.elements.keys.map( key => key.split(":").dropRight(1).mkString(":") ).toSet
-    val key_groups: Set[(String,IndexedSeq[String])] = key_group_prefixes map ( key_prefix =>  key_prefix -> rdd0.elements.keys.filter( _.startsWith( key_prefix )).toIndexedSeq )
+    val key_group_prefixes: Set[String] = rdd1.elements.keys.map( key => key.split(":").dropRight(1).mkString(":") ).toSet
+    val key_groups: Set[(String,IndexedSeq[String])] = key_group_prefixes map ( key_prefix =>  key_prefix -> ( rdd0.elements.keys.filter( _.startsWith( key_prefix )).toIndexedSeq ++ IndexedSeq(key_prefix) ) )
     val new_elements: IndexedSeq[(String,HeapFltArray)] = key_groups.toIndexedSeq.flatMap { case ( group_key, key_group ) =>
-      val elements0: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd0.elements.get(key).map(key->_) )
+      val elements0: IndexedSeq[(String,HeapFltArray)] = key_group.flatMap ( key => rdd0.elements.get(key).map(key->_) )
       val elements1: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd1.elements.get(key).map(key->_) )
-      if( elements0.size != elements1.size ) { throw new Exception( s"Mismatched rdds in reduction for kernel ${context.operation.identifier}: ${elements0.size} != ${elements1.size}" ) }
-      if( elements0.size != nOutputsPerInput ) { throw new Exception( s"Missing elements in reduction rdds for kernel ${context.operation.identifier}: ${elements0.size} != ${nOutputsPerInput}" ) }
+      if( elements0.size != elements1.size ) {
+        throw new Exception( s"Mismatched rdds in reduction for kernel ${context.operation.identifier}: ${elements0.size} != ${elements1.size}" )
+      }
+      if( elements0.size != nOutputsPerInput ) {
+        throw new Exception( s"Missing elements in reduction rdds for kernel ${context.operation.identifier}: ${elements0.size} != ${nOutputsPerInput}" )
+      }
       if( elements0.size == 1 ) {
         reduceCombineOp match {
           case Some(combineOp) =>
@@ -805,6 +812,17 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
 
   override def cleanUp(): Unit = PythonWorkerPortal.getInstance.shutdown()
 
+  def addWeights( context: KernelContext ): Boolean = {
+    weightsOpt match {
+      case Some( weights ) =>
+        val axes = context.operation.getConfiguration("axes")
+        if( weights == "cosine" ) { axes.indexOf( "y" ) > -1 }
+        else throw new Exception( "Unrecognized weights type: " + weights )
+      case None => false
+
+    }
+  }
+
   override def map ( context: KernelContext ) ( inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance()
@@ -813,34 +831,35 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
       val input_arrays: List[HeapFltArray] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[HeapFltArray]())( _ ++ _ )
       assert( input_arrays.nonEmpty, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
       val operation_input_arrays = context.operation.inputs.flatMap( input_id => inputs.element( input_id ) )
-
+      val t1 = System.nanoTime
       for( input_id <- context.operation.inputs ) inputs.element(input_id) match {
         case Some( input_array ) =>
-          if( weightsOpt.isDefined ) {
-            val weights: CDFloatArray = KernelUtilities.getWeights(input_id, context, weightsOpt, false)
+          if( addWeights( context ) ) {
+            val weights: CDFloatArray = KernelUtilities.getWeights(input_id, context, weightsOpt, false )
             worker.sendRequestInput(input_id, HeapFltArray(input_array, weights))
           } else {
             worker.sendRequestInput(input_id, input_array)
           }
-          logger.info( "Kernel part-%d: Finished Sending data to worker" )
         case None =>
           worker.sendUtility( List( "input", input_id ).mkString(";") )
       }
-      logger.info( "Gateway: Executing operation %s".format( context.operation.identifier ) )
       val metadata = indexAxisConf( context.getConfiguration, context.grid.axisIndexMap )
       worker.sendRequest(context.operation.identifier, context.operation.inputs.toArray, metadata )
       val resultItems = for( iInput <-  0 until (operation_input_arrays.length * nOutputsPerInput)  ) yield {
         val tvar: TransVar = worker.getResult
+        logger.info( "Received result Var: " + tvar.toString )
         val uid = tvar.getMetaData.get( "uid" )
         inputs.element( uid ) match {
           case Some( input_array ) =>
             val result = HeapFltArray( tvar, input_array.missing )
             context.operation.rid + ":" + uid + ":" + tvar.id() -> result
-          case None => throw new Exception( "Missing input array, uid = " + uid )
+          case None => throw new Exception( "Missing input array, uid = " + uid + ", available inputs = " + inputs.elems.mkString(", ") )
         }
       }
+      logger.info( "Gateway: Executing operation %s in time %.4f s".format( context.operation.identifier, (System.nanoTime - t1) / 1.0E9 ) )
+
       val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
-      logger.info("&MAP: Finished Kernel %s, time = %.4f s, metadata = %s".format(name, (System.nanoTime - t0) / 1.0E9, result_metadata.mkString(";") ) )
+      logger.info("&MAP: Finished zmqPythonKernel %s, time = %.4f s, metadata = %s".format(name, (System.nanoTime - t0) / 1.0E9, result_metadata.mkString(";") ) )
       RDDRecord( Map(resultItems:_*), result_metadata )
     } finally {
       workerManager.releaseWorker( worker )

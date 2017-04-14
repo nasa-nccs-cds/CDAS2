@@ -501,7 +501,7 @@ class DataFragmentSpec(val uid: String = "",
   def readData(section: ma2.Section) = collection.readVariableData(varname, section)
   def getVariableMetadata: Map[String, nc2.Attribute] = nc2.Attribute.makeMap(collection.getVariableMetadata(varname)).toMap
 
-  def getMetadata(section: Option[ma2.Section] = None): Map[String, String] =
+  def getMetadata( new_uid: String, section: Option[ma2.Section] = None): Map[String, String] =
     Map(
       "name" -> varname,
       "collection" -> collection.id,
@@ -512,7 +512,7 @@ class DataFragmentSpec(val uid: String = "",
       "dimensions" -> dimensions,
       "units" -> units,
       "longname" -> longname,
-      "uid" -> uid,
+      "uid" -> new_uid,
       "roi" -> CDSection.serialize(roi)
     )
   def getVariable: CDSVariable = collection.getVariable(varname)

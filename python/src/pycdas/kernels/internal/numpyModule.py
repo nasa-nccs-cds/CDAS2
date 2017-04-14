@@ -70,30 +70,35 @@ class AverageKernel(Kernel):
 
 class WeightedAverageKernel(Kernel):
     def __init__( self ):
-        Kernel.__init__( self, KernelSpec("avew", "Weighted Average Kernel","Computes the weighted average of the array elements along the given axes.", reduceOp="avew", nOutputsPerInput=2, weights="cosine" ) )
+        Kernel.__init__( self, KernelSpec("avew", "Weighted Average Kernel","Computes the weighted average of the array elements along the given axes.", reduceOp="avew", weights="cosine" ) )
 
     def executeOperations(self, task, inputs):
-        input_ids = [ inputId.split('-')[0] for inputId in task.inputs ]
-        data_inputIds = [ inputId for inputId in input_ids if not inputId.endswith("_WEIGHTS_") ]
-        weight_inputIds = [ ( inputId+"_WEIGHTS_" if (inputId+"_WEIGHTS_" in input_ids) else None ) for inputId in data_inputIds ]
+        available_inputIds = [ inputId.split('-')[0] for inputId in inputs ]
+        data_inputIds = [ inputId.split('-')[0] for inputId in task.inputs ]
+        weight_inputIds = [ ( inputId+"_WEIGHTS_" if (inputId+"_WEIGHTS_" in available_inputIds) else None ) for inputId in data_inputIds ]
         inputs_with_weights = zip( data_inputIds, weight_inputIds )
         results = []
         for input_pair in inputs_with_weights:
-            input = inputs.get( input_pair[0] )
+            input = inputs.get( input_pair[0] )  # npArray
             weights = inputs.get( input_pair[1] ).array if( input_pair[1] != None ) else None
             axes = self.getOrderedAxes(task,input)
-            self.logger.info("\n Execute Operation, input: " + str( input_pair[0] ) + ", task metadata = " + str(task.metadata) + ", axes = " + str( axes ) + ", input array shape = " + str(input.array.shape) )
+            self.logger.info("\n Executing average, input: " + str( input_pair[0] ) + ", task metadata = " + str(task.metadata) + " Input metadata: " + str( input.metadata ) )
             t0 = time.time()
-            ( result, weights ) = np.ma.average( input.array, axes, weights, True )
-            self.logger.info(" Input metadata: " + str( input.metadata ) + ", output shape = " + str(result.shape) )
+            result = input.array
+            for axis in axes:
+                current_shape = list( result.shape )
+                ( result, weights ) = np.ma.average( result, axis, weights, True )
+                current_shape[axis] = 1
+                result = result.reshape( current_shape )
+                weights = weights.reshape( current_shape )
+
             results.append( npArray.createResult( task, input, result ) )
-            results.append( npArray.createAuxResult( task.rId + "_WEIGHTS_", input.origin, dict( input.metadata, **task.metadata ),  weights ) )
             t1 = time.time()
             self.logger.info( " ------------------------------- AVEW KERNEL: Operating on input '{0}', shape = {1}, origin = {2}, time = {3}".format( input.name, input.shape, input.origin, t1-t0 ))
         return results
 
     def getOrderedAxes(self,task,input):
-        axes=self.getAxes(task.metadata)
+        axes=list(self.getAxes(task.metadata))
         dimensions = input.metadata.get("dimensions","").split(',')
         axis_map = { dimensions[axis]: axis for axis in axes }
         y_axis = axis_map.get("lat",None)

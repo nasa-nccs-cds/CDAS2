@@ -30,6 +30,10 @@ public class TransVar {
         _metadata = s2m( header_items[4] );
     }
 
+    public String toString() {
+        return String.format("TransVar: id=%s, header=%s", _id, _header );
+    }
+
     public int[] getOrigin() { return _origin; }
     public int[] getShape() { return _shape; }
     public byte[] getData() { return _data; }
