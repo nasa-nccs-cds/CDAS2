@@ -246,14 +246,19 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     throw new Exception( " Missing gridfile in kernel inputs: " + name )
   }
 
+
   def combineRDD(context: KernelContext)(rdd0: RDDRecord, rdd1: RDDRecord ): RDDRecord = {
     val t0 = System.nanoTime
     val axes = context.getAxes
-    val key_group_prefixes: Set[String] = rdd1.elements.keys.map( key => key.split(":").dropRight(1).mkString(":") ).toSet
-    val key_groups: Set[(String,IndexedSeq[String])] = key_group_prefixes map ( key_prefix =>  key_prefix -> ( rdd0.elements.keys.filter( _.startsWith( key_prefix )).toIndexedSeq ++ IndexedSeq(key_prefix) ) )
+    val key_group_prefixes: Set[String] = rdd0.elements.keys.map( key => key.split("~").head ).toSet
+    val key_groups: Set[(String,IndexedSeq[String])] = key_group_prefixes map ( key_prefix =>  key_prefix -> rdd0.elements.keys.filter( _.startsWith( key_prefix )).toIndexedSeq )
     val new_elements: IndexedSeq[(String,HeapFltArray)] = key_groups.toIndexedSeq.flatMap { case ( group_key, key_group ) =>
-      val elements0: IndexedSeq[(String,HeapFltArray)] = key_group.flatMap ( key => rdd0.elements.get(key).map(key->_) )
-      val elements1: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd1.elements.get(key).map(key->_) )
+      val elements0: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd0.elements.find { case (k,v) => k.startsWith(key) } )
+      val elements1: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd1.elements.find { case (k,v) => k.startsWith(key) } )
+      if( elements0.size != elements1.size ) {
+        throw new Exception( s"Mismatched rdds in reduction for kernel ${context.operation.identifier}: ${elements0.size} != ${elements1.size}" )
+      }
+      if( elements0.size != nOutputsPerInput ) { throw new Exception( s"Missing elements in reduction rdds for kernel ${context.operation.identifier}: ${elements0.size} != ${nOutputsPerInput}" ) }
       if( elements0.size != elements1.size ) {
         throw new Exception( s"Mismatched rdds in reduction for kernel ${context.operation.identifier}: ${elements0.size} != ${elements1.size}" )
       }
@@ -279,6 +284,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     logger.debug("&COMBINE: %s, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
     RDDRecord( Map(new_elements:_*), rdd0.mergeMetadata(context.operation.name, rdd1))
   }
+
 
   def combineElements( key: String, elements0: Map[String,HeapFltArray], elements1: Map[String,HeapFltArray] ): IndexedSeq[(String,HeapFltArray)] = {
     options.get("reduceOp") match {
@@ -786,7 +792,7 @@ class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "
 
         val resultItems = for (input_array <- regrid_arrays) yield {
           val tvar = worker.getResult
-          val result = HeapFltArray(tvar, input_array.missing, Some(targetGridSpec))
+          val result = HeapFltArray( tvar, Some(targetGridSpec) )
           context.operation.rid + ":" + input_array.uid -> result
         }
         val array_metadata = input_arrays.head.metadata ++ List("uid" -> context.operation.rid, "gridSpec" -> targetGridSpec )
@@ -849,12 +855,8 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
         val tvar: TransVar = worker.getResult
         logger.info( "Received result Var: " + tvar.toString )
         val uid = tvar.getMetaData.get( "uid" )
-        inputs.element( uid ) match {
-          case Some( input_array ) =>
-            val result = HeapFltArray( tvar, input_array.missing )
-            context.operation.rid + ":" + uid + ":" + tvar.id() -> result
-          case None => throw new Exception( "Missing input array, uid = " + uid + ", available inputs = " + inputs.elems.mkString(", ") )
-        }
+        val result = HeapFltArray( tvar )
+        context.operation.rid + ":" + uid + "~" + tvar.id() -> result
       }
       logger.info( "Gateway: Executing operation %s in time %.4f s".format( context.operation.identifier, (System.nanoTime - t1) / 1.0E9 ) )
 
@@ -887,7 +889,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
     val resultItems = rdd0.elements.map {
       case (key, element0) =>
         val tvar = worker.getResult
-        val result = HeapFltArray( tvar, element0.missing )
+        val result = HeapFltArray( tvar )
         context.operation.rid + ":" + element0.uid -> result
     }
     logger.debug("&MERGE %s: finish, time = %.4f s".format( context.operation.identifier, (System.nanoTime - t0) / 1.0E9 ) )

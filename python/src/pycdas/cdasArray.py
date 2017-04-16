@@ -1,6 +1,6 @@
 import numpy as np
 import numpy.ma as ma
-import time, traceback, logging
+import time, traceback, logging, struct
 from messageParser import mParse
 IO_DType = np.dtype( np.float32 ).newbyteorder('>')
 from abc import ABCMeta, abstractmethod
@@ -70,14 +70,14 @@ class npArray(CDArray):
 
     @classmethod
     def createResult(cls, task, input, result_array ):
-        return npArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array )
+        return npArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array, result_array.get_fill_value() )
 
     @classmethod
     def createAuxResult( cls, id, origin, metadata, result_array ):
-        return npArray( id, origin, result_array.shape, metadata, result_array )
+        return npArray( id, origin, result_array.shape, metadata, result_array, result_array.get_fill_value() )
 
     def toBytes( self, dtype ):
-        return self.array.astype(dtype).tobytes()
+        return self.array.astype(dtype).tobytes() + bytearray(struct.pack("f", self.undef))
 
     @classmethod
     def createInput(self, header, data):
@@ -89,22 +89,25 @@ class npArray(CDArray):
         shape = mParse.s2it(header_toks[3])
         metadata = mParse.s2m(header_toks[4])
         if data:
+            logger.info(" *** Creating Input, id = {0}, data size = {1}, shape = {2}".format( id, len(data), str(shape) ) )
             raw_data = np.frombuffer( data, dtype=IO_DType ).astype(np.float32)
-            logger.info(" *** Creating Input, id = {0}, buffer len = {1}, shape = {2}, undef = {3}".format( id, str(len(raw_data)), str(shape), str(raw_data[-1]) ) )
+            logger.info(" *** buffer len = {0}, undef = {1}".format( str(len(raw_data)), str(raw_data[-1]) ) )
             data_array = ma.masked_invalid( raw_data[0:-1].reshape(shape) )
             undef_value = raw_data[-1]
             nparray =  ma.masked_equal(data_array,undef_value) if ( undef_value != 1.0 ) else data_array
         else:
             nparray = None
-        return npArray( id, origin, shape, metadata, nparray )
+            undef_value = float('inf')
+        return npArray( id, origin, shape, metadata, nparray, undef_value )
 
-    def __init__(self, _id, _origin, _shape, _metadata, _ndarray ):
+    def __init__(self, _id, _origin, _shape, _metadata, _ndarray, _undef ):
         super(npArray, self).__init__(_id,_origin,_shape,_metadata)
         self.gridFilePath = self.metadata["gridfile"]
         self.name = self.metadata["name"]
         self.collection = self.metadata["collection"]
         self.dimensions = self.metadata["dimensions"].split(",")
         self.array = _ndarray
+        self.undef = _undef
         self.variable = None
         self.logger.info(" *** Creating data array, nbytes = " + str(self.nbytes()) )
 

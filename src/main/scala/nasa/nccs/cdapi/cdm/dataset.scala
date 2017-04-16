@@ -760,7 +760,7 @@ class profilingTest extends Loggable {
       worker.sendRequestInput( variable.getShortName, HeapFltArray( data, chunk_origin, gridFile, metadata, missing ) )
       worker.sendRequest("python.numpyModule.max-"+rID, Array(variable.getShortName), op_metadata )
       val tvar: TransVar = worker.getResult()
-      val result = HeapFltArray( tvar, Some(missing), Some(gridFile) )
+      val result = HeapFltArray( tvar, Some(gridFile) )
       val ts2 = System.nanoTime()
       val read_time = (ts1 - ts0) / 1.0E9
       val compute_time = (ts2 - ts1) / 1.0E9

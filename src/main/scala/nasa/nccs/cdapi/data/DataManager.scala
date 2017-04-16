@@ -1,19 +1,16 @@
 package nasa.nccs.cdapi.data
 
-import nasa.nccs.caching.{CachePartition, Partition, RegularPartition$}
-import nasa.nccs.cdapi.cdm.{Collection, NetcdfDatasetMgr, RemapElem, TimeConversionSpec}
+import nasa.nccs.caching.{CachePartition, Partition}
+import nasa.nccs.cdapi.cdm.{NetcdfDatasetMgr, RemapElem, TimeConversionSpec}
 import nasa.nccs.cdapi.tensors._
-import nasa.nccs.cdas.engine.WorkflowNode
-import nasa.nccs.cdas.engine.spark.{RangePartitioner, RecordKey, RecordKey$}
-import nasa.nccs.cdas.kernels.{KernelContext, zmqPythonKernel}
+import nasa.nccs.cdas.engine.spark.{RangePartitioner, RecordKey}
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.esgf.process.{CDSection, TargetGrid}
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.spark.rdd.RDD
 import ucar.nc2.constants.AxisType
 import ucar.ma2
-import ucar.nc2.dataset.NetcdfDataset
-import ucar.nc2.time.CalendarDate
+import java.nio
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -156,13 +153,15 @@ object HeapFltArray {
   }
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], gridSpec: String, metadata: Map[String,String], missing: Float ): HeapFltArray = HeapFltArray( CDArray(ucarray,missing), origin, gridSpec, metadata, None )
 
-  def apply( tvar: TransVar, invalidOpt: Option[Float], _gridSpec: Option[String] = None ): HeapFltArray = {
+  def apply( tvar: TransVar, _gridSpec: Option[String] = None ): HeapFltArray = {
     val buffer = tvar.getDataBuffer()
     val buff_size = buffer.capacity()
-    val ucarray: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, tvar.getShape, buffer )
-    val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter(CDArray[Float](ucarray, Float.MaxValue ) )
+    val undef = buffer.getFloat(buff_size-4)
+    val data_buffer = nio.ByteBuffer.wrap( buffer.array(), 0, buff_size-4 )
+    val ucarray: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, tvar.getShape, data_buffer )
+    val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter(CDArray[Float](ucarray, undef ) )
     val gridSpec = _gridSpec.getOrElse("file:/" + tvar.getMetaData.get("gridfile"))
-    new HeapFltArray( tvar.getShape, tvar.getOrigin, floatArray.getStorageArray, invalidOpt, gridSpec, tvar.getMetaData.asScala.toMap )
+    new HeapFltArray( tvar.getShape, tvar.getOrigin, floatArray.getStorageArray, Some(undef), gridSpec, tvar.getMetaData.asScala.toMap )
   }
   def empty(rank:Int) = HeapFltArray( CDFloatArray.empty, Array.fill(rank)(0), "", Map.empty[String,String], None )
   def toHeapFloatArray( fltBaseArray: ArrayBase[Float] ): HeapFltArray = fltBaseArray match {
@@ -272,7 +271,8 @@ class RDDRecord(val elements: Map[String,HeapFltArray], metadata: Map[String,Str
 }
 
 object RDDRecord {
-  def apply ( elements: Map[String,HeapFltArray] = Map.empty,  metadata: Map[String,String] = Map.empty ) = new RDDRecord( elements, metadata )
+  def apply ( elements: Map[String,HeapFltArray] = Map.empty,  metadata: Map[String,String] = Map.empty ) =
+    new RDDRecord( elements, metadata )
   def apply ( rdd: RDDRecord ) = new RDDRecord( rdd.elements, rdd.metadata )
   def merge( rdd_parts: Seq[RDDRecord] ) = rdd_parts.foldLeft( RDDRecord() )( _ ++ _ )
   def empty: RDDRecord = { new RDDRecord( Map.empty[String,HeapFltArray], Map.empty[String,String] ) }

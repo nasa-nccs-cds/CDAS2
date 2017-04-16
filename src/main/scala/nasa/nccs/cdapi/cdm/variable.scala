@@ -129,16 +129,16 @@ class DirectOpDataInput(fragSpec: DataFragmentSpec, workflowNode: WorkflowNode  
 
   def getRDDVariableSpec( uid: String, optSection: Option[ma2.Section] ): DirectRDDVariableSpec  =
     domainSection(optSection) match {
-      case Some( ( domFragSpec, section ) ) => new DirectRDDVariableSpec( uid, domFragSpec.getMetadata( uid, Some(section)), domFragSpec.missing_value, CDSection(section), fragSpec.varname, fragSpec.collection.dataPath )
-      case _ => new DirectRDDVariableSpec( uid, fragSpec.getMetadata(uid), fragSpec.missing_value, CDSection.empty(fragSpec.getRank), fragSpec.varname, fragSpec.collection.dataPath )
+      case Some( ( domFragSpec, section ) ) => new DirectRDDVariableSpec( uid, domFragSpec.getMetadata( Some(section)), domFragSpec.missing_value, CDSection(section), fragSpec.varname, fragSpec.collection.dataPath )
+      case _ => new DirectRDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank), fragSpec.varname, fragSpec.collection.dataPath )
     }
 
   def getKeyedRDDVariableSpec( uid: String, optSection: Option[ma2.Section] ): ( RecordKey, DirectRDDVariableSpec ) =
     domainSection(optSection) match {
       case Some( ( domFragSpec, section ) ) =>
-        domFragSpec.getPartitionKey -> new DirectRDDVariableSpec( uid, domFragSpec.getMetadata(uid, Some(section)), domFragSpec.missing_value, CDSection(section), fragSpec.varname, fragSpec.collection.dataPath )
+        domFragSpec.getPartitionKey -> new DirectRDDVariableSpec( uid, domFragSpec.getMetadata(Some(section)), domFragSpec.missing_value, CDSection(section), fragSpec.varname, fragSpec.collection.dataPath )
       case _ =>
-        fragSpec.getPartitionKey -> new DirectRDDVariableSpec( uid, fragSpec.getMetadata(uid), fragSpec.missing_value, CDSection.empty(fragSpec.getRank), fragSpec.varname, fragSpec.collection.dataPath )
+        fragSpec.getPartitionKey -> new DirectRDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank), fragSpec.varname, fragSpec.collection.dataPath )
     }
 }
 
@@ -181,7 +181,7 @@ class PartitionedFragment( val partitions: CachePartitions, val maskOpt: Option[
     val partition = partitions.getPart(partIndex)
     val data: CDFloatArray = partition.data( fragmentSpec.missing_value )
     val spec: DataFragmentSpec = partFragSpec(partIndex)
-    RDDRecord( Map( spec.uid -> HeapFltArray(data, fragSpec.getOrigin, spec.getMetadata(spec.uid), None) ) )
+    RDDRecord( Map( spec.uid -> HeapFltArray(data, fragSpec.getOrigin, spec.getMetadata(), None) ) )
   }
 
 //  def domainRDDPartition(partIndex: Int, optSection: Option[ma2.Section] ): Option[RDDPartition] = domainCDDataSection( partIndex, optSection ) match {
@@ -237,8 +237,8 @@ class PartitionedFragment( val partitions: CachePartitions, val maskOpt: Option[
 
   def getRDDVariableSpec(uid: String, partition: RegularPartition, optSection: Option[ma2.Section] ): RDDVariableSpec =
     domainSection(partition,optSection) match {
-      case Some( ( domFragSpec, section ) ) => new RDDVariableSpec( uid, domFragSpec.getMetadata( uid, Some(section) ), domFragSpec.missing_value, CDSection(section) )
-      case _ => new RDDVariableSpec( uid, fragSpec.getMetadata(uid), fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
+      case Some( ( domFragSpec, section ) ) => new RDDVariableSpec( uid, domFragSpec.getMetadata( Some(section) ), domFragSpec.missing_value, CDSection(section) )
+      case _ => new RDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
     }
 
 
