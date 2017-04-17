@@ -13,10 +13,7 @@ object appParameters extends Loggable {
   def apply( key: String, default: String ): String =
     _map.getOrElse( key, default )
 
-  def apply( key: String ): String = _map.get( key ) match {
-    case Some( value ) => value
-    case None => throw new Exception( "Missing required parameter in appParameters file(%s): %s".format( parmFile, key ) )
-  }
+  def apply( key: String ): Option[String] = _map.get( key );
 
   def bool( key: String, default: Boolean ): Boolean = _map.get( key ) match {
     case Some( value ) => value.toLowerCase.trim.startsWith("t")

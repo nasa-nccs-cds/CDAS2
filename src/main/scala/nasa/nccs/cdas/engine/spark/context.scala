@@ -31,14 +31,13 @@ object CDSparkContext extends Loggable {
   val default_executor_memory = (totalRAM-10).toString + "m"
   val default_executor_cores = (runtime.availableProcessors-1).toString
   val default_num_executors = "1"
-  lazy val default_master = "local[%d]".format( BatchSpec.localNProcessors )
 
-  def apply( master: String=default_master, appName: String="CDAS", logConf: Boolean = true, enableMetrics: Boolean = false ) : CDSparkContext = {
+  def apply( appName: String="CDAS", logConf: Boolean = true, enableMetrics: Boolean = false ) : CDSparkContext = {
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  NEW CDSparkContext Created  **** ")
     logger.info( "--------------------------------------------------------\n\n")
 
-    val sparkContext = new SparkContext( getSparkConf(master, appName, logConf, enableMetrics) )
+    val sparkContext = new SparkContext( getSparkConf( appName, logConf, enableMetrics) )
     sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
     val rv = new CDSparkContext( sparkContext )
 
@@ -51,7 +50,6 @@ object CDSparkContext extends Loggable {
 
   def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )
   def apply( context: SparkContext ) : CDSparkContext = new CDSparkContext( context )
-  def apply( url: String, name: String ) : CDSparkContext = new CDSparkContext( new SparkContext( getSparkConf( url, name, true, false ) ) )
 
   def merge(rdd0: RDD[(RecordKey,RDDRecord)], rdd1: RDD[(RecordKey,RDDRecord)] ): RDD[(RecordKey,RDDRecord)] = {
     val mergedRdd = rdd0.join( rdd1 ) mapValues { case (part0,part1) => part0 ++ part1  } map identity
@@ -68,26 +66,31 @@ object CDSparkContext extends Loggable {
 
   def append(p0: (RecordKey,RDDRecord), p1: (RecordKey,RDDRecord) ): (RecordKey,RDDRecord) = ( p0._1 + p1._1, p0._2.append(p1._2) )
 
-  def getSparkConf( master: String, appName: String, logConf: Boolean, enableMetrics: Boolean  ) = {
+  def getSparkConf( appName: String, logConf: Boolean, enableMetrics: Boolean  ) = {
     val cdas_cache_dir = sys.env.getOrElse( "CDAS_CACHE_DIR", "~/.cdas/cache" )
     val sc = new SparkConf(false)
-      .setMaster( master )
       .setAppName( appName )
       .set("spark.logConf", logConf.toString )
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer") //
       .set("spark.kryoserializer.buffer",kyro_buffer_mb)
       .set("spark.kryoserializer.buffer.max", appParameters( "kryoserializer.buffer.max", default_kyro_buffer_max ) )
       .set("spark.local.dir", cdas_cache_dir )
-      .set("spark.executor.memory", appParameters( "executor.memory", default_executor_memory) )
-      .set("spark.executor.cores", appParameters( "executor.cores", default_executor_cores ) )
-      .set("spark.num.executors", appParameters( "num.executors", default_num_executors ) )
       .set("spark.file.transferTo", "false" )
+
+    addConfig( sc, "spark.executor.memory",  "executor.memory" )
+    addConfig( sc, "spark.executor.cores", "executor.cores" )
+    addConfig( sc, "spark.num.executors", "num.executors" )
+
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
+    appParameters( "spark.master" ) map ( cval => sc.setMaster(cval) )
+
     utilities.runtime.printMemoryUsage
     utilities.runtime.printMemoryUsage(logger)
     logger.info( "Initialize Spark Configuration:\n\t" +  (sc.getAll.map { case (k,v) => "** " + k + ": " + v }).mkString ("\n\t") )
     sc
   }
+
+  def addConfig( sc: SparkConf, spark_config_id: String, cdas_config_id: String ) =  appParameters( cdas_config_id ) map ( cval => sc.set( spark_config_id, cval ) )
 
   def getPartitioner( rdd: RDD[(RecordKey,RDDRecord)] ): RangePartitioner = {
     rdd.partitioner match {
