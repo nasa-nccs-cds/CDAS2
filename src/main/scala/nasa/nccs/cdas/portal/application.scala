@@ -80,12 +80,14 @@ object CDASApplication extends Loggable {
 }
 
 object TestApplication extends Loggable {
-  val sc = CDSparkContext()
-  val NUM_SAMPLES = 10000
-  val count = sc.sparkContext.parallelize(1 to NUM_SAMPLES).filter { _ =>
-    val x = math.random
-    val y = math.random
-    x * x + y * y < 1
-  }.count()
-  println(s"Pi is roughly ${4.0 * count / NUM_SAMPLES}")
+  def main(args: Array[String]) {
+    val sc = CDSparkContext()
+    val NUM_SAMPLES = 10000
+    val count = sc.sparkContext.parallelize(1 to NUM_SAMPLES).filter { _ =>
+      val x = math.random
+      val y = math.random
+      x * x + y * y < 1
+    }.count()
+    println(s"Pi is roughly ${4.0 * count / NUM_SAMPLES}")
+  }
 }

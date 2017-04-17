@@ -86,7 +86,7 @@ object CDSparkContext extends Loggable {
 
     utilities.runtime.printMemoryUsage
     utilities.runtime.printMemoryUsage(logger)
-    logger.info( "Initialize Spark Configuration:\n\t" +  (sc.getAll.map { case (k,v) => "** " + k + ": " + v }).mkString ("\n\t") )
+    logger.info( s"Initialize Spark Configuration:\n\t" +  (sc.getAll.map { case (k,v) => "** " + k + ": " + v }).mkString ("\n\t") )
     sc
   }
 
