@@ -37,7 +37,7 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  NEW CDSparkContext Created  **** ")
     logger.info( "--------------------------------------------------------\n\n")
-    logger.info( "CDAS env: \n\t" + System.getenv() map { case (k,v) => k + ": " + v } mkString "\n\t" )
+    logger.info( "CDAS env: \n\t" + ( System.getenv().map { case (k,v) => k + ": " + v } ).mkString("\n\t") )
 
     val sparkContext = new SparkContext( getSparkConf( appName, logConf, enableMetrics) )
     sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
@@ -88,7 +88,7 @@ object CDSparkContext extends Loggable {
 
     utilities.runtime.printMemoryUsage
     utilities.runtime.printMemoryUsage(logger)
-    logger.info( s"Initialize Spark Configuration:\n\t" +  sc.getAll map { case (k,v) => "** " + k + ": " + v } mkString "\n\t" )
+    logger.info( s"Initialize Spark Configuration:\n\t" + ( sc.getAll.map { case (k,v) => "** " + k + ": " + v } ).mkString("\n\t") )
     sc
   }
 
