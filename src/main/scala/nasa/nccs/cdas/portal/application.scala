@@ -4,7 +4,7 @@ import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode._
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.wps.WPSDirectExecuteResponse
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkConf, SparkContext}
 
 object CDASapp {
   def elem( array: Array[String], index: Int, default: String = "" ): String = if( array.length > index ) array(index) else default
@@ -81,9 +81,10 @@ object CDASApplication extends Loggable {
 
 object TestApplication extends Loggable {
   def main(args: Array[String]) {
-    val sc = CDSparkContext()
+    val conf = new SparkConf().setAppName("Simple Test Application (Pi)")
+    val sc = new SparkContext(conf)
     val NUM_SAMPLES = 10000
-    val count = sc.sparkContext.parallelize(1 to NUM_SAMPLES).filter { _ =>
+    val count = sc.parallelize(1 to NUM_SAMPLES).filter { _ =>
       val x = math.random
       val y = math.random
       x * x + y * y < 1
