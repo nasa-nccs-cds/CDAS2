@@ -16,6 +16,7 @@ import nasa.nccs.cdas.utilities
 import org.apache.spark.{Partitioner, SparkConf, SparkContext}
 import ucar.ma2
 import java.lang.management.ManagementFactory
+
 import com.sun.management.OperatingSystemMXBean
 import ucar.nc2.dataset.CoordinateAxis1DTime
 
@@ -36,6 +37,7 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  NEW CDSparkContext Created  **** ")
     logger.info( "--------------------------------------------------------\n\n")
+    logger.info( "CDAS env: \n\t" + System.getenv() map { case (k,v) => k + ": " + v } mkString "\n\t" )
 
     val sparkContext = new SparkContext( getSparkConf( appName, logConf, enableMetrics) )
     sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
@@ -86,7 +88,7 @@ object CDSparkContext extends Loggable {
 
     utilities.runtime.printMemoryUsage
     utilities.runtime.printMemoryUsage(logger)
-    logger.info( s"Initialize Spark Configuration:\n\t" +  (sc.getAll.map { case (k,v) => "** " + k + ": " + v }).mkString ("\n\t") )
+    logger.info( s"Initialize Spark Configuration:\n\t" +  sc.getAll map { case (k,v) => "** " + k + ": " + v } mkString "\n\t" )
     sc
   }
 
