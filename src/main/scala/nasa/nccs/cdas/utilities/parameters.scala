@@ -2,7 +2,8 @@ package nasa.nccs.cdas.utilities
 import java.nio.file.Paths
 import nasa.nccs.utilities.Loggable
 import scala.io.Source
-
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 object appParameters extends Loggable {
 
@@ -25,6 +26,7 @@ object appParameters extends Loggable {
   def keySet: Set[String] = _map.keySet
 
   def getCacheDirectory: String = {
+    logger.info( "CDAS env: \n\t" + System.getenv() map { case (k,v) => k + ": " + v } mkString("\n\t") )
     sys.env.get("CDAS_CACHE_DIR") match {
       case Some(cache_path) => cache_path
       case None =>
