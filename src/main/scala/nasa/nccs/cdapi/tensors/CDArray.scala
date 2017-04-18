@@ -234,7 +234,7 @@ abstract class CDArray[ T <: AnyVal ]( private val cdIndexMap: CDIndexMap, priva
   def toDataString: String = "Index: " + this.cdIndexMap.toString + "\n Data = " + mkDataString("[ ",", "," ]")
   def mkDataString( sep: String ): String = getSectionArray().map( _.toString ).mkString( sep )
   def mkDataString( start: String, sep: String, end: String ): String = getSectionArray().map( _.toString ).mkString( start, sep, end )
-  def mkBoundedDataString( sep: String, maxSize: Int ): String = getSectionArray(maxSize).map( _.toString ).mkString( sep )
+  def mkBoundedDataString( sep: String, maxSize: Int ): String =  getSectionArray(maxSize).map(_.toString).mkString(sep)
   def mkBoundedDataString( start: String, sep: String, end: String, maxSize: Int ): String = getSectionArray(maxSize).map( _.toString ).mkString( start, sep, end )
 
 }

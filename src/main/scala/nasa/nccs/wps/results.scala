@@ -169,7 +169,8 @@ class MergedWPSExecuteResponse( serviceInstance: String, responses: List[WPSProc
   if( process_ids.distinct.size != process_ids.size ) { logger.warn( "Error, non unique process IDs in process list: " + processes.mkString(", ") ) }
   val responseMap: Map[String,WPSProcessExecuteResponse] = Map( responses.flatMap( response => response.processes.map( process => ( process.identifier -> response ) ) ): _* )
   def getProcessOutputs( syntax: ResponseSyntax.Value, process_id: String, response_id: String ): Iterable[xml.Elem] = responseMap.get( process_id ) match {
-    case Some( response ) => response.getProcessOutputs( syntax, process_id, response_id );
+    case Some( response ) =>
+      response.getProcessOutputs( syntax, process_id, response_id );
     case None => throw new Exception( "Unrecognized process id: " + process_id )
   }
 }

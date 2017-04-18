@@ -200,7 +200,7 @@ class cdmsArray(CDArray):
         return self.variable.data
 
     def toBytes( self, dtype ):
-        return self.variable.data.astype(dtype).tobytes()
+        return self.variable.data.astype(dtype).tobytes() + bytearray( struct.pack("f", self.variable.getMissing()))
 
     def __init__(self, _id, _origin, _shape, _metadata, cdVariable ):
         super(cdmsArray, self).__init__(_id,_origin,_shape,_metadata)

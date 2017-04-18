@@ -2,6 +2,7 @@ from pycdas.kernels.Kernel import CDMSKernel, Kernel, KernelSpec
 from pycdas.cdasArray import cdmsArray
 import cdms2, time, os, cdutil
 from pycdas.messageParser import mParse
+import numpy as np
 
 class AverageKernel(CDMSKernel):
 
@@ -25,7 +26,10 @@ class AverageKernel(CDMSKernel):
         action = task.metadata.get("action","average")
         returned = 0
         result_var = cdutil.averager( variable, axis=axes, weights=weights, action=action, returned=returned )
-        return self.createResult( result_var, _input, task )
+        self.logger.info( "Computed result, input shape = " + str(variable.shape) + ", output shape = " + str(result_var.shape))
+        rv = self.createResult( result_var, _input, task )
+        self.logger.info( "Result data, shape = " + str(result_var.shape) + ", data = " + np.array_str( rv.array() )  )
+        return rv
 
 class ZonalAverageDemo(CDMSKernel):
 
