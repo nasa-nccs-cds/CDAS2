@@ -1,13 +1,27 @@
 package nasa.nccs.cdas.portal
+import java.nio.file.{Files, Path, Paths}
+
 import nasa.nccs.cdas.engine.spark.CDSparkContext
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode._
+import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.wps.WPSDirectExecuteResponse
 import org.apache.spark.SparkContext
 
+import scala.io.Source
+
 object CDASapp {
   def elem( array: Array[String], index: Int, default: String = "" ): String = if( array.length > index ) array(index) else default
+
+  def getConfiguration( parameter_file_path: String ): Map[String, String] = {
+    if( parameter_file_path.isEmpty ) { Map.empty[String, String]  }
+    else if( Files.exists( Paths.get(parameter_file_path) ) ) {
+      val params: Iterator[Array[String]] = for ( line <- Source.fromFile(parameter_file_path).getLines() ) yield { line.split('=') }
+      Map( params.filter( _.length > 1 ).map( a => a.head.trim->a.last.trim ).toSeq: _* )
+    }
+    else { throw new Exception( "Can't find parameter file: " + parameter_file_path) }
+  }
 }
 
 class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port: Int, appConfiguration: Map[String,String] ) extends CDASPortal( mode, request_port, response_port ) {
@@ -72,15 +86,24 @@ object CDASApplication extends Loggable {
     val connect_mode = elem(args, 0, "bind")
     val request_port = elem(args, 1, "0").toInt
     val response_port = elem(args, 2, "0").toInt
-    val appConfiguration = Map.empty[String, String]
+    val parameter_file = elem(args, 3, "")
+    val appConfiguration = getConfiguration( parameter_file )
     val cmode = if (connect_mode.toLowerCase.startsWith("c")) CONNECT else BIND
     val app = new CDASapp(cmode, request_port, response_port, appConfiguration)
     app.run()
   }
+
+
+
 }
 
 object TestApplication extends Loggable {
   def main(args: Array[String]) {
+    import CDASapp._
+    val parameter_file = elem(args, 0, "")
+    val appConfiguration = getConfiguration( parameter_file )
+    appParameters.addConfigParams( appConfiguration )
+
     val sc = CDSparkContext()
     val NUM_SAMPLES = 10000
     val count = sc.sparkContext.parallelize(1 to NUM_SAMPLES).filter { _ =>
