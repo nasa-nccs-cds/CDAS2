@@ -1,10 +1,11 @@
 package nasa.nccs.cdas.modules.CDSpark
 
-import nasa.nccs.cdapi.data.{HeapFltArray, RDDRecord, RDDRecord$}
-import nasa.nccs.cdapi.tensors.CDFloatArray._
+import nasa.nccs.cdapi.data.{HeapFltArray, RDDRecord}
+import ucar.ma2
 import nasa.nccs.cdapi.tensors.{CDFloatArray, CDIndexMap}
 import nasa.nccs.cdas.kernels._
 import nasa.nccs.wps.{WPSDataInput, WPSProcessOutput}
+import ucar.ma2.DataType
 
 import scala.reflect.runtime.{universe => u}
 
@@ -113,12 +114,39 @@ class sum extends SingularRDDKernel(Map("mapreduceOp" -> "sum")) {
   override val initValue: Float = 0f
 }
 
-class multiAverage extends MultiRDDKernel(Map.empty) {
+class multiAverage extends Kernel(Map.empty) {
   val inputs = List( WPSDataInput("input variable", 2, Integer.MAX_VALUE ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Ensemble Mean"
-  val description = "Computes point-by-point average over intputs withing specified ROI"
-  override val mapCombineNOp: Option[ReduceNOpFlt] = Some(aveOpN)
+  val description = "Computes point-by-point average over inputs withing specified ROI"
+
+  override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
+    val t0 = System.nanoTime
+    val async = context.config("async", "false").toBoolean
+    val input_arrays: List[HeapFltArray] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[HeapFltArray]())( _ ++ _ )
+    val input_ucarrays: Array[ma2.Array] = input_arrays.map(_.toUcarFloatArray).toArray
+    assert( input_ucarrays.size > 1, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
+    val missing = input_arrays.head.getMissing()
+    val resultArray: ma2.Array = ma2.Array.factory( DataType.FLOAT, input_ucarrays.head.getShape )
+    var sum: Float = 0f
+    var weight: Int = 0
+    var fval: Float = 0f
+    for( ipoint: Int <- ( 0 until input_ucarrays.head.getSize.toInt ) ) {
+      sum = 0f; weight = 0
+      for( ivar: Int <- (0 until input_ucarrays.length) ) {
+        fval = input_ucarrays(ivar).getFloat(ipoint)
+        if (fval != missing) {
+          sum = sum + fval
+          weight = weight + 1
+        }
+      }
+      if( weight > 0 ) { resultArray.setFloat(ipoint,sum/weight) }
+      else { resultArray.setFloat(ipoint,missing) }
+    }
+    logger.info("&MAP: Finished Kernel %s, inputs = %s, output = %s, time = %.4f s".format(name, context.operation.inputs.mkString(","), context.operation.rid, (System.nanoTime - t0)/1.0E9) )
+    val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
+    RDDRecord( Map( context.operation.rid -> HeapFltArray( resultArray, input_arrays(0).origin, input_arrays.head.gridSpec, result_metadata, missing) ), inputs.metadata )
+  }
 }
 
 class average extends SingularRDDKernel(Map.empty) {

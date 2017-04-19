@@ -9,12 +9,13 @@ import scala.collection.JavaConverters._
 
 object appParameters extends Serializable with Loggable {
 
+  private var _map: Map[String,String] = Map.empty[String, String]
   val cacheDir = getCacheDirectory
   val parmFile = Paths.get( cacheDir, "cdas.properties" ).toString
-  private var _map: Map[String,String]  = getParameterMap
+  buildParameterMap
 
-  def apply( key: String, default: String ): String =
-    _map.getOrElse( key, default )
+  def apply( key: String, default: String ): String = _map.getOrElse( key, default )
+  def getParameterMap(): Map[String,String] = _map
 
   def apply( key: String ): Option[String] = _map.get( key );
 
@@ -36,15 +37,12 @@ object appParameters extends Serializable with Loggable {
     }
   })
 
-  def getParameterMap(): Map[String, String] =
+  def buildParameterMap(): Unit =
     if( Files.exists( Paths.get(parmFile) ) ) {
       val params: Iterator[Array[String]] = for ( line <- Source.fromFile(parmFile).getLines() ) yield { line.split('=') }
-      Map( params.filter( _.length > 1 ).map( a => a.head.trim->a.last.trim ).toSeq: _* )
+      _map = _map ++ Map( params.filter( _.length > 1 ).map( a => a.head.trim->a.last.trim ).toSeq: _* )
     }
-    else {
-      logger.warn("Can't find default parameter file: " + parmFile);
-      Map.empty[String, String]
-    }
+    else { logger.warn("Can't find default parameter file: " + parmFile); }
 
 
 //  def getParameterMap: Map[String,String] = {

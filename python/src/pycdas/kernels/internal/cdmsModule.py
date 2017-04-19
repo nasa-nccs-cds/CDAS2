@@ -20,6 +20,7 @@ class RegridKernel(CDMSKernel):
 
     def executeOperations(self, task, _inputs):
         cdms2.setAutoBounds(2)
+        t0 = time.time()
         self.logger.info( " Execute REGRID Task with metadata: " + str( task.metadata ) )
         crsSpec = task.metadata.get("crs","")
         if( len(crsSpec) and (crsSpec[0] == '~') ):
@@ -66,6 +67,8 @@ class RegridKernel(CDMSKernel):
                 result_var = regridFunction( variable )
                 self.logger.info( " >> Gridded Data Sample: [ {0} ]".format( ', '.join(  [ str( result_var.data.flat[i] ) for i in range(20,90) ] ) ) )
                 results.append( self.createResult( result_var, _input, task ) )
+        t1 = time.time()
+        self.logger.info(" @RRR@ Completed regrid operation for input variables: {0} in time {1}".format( str(_inputs.keys), (t1 - t0)))
         return results
 
 class AverageKernel(CDMSKernel):

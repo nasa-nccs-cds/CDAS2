@@ -66,6 +66,7 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
     val rdd = input.mapValues( regridKernel.map( context ) ) map identity
     input.partitioner match { case Some( partitioner ) => rdd partitionBy partitioner; case None => rdd }
   }
+
   def timeConversion(input: RDD[(RecordKey,RDDRecord)], partitioner: RangePartitioner, context: KernelContext, requestCx: RequestContext ): RDD[(RecordKey,RDDRecord)] = {
     val trsOpt: Option[String] = context.trsOpt
     val gridMap: Map[String,TargetGrid] = Map( (for( uid: String <- context.operation.inputs; targetGrid: TargetGrid = requestCx.getTargetGrid(uid).getOrElse( fatal("Missing target grid for kernel input " + uid) ) ) yield  uid -> targetGrid ) : _* )
@@ -273,7 +274,8 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val targetGrid = requestCx.getTargetGrid (kernelContext.grid.uid).getOrElse (throw new Exception ("Undefined Target Grid for kernel " + kernelContext.operation.identifier) )
     if( targetGrid.getGridSpec.startsWith("gspec") ) return true
     sampleRDDPart.elements.foreach { case(uid,data) => if( data.gridSpec != targetGrid.getGridSpec ) kernelContext.crsOpt match {
-      case Some( crs ) => return true
+      case Some( crs ) =>
+        return true
       case None =>
         requestCx.getTargetGrid(uid) match {
           case Some(tgrid) => if( !tgrid.shape.sameElements( targetGrid.shape ) ) return true

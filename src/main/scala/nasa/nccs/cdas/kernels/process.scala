@@ -48,7 +48,8 @@ class KernelContext( val operation: OperationContext, val grids: Map[String,Opti
   def getContextStr = getConfiguration map { case ( key, value ) => key + ":" + value } mkString ";"
   def getDomainMetadata(domId: String): Map[String,String] = domains.get(domId) match { case Some(dc) => dc.metadata; case None => Map.empty }
   def findAnyGrid: GridContext = (grids.find { case (k, v) => v.isDefined }).getOrElse(("", None))._2.getOrElse(throw new Exception("Undefined grid in KernelContext for op " + operation.identifier))
-  private def getCRS: Option[String] = operation.getDomain flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("crs") ) )
+  private def getCRS: Option[String] =
+    operation.getDomain flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("crs") ) )
   private def getTRS: Option[String] = operation.getDomain flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("trs") ) )
   def conf( params: Map[String,String] ): KernelContext = new KernelContext( operation, grids, sectionMap, domains, configuration ++ params )
   def commutativeReduction: Boolean = if( getAxes.includes(0) ) { true } else { false }
@@ -770,6 +771,7 @@ abstract class MultiRDDKernel( options: Map[String,String] ) extends Kernel(opti
 class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "Regridder", "Regrids the inputs using UVCDAT", Map( "parallelize" -> "True" ) ) {
 
   override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
+    logger.info("&&MAP&&")
     val t0 = System.nanoTime
     val workerManager: PythonWorkerPortal  = PythonWorkerPortal.getInstance
     val worker: PythonWorker = workerManager.getPythonWorker
@@ -779,8 +781,10 @@ class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "
       assert(input_arrays.nonEmpty, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
 
       val (acceptable_arrays, regrid_arrays) = input_arrays.partition(_.gridSpec.equals(targetGridSpec))
-      if (regrid_arrays.isEmpty) { inputs }
-      else {
+      if (regrid_arrays.isEmpty) {
+        logger.info("&MAP: NoOp for Kernel %s".format(name))
+        inputs
+      } else {
         for (input_array <- acceptable_arrays) { worker.sendArrayMetadata( input_array.uid, input_array) }
         for (input_array <- regrid_arrays)     { worker.sendRequestInput(input_array.uid, input_array) }
         val acceptable_array_map = Map(acceptable_arrays.map(array => array.uid -> array): _*)
