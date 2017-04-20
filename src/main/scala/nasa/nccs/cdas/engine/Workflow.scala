@@ -62,10 +62,8 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
 //  }
 
 
-  def regridRDDElems(input: RDD[(RecordKey,RDDRecord)], context: KernelContext): RDD[(RecordKey,RDDRecord)] = {
-    val rdd = input.mapValues( regridKernel.map( context ) ) map identity
-    input.partitioner match { case Some( partitioner ) => rdd partitionBy partitioner; case None => rdd }
-  }
+  def regridRDDElems(input: RDD[(RecordKey,RDDRecord)], context: KernelContext): RDD[(RecordKey,RDDRecord)] =
+    input.mapValues( rec => regridKernel.map( context )(rec) ) map identity
 
   def timeConversion(input: RDD[(RecordKey,RDDRecord)], partitioner: RangePartitioner, context: KernelContext, requestCx: RequestContext ): RDD[(RecordKey,RDDRecord)] = {
     val trsOpt: Option[String] = context.trsOpt
@@ -290,7 +288,6 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     if( needsRegrid(rdd,requestCx,kernelContext) )
       node.regridRDDElems( rdd, kernelContext.conf(Map("gridSpec"->requestCx.getTargetGridSpec(kernelContext),"crs"->kernelContext.crsOpt.getOrElse(""))))
     else rdd
-    rdd
   }
 
   def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode, batchIndex: Int ): Option[RDD[(RecordKey,RDDRecord)]] = {
