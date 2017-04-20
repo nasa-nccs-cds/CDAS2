@@ -119,14 +119,14 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     print( response.toString )
   }
 
-  test("pyZADemo") {
-    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"file:///Users/tpmaxwel/Dropbox/Tom/Data/MERRA/atmos_ua.nc","name":"ua:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.avew","input":"v1","axes":"xt","filter":"DJF"}]]"""
-    val result_node = executeTest(datainputs)
-    val result_data = CDFloatArray( getResultData( result_node ) )
-    val array_data = result_data.getArrayData(50)
-    assert( array_data.length > 0 )
-    println( " ** CDMS Result:       "  + array_data.mkString(", ") )
-  }
+//  test("pyZADemo") {
+//    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"file:///Users/tpmaxwel/Dropbox/Tom/Data/MERRA/atmos_ua.nc","name":"ua:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.avew","input":"v1","axes":"xt","filter":"DJF"}]]"""
+//    val result_node = executeTest(datainputs)
+//    val result_data = CDFloatArray( getResultData( result_node ) )
+//    val array_data = result_data.getArrayData(50)
+//    assert( array_data.length > 0 )
+//    println( " ** CDMS Result:       "  + array_data.mkString(", ") )
+//  }
 
    test("pyWeightedAveTest") {
     val nco_result: CDFloatArray = CDFloatArray( Array( 286.2326, 286.5537, 287.2408, 288.1576, 288.9455, 289.5202, 289.6924, 289.5549, 288.8497, 287.8196, 286.8923 ).map(_.toFloat), Float.MaxValue )

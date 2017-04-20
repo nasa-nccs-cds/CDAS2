@@ -57,7 +57,6 @@ ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 
 import java.util.Properties
 
-lazy val cdasProperties = settingKey[Properties]("The cdas properties map")
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
@@ -65,6 +64,7 @@ lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
 lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
 lazy val ivy_cache_dir = settingKey[File]("The Ivy conf directory.")
+val cdasProperties = settingKey[Properties]("The cdas properties map")
 
 ivy_cache_dir := file(System.getProperty("user.home")) / ".cdas" / "cache"
 cdas_cache_dir := baseDirectory.value / "src" / "universal" / "conf"

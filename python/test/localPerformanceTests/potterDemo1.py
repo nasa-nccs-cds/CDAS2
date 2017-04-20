@@ -1,5 +1,6 @@
 #get path
 pth1='/home/tpmaxwel/.cdas/cache/cdscan/merra_mon_ua.xml'
+locpth = '/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/atmos_ua.nc'
 #pth1='https://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/reanalysis/MERRA2/mon/atmos/ua.ncml'
 #pth2='https://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/reanalysis/MERRA/mon/atmos/ua.ncml'
 # variable

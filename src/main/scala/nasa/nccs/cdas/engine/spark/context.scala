@@ -84,7 +84,10 @@ object CDSparkContext extends Loggable {
     addConfig( sc, "spark.num.executors", "num.executors" )
 
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
-    appParameters( "spark.master" ) map ( cval => sc.setMaster(cval) )
+    appParameters( "spark.master" ) match {
+      case Some(cval) => sc.setMaster(cval)
+      case None => throw new Exception( "Error, must set 'spark.master' parameter in the 'cdas.properties' file")
+    }
 
     utilities.runtime.printMemoryUsage
     utilities.runtime.printMemoryUsage(logger)
