@@ -9,7 +9,7 @@ class RegridKernel(CDMSKernel):
 
     def __init__( self ):
         Kernel.__init__( self, KernelSpec("regrid", "Regridder", "Regrids the inputs using UVCDAT", parallelize=True ) )
-        self._debug = True
+        self._debug = False
 
     def getGrid(self, gridFilePath, latInterval = None, lonInterval = None ):
         import cdms2
@@ -56,12 +56,6 @@ class RegridKernel(CDMSKernel):
                 if self._debug:
                     self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( variable.data.flat[i] ) for i in range(20,90) ] ) ) )
                     self.logger.info( " >> Input Variable Shape: {0}, Grid Shape: {1} ".format( str(variable.shape), str([len(ingrid.getLatitude()),len(ingrid.getLongitude())] )))
-                    self.logger.info( " >>  Grid Lat axis: " + str( ingrid.getLatitude()) )
-                    self.logger.info( " >>  Grid Lon axis: " + str( ingrid.getLongitude()) )
-                    self.logger.info( " >>  in Grid Lat bounds: " + str(inlatBounds) )
-                    self.logger.info( " >>  in Grid Lon bounds: " + str(inlonBounds) )
-                    self.logger.info( " >>  out Grid Lat bounds: " + str(outlatBounds) )
-                    self.logger.info( " >>  out Grid Lon bounds: " + str(outlonBounds) )
 
                 regridFunction = Horizontal(ingrid, toGrid)
                 result_var = regridFunction( variable )
