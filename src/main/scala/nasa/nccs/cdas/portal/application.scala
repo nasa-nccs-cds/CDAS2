@@ -18,7 +18,7 @@ object CDASapp {
     if( parameter_file_path.isEmpty ) { Map.empty[String, String]  }
     else if( Files.exists( Paths.get(parameter_file_path) ) ) {
       val params: Iterator[Array[String]] = for ( line <- Source.fromFile(parameter_file_path).getLines() ) yield { line.split('=') }
-      Map( params.filter( _.length > 1 ).map( a => a.head.trim->a.last.trim ).toSeq: _* )
+      Map( params.filter( _.length > 1 ).map( a => ( a.head.trim, a.last.trim ) ).toSeq: _* )
     }
     else { throw new Exception( "Can't find parameter file: " + parameter_file_path) }
   }
