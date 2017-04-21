@@ -290,7 +290,7 @@ object SeasonFilter {
   val months = "JFMAMJJASONDJFMAMJJASOND"
   def get(filterSpec: String): Option[SeasonFilter] = months.indexOfSlice(filterSpec) match {
     case -1 => None
-    case index => Some(new SeasonFilter( (index until (index+filterSpec.length)) map ( i => ((i-1)%12)+1, (i-1)/12 ) ) )
+    case index => Some(new SeasonFilter( (index until (index+filterSpec.length)) map ( i => ( ((i-1)%12)+1, (i-1)/12 ) ) ) )
   }
 }
 
