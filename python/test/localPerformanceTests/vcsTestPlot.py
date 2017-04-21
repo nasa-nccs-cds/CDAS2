@@ -1,7 +1,7 @@
 def nbDisplay( x ):
     from IPython.display import Image, display
-    import os
-    outFile = '/tmp/vcsnb-{0}.png'.format( os.getpid() )
+    import os, random, string
+    outFile = '/tmp/vcsnb-{0}.png'.format( ''.join(random.choice( string.ascii_lowercase + string.ascii_uppercase + string.digits ) for _ in range(8)) )
     x.png(outFile)
     display( Image(outFile) )
 
