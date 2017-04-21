@@ -69,7 +69,7 @@ object CDSparkContext extends Loggable {
   def append(p0: (RecordKey,RDDRecord), p1: (RecordKey,RDDRecord) ): (RecordKey,RDDRecord) = ( p0._1 + p1._1, p0._2.append(p1._2) )
 
   def getSparkConf( appName: String, logConf: Boolean, enableMetrics: Boolean  ) = {
-    val cdas_cache_dir = sys.env.getOrElse( "CDAS_CACHE_DIR", "~/.cdas/cache" )
+    val cdas_cache_dir = appParameters.getCacheDirectory
     val sc = new SparkConf(false)
       .setAppName( appName )
       .set("spark.logConf", logConf.toString )
