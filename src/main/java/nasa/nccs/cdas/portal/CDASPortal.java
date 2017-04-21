@@ -5,6 +5,8 @@ import org.zeromq.ZMQ;
 import nasa.nccs.utilities.CDASLogManager;
 import java.util.Arrays;
 import java.util.List;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 public abstract class CDASPortal {
     public enum ConnectionMode { BIND, CONNECT };
@@ -52,9 +54,17 @@ public abstract class CDASPortal {
     public abstract void getCapabilities( String[] utilSpec );
     public abstract void describeProcess( String[] utilSpec );
 
+    public String getHostInfo() {
+        try {
+            InetAddress ip = InetAddress.getLocalHost();
+            return String.format( "%s (%s)", ip.getHostName(), ip.getHostAddress() );
+        } catch (UnknownHostException e) { return "UNKNOWN"; }
+    }
+
     public void run() {
+
         while( active ) try {
-            logger.info( String.format( "Listening for requests on port: %d",  request_port ) );
+            logger.info( String.format( "Listening for requests on port: %d, host: %s",  request_port, getHostInfo() ) );
             String request_header = new String(request_socket.recv(0)).trim();
             String[] parts = request_header.split("[!]");
             logger.info( String.format( "  ###  Processing %s request: %s",  parts[1], request_header ) );
