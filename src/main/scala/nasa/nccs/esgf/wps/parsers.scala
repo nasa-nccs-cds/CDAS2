@@ -8,7 +8,7 @@ class BadRequestException(message: String = null, cause: Throwable = null) exten
 class ObjectNotationParser extends JavaTokenParsers {
   def normalize(sval: String): String = sval.stripPrefix("\"").stripSuffix("\"").toLowerCase
   def expr: Parser[Map[String, Seq[Map[String, Any]]]] = "[" ~> repsep(decl,sep) <~ "]" ^^ (Map() ++ _)
-  def decl: Parser[(String, Seq[Map[String, Any]])] = key ~ "=" ~ objlist ^^ { case arg0 ~ "=" ~ arg1 => (normalize(arg0) -> arg1) }
+  def decl: Parser[(String, Seq[Map[String, Any]])] = key ~ "=" ~ objlist ^^ { case arg0 ~ "=" ~ arg1 => (normalize(arg0), arg1) }
   def key: Parser[String] = """[a-zA-Z_]\w*""".r
   def sep: Parser[String] = """[,;]""".r
   def integerNumber: Parser[String] = """[+-]?(?<!\.)\b[0-9]+\b(?!\.[0-9])""".r

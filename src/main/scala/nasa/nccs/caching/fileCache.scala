@@ -290,7 +290,7 @@ object SeasonFilter {
   val months = "JFMAMJJASONDJFMAMJJASOND"
   def get(filterSpec: String): Option[SeasonFilter] = months.indexOfSlice(filterSpec) match {
     case -1 => None
-    case index => Some(new SeasonFilter( (index until (index+filterSpec.length)) map ( i => ((i-1)%12)+1 -> (i-1)/12 ) ) )
+    case index => Some(new SeasonFilter( (index until (index+filterSpec.length)) map ( i => ((i-1)%12)+1, (i-1)/12 ) ) )
   }
 }
 
@@ -490,7 +490,7 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, workflowNodeOpt: Opt
   def getReadBuffer(cache_id: String): (FileChannel, MappedByteBuffer) = {
     val channel = new FileInputStream(cache_id).getChannel
     val size = math.min(channel.size, Int.MaxValue).toInt
-    channel -> channel.map(FileChannel.MapMode.READ_ONLY, 0, size)
+    ( channel, channel.map(FileChannel.MapMode.READ_ONLY, 0, size))
   }
 
   def cacheFloatData: CachePartitions = {

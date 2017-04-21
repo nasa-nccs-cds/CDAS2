@@ -151,7 +151,7 @@ class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boo
   def getEntries: Seq[(K,V)] = {
     val entrySet = store.entrySet.toSet
     val entries = for (entry: java.util.Map.Entry[K, Future[V]] <- entrySet ) yield entry.getValue.value match {
-      case Some(value) ⇒ Some( entry.getKey -> value.get )
+      case Some(value) ⇒ Some( (entry.getKey, value.get) )
       case None => None
     }
     entries.flatten.toSeq
