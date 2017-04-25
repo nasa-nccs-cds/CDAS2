@@ -470,7 +470,47 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 }
 
+class CDASDemoTestSuite extends FunSuite with Loggable with BeforeAndAfter {
+  CDASLogManager.testing
+  import nasa.nccs.cdapi.tensors.CDFloatArray
+  import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
+  import ucar.nc2.dataset.NetcdfDataset
+  val serverConfiguration = Map[String,String]()
+  val webProcessManager = new ProcessManager( serverConfiguration )
 
+  test("pyTimeSum-dap") {
+    val dataset = "file:/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/merra_mon_ua.xml"
+    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"$dataset","name":"ua:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","axes":"xt","filter":"DJF"}]]"""
+    val result_node = executeTest(datainputs)
+    val result_data = getResultData( result_node )
+    println( "Op Result:       " + result_data )
+  }
+
+  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
+    val t0 = System.nanoTime()
+    val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString, "unitTest" -> "true" )
+    val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
+    val response: xml.Elem = webProcessManager.executeProcess("cds2", identifier, parsed_data_inputs, runargs)
+    for( child_node <- response.child ) if ( child_node.label.startsWith("exception")) { throw new Exception( child_node.toString ) }
+    println("Completed test '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+    response
+  }
+
+  def getResultData( result_node: xml.Elem, print_result: Boolean = false ): CDFloatArray = {
+    val data_nodes: xml.NodeSeq = getDataNodes( result_node, print_result )
+    try{  CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue ) } catch { case err: Exception => CDFloatArray.empty }
+  }
+
+  def getDataNodes( result_node: xml.Elem, print_result: Boolean = false  ): xml.NodeSeq = {
+    if(print_result) { println( s"Result Node:\n${result_node.toString}\n" ) }
+    result_node.label match {
+      case "response" => result_node \\ "outputs" \\ "data"
+      case _ => result_node \\ "Output" \\ "LiteralData"
+    }
+  }
+
+
+}
 /*
 
 @Ignore class CDASMainTestSuite extends TestSuite(0, 0, 0f, 0f ) with Loggable {
