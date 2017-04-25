@@ -608,11 +608,11 @@ class bigDataTest extends Loggable {
   val webProcessManager = new ProcessManager( serverConfiguration )
   val service = "cds2"
 
-  def main(args: Array[String]): Unit = {
-    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"file://att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml","name":"T:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"tz"}]]"""
-    val result_node = executeTest(datainputs)
-//    val result_data = getResultData( result_node )
-  }
+//  def main(args: Array[String]): Unit = {
+//    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"file://att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml","name":"T:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"tz"}]]"""
+//    val result_node = executeTest(datainputs)
+////    val result_data = getResultData( result_node )
+//  }
 
   def getDataNodes( result_node: xml.Elem, print_result: Boolean = false  ): xml.NodeSeq = {
     if(print_result) { println( s"Result Node:\n${result_node.toString}\n" ) }
@@ -803,17 +803,17 @@ class profilingTest extends Loggable {
     println("Completed data processing for '%s' in %.4f sec".format(variable.getFullName, (System.nanoTime() - t0) / 1.0E9))
   }
 
-  def main(args: Array[String]): Unit = {
-    val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml"
-    val gridFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.nc"
-    val cache_id = "a3298cb50c2abb"
-    val varName = "T"
-    val iLevel = 10
-    val roi_origin = Array[Int](0, iLevel, 0, 0)
-    val roi_shape = Array[Int](53668, 1, 361, 576)
-    val roi = new ma2.Section(roi_origin, roi_shape)
-    processFileData( ncmlFile, gridFile, varName )
-  }
+//  def main(args: Array[String]): Unit = {
+//    val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.xml"
+//    val gridFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/npana.nc"
+//    val cache_id = "a3298cb50c2abb"
+//    val varName = "T"
+//    val iLevel = 10
+//    val roi_origin = Array[Int](0, iLevel, 0, 0)
+//    val roi_shape = Array[Int](53668, 1, 361, 576)
+//    val roi = new ma2.Section(roi_origin, roi_shape)
+//    processFileData( ncmlFile, gridFile, varName )
+//  }
 }
 
 class ncReadTest extends Loggable {

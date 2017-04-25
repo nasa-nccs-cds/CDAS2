@@ -55,22 +55,22 @@ class SectionReader( val ncmlFile: String, val varName: String ) extends Seriali
     }
 }
 
-class streamingTest extends Loggable {
-
-  def main(args: Array[String]): Unit = {
-    val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/ncml.xml"
-    val varName = "T"
-    val nRecords = 8
-    val recordSize = 1
-    val conf = new SparkConf().setMaster(s"local[$nRecords]").setAppName("StreamingTest")
-    val ssc = new StreamingContext( conf, Milliseconds(1000) )
-    val section = new ma2.Section( Array(0,10,0,0), Array(53668,1,361,576) )
-    val sectionsStream: ReceiverInputDStream[String] = ssc.receiverStream(new SectionFeeder( section, nRecords, recordSize ) )
-    val sectionReader = new SectionReader( ncmlFile, varName )
-    val inputStream = sectionsStream.map( sectionSpec => sectionReader.read(sectionSpec) )
-    val maxStream = inputStream.map( data => data.max() )
-    maxStream.print(nRecords)
-  }
-}
-
-
+//class streamingTest extends Loggable {
+//
+//  def main(args: Array[String]): Unit = {
+//    val ncmlFile = "/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/ncml.xml"
+//    val varName = "T"
+//    val nRecords = 8
+//    val recordSize = 1
+//    val conf = new SparkConf().setMaster(s"local[$nRecords]").setAppName("StreamingTest")
+//    val ssc = new StreamingContext( conf, Milliseconds(1000) )
+//    val section = new ma2.Section( Array(0,10,0,0), Array(53668,1,361,576) )
+//    val sectionsStream: ReceiverInputDStream[String] = ssc.receiverStream(new SectionFeeder( section, nRecords, recordSize ) )
+//    val sectionReader = new SectionReader( ncmlFile, varName )
+//    val inputStream = sectionsStream.map( sectionSpec => sectionReader.read(sectionSpec) )
+//    val maxStream = inputStream.map( data => data.max() )
+//    maxStream.print(nRecords)
+//  }
+//}
+//
+//
