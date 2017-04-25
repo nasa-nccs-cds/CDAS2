@@ -26,15 +26,23 @@ public abstract class CDASPortal {
             request_socket = zmqContext.socket(ZMQ.PULL);
             response_socket = zmqContext.socket(ZMQ.PUSH);
             if( mode == ConnectionMode.CONNECT ) {
-                request_socket.connect(String.format("tcp://localhost:%d", request_port));
-                logger.info(String.format("Connected request socket on port: %d", request_port));
-                response_socket.connect(String.format("tcp://localhost:%d", response_port));
-                logger.info(String.format("Connected response socket on port: %d", response_port));
+                try{
+                    request_socket.connect(String.format("tcp://localhost:%d", request_port));
+                    logger.info(String.format("Connected request socket on port: %d", request_port));
+                } catch (Exception err ) { logger.error( String.format("Error initializing request socket on port %d: %s", request_port, err ) ); }
+                try{
+                    response_socket.connect(String.format("tcp://localhost:%d", response_port));
+                    logger.info(String.format("Connected response socket on port: %d", response_port));
+                } catch (Exception err ) { logger.error( String.format("Error initializing response socket on port %d: %s", response_port, err ) ); }
             } else {
-                request_socket.bind(String.format("tcp://*:%d", request_port));
-                logger.info(String.format("Bound request socket to port: %d", request_port));
-                response_socket.bind(String.format("tcp://*:%d", response_port));
-                logger.info( String.format("Bound response socket to port: %d", response_port) );
+                try{
+                    request_socket.bind(String.format("tcp://*:%d", request_port));
+                    logger.info(String.format("Bound request socket to port: %d", request_port));
+                } catch (Exception err ) { logger.error( String.format("Error initializing request socket on port %d: %s", request_port, err ) ); }
+                try{
+                    response_socket.bind(String.format("tcp://*:%d", response_port));
+                    logger.info( String.format("Bound response socket to port: %d", response_port) );
+                } catch (Exception err ) { logger.error( String.format("Error initializing response socket on port %d: %s", response_port, err ) ); }
             }
         } catch (Exception err ) {
             logger.error( String.format("\n-------------------------------\nCDAS Init error: %s -------------------------------\n", err ) );
