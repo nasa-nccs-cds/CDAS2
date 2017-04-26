@@ -27,7 +27,7 @@ class LongRange(val start: Long, val end: Long ) extends Serializable {
     case tp: LongRange => ( tp.start == start) && ( tp.end == end)
     case _ => false
   }
-  override def hashCode() = Math.floorMod( start + end, Int.MaxValue ).toInt
+  override def hashCode() = (( start + end ) % Int.MaxValue).toInt
   def compare( that: LongRange ): Int = start.compare( that.start )
   def getRelPos( location: Long ): Double =
     (location - start) / size
@@ -70,7 +70,7 @@ class RecordKey(start: Long, end: Long, val elemStart: Int, val numElems: Int ) 
     case lr: LongRange => ( lr.start == start ) && ( lr.end == end )
     case _ => false
   }
-  override def hashCode() = Math.floorMod( start + end + elemStart + numElems, Int.MaxValue ).toInt
+  override def hashCode() = ( (start + end + elemStart + numElems) % Int.MaxValue ).toInt
   def elemEnd = elemStart + numElems
   def sameRange( lr: LongRange ): Boolean = ( lr.start == start ) && ( lr.end == end )
   def estElemIndexAtLoc( loc: Long ): Int =  ( elemStart + getRelPos(loc) * numElems ).toInt
