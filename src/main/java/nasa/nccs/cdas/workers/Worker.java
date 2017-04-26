@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import org.apache.commons.lang.StringUtils;
 
 public abstract class Worker {
     int BASE_PORT = 2336;
@@ -182,7 +183,7 @@ public abstract class Worker {
     private void _sendArrayData( String id, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
         logger.debug( String.format("Kernel: Sending data to worker for input %s, nbytes=%d", id, data.length ));
         List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata), withData );
-        String header = String.join("|", slist);
+        String header = StringUtils.join(slist,"|");
         logger.debug("Sending header: " + header);
         sendDataPacket( header, data );
     }
@@ -190,14 +191,14 @@ public abstract class Worker {
     private void _sendArrayMetadata( String id, int[] origin, int[] shape, Map<String, String> metadata ) {
         logger.debug( String.format("Kernel: Sending metadata to worker for input %s", id ));
         List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata), withoutData );
-        String header = String.join("|", slist);
+        String header = StringUtils.join(slist,"|");
         logger.debug("Sending header: " + header);
         request_socket.send(header);
     }
 
     public void sendRequest( String operation, String[] opInputs, Map<String, String> metadata ) {
         List<String> slist = Arrays.asList(  "task", operation, sa2s(opInputs), m2s(metadata)  );
-        String header = String.join("|", slist);
+        String header = StringUtils.join(slist,"|");
         logger.info( "Sending Task Request: " + header );
         requestTime = System.currentTimeMillis();
         request_socket.send(header);
@@ -206,7 +207,7 @@ public abstract class Worker {
 
     public void sendUtility( String request ) {
         List<String> slist = Arrays.asList(  "util", request );
-        String header = String.join("|", slist);
+        String header = StringUtils.join(slist,"|");
         logger.debug( "Sending Utility Request: " + header );
         request_socket.send(header);
         logger.debug( "Utility Request Sent!" );
@@ -218,12 +219,12 @@ public abstract class Worker {
     }
 
     public String ia2s( int[] array ) { return Arrays.toString(array).replaceAll("\\[|\\]|\\s", ""); }
-    public String sa2s( String[] array ) { return String.join(",",array); }
+    public String sa2s( String[] array ) { return StringUtils.join(array,","); }
     public String m2s( Map<String, String> metadata ) {
         ArrayList<String> items = new ArrayList<String>();
         for (Map.Entry<String,String> entry : metadata.entrySet() ) {
             items.add( entry.getKey() + ":" + entry.getValue() );
         }
-        return String.join( ";", items );
+        return StringUtils.join(items,";" );
     }
 }
