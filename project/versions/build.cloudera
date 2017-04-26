@@ -106,7 +106,9 @@ def getCondaLibDir(): File = sys.env.get("CONDA_PREFIX") match {
   }
 
 def getCDHClasspath(): Seq[File] = sys.env.get("CDH_CLASSPATH") match {
-  case Some(cpath) => cpath.split("[:]").map( file(_) )
+  case Some(cpath) =>
+    println( "CDHClasspath: " + cpath )
+    cpath.split("[:]").map( file(_) )
   case None => Seq.empty[File]
 }
 
