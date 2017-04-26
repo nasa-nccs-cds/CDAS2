@@ -46,6 +46,8 @@ object Dependencies {
 
   val scala = Seq( natty, scalactic, commonsIO, scalatest, zeromq, logback )
 
+  val spark = Seq( sparkCore )
+
   val cache = Seq( concurrentlinkedhashmap )
 
   val ndarray = Seq( nd4s, nd4j )
