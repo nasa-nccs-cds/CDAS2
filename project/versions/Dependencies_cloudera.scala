@@ -44,7 +44,8 @@ object Library {
 object Dependencies {
   import Library._
 
-  val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, zeromq, logback )
+//  val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, zeromq, logback )
+  val scala = Seq( joda, natty, scalactic, commonsIO, scalatest, zeromq, logback )
 
   val spark = Seq( sparkCore, sparkStreaming )
 
