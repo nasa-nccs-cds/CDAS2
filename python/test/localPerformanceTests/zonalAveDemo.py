@@ -6,13 +6,12 @@ portal = None
 request_port = 4356
 response_port = 4357
 host = "webmap"
+server = "localhost"
 
 if host == "webmap":
     dataset = "file:/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/merra_mon_ua.xml"
-    server = "local[15]"
 elif host == "cldra":
     dataset = "file:/home/tpmaxwel/.cdas/cache/cdscan/merra_mon_ua.xml"
-    server="cldradn117.dassvm.nccs.nasa.gov"
 else:
     raise Exception( "Unrecognized server: " + host )
 
