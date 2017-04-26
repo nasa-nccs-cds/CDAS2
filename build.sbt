@@ -1,1 +1,1 @@
-build_cloudera.sbt
+./project/versions/build.cloudera
