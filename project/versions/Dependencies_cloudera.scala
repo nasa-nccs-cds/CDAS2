@@ -12,9 +12,9 @@ object Library {
   val logback        = "ch.qos.logback"     %  "logback-core"   % "1.1.3"
   val mockitoAll     = "org.mockito"       %  "mockito-all"     % Version.mockito
   val scalaTest      = "org.scalatest"     %% "scalatest"       % Version.scalaTest
-  val sparkSQL       = "org.apache.spark"  %% "spark-sql"       % Version.spark
-  val sparkCore      = "org.apache.spark"  %% "spark-core"      % Version.spark
-  val sparkStreaming = "org.apache.spark"  %% "spark-streaming" % Version.spark
+  val sparkSQL       = "org.apache.spark"  %% "spark-sql"       % Version.spark % "provided"
+  val sparkCore      = "org.apache.spark"  %% "spark-core"      % Version.spark % "provided"
+  val sparkStreaming = "org.apache.spark"  %% "spark-streaming" % Version.spark % "provided"
   val scalaxml       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
   val scalaparser    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
   val commonsIO      = "commons-io"         % "commons-io"      % "2.5"
@@ -44,10 +44,7 @@ object Library {
 object Dependencies {
   import Library._
 
-//  val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, zeromq, logback )
-  val scala = Seq( joda, natty, scalactic, commonsIO, scalatest, zeromq, logback )
-
-  val spark = Seq( sparkCore, sparkStreaming )
+  val scala = Seq( natty, scalactic, commonsIO, scalatest, zeromq, logback )
 
   val cache = Seq( concurrentlinkedhashmap )
 

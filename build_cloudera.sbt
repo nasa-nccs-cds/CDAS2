@@ -28,8 +28,6 @@ mainClass in (Compile, packageBin) := Some("nasa.nccs.cdas.portal.CDASApplicatio
 
 libraryDependencies ++= Dependencies.scala
 
-libraryDependencies ++= Dependencies.spark
-
 libraryDependencies ++= Dependencies.cache
 
 libraryDependencies ++= Dependencies.geo
@@ -63,19 +61,19 @@ lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
 lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
-lazy val ivy_cache_dir = settingKey[File]("The Ivy conf directory.")
+lazy val chd_classpath = settingKey[Seq[File]]("The CDH Classpath.")
 val cdasProperties = settingKey[Properties]("The cdas properties map")
 
-ivy_cache_dir := file(System.getProperty("user.home")) / ".cdas" / "cache"
-cdas_cache_dir := baseDirectory.value / "src" / "universal" / "conf"
+cdas_conf_dir := baseDirectory.value / "src" / "universal" / "conf"
 conda_lib_dir := getCondaLibDir
+chd_classpath := getCDHClasspath
 
 unmanagedResourceDirectories in Test ++= Seq( cdas_cache_dir.value )
 unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_cache_dir.value )
-unmanagedClasspath in Test ++= Seq( conda_lib_dir.value, ivy_cache_dir.value )
-unmanagedClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value, ivy_cache_dir.value )
-dependencyClasspath in Test ++= Seq( conda_lib_dir.value, ivy_cache_dir.value )
-dependencyClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value, ivy_cache_dir.value )
+unmanagedClasspath in Test ++= Seq( conda_lib_dir.value ) ++ chd_classpath.value
+unmanagedClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value ) ++ chd_classpath.value
+dependencyClasspath in Test ++= Seq( conda_lib_dir.value ) ++ chd_classpath.value
+dependencyClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value ) ++ chd_classpath.value
 classpathTypes += "dylib"
 
 stage ~= { (file: File) => cdas2Patch( file / "bin" / "cdas2" ); file }
@@ -106,6 +104,11 @@ def getCondaLibDir(): File = sys.env.get("CONDA_PREFIX") match {
     case Some(ldir) => file(ldir) / "lib"
     case None => throw new Exception( "Must activate the cdas2 environment in Anaconda: '>> source activate cdas2' ")
   }
+
+def getCDHClasspath(): Seq[File] = sys.env.get("CDH_CLASSPATH") match {
+  case Some(cpath) => cpath.split("[:]").map( file(_) )
+  case None => Seq.empty[File]
+}
 
 
 def getCacheDir(): File = {
