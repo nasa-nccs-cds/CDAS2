@@ -2,6 +2,7 @@ package nasa.nccs.wps
 
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.utilities.appParameters
+import scala.xml
 
 trait WPSElement extends WPSResponse with Serializable {
   val identifier: String
