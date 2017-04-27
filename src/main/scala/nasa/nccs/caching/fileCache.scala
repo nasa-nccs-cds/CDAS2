@@ -509,7 +509,7 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, workflowNodeOpt: Opt
   def processChunkedPartitions(cache_id: String, partIndex: Int, missing_value: Float): CachePartition = {
     logger.info( "Process Chunked Partitions(%s): %d".format( cache_id, partIndex ) )
     val partition: CachePartition = partitioner.getPartition(partIndex);
-    val outStr = IOUtils.buffer( new FileOutputStream(new File(partition.path)))
+    val outStr = new BufferedOutputStream( new FileOutputStream(new File(partition.path)))
     cachePartition(partition, outStr)
     outStr.close
     partition
