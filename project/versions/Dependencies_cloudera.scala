@@ -10,6 +10,7 @@ object Version {
 object Library {
   val logback        = "ch.qos.logback"     %  "logback-core"   % "1.1.3"
   val scalatest      = "org.scalatest"     %% "scalatest"       % Version.scalaTest
+  val scalaxml       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
   val commonsIO      = "commons-io"         % "commons-io"      % "2.5"
   val zeromq         = "org.zeromq"         % "jeromq"          % "0.3.5"
   val cdm            = "edu.ucar"           % "cdm"             % "4.6.8"
@@ -31,7 +32,7 @@ object Library {
 object Dependencies {
   import Library._
 
-  val scala = Seq( natty, scalactic, commonsIO, scalatest, zeromq, logback )
+  val scala = Seq( scalaxml, natty, scalactic, commonsIO, scalatest, zeromq, logback )
 
   val cache = Seq( concurrentlinkedhashmap )
 
