@@ -4,8 +4,7 @@ import java.io.{PrintWriter, StringWriter}
 import java.util.concurrent.ExecutionException
 import nasa.nccs.wps.{BlockingExecutionResult, WPSExceptionReport, WPSResponse}
 import nasa.nccs.utilities.{Loggable, cdsutils}
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
+import scala.xml
 
 trait ServiceProvider extends Loggable {
 

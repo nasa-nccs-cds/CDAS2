@@ -1,6 +1,6 @@
 package nasa.nccs.esgf.process
 import java.util.Formatter
-
+import scala.xml
 import nasa.nccs.caching._
 import nasa.nccs.cdapi.cdm._
 import ucar.nc2.dataset._

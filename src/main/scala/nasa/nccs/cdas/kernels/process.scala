@@ -1,7 +1,7 @@
 package nasa.nccs.cdas.kernels
 
 import java.io._
-import java.nio
+import scala.xml
 import java.nio.{ByteBuffer, ByteOrder, FloatBuffer}
 
 import nasa.nccs.cdapi.cdm._
