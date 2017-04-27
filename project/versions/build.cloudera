@@ -72,10 +72,8 @@ chd_classpath := getCDHClasspath
 
 unmanagedResourceDirectories in Test ++= Seq( cdas_cache_dir.value )
 unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_cache_dir.value )
-unmanagedClasspath in Test ++= Seq( conda_lib_dir.value ) ++ chd_classpath.value
-unmanagedClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value ) ++ chd_classpath.value
-dependencyClasspath in Test ++= Seq( conda_lib_dir.value ) ++ chd_classpath.value
-dependencyClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value ) ++ chd_classpath.value
+unmanagedClasspath in Test ++= ( chd_classpath.value ++ Seq( conda_lib_dir ) )
+unmanagedClasspath in (Compile, runMain) ++= ( chd_classpath.value ++ Seq( conda_lib_dir ) )
 classpathTypes += "dylib"
 
 stage ~= { (file: File) => cdas2Patch( file / "bin" / "cdas2" ); file }
