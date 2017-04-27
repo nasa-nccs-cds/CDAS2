@@ -2,6 +2,8 @@ import java.nio.file.Files.copy
 import java.nio.file.Paths.get
 import sbt._
 
+// Cloudera 10.5 build configuration
+
 val kernelPackages = settingKey[ Seq[String] ]("A list of user-defined Kernel packages")
 
 name := "CDAS2"
@@ -140,6 +142,11 @@ publishTo := Some(Resolver.file( "file",  sys.env.get("SBT_PUBLISH_DIR") match {
   case Some(pub_dir) => { val pdir = file(pub_dir); pdir.mkdirs(); pdir }
   case None =>  { val pdir = getCacheDir() / "publish"; pdir.mkdirs(); pdir }
 } ) )
+
+lazy val printClasspath = task {
+  (dependencyClasspath in Compile).value.files.foreach( f => println( f.getPath ) )
+  None
+}
 
 //
 //md := {
