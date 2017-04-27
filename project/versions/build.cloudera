@@ -63,26 +63,22 @@ lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
 lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
-lazy val chd_classpath = settingKey[Seq[File]]("The CDH Classpath.")
 val cdasProperties = settingKey[Properties]("The cdas properties map")
 
 cdas_conf_dir := baseDirectory.value / "src" / "universal" / "conf"
 conda_lib_dir := getCondaLibDir
-chd_classpath := getCDHClasspath
 
 unmanagedResourceDirectories in Test ++= Seq( cdas_conf_dir.value )
 unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_conf_dir.value )
-unmanagedBase := {
-  sys.env.get("CHD_JARS_DIR") match {
-    case Some(jars_dir) => file(jars_dir)
-    case None => baseDirectory.value / "lib"
-  }}
-
 unmanagedJars in Compile ++= {
-  val customJars: PathFinder =  unmanagedBase.value ** ( "*.jar" -- "*netcdf*" )
-  customJars.classpath
+  sys.env.get("CHD_JARS_DIR") match {
+    case Some(jars_dir) =>
+      val customJars: PathFinder =  file(jars_dir) ** ( "*.jar" -- "*netcdf*" )
+      customJars.classpath
+    case None =>
+      PathFinder.empty.classpath
+  }
 }
-
 unmanagedClasspath in Test ++= Seq( conda_lib_dir.value )
 unmanagedClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value )
 classpathTypes += "dylib"
@@ -115,11 +111,6 @@ def getCondaLibDir(): File = sys.env.get("CONDA_PREFIX") match {
     case Some(ldir) => file(ldir) / "lib"
     case None => throw new Exception( "Must activate the cdas2 environment in Anaconda: '>> source activate cdas2' ")
   }
-
-def getCDHClasspath(): Seq[File] = sys.env.get("CDH_CLASSPATH") match {
-  case Some(cpath) => cpath.split("[:]").map( file(_) )
-  case None => Seq.empty[File]
-}
 
 def getCacheDir(): File = {
   val cache_dir = sys.env.get("CDAS_CACHE_DIR") match {
