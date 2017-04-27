@@ -1,13 +1,10 @@
 package nasa.nccs.cdas.portal
 import java.nio.file.{Files, Path, Paths}
 
-import nasa.nccs.cdas.engine.spark.CDSparkContext
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode._
-import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.utilities.Loggable
-import nasa.nccs.wps.WPSDirectExecuteResponse
-import org.apache.spark.SparkContext
+import scala.xml
 
 import scala.io.Source
 

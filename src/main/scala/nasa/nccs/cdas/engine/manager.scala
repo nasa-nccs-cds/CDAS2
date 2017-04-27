@@ -1,33 +1,23 @@
 package nasa.nccs.cdas.engine
 import java.io.{IOException, PrintWriter, StringWriter}
-import java.nio.FloatBuffer
+import scala.xml
 import java.io.File
-
 import nasa.nccs.cdapi.cdm.{Collection, PartitionedFragment, _}
 import nasa.nccs.cdas.loaders.{Collections, Masks}
 import nasa.nccs.esgf.process._
-import org.slf4j.{Logger, LoggerFactory}
-
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import nasa.nccs.cdas.kernels.{Kernel, KernelMgr, KernelModule}
-import nasa.nccs.cdas.kernels._
-
-import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
-import scala.util.{Failure, Success, Try}
 import java.util.concurrent.atomic.AtomicReference
-
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
 import nasa.nccs.caching._
 import ucar.{ma2, nc2}
 import nasa.nccs.cdas.utilities.{GeoTools, appParameters, runtime}
-
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import nasa.nccs.cdas.workers.python.PythonWorkerPortal
 import nasa.nccs.cdas.engine.spark.CDSparkContext
-import nasa.nccs.esgf.process.OperationContext.ResultType
 import nasa.nccs.wps._
 import ucar.nc2.Attribute
 

@@ -3,7 +3,7 @@ import com.google.common.reflect.ClassPath
 import nasa.nccs.utilities.Loggable
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-
+import scala.xml
 
 // TOUSE: Include dependency  'reflections'
 //class ReflectionTools {

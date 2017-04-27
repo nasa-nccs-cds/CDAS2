@@ -1,5 +1,5 @@
 package nasa.nccs.wps
-
+import scala.xml
 import nasa.nccs.cdas.utilities.appParameters
 
 trait WPSServer extends WPSResponse {

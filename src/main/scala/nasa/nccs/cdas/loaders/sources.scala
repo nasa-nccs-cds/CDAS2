@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.loaders
 import java.io.{File, FileNotFoundException, FileOutputStream}
-import java.net.URL
+import scala.xml
 import java.nio.channels.Channels
 import java.nio.file.{Files, Path, Paths}
 
