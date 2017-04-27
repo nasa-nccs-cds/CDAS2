@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.kernels
 import nasa.nccs.cdas.workers.python.PythonWorkerPortal
-
+import scala.xml
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import nasa.nccs.utilities.cdsutils

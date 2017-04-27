@@ -4,13 +4,13 @@ import nasa.nccs.caching._
 import nasa.nccs.cdapi.data._
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.cdas.engine.WorkflowNode
-import nasa.nccs.cdas.engine.spark.{RecordKey, RecordKey$}
+import nasa.nccs.cdas.engine.spark.{RecordKey}
 import nasa.nccs.esgf.process.{DataFragmentSpec, _}
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.nc2.constants.AxisType
-
+import scala.xml
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
