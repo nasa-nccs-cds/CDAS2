@@ -24,7 +24,7 @@ import org.apache.commons.io.{FileUtils, IOUtils}
 import ucar.nc2.dataset.CoordinateAxis1DTime
 import ucar.nc2.time.CalendarPeriod.Field.{Month, Year}
 import ucar.{ma2, nc2}
-
+import scala.xml
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global

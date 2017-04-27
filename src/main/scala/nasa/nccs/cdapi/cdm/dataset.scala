@@ -8,7 +8,7 @@ import java.io.{FileWriter, _}
 import java.net.URI
 import java.nio._
 import java.util.Formatter
-
+import scala.xml
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.caching.{CDASCachePartitioner, CDASPartitioner}

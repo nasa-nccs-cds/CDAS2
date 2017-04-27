@@ -1,11 +1,12 @@
 package nasa.nccs.wps
 
 import nasa.nccs.caching.RDDTransientVariable
-import nasa.nccs.cdapi.data.{RDDRecord, RDDRecord$}
+import nasa.nccs.cdapi.data.{RDDRecord}
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.process.{DataFragmentSpec, TargetGrid}
 import nasa.nccs.utilities.Loggable
+import scala.xml
 
 object WPSProcessExecuteResponse {
   def merge(  serviceInstance: String, responses: List[WPSProcessExecuteResponse] ): WPSProcessExecuteResponse = new MergedWPSExecuteResponse( serviceInstance, responses )
