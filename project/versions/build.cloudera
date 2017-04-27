@@ -72,6 +72,13 @@ chd_classpath := getCDHClasspath
 
 unmanagedResourceDirectories in Test ++= Seq( cdas_cache_dir.value )
 unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_cache_dir.value )
+unmanagedBase := getUnmanagedBase
+
+unmanagedJars in Compile ++= {
+  val customJars: PathFinder =  unmanagedBase.value ** ( "*.jar" -- "*netcdf*" ) 
+  customJars.classpath
+}
+
 unmanagedClasspath in Test ++= ( chd_classpath.value ++ Seq( conda_lib_dir.value ) )
 unmanagedClasspath in (Compile, runMain) ++= ( chd_classpath.value ++ Seq( conda_lib_dir.value ) )
 classpathTypes += "dylib"
@@ -110,6 +117,10 @@ def getCDHClasspath(): Seq[File] = sys.env.get("CDH_CLASSPATH") match {
   case None => Seq.empty[File]
 }
 
+def getUnmanagedBase(): File =  sys.env.get("CHD_JARS_DIR") match {
+    case Some(jars_dir) => file(jars_dir)
+    case None => baseDirectory.value / "lib"
+  }
 
 def getCacheDir(): File = {
   val cache_dir = sys.env.get("CDAS_CACHE_DIR") match {
