@@ -32,7 +32,7 @@ object Library {
 object Dependencies {
   import Library._
 
-  val scala = Seq( scalaxml, natty, scalactic, commonsIO, scalatest, zeromq, logback )
+  val scala = Seq( natty, scalactic, commonsIO, scalatest, zeromq, logback )
 
   val cache = Seq( concurrentlinkedhashmap )
 
