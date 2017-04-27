@@ -143,11 +143,6 @@ publishTo := Some(Resolver.file( "file",  sys.env.get("SBT_PUBLISH_DIR") match {
   case None =>  { val pdir = getCacheDir() / "publish"; pdir.mkdirs(); pdir }
 } ) )
 
-lazy val printClasspath = task {
-  (dependencyClasspath in Compile).value.files.foreach( f => println( f.getPath ) )
-  None
-}
-
 //
 //md := {
 //  import nasa.nccs.cds2.engine.MetadataPrinter
