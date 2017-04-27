@@ -11,7 +11,7 @@ import org.apache.spark.rdd.RDD
 import ucar.nc2.constants.AxisType
 import ucar.ma2
 import java.nio
-
+import scala.xml
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
