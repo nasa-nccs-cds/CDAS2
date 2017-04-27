@@ -2,7 +2,6 @@ package nasa.nccs.esgf.wps
 import nasa.nccs.utilities.Loggable
 import scala.xml
 
-
 class NotAcceptableException(message: String = null, cause: Throwable = null) extends RuntimeException(message, cause)
 
 class ProcessManager( serverConfiguration: Map[String,String] ) extends Loggable {
