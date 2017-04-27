@@ -59,6 +59,7 @@ import java.util.Properties
 
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
+lazy val defaultUnmanagedBase = settingKey[File]("The default unmanaged base directory")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
@@ -66,6 +67,7 @@ lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
 lazy val chd_classpath = settingKey[Seq[File]]("The CDH Classpath.")
 val cdasProperties = settingKey[Properties]("The cdas properties map")
 
+defaultUnmanagedBase := baseDirectory.value / "lib"
 cdas_conf_dir := baseDirectory.value / "src" / "universal" / "conf"
 conda_lib_dir := getCondaLibDir
 chd_classpath := getCDHClasspath
@@ -75,7 +77,7 @@ unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_cache_dir.value
 unmanagedBase := getUnmanagedBase
 
 unmanagedJars in Compile ++= {
-  val customJars: PathFinder =  unmanagedBase.value ** ( "*.jar" -- "*netcdf*" ) 
+  val customJars: PathFinder =  unmanagedBase.value ** ( "*.jar" -- "*netcdf*" )
   customJars.classpath
 }
 
@@ -119,7 +121,7 @@ def getCDHClasspath(): Seq[File] = sys.env.get("CDH_CLASSPATH") match {
 
 def getUnmanagedBase(): File =  sys.env.get("CHD_JARS_DIR") match {
     case Some(jars_dir) => file(jars_dir)
-    case None => baseDirectory.value / "lib"
+    case None => defaultUnmanagedBase.value
   }
 
 def getCacheDir(): File = {
