@@ -27,18 +27,12 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import scala.xml.XML
-import org.apache.commons.io.IOUtils
 import nasa.nccs.cdas.loaders.Collections
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
 import nasa.nccs.esgf.process.{CDSection, DataSource}
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import ucar.nc2._
-import ucar.nc2.ncml.NcMLReader
-
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future, Promise}
-import scala.util.{Failure, Success}
 
 object Collection extends Loggable {
   def apply( id: String,  dataPath: String, fileFilter: String = "", scope: String="", title: String= "", vars: List[String] = List() ) = {
@@ -839,6 +833,20 @@ class ncReadTest extends Loggable {
 
   def executePlan( exePlan: Array[Int] ) = exePlan.foreach( ttype => execute( ttype ) )
 
+  def readBuffer(input: InputStream, buffer: Array[Byte]): Int = readBuffer(input, buffer, 0, buffer.length)
+
+  def readBuffer(input: InputStream, buffer: Array[Byte], offset: Int, length: Int): Int = {
+    if (length < 0) throw new IllegalArgumentException("Length must not be negative: " + length)
+    var remaining = length
+    while (remaining > 0) {
+      val location = length - remaining
+      val count = input.read(buffer, offset + location, remaining)
+      if (-1 == count) { remaining = -1 }
+      else { remaining -= count }
+    }
+    length - remaining
+  }
+
   def execute( testType: Int ) = {
     testType match {
       case TestType.Buffer =>
@@ -851,7 +859,7 @@ class ncReadTest extends Loggable {
 //        logger.info("Reading Float buffer, bSize = %d, shape = (%s): %d elems (%d bytes), file size: %d, (%d floats)".format(bSize, shape.mkString(","), size, size * 4, fSize, fSize / 4))
         val buffer: Array[Byte] = Array.ofDim[Byte](fSize)
         val inputStream = new BufferedInputStream(new FileInputStream(file))
-        IOUtils.read(inputStream, buffer)
+        readBuffer(inputStream, buffer)
         val t1 = System.nanoTime()
         val fltBuffer = ByteBuffer.wrap(buffer).asFloatBuffer
 //        logger.info("Read Float buffer, capacity = %d".format(fltBuffer.capacity()))
