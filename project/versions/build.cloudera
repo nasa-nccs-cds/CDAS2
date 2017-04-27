@@ -73,7 +73,7 @@ unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_conf_dir.value 
 unmanagedJars in Compile ++= {
   sys.env.get("CHD_JARS_DIR") match {
     case Some(jars_dir) =>
-      val customJars: PathFinder =  file(jars_dir) ** ( "*.jar" -- "*netcdf*" -- "*commons-io*" )
+      val customJars: PathFinder =  file(jars_dir) ** ((("*.jar" -- "*netcdf*") -- "*commons-io*") -- "*concurrentlinkedhashmap*")
       customJars.classpath
     case None =>
       PathFinder.empty.classpath
