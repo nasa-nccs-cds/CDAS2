@@ -115,8 +115,8 @@ object ValueMagnet {
 //  override def onEviction(key: K, value: V ) {;}
 //}
 class FutureCache[K,V](val cname: String, val ctype: String, val persistent: Boolean ) extends Cache[K,V] with Loggable {
-  val KpG = 1000000L
-  val maxCapacity: Long = appParameters(Array(ctype.toLowerCase,cname.toLowerCase,"capacity").mkString("."),"30").toLong * KpG
+  val KpG = 1000000
+  val maxCapacity: Int = appParameters(Array(ctype.toLowerCase,cname.toLowerCase,"capacity").mkString("."),"30").toInt * KpG
   val initialCapacity: Int=64
   val cacheFile = DiskCacheFileMgr.getDiskCacheFilePath( ctype, cname )
   require(maxCapacity >= 0, "maxCapacity must not be negative")
