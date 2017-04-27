@@ -59,7 +59,6 @@ import java.util.Properties
 
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
-lazy val defaultUnmanagedBase = settingKey[File]("The default unmanaged base directory")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
@@ -67,22 +66,25 @@ lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
 lazy val chd_classpath = settingKey[Seq[File]]("The CDH Classpath.")
 val cdasProperties = settingKey[Properties]("The cdas properties map")
 
-defaultUnmanagedBase := baseDirectory.value / "lib"
 cdas_conf_dir := baseDirectory.value / "src" / "universal" / "conf"
 conda_lib_dir := getCondaLibDir
 chd_classpath := getCDHClasspath
 
-unmanagedResourceDirectories in Test ++= Seq( cdas_cache_dir.value )
-unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_cache_dir.value )
-unmanagedBase := getUnmanagedBase
+unmanagedResourceDirectories in Test ++= Seq( cdas_conf_dir.value )
+unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_conf_dir.value )
+unmanagedBase := {
+  sys.env.get("CHD_JARS_DIR") match {
+    case Some(jars_dir) => file(jars_dir)
+    case None => baseDirectory.value / "lib"
+  }}
 
 unmanagedJars in Compile ++= {
   val customJars: PathFinder =  unmanagedBase.value ** ( "*.jar" -- "*netcdf*" )
   customJars.classpath
 }
 
-unmanagedClasspath in Test ++= ( chd_classpath.value ++ Seq( conda_lib_dir.value ) )
-unmanagedClasspath in (Compile, runMain) ++= ( chd_classpath.value ++ Seq( conda_lib_dir.value ) )
+unmanagedClasspath in Test ++= Seq( conda_lib_dir.value )
+unmanagedClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value )
 classpathTypes += "dylib"
 
 stage ~= { (file: File) => cdas2Patch( file / "bin" / "cdas2" ); file }
@@ -118,11 +120,6 @@ def getCDHClasspath(): Seq[File] = sys.env.get("CDH_CLASSPATH") match {
   case Some(cpath) => cpath.split("[:]").map( file(_) )
   case None => Seq.empty[File]
 }
-
-def getUnmanagedBase(): File =  sys.env.get("CHD_JARS_DIR") match {
-    case Some(jars_dir) => file(jars_dir)
-    case None => defaultUnmanagedBase.value
-  }
 
 def getCacheDir(): File = {
   val cache_dir = sys.env.get("CDAS_CACHE_DIR") match {
