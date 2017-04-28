@@ -1,6 +1,7 @@
 package nasa.nccs.cdas.portal;
 import nasa.nccs.cdas.workers.python.PythonWorkerPortal;
 import nasa.nccs.utilities.Logger;
+import org.apache.commons.lang.StringUtils;
 import org.zeromq.ZMQ;
 import nasa.nccs.utilities.CDASLogManager;
 
@@ -54,7 +55,7 @@ public abstract class CDASPortal {
 
     public void sendResponse( String rId, String response  ) {
         List<String> request_args = Arrays.asList( rId, "response", response );
-        response_socket.send( String.join( "!", request_args ).getBytes(), 0);
+        response_socket.send( StringUtils.join( request_args,  "!" ).getBytes(), 0);
         logger.info( " Sent response: " + rId );
     }
 

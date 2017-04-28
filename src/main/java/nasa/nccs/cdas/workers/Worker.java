@@ -140,18 +140,18 @@ public abstract class Worker {
     public void finalize() { quit(); }
 
     public void sendDataPacket( String header, byte[] data ) {
-        request_socket.send(header);
-        request_socket.send(data);
+        request_socket.send(header.getBytes(), 0 );
+        request_socket.send(data, 0 );
     }
 
     public void quit() {
-        request_socket.send("util|quit");
+        request_socket.send( "util|quit".getBytes(), 0 );
         try { resultThread.term();  }  catch ( Exception ex ) { ; }
         try { request_socket.close(); }  catch ( Exception ex ) { ; }
     }
 
     public void getCapabilites() {
-        request_socket.send("util|capabilities");
+        request_socket.send("util|capabilities".getBytes(), 0);
     }
 
     public void sendRequestInput( String id, HeapFltArray array ) {
@@ -193,7 +193,7 @@ public abstract class Worker {
         List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata), withoutData );
         String header = StringUtils.join(slist,"|");
         logger.debug("Sending header: " + header);
-        request_socket.send(header);
+        request_socket.send(header.getBytes(), 0);
     }
 
     public void sendRequest( String operation, String[] opInputs, Map<String, String> metadata ) {
@@ -201,7 +201,7 @@ public abstract class Worker {
         String header = StringUtils.join(slist,"|");
         logger.info( "Sending Task Request: " + header );
         requestTime = System.currentTimeMillis();
-        request_socket.send(header);
+        request_socket.send(header.getBytes(), 0);
         errorCondition = null;
     }
 
@@ -209,7 +209,7 @@ public abstract class Worker {
         List<String> slist = Arrays.asList(  "util", request );
         String header = StringUtils.join(slist,"|");
         logger.debug( "Sending Utility Request: " + header );
-        request_socket.send(header);
+        request_socket.send(header.getBytes(), 0);
         logger.debug( "Utility Request Sent!" );
     }
 
