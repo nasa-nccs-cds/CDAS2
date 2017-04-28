@@ -71,7 +71,7 @@ conda_lib_dir := getCondaLibDir
 unmanagedResourceDirectories in Test ++= Seq( cdas_conf_dir.value )
 unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_conf_dir.value )
 unmanagedJars in Compile ++= {
-  sys.env.get("CHD_JARS_DIR") match {
+  sys.env.get("CDAS_SYSTEM_JARS") match {
     case Some(jars_dir) =>
       val customJars: PathFinder =  file(jars_dir) ** (("*.jar" -- "*netcdf*") -- "*concurrentlinkedhashmap*")
       customJars.classpath

@@ -3,11 +3,13 @@ import nasa.nccs.cdas.workers.python.PythonWorkerPortal;
 import nasa.nccs.utilities.Logger;
 import org.zeromq.ZMQ;
 import nasa.nccs.utilities.CDASLogManager;
+
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.List;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import org.apache.commons.lang.StringUtils;
+
 
 public abstract class CDASPortal {
     public enum ConnectionMode { BIND, CONNECT };
@@ -52,7 +54,7 @@ public abstract class CDASPortal {
 
     public void sendResponse( String rId, String response  ) {
         List<String> request_args = Arrays.asList( rId, "response", response );
-        response_socket.send( StringUtils.join( request_args, "!" ) );
+        response_socket.send( String.join( "!", request_args ).getBytes(), 0);
         logger.info( " Sent response: " + rId );
     }
 
