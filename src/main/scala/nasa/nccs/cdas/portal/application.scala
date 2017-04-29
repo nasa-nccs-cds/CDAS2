@@ -89,9 +89,6 @@ object CDASApplication extends Loggable {
     val app = new CDASapp(cmode, request_port, response_port, appConfiguration)
     app.run()
   }
-
-
-
 }
 
 //object TestApplication extends Loggable {
