@@ -7,6 +7,7 @@ val kernelPackages = settingKey[ Seq[String] ]("A list of user-defined Kernel pa
 
 name := "CDAS2"
 version := "1.2.2-SNAPSHOT"
+scalaVersion := "2.10.5"
 organization := "nasa.nccs"
 
 lazy val root = project in file(".")
@@ -33,6 +34,8 @@ libraryDependencies ++= Dependencies.cache
 libraryDependencies ++= Dependencies.geo
 
 libraryDependencies ++= Dependencies.netcdf
+
+libraryDependencies ++= Dependencies.spark
 
 dependencyOverrides ++= Set( "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4" )
 
@@ -107,14 +110,14 @@ cdasProperties := {
   } catch {
     case err: Exception => println("No property file found: " + cdasPropertiesFile.value.toString )
   }
-  try{
-    if( !cdasLocalBuildFile.value.exists() ) {
-      println("Copying cdas Default Local Build Template: " + cdasDefaultLocalBuildTemplate.value.toString + " -> " + cdasLocalBuildFile.value.toPath )
-      copy( cdasDefaultLocalBuildTemplate.value.toPath, cdasLocalBuildFile.value.toPath )
-    }
-  } catch {
-    case err: Exception => println("Error creating build file: " + cdasLocalBuildFile.value.toString )
-  }
+//  try{
+//    if( !cdasLocalBuildFile.value.exists() ) {
+//      println("Copying cdas Default Local Build Template: " + cdasDefaultLocalBuildTemplate.value.toString + " -> " + cdasLocalBuildFile.value.toPath )
+//      copy( cdasDefaultLocalBuildTemplate.value.toPath, cdasLocalBuildFile.value.toPath )
+//    }
+//  } catch {
+//    case err: Exception => println("Error creating build file: " + cdasLocalBuildFile.value.toString )
+//  }
   prop
 }
 
