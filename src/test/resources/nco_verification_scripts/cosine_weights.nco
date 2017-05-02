@@ -1,3 +1,1 @@
-gw = cos(lat*3.1415926/180.);
-gw@long_name="geographical weight";
-gw@units="ratio";
+gw = cos(lat*3.1415926/180.); gw@long_name="geographical weight"; gw@units="ratio";

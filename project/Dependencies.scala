@@ -7,8 +7,6 @@ object Library {
   val sparkSQL       = "org.apache.spark"  %% "spark-sql"       % "1.6.2"
   val sparkCore      = "org.apache.spark"  %% "spark-core"      % "1.6.2"
   val sparkStreaming = "org.apache.spark"  %% "spark-streaming" % "1.6.2"
-  val scalaxml       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
-  val scalaparser    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
   val commonsIO      = "commons-io"         % "commons-io"      % "2.5"
   val zeromq         = "org.zeromq"         % "jeromq"          % "0.3.5"
   val cdm            = "edu.ucar"           % "cdm"             % "4.6.10"
@@ -30,12 +28,20 @@ object Library {
   val scalatest      = "org.scalatest" %% "scalatest" % "3.0.0" % "test"
   val concurrentlinkedhashmap = "com.googlecode.concurrentlinkedhashmap" % "concurrentlinkedhashmap-lru" % "1.4.2"
   val reflections    = "org.reflections" % "reflections"       % "0.9.10"
+
+  val scalaxml_2       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.2"
+  val scalaparser_2    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.2"
+  val scalaxml_3       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
+  val scalaparser_3    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
 }
 
 object Dependencies {
   import Library._
 
-  val scala = Seq( scalaxml, scalaparser, joda, natty, scalactic, commonsIO, scalatest, zeromq, logback )
+  val scala = Seq( joda, natty, scalactic, commonsIO, scalatest, zeromq, logback )
+
+  val scala_2_10_xml = Seq( scalaxml_2, scalaparser_2 )
+  val scala_2_11_xml = Seq( scalaxml_3, scalaparser_3 )
 
   val spark = Seq( sparkCore, sparkStreaming )
 
