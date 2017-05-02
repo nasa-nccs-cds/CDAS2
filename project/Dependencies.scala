@@ -29,10 +29,8 @@ object Library {
   val concurrentlinkedhashmap = "com.googlecode.concurrentlinkedhashmap" % "concurrentlinkedhashmap-lru" % "1.4.2"
   val reflections    = "org.reflections" % "reflections"       % "0.9.10"
 
-  val scalaxml_2       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.2"
-  val scalaparser_2    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.2"
-  val scalaxml_3       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
-  val scalaparser_3    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
+  val scalaxml       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
+  val scalaparser    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
 }
 
 object Dependencies {
@@ -40,8 +38,7 @@ object Dependencies {
 
   val scala = Seq( joda, natty, scalactic, commonsIO, scalatest, zeromq, logback )
 
-  val scala_2_10_xml = Seq( scalaxml_2, scalaparser_2 )
-  val scala_2_11_xml = Seq( scalaxml_3, scalaparser_3 )
+  val scala_xml = Seq( scalaxml, scalaparser )
 
   val spark = Seq( sparkCore, sparkStreaming )
 
