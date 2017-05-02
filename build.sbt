@@ -60,8 +60,6 @@ import java.util.Properties
 
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
-lazy val cdasLocalBuildFile = settingKey[File]("The cdas local sbt file")
-lazy val cdasDefaultLocalBuildTemplate = settingKey[File]("The cdas local sbt template")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
@@ -93,9 +91,6 @@ cdas_cache_dir := getCacheDir()
 cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
 
-cdasLocalBuildFile := baseDirectory.value / "build-local.sbt"
-cdasDefaultLocalBuildTemplate := baseDirectory.value / "project" / "versions" / "build.standalone.sbt"
-
 // try{ IO.write( cdasProperties.value, "", cdasPropertiesFile.value ) } catch { case err: Exception => println("Error writing to properties file: " + err.getMessage ) }
 
 cdasProperties := {
@@ -110,14 +105,6 @@ cdasProperties := {
   } catch {
     case err: Exception => println("No property file found: " + cdasPropertiesFile.value.toString )
   }
-//  try{
-//    if( !cdasLocalBuildFile.value.exists() ) {
-//      println("Copying cdas Default Local Build Template: " + cdasDefaultLocalBuildTemplate.value.toString + " -> " + cdasLocalBuildFile.value.toPath )
-//      copy( cdasDefaultLocalBuildTemplate.value.toPath, cdasLocalBuildFile.value.toPath )
-//    }
-//  } catch {
-//    case err: Exception => println("Error creating build file: " + cdasLocalBuildFile.value.toString )
-//  }
   prop
 }
 
