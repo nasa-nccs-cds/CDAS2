@@ -1,15 +1,143 @@
 package nasa.nccs.cdas.portal;
+import nasa.nccs.cdas.workers.TransVar;
 import nasa.nccs.utilities.CDASLogManager;
 import nasa.nccs.utilities.Logger;
+import org.apache.commons.lang.StringUtils;
 import org.zeromq.ZMQ;
+import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode;
+import java.util.*;
 
-import java.util.HashMap;
-import java.util.Map;
+class RandomString {
 
-class ConnectionMode {
-    protected static int BIND = 1;
-    protected static int CONNECT = 2;
-    protected static int DefaultPort = 4336;
+    private static final char[] symbols;
+
+    static {
+        StringBuilder tmp = new StringBuilder();
+        for (char ch = '0'; ch <= '9'; ++ch)
+            tmp.append(ch);
+        for (char ch = 'a'; ch <= 'z'; ++ch)
+            tmp.append(ch);
+        for (char ch = 'A'; ch <= 'Z'; ++ch)
+            tmp.append(ch);
+        symbols = tmp.toString().toCharArray();
+    }
+
+    private final Random random = new Random();
+
+    private final char[] buf;
+
+    public RandomString(int length) {
+        if (length < 1)
+            throw new IllegalArgumentException("length < 1: " + length);
+        buf = new char[length];
+    }
+
+    public String nextString() {
+        for (int idx = 0; idx < buf.length; ++idx)
+            buf[idx] = symbols[random.nextInt(symbols.length)];
+        return new String(buf);
+    }
+}
+
+class ResponseManager extends Thread {
+    ZMQ.Socket socket = null;
+    Boolean active = true;
+    Map<String, List<String>> cached_results = null;
+    Map<String, List<TransVar>> cached_arrays = null;
+    protected Logger logger = CDASLogManager.getCurrentLogger();
+
+    public ResponseManager(CDASPortalClient portalClient) {
+        socket = portalClient.response_socket;
+        cached_results = new HashMap<String, List<String>>();
+        cached_arrays = new HashMap<String, List<TransVar>>();
+        setName("CDAS ResponseManager");
+        setDaemon(true);
+    }
+
+    public void cacheResult(String id, String result) { getResults(id).add(result); }
+
+    public List<String> getResults(String id) {
+        List<String> results = cached_results.get(id);
+        if( results == null ) {
+            results = new LinkedList<String>();
+            cached_results.put( id, results );
+        }
+        return results;
+    }
+
+    public void cacheArray( String id, TransVar array ) { getArrays(id).add(array); }
+
+    public List<TransVar> getArrays(String id) {
+        List<TransVar> arrays = cached_arrays.get(id);
+        if( arrays == null ) {
+            arrays = new LinkedList<TransVar>();
+            cached_arrays.put( id, arrays );
+        }
+        return arrays;
+    }
+
+    public void run() {
+        while (active) {
+            processNextResponse();
+        }
+    }
+
+    public void term() {
+        active = false;
+        try { socket.close(); }
+        catch( Exception err ) { ; }
+    }
+
+
+    public String getMessageField( String header, int index) {
+        String[] toks = header.split("[|]");
+        return toks[index];
+    }
+
+    public void processNextResponse() {
+        try {
+            String response = new String(socket.recv(0)).trim();
+            String[] toks = response.split("[!]");
+            String rId = toks[0];
+            String type = toks[1];
+            if ( type == "array" ) {
+                String header = toks[2];
+                byte[] data = socket.recv();
+                cacheArray(rId, new TransVar( header, data) );
+
+            } else if ( type =="response" ) {
+                cacheResult(rId, toks[2]);
+                logger.info(String.format("Received result: %s",toks[2]));
+            } else {
+                logger.error(String.format("CDASPortal.ResponseThread-> Received unrecognized message type: %s",type));
+            }
+
+        } catch( Exception err ) {
+            logger.error(String.format("CDAS error: %s\n%s\n", err, err.getStackTrace().toString() ) );
+        }
+    }
+
+    public List<String> getResponses( String rId, Boolean wait ) {
+        while (true) {
+            List<String> results = getResults(rId);
+            if (( results.size() > 0 ) || !wait) { return results; }
+            else { try{ sleep(250 ); } catch(Exception err) { ; } }
+        }
+    }
+}
+
+public class CDASPortalClient {
+    protected int MB = 1024 * 1024;
+    protected static int DefaultPort = 4356;
+    protected Logger logger = CDASLogManager.getCurrentLogger();
+    protected ZMQ.Context zmqContext = null;
+    protected ZMQ.Socket request_socket = null;
+    protected ZMQ.Socket response_socket = null;
+    protected String app_host = null;
+    protected ResponseManager response_manager = null;
+    protected RandomString randomIds = new RandomString(8);
+    protected int _request_port = -1;
+    protected int _response_port = -1;
 
 
     public static int bindSocket(ZMQ.Socket socket, int port) {
@@ -33,131 +161,31 @@ class ConnectionMode {
         socket.connect(String.format("tcp://%s:%d", host, port));
         return port;
     }
-}
 
-class ResponseManager extends Thread {
-    ZMQ.Socket socket = null;
-    Boolean active = true;
-    Map<String, String> cached_results = null;
-    Map<String, String> cached_arrays = null;
-    protected Logger logger = CDASLogManager.getCurrentLogger();
-
-    public ResponseManager(CDASPortalClient portalClient) {
-        socket = portalClient.response_socket
-        cached_results = new HashMap<String, String>();
-        cached_arrays = new HashMap<String, String>();
-        setName("CDAS ResponseManager");
-        setDaemon(true);
-    }
-
-
-    public void cacheResult(String id, String result) {
-        getResults(id).append(result)
-    }
-
-    public void getResults(String id) {
-        return cached_results.setdefault(id,[])
-    }
-
-    public void cacheArray(String id, String array) {
-        getArrays(id).append(array);
-    }
-
-    public void getArrays(String id) {
-        return cached_arrays.setdefault(id,[])
-    }
-
-    public void run() {
-        while (active) {
-            processNextResponse();
-        }
-    }
-
-
-    public void term() {
-        active = false;
-        try { socket.close(); }
-        catch( Exception err ) { ; }
-    }
-
-    public void popResponse() {
-        if (len(cached_results) == 0) return null;
-        else return cached_results.pop();
-    }
-
-    public String getMessageField( String header, int index) {
-        String[] toks = header.split("[|]");
-        return toks[index];
-    }
-
-    public void postArray( String header, byte[] data ) { ; }
-
-
-    public void processNextResponse() {
+    public CDASPortalClient(ConnectionMode connectionMode , String host, int request_port, int response_port ) {
         try {
-            String response = new String(socket.recv(0)).trim();
-            String[] toks = response.split("[!]");
-            String rId = toks[0];
-            String type = toks[1];
-            if ( type == "array" ) {
-                String header = toks[2];
-                byte[] data = socket.recv();
-                postArray(header, data);
-
-            } else if ( type =="response" ) {
-                cacheResult(rId, toks[2]);
-                logger.info("Received result: {0}".format(toks[2]));
-            } else {
-                logger.error("CDASPortal.ResponseThread-> Received unrecognized message type: {0}".format(type));
-            }
-
-        } catch( Exception err ) {
-            logger.error("CDAS error: {0}\n{1}\n".format(err, traceback.format_exc()));
-        }
-    }
-
-    public void getResponses( String rId, Boolean wait ) {
-        while (true) {
-            results = getResults(rId);
-            if (( results.size() > 0 ) || !wait) { return results; }
-            else { try{ sleep(250 ); } catch(Exception err) { ; } }
-        }
-    }
-}
-
-public class CDASPortalClient {
-    protected int MB = 1024 * 1024;
-    protected Logger logger = CDASLogManager.getCurrentLogger();
-    protected ZMQ.Context zmqContext = null;
-    protected ZMQ.Socket request_socket = null;
-    protected ZMQ.Socket response_socket = null;
-    protected String app_host = null;
-    protected ResponseManager response_manager = null;
-
-    // =ConnectionMode.BIND ="localhost"=0=0
-    public void __init__(int connectionMode , String host, int request_port, int response_port ) {
-        try {
+            _request_port = request_port;
+            _response_port = response_port;
             zmqContext = ZMQ.context(1);
             request_socket = zmqContext.socket(ZMQ.PUSH);
             response_socket = zmqContext.socket(ZMQ.PULL);
             app_host = host;
             if (connectionMode == ConnectionMode.BIND) {
-                request_port = ConnectionMode.bindSocket(request_socket, request_port);
-                response_port = ConnectionMode.bindSocket(response_socket, response_port);
+                request_port = bindSocket(request_socket, request_port);
+                response_port = bindSocket(response_socket, response_port);
                 logger.info(String.format("Binding request socket to port: %d",request_port));
                 logger.info(String.format("Binding response socket to port: %d",response_port));
             } else {
-                request_port = ConnectionMode.connectSocket(request_socket, app_host, request_port);
-                response_port = ConnectionMode.connectSocket(response_socket, app_host, response_port);
+                request_port = connectSocket(request_socket, app_host, request_port);
+                response_port = connectSocket(response_socket, app_host, response_port);
                 logger.info(String.format("Connected request socket to server %s on port: %d",app_host, request_port));
                 logger.info(String.format("Connected response socket on port: %d",response_port));
             }
 
 
         } catch(Exception err) {
-            String err_msg = "\n-------------------------------\nWorker Init error: {0}\n{1}-------------------------------\n".format(err, traceback.format_exc());
+            String err_msg = String.format("\n-------------------------------\nWorker Init error: {0}\n{1}-------------------------------\n", err.getMessage(), err.getStackTrace().toString() );
             logger.error(err_msg);
-            println( err_msg
             shutdown();
         }
     }
@@ -166,14 +194,14 @@ public class CDASPortalClient {
         shutdown();
     }
 
-    public void createResponseManager() {
-        response_manager = new ResponseManager()
-        response_manager.start()
-        return response_manager
+    public ResponseManager createResponseManager() {
+        response_manager = new ResponseManager(this);
+        response_manager.start();
+        return response_manager;
     }
 
     public void shutdown() {
-        logger.info(" ############################## SHUT DOWN CDAS PORTAL ##############################")
+        logger.info(" ############################## SHUT DOWN CDAS PORTAL ##############################");
         try { request_socket.close(); }
         catch ( Exception err ) {;}
         if( response_manager != null ) {
@@ -181,21 +209,19 @@ public class CDASPortalClient {
         }
     }
 
-    public void randomId(length) {
-        sample = string.lowercase + string.digits + string.uppercase
-        return ''.join(random.choice(sample) for i in range(length))
-    }
-
-    public void sendMessage(type, mDataList =[""]) {
-        msgId = randomId(8)
-        msgStrs = [str(mData).replace("'", '"') for mData in mDataList ]
-        logger.info("Sending {0} request {1} on port {2}.".format(type, msgStrs, request_port))
-        try:
-        message = "!".join([msgId, type]+msgStrs )
-        request_socket.send(message)
-        except zmq.error.ZMQError as err:
-        logger.error("Error sending message {0} on request socket: {1}".format(message, str(err)))
-        return msgId
+    public String sendMessage( String type, String[] mDataList ) {
+        String msgId = randomIds.nextString();
+        String[] msgElems = new String[ mDataList.length + 2 ];
+        msgElems[0] = msgId;
+        msgElems[1] = type;
+        String message = null;
+        for (int i = 0; i < mDataList.length; i++) { msgElems[i+2] = mDataList[i].replace("'", "\"" ); }
+        try {
+            message = StringUtils.join( msgElems, "!");
+            logger.info( String.format( "Sending %s request '%s' on port %d.", type, message, _request_port ) );
+            request_socket.send(message);
+        } catch ( Exception err ) { logger.error( String.format( "Error sending message %s on request socket: %s", message, err.getMessage() )); }
+        return msgId;
     }
 }
 

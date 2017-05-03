@@ -1,10 +1,25 @@
 package nasa.nccs.esgf.wps
+import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode
+import nasa.nccs.cdas.portal.CDASPortalClient
 import nasa.nccs.utilities.Loggable
+import scala.collection.JavaConversions._
+import scala.collection.JavaConversions._
 import scala.xml
 
 class NotAcceptableException(message: String = null, cause: Throwable = null) extends RuntimeException(message, cause)
 
-class ProcessManager( serverConfiguration: Map[String,String] ) extends Loggable {
+trait GenericProcessManager {
+  def describeProcess(service: String, name: String): xml.Node;
+  def getCapabilities(service: String, identifier: String): xml.Node;
+  def executeProcess(service: String, process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Node
+  def getResultFilePath( service: String, resultId: String ): Option[String]
+  def getResult( service: String, resultId: String ): xml.Node
+  def getResultStatus( service: String, resultId: String ): xml.Node
+}
+
+
+
+class ProcessManager( serverConfiguration: Map[String,String] ) extends GenericProcessManager with Loggable {
   def apiManager = new APIManager( serverConfiguration )
 
   def unacceptable(msg: String): Unit = {
@@ -53,4 +68,46 @@ class ProcessManager( serverConfiguration: Map[String,String] ) extends Loggable
     serviceProvider.getResultStatus(resultId)
   }
 }
+
+class zmqProcessManager( serverConfiguration: Map[String,String] )  extends GenericProcessManager with Loggable {
+  val portal = new CDASPortalClient( ConnectionMode.BIND, "localhost", 4356, 4357 )
+  val response_manager = portal.createResponseManager()
+
+  def unacceptable(msg: String) = {
+    logger.error(msg)
+    throw new NotAcceptableException(msg)
+  }
+
+  def describeProcess(service: String, name: String): xml.Node  =  {
+    val rId = portal.sendMessage( "describeProcess", List( name ).toArray )
+    val responses = response_manager.getResponses(rId,true).toList
+    scala.xml.XML.loadString( responses(0) )
+  }
+
+  def getCapabilities(service: String, identifier: String): xml.Node = {
+    val rId = portal.sendMessage( "getCapabilities", List( "" ).toArray )
+    val responses = response_manager.getResponses(rId,true).toList
+    scala.xml.XML.loadString( responses(0) )
+  }
+
+  def executeProcess(service: String, process_name: String, datainputs: Map[String, Seq[Map[String, Any]]], runargs: Map[String, String]): xml.Node = {
+    throw new Exception("Not yet supported!")
+//    val rId = portal.sendMessage( "execute", List( process_name, datainputs, runargs ).toArray )
+//    val responses: List[String] = response_manager.getResponses(rId,true).toList
+  }
+
+  def getResultFilePath( service: String, resultId: String ): Option[String] = {
+    throw new Exception("Not yet supported!")
+  }
+
+  def getResult( service: String, resultId: String ): xml.Node = {
+    val responses = response_manager.getResponses(resultId,true).toList
+    scala.xml.XML.loadString( responses(0) )
+  }
+
+  def getResultStatus( service: String, resultId: String ): xml.Node = {
+    throw new Exception("Not yet supported!")
+  }
+}
+
 
