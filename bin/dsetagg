@@ -1,2 +1,0 @@
-#!/bin/bash
-cd "$( dirname "${BASH_SOURCE[0]}" )"; cd ..; sbt "runMain nasa.nccs.cdapi.cdm.cdscan $*"

@@ -5,7 +5,7 @@ import org.zeromq.ZMQ;
 
 import java.util.HashMap;
 import java.util.Map;
-
+/*
 class ConnectionMode {
     protected static int BIND = 1;
     protected static int CONNECT = 2;
@@ -198,6 +198,8 @@ public class CDASPortalClient {
         return msgId
     }
 }
+
+*/
 
 
 

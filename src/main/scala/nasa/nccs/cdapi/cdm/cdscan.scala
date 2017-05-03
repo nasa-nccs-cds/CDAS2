@@ -8,7 +8,7 @@ import java.util.Formatter
 
 import nasa.nccs.cdapi.tensors.CDDoubleArray
 import nasa.nccs.cdas.loaders.Collections
-import nasa.nccs.cdas.utilities.runtime
+import nasa.nccs.cdas.utilities.{appParameters, runtime}
 import nasa.nccs.utilities.Loggable
 import nasa.nccs.utilities.cdsutils
 import ucar.nc2.{FileWriter => _, _}
@@ -117,18 +117,11 @@ object NCMLWriter extends Loggable {
 //  }
 //}
 
-class NCMLWriter(args: Iterator[File], val maxCores: Int = 8)
-    extends Loggable {
+class NCMLWriter(args: Iterator[File], val maxCores: Int = 8)  extends Loggable {
   import NCMLWriter._
-  private val nReadProcessors =
-    Math.min(Runtime.getRuntime.availableProcessors, maxCores)
+  private val nReadProcessors = Math.min( Runtime.getRuntime.availableProcessors, maxCores )
   private val files: IndexedSeq[URI] = NCMLWriter.getNcURIs(args).toIndexedSeq
-  if (files.isEmpty) {
-    throw new Exception(
-      "Error, empty collection at: " + args
-        .map(_.getAbsolutePath)
-        .mkString(","))
-  }
+  if (files.isEmpty) { throw new Exception( "Error, empty collection at: " + args.map(_.getAbsolutePath).mkString(",")) }
   private val nFiles = files.length
   val fileHeaders = NCMLWriter.getFileHeaders(files, nReadProcessors)
   val fileMetadata = FileMetadata(files.head)
@@ -443,9 +436,15 @@ class FileMetadata(ncDataset: NetcdfDataset) {
   }
 }
 
-//object ncTest {
-//  val testFile = new URI("http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-R_historical_r1i1p1/tas_Amon_GISS-E2-R_historical_r1i1p1_185001-187512.nc")
-//  val fm = FileMetadata(testFile)
-//  print (fm.dimNames)
-//  print (".")
-//}
+object CDScan extends Loggable {
+    def main(args: Array[String]) {
+      val collectionId = args(0)
+      val pathFile = new File(args(1))
+      val ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collectionId + ".ncml" ).toFile
+      if( ncmlFile.exists ) { throw new Exception( "Collection already exists, defined by: " + ncmlFile.toString ) }
+      logger.info( s"Creating NCML file for collection ${collectionId} from path ${pathFile.toString}")
+      ncmlFile.getParentFile.mkdirs
+      val ncmlWriter = NCMLWriter(pathFile)
+      ncmlWriter.writeNCML( ncmlFile )
+    }
+}
