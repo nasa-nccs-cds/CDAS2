@@ -36,12 +36,12 @@ libraryDependencies ++= Dependencies.geo
 
 libraryDependencies ++= Dependencies.netcdf
 
-libraryDependencies ++= {
-  sys.env.get("YARN_CONF_DIR") match {
-    case Some(yarn_config) => Seq.empty
-    case None => Dependencies.spark
-  }
-}
+//libraryDependencies ++= {
+//  sys.env.get("YARN_CONF_DIR") match {
+//    case Some(yarn_config) => Seq.empty
+//    case None => Dependencies.spark
+//  }
+//}
 
 dependencyOverrides ++= Set( "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4" )
 
