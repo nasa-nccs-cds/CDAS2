@@ -219,7 +219,7 @@ public class CDASPortalClient {
         try {
             message = StringUtils.join( msgElems, "!");
             logger.info( String.format( "Sending %s request '%s' on port %d.", type, message, _request_port ) );
-            request_socket.send(message,0);
+            request_socket.send(message.getBytes(),0);
         } catch ( Exception err ) { logger.error( String.format( "Error sending message %s on request socket: %s", message, err.getMessage() )); }
         return msgId;
     }
