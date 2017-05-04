@@ -1,6 +1,7 @@
 import java.nio.file.Files.copy
 import java.nio.file.Paths.get
-import sbt._
+
+import sbt.{SettingKey, _}
 
 
 val kernelPackages = settingKey[ Seq[String] ]("A list of user-defined Kernel packages")
@@ -35,7 +36,12 @@ libraryDependencies ++= Dependencies.geo
 
 libraryDependencies ++= Dependencies.netcdf
 
-libraryDependencies ++= Dependencies.spark
+libraryDependencies ++= {
+  sys.env.get("YARN_CONF_DIR") match {
+    case Some(yarn_config) => Seq.empty
+    case None => Dependencies.spark
+  }
+}
 
 dependencyOverrides ++= Set( "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4" )
 
@@ -57,6 +63,8 @@ javaOptions in test ++= Seq( "-Xmx8000M", "-Xms512M", "-Xss1M", "-XX:+CMSClassUn
 ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 
 import java.util.Properties
+
+
 
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
