@@ -102,7 +102,7 @@ class ResponseManager extends Thread {
             String type = toks[1];
             if ( type == "array" ) {
                 String header = toks[2];
-                byte[] data = socket.recv();
+                byte[] data = socket.recv(0);
                 cacheArray(rId, new TransVar( header, data) );
 
             } else if ( type =="response" ) {
@@ -219,7 +219,7 @@ public class CDASPortalClient {
         try {
             message = StringUtils.join( msgElems, "!");
             logger.info( String.format( "Sending %s request '%s' on port %d.", type, message, _request_port ) );
-            request_socket.send(message);
+            request_socket.send(message,0);
         } catch ( Exception err ) { logger.error( String.format( "Error sending message %s on request socket: %s", message, err.getMessage() )); }
         return msgId;
     }
