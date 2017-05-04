@@ -77,8 +77,6 @@ val cdasProperties = settingKey[Properties]("The cdas properties map")
 cdas_conf_dir := baseDirectory.value / "src" / "universal" / "conf"
 conda_lib_dir := getCondaLibDir
 
-unmanagedResourceDirectories in Test ++= Seq( cdas_conf_dir.value )
-unmanagedResourceDirectories in (Compile, runMain) ++= Seq( cdas_conf_dir.value )
 unmanagedJars in Compile ++= {
   sys.env.get("CDAS_UNMANAGED_JARS") match {
     case Some(jars_dir) =>
@@ -90,9 +88,8 @@ unmanagedJars in Compile ++= {
 }
 unmanagedClasspath in Test ++= Seq( conda_lib_dir.value )
 unmanagedClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value )
-dependencyClasspath in Test ++= Seq( conda_lib_dir.value )
-dependencyClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value )
 classpathTypes += "dylib"
+classpathTypes += "so"
 
 stage ~= { (file: File) => cdas2Patch( file / "bin" / "cdas2" ); file }
 // lazy val cdasGlobalCollectionsFile = settingKey[File]("The cdas global Collections file")
