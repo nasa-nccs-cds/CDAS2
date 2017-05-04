@@ -14,6 +14,7 @@ export CDAS_JAVA_ARGS="-J-Xmx$CDAS_MAX_MEM -J-Xms512M -J-Xss1M -J-XX:+CMSClassUn
 export WPS_CMD="$CDWPS_HOME_DIR/target/universal/cdwps-1.1-SNAPSHOT/bin/cdwps $CDAS_JAVA_ARGS"
 export CDSHELL_CMD="$CDSHELL_HOME_DIR/target/universal/stage/bin/cdasclientconsole $CDAS_JAVA_ARGS"
 export PATH=${CDAS_STAGE_DIR}/bin:${CDAS_BIN_DIR}:${PATH}
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib
 
 alias cdas='cd $CDAS_HOME_DIR'
 alias cdist='cd $CDWPS_HOME_DIR; sbt dist; cd target/universal/; rm -rf cdwps-*-SNAPSHOT; unzip *.zip; cd ../..; chmod -R a+rwX target; chmod -R a+rX ../CDWPS'
