@@ -90,6 +90,8 @@ unmanagedJars in Compile ++= {
 }
 unmanagedClasspath in Test ++= Seq( conda_lib_dir.value )
 unmanagedClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value )
+dependencyClasspath in Test ++= Seq( conda_lib_dir.value )
+dependencyClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value )
 classpathTypes += "dylib"
 
 stage ~= { (file: File) => cdas2Patch( file / "bin" / "cdas2" ); file }
