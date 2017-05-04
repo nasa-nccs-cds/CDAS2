@@ -132,12 +132,9 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8)  extends Loggable 
   def isIgnored(attribute: nc2.Attribute): Boolean = {
     ignored_attributes.contains(getName(attribute))
   }
-  def getDimName(dim: nc2.Dimension): String = {
+  def getDimName(dim: nc2.Dimension): Option[String] = {
     val dimname = NCMLWriter.getName(dim)
-    fileMetadata.coordVars.map(NCMLWriter.getName(_)).find(vname => (vname equals dimname) || (vname.split(':')(0) == dimname.split(':')(0))) match {
-      case Some(vname) => vname
-      case None => throw new Exception( s"Coordinate variable ${dimname} does not exist, coord vars = " + fileMetadata.coordVars.map(cvar => cvar.getShortName + ": " + cvar.getFullNameEscaped).mkString(", "))
-    }
+    fileMetadata.coordVars.map(NCMLWriter.getName(_)).find(vname => (vname equals dimname) || (vname.split(':')(0) == dimname.split(':')(0)))
   }
 
   def getAttribute(attribute: nc2.Attribute): xml.Node =
@@ -163,14 +160,14 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8)  extends Loggable 
     }
 
   def getDims(variable: nc2.Variable): String =
-    variable.getDimensions
-      .map(
-        dim =>
-          if (dim.isShared) getDimName(dim)
-          else if (dim.isVariableLength) "*"
-          else dim.getLength.toString)
-      .toArray
-      .mkString(" ")
+    variable.getDimensions.flatMap( dim =>
+          if (dim.isShared) {
+            val dname = getDimName(dim)
+            if( dname == None ) { logger.error( s"Coordinate ${dim.getFullName} in variable ${variable.getFullName} does not exist, coord vars = " + fileMetadata.coordVars.map(cvar => cvar.getFullNameEscaped).mkString(", "))}
+            dname
+          } else if (dim.isVariableLength) Some("*")
+          else Some(dim.getLength.toString))
+      .toArray.mkString(" ")
 
   def getDimension(axis: CoordinateAxis): Option[xml.Node] = {
     axis match {
