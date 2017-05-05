@@ -225,7 +225,8 @@ class timeBin extends Kernel(Map.empty) {
 //          case wtype => context.targetGrid.getAxisData( 'y', dataFrag.spec.roi ).map(axis_data => dataFrag.data.computeWeights(wtype, Map('y' -> axis_data)))
 //        }
 //        val anomaly_result: CDFloatArray = dataFrag.data.anomaly(axes.args, weightsOpt)
-//        logger.info( "Partition[%d], generated anomaly result: %s".format(partIndex, anomaly_result.toDataString ) )
+//        logger.info( "Partition[%d], generated anomaly result: %s".format(partIn
+// dex, anomaly_result.toDataString ) )
 //        val t11 = System.nanoTime
 //        DataFragment(resultFragSpec, anomaly_result)
 //      } )

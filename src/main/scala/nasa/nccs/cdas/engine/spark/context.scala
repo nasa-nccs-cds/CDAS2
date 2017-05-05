@@ -85,6 +85,7 @@ object CDSparkContext extends Loggable {
     addConfig( sc, "spark.executor.memory",  "executor.memory" )
     addConfig( sc, "spark.executor.cores", "executor.cores" )
     addConfig( sc, "spark.num.executors", "num.executors" )
+    sc.registerKryoClasses( Array(classOf[DirectRDDRecordSpec] ) )
 
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     appParameters( "spark.master" ) match {
