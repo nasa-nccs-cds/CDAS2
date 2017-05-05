@@ -18,6 +18,7 @@ import ucar.ma2
 import java.lang.management.ManagementFactory
 
 import com.sun.management.OperatingSystemMXBean
+import nasa.nccs.cdapi.tensors.CDCoordMap
 import ucar.nc2.dataset.CoordinateAxis1DTime
 
 import scala.collection.JavaConversions._
@@ -85,7 +86,7 @@ object CDSparkContext extends Loggable {
     addConfig( sc, "spark.executor.memory",  "executor.memory" )
     addConfig( sc, "spark.executor.cores", "executor.cores" )
     addConfig( sc, "spark.num.executors", "num.executors" )
-    sc.registerKryoClasses( Array(classOf[DirectRDDRecordSpec] ) )
+    sc.registerKryoClasses( Array(classOf[DirectRDDRecordSpec], classOf[RecordKey], classOf[RDDRecord], classOf[DirectRDDVariableSpec], classOf[CDSection], classOf[HeapFltArray], classOf[Partition], classOf[CDCoordMap] )
 
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     appParameters( "spark.master" ) match {
