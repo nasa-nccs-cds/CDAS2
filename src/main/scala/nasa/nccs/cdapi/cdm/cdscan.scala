@@ -132,14 +132,12 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8)  extends Loggable 
   def isIgnored(attribute: nc2.Attribute): Boolean = {
     ignored_attributes.contains(getName(attribute))
   }
-  def getDimName(dim: nc2.Dimension): Option[String] = {
+  def getDimCoordRef(dim: nc2.Dimension): String = {
     val dimname = NCMLWriter.getName(dim)
-    val dimNameOpt = fileMetadata.coordVars.map(NCMLWriter.getName(_)).find(vname => (vname equals dimname) || (vname.split(':')(0) == dimname.split(':')(0)))
-    if( dimNameOpt == None ) {
-      fileMetadata.dimensions
-      None   // TODO Search dims
+    fileMetadata.coordVars.map(NCMLWriter.getName(_)).find(vname => (vname equals dimname) || (vname.split(':')(0) == dimname.split(':')(0))) match {
+      case Some( dimCoordRef ) => dimCoordRef
+      case None => dim.getLength.toString
     }
-    dimNameOpt
   }
 
   def getAttribute(attribute: nc2.Attribute): xml.Node =
@@ -165,21 +163,11 @@ class NCMLWriter(args: Iterator[File], val maxCores: Int = 8)  extends Loggable 
     }
 
   def getDims(variable: nc2.Variable): String =
-    variable.getDimensions.flatMap( dim =>
-          if (dim.isShared) {
-            val dname = getDimName(dim)
-            if( dname == None ) {
-              if( dim.getFullName.equals("bnds") ) { Some("2") }
-              else {
-                logger.error(s"Coordinate ${dim.getFullName} in variable ${variable.getFullName} does not exist, coord vars = " + fileMetadata.coordVars.map(cvar => cvar.getFullNameEscaped).mkString(", "))
-                None
-              }
-            } else {
-              dname
-            }
-          } else if (dim.isVariableLength) Some("*")
-          else Some(dim.getLength.toString))
-      .toArray.mkString(" ")
+    variable.getDimensions.map( dim =>
+      if (dim.isShared) getDimCoordRef(dim)
+      else if (dim.isVariableLength) "*"
+      else dim.getLength.toString
+    ).toArray.mkString(" ")
 
   def getDimension(axis: CoordinateAxis): Option[xml.Node] = {
     axis match {
