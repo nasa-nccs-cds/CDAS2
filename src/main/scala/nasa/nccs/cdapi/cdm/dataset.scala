@@ -8,6 +8,7 @@ import java.io.{FileWriter, _}
 import java.net.URI
 import java.nio._
 import java.util.Formatter
+
 import scala.xml
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
@@ -33,6 +34,7 @@ import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
 import nasa.nccs.esgf.process.{CDSection, DataSource}
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import ucar.nc2._
+import ucar.nc2.write.Nc4Chunking
 
 object Collection extends Loggable {
   def apply( id: String,  dataPath: String, fileFilter: String = "", scope: String="", title: String= "", vars: List[String] = List() ) = {
@@ -108,8 +110,17 @@ object CDGrid extends Loggable {
     }
   }
 
+  def testNc4(): Unit = {
+    val iospClass = this.getClass.getClassLoader.loadClass("ucar.nc2.jni.netcdf.Nc4Iosp")
+    val ctor = iospClass.getConstructor(classOf[NetcdfFileWriter.Version])
+    val spi = ctor.newInstance(NetcdfFileWriter.Version.netcdf4)
+    val method = iospClass.getMethod("setChunker", classOf[Nc4Chunking])
+    method.invoke( spi, null )
+  }
+
   def createGridFile(gridFilePath: String, datfilePath: String) = {
     logger.info( s"Creating #grid# file $gridFilePath from datfilePath: $datfilePath" )
+    testNc4()
     val ncDataset: NetcdfDataset = NetcdfDatasetMgr.open(datfilePath)
     val gridWriter = NetcdfFileWriter.createNew(NetcdfFileWriter.Version.netcdf4, gridFilePath, null)
     val dimMap = Map(ncDataset.getDimensions.map(d => NCMLWriter.getName(d) -> gridWriter.addDimension(null, NCMLWriter.getName(d), d.getLength)): _*)
