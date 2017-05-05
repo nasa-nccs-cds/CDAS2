@@ -28,7 +28,7 @@ enablePlugins(JavaAppPackaging)
 mainClass in (Compile, run) := Some("nasa.nccs.cdas.portal.CDASApplication")
 mainClass in (Compile, packageBin) := Some("nasa.nccs.cdas.portal.CDASApplication")
 
-libraryDependencies ++= ( Dependencies.cache ++ Dependencies.geo ++ Dependencies.netcdf ++ Dependencies.socket )
+libraryDependencies ++= ( Dependencies.cache ++ Dependencies.geo ++ Dependencies.netcdf ++ Dependencies.socket ++ Dependencies.utils )
 
 libraryDependencies ++= {
   sys.env.get("YARN_CONF_DIR") match {
@@ -57,9 +57,6 @@ javaOptions in test ++= Seq( "-Xmx8000M", "-Xms512M", "-Xss1M", "-XX:+CMSClassUn
 ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 
 import java.util.Properties
-
-
-
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")

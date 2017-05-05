@@ -36,7 +36,7 @@ object Library {
 object Dependencies {
   import Library._
 
-  val scala = Seq( joda, natty, scalactic, commonsIO, scalatest, logback )
+  val scala = Seq( joda, scalactic, commonsIO, scalatest, logback )
 
   val scala_xml = Seq( scalaxml, scalaparser )
 
@@ -51,6 +51,8 @@ object Dependencies {
   val netcdf = Seq( cdm, clcommon, netcdf4, opendap )
 
   val socket = Seq(  zeromq )
+
+  val utils = Seq( natty )
 }
 
 
