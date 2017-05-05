@@ -28,18 +28,12 @@ enablePlugins(JavaAppPackaging)
 mainClass in (Compile, run) := Some("nasa.nccs.cdas.portal.CDASApplication")
 mainClass in (Compile, packageBin) := Some("nasa.nccs.cdas.portal.CDASApplication")
 
-libraryDependencies ++= Dependencies.scala
-
-libraryDependencies ++= Dependencies.cache
-
-libraryDependencies ++= Dependencies.geo
-
-libraryDependencies ++= Dependencies.netcdf
+libraryDependencies ++= ( Dependencies.cache ++ Dependencies.geo ++ Dependencies.netcdf ++ Dependencies.socket )
 
 libraryDependencies ++= {
   sys.env.get("YARN_CONF_DIR") match {
     case Some(yarn_config) => Seq.empty
-    case None => Dependencies.spark
+    case None => Dependencies.spark ++ Dependencies.scala
   }
 }
 
