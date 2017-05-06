@@ -29,7 +29,7 @@ libraryDependencies ++= ( Dependencies.cache ++ Dependencies.geo ++ Dependencies
 
 libraryDependencies ++= {
   sys.env.get("YARN_CONF_DIR") match {
-    case Some(yarn_config) => Dependencies.P_spark ++ Dependencies.P_scala
+    case Some(yarn_config) => Seq.empty // Dependencies.P_spark ++ Dependencies.P_scala
     case None => Dependencies.spark ++ Dependencies.scala
   }
 }
