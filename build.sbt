@@ -29,8 +29,12 @@ libraryDependencies ++= ( Dependencies.cache ++ Dependencies.geo ++ Dependencies
 
 libraryDependencies ++= {
   sys.env.get("YARN_CONF_DIR") match {
-    case Some(yarn_config) => Seq.empty // Dependencies.P_spark ++ Dependencies.P_scala
-    case None => Dependencies.spark ++ Dependencies.scala
+    case Some(yarn_config) =>
+      print( "\n\n\t\tExcluding provided jars\n")
+      Dependencies.P_spark ++ Dependencies.P_scala
+    case None =>
+      print( "\n\n\t\tPerforming standalone build\n")
+      Dependencies.spark ++ Dependencies.scala
   }
 }
 
