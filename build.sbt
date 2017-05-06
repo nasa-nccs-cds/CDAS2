@@ -25,14 +25,11 @@ resolvers += "Geotoolkit" at "http://maven.geotoolkit.org/"
 
 enablePlugins(JavaAppPackaging)
 
-mainClass in (Compile, run) := Some("nasa.nccs.cdas.portal.CDASApplication")
-mainClass in (Compile, packageBin) := Some("nasa.nccs.cdas.portal.CDASApplication")
-
 libraryDependencies ++= ( Dependencies.cache ++ Dependencies.geo ++ Dependencies.netcdf ++ Dependencies.socket ++ Dependencies.utils )
 
 libraryDependencies ++= {
   sys.env.get("YARN_CONF_DIR") match {
-    case Some(yarn_config) => Seq.empty
+    case Some(yarn_config) => Dependencies.P_spark ++ Dependencies.P_scala
     case None => Dependencies.spark ++ Dependencies.scala
   }
 }
@@ -89,7 +86,16 @@ cdas_cache_dir := getCacheDir()
 cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
 
-// try{ IO.write( cdasProperties.value, "", cdasPropertiesFile.value ) } catch { case err: Exception => println("Error writing to properties file: " + err.getMessage ) }
+mainClass in (Compile, run) := Some("nasa.nccs.cdas.portal.CDASApplication")
+mainClass in packageBin := Some("nasa.nccs.cdas.portal.CDASApplication")
+
+packageOptions in assembly ~= { pos =>
+  pos.filterNot { po =>
+    po.isInstanceOf[Package.MainClass]
+  }
+}
+mainClass in assembly := Some("nasa.nccs.cdas.portal.CDASApplication")
+test in assembly := {}
 
 cdasProperties := {
   val prop = new Properties()
