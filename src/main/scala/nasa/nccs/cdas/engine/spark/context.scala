@@ -26,7 +26,7 @@ import scala.collection.JavaConverters._
 
 object CDSparkContext extends Loggable {
   val mb = 1024 * 1024
-  val totalRAM = ManagementFactory.getOperatingSystemMXBean().asInstanceOf[OperatingSystemMXBean].getTotalPhysicalMemorySize / mb
+  val totalRAM = ManagementFactory.getOperatingSystemMXBean.asInstanceOf[OperatingSystemMXBean].getTotalPhysicalMemorySize / mb
   val kyro_buffer_mb = "64m"
   val default_kyro_buffer_max = "1000m"
   val runtime = Runtime.getRuntime
@@ -40,8 +40,8 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------\n\n")
 
     val cl = ClassLoader.getSystemClassLoader
-    logger.info( "Loaded jars: \n\t" + ( cl.asInstanceOf[java.net.URLClassLoader].getURLs ).mkString("\n\t") )
-    logger.info( "CDAS env: \n\t" + ( System.getenv().map { case (k,v) => k + ": " + v } ).mkString("\n\t") )
+    logger.info( "Loaded jars: \n\t" +  cl.asInstanceOf[java.net.URLClassLoader].getURLs mkString("\n\t") )
+    logger.info( "CDAS env: \n\t" +  System.getenv().map { case (k,v) => k + ": " + v } mkString("\n\t") )
 
     val sparkContext = new SparkContext( getSparkConf( appName, logConf, enableMetrics) )
     sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
@@ -83,9 +83,9 @@ object CDSparkContext extends Loggable {
       .set("spark.local.dir", cdas_cache_dir )
       .set("spark.file.transferTo", "false" )
 
-    addConfig( sc, "spark.executor.memory",  "executor.memory" )
-    addConfig( sc, "spark.executor.cores", "executor.cores" )
-    addConfig( sc, "spark.num.executors", "num.executors" )
+    addConfig( sc, "spark.executor.memory",  "spark.executor.memory" )
+    addConfig( sc, "spark.executor.cores", "spark.executor.cores" )
+    addConfig( sc, "spark.num.executors", "spark.num.executors" )
     sc.registerKryoClasses( Array(classOf[DirectRDDRecordSpec], classOf[RecordKey], classOf[RDDRecord], classOf[DirectRDDVariableSpec], classOf[CDSection], classOf[HeapFltArray], classOf[Partition], classOf[CDCoordMap] ) )
 
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
