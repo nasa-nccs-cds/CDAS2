@@ -33,6 +33,7 @@ try:
     rId = portal.sendMessage( "execute", [ "CDSpark.workflow", datainputs, ""] )
     responses = response_manager.getResponses(rId)
     print "Completed OP in time {0}".format( time.time()-t0 ); sys.stdout.flush()
+    print "Responses = " + str(responses)
 
 except Exception, err:
     traceback.print_exc()
