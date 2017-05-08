@@ -408,7 +408,7 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
             new FilteredPartition(partIndex, 0, records.head.first, partSize, sliceMemorySize, _section.getOrigin, baseShape, records )
           } )
         }
-        logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions: \n ${partitions.map( _.toString ).mkString( "\n\t" )}  \n---------------------------------------------\n")
+        logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions for ${BatchSpec.nProcessors} procs: \n ${partitions.map( _.toString ).mkString( "\n\t" )}  \n---------------------------------------------\n")
         new CDASPartitionSpec( partitions )
       }
     }
