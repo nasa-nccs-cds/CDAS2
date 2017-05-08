@@ -5,6 +5,7 @@ startServer = False
 portal = None
 request_port = 4356
 response_port = 4357
+server = "localhost"
 
 try:
 
