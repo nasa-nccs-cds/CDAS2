@@ -25,21 +25,16 @@ resolvers += "Geotoolkit" at "http://maven.geotoolkit.org/"
 
 enablePlugins(JavaAppPackaging)
 
-mainClass in (Compile, run) := Some("nasa.nccs.cdas.portal.CDASApplication")
-mainClass in (Compile, packageBin) := Some("nasa.nccs.cdas.portal.CDASApplication")
-
-libraryDependencies ++= Dependencies.scala
-
-libraryDependencies ++= Dependencies.cache
-
-libraryDependencies ++= Dependencies.geo
-
-libraryDependencies ++= Dependencies.netcdf
+libraryDependencies ++= ( Dependencies.cache ++ Dependencies.geo ++ Dependencies.netcdf ++ Dependencies.socket ++ Dependencies.utils )
 
 libraryDependencies ++= {
   sys.env.get("YARN_CONF_DIR") match {
-    case Some(yarn_config) => Seq.empty
-    case None => Dependencies.spark
+    case Some(yarn_config) =>
+      print( "\n\t\t*** Excluding provided jars ***\n\n")
+      Seq.empty                                                       // Dependencies.P_spark ++ Dependencies.P_scala
+    case None =>
+      print( "\n\t\t*** Performing standalone build ***\n\n")
+      Dependencies.spark ++ Dependencies.scala
   }
 }
 
@@ -63,9 +58,6 @@ javaOptions in test ++= Seq( "-Xmx8000M", "-Xms512M", "-Xss1M", "-XX:+CMSClassUn
 ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 
 import java.util.Properties
-
-
-
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
@@ -98,7 +90,16 @@ cdas_cache_dir := getCacheDir()
 cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
 
-// try{ IO.write( cdasProperties.value, "", cdasPropertiesFile.value ) } catch { case err: Exception => println("Error writing to properties file: " + err.getMessage ) }
+mainClass in (Compile, run) := Some("nasa.nccs.cdas.portal.CDASApplication")
+mainClass in packageBin := Some("nasa.nccs.cdas.portal.CDASApplication")
+
+packageOptions in assembly ~= { pos =>
+  pos.filterNot { po =>
+    po.isInstanceOf[Package.MainClass]
+  }
+}
+mainClass in assembly := Some("nasa.nccs.cdas.portal.CDASApplication")
+test in assembly := {}
 
 cdasProperties := {
   val prop = new Properties()
