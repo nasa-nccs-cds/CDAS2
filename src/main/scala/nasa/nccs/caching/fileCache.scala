@@ -53,7 +53,7 @@ class CacheChunk(val offset: Int,
   def byteOffset = offset * elemSize
 }
 
-object BatchSpec {
+object BatchSpec extends Loggable {
   lazy val serverContext = cds2ServiceProvider.cds2ExecutionManager.serverContext
   lazy val maxProc = appParameters( "procs.maxnum", Int.MaxValue.toString ).toInt
   lazy val nProcessors = math.min( getSparkMaxCores, maxProc )
@@ -64,7 +64,9 @@ object BatchSpec {
   def getSparkMaxCores = {
     val nCores = serverContext.getConfiguration.getOrElse("spark.executor.cores",serverContext.spark.totalClusterCores.toString).toInt
     val nExecutors = serverContext.getConfiguration.getOrElse("spark.num.executors","1").toInt
-    nCores * nExecutors
+    val rv = nCores * nExecutors
+    logger.info( s"Computing # Spark cores: nCoresPerExec = $nCores, nExecutors = $nExecutors, total Cores = $rv ")
+    rv
   }
 }
 
