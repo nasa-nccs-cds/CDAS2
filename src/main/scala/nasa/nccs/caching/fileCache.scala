@@ -56,10 +56,16 @@ class CacheChunk(val offset: Int,
 object BatchSpec {
   lazy val serverContext = cds2ServiceProvider.cds2ExecutionManager.serverContext
   lazy val maxProc = appParameters( "procs.maxnum", Int.MaxValue.toString ).toInt
-  lazy val nProcessors = math.min( serverContext.spark.totalClusterCores, maxProc )
+  lazy val nProcessors = math.min( getSparkMaxCores, maxProc )
   lazy val localNProcessors = Math.min( maxProc, Runtime.getRuntime.availableProcessors )
   lazy val nParts = nProcessors - 1
   def apply( index: Int ): BatchSpec = new BatchSpec( index*nParts, nParts )
+
+  def getSparkMaxCores = {
+    val nCores = serverContext.getConfiguration.getOrElse("spark.executor.cores",serverContext.spark.totalClusterCores.toString).toInt
+    val nExecutors = serverContext.getConfiguration.getOrElse("spark.num.executors","1").toInt
+    nCores * nExecutors
+  }
 }
 
 case class BatchSpec( iStartPart: Int, nParts: Int ) {
