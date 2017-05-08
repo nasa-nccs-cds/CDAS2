@@ -357,6 +357,8 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
   val yearsPerSection: Float = secondsPerSection / secPeryear
 
   def computeRecordSizes( ): CDASPartitionSpec = {
+    val sparkConfig = BatchSpec.serverContext.spark.sparkContext.getConf.getAll map { case (key, value ) =>  key + " -> " + value } mkString( "\n\t")
+    logger.info( " @@@@@ SPARK CONFIG: \n\t" + sparkConfig )
     val _preferredNParts = math.ceil( sectionMemorySize / partitionSize.toFloat ).toInt
     if( _preferredNParts > BatchSpec.nProcessors * 1.5 ) {
       val _nSlicesPerRecord: Int = math.max(recordSize.toFloat / sliceMemorySize, 1.0).round.toInt
@@ -413,7 +415,6 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
       }
     }
   }
-  logger.info( "CDAS Partitioner: monthMemorySize = " + monthMemorySize )
 
   def getShape = baseShape
   def roi: ma2.Section = new ma2.Section(_section.getRanges)
