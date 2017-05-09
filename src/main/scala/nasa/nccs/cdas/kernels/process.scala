@@ -717,7 +717,7 @@ abstract class SingularRDDKernel( options: Map[String,String] = Map.empty ) exte
             val cdinput = input_array.toCDFloatArray
             val result = CDFloatArray(cdinput.reduce(combineOp, axes.args, initValue))
             logger.info( "Input data sample = [ %s ]".format(cdinput.getArrayData(30).map( _.toString ).mkString(", ") ) )
-            logger.info(" ##### KERNEL [%s]: Map Op: combine, axes = %s, result shape = %s, result value[0] = %.4f".format( name, axes, result.getShape.mkString(","), result.getArrayData(1) ) )
+            logger.info(" ##### KERNEL [%s]: Map Op: combine, axes = %s, result shape = %s, result value[0] = %.4f".format( name, axes, result.getShape.mkString(","), result.getArrayData(1)(0) ) )
             context.operation.rid -> HeapFltArray( result, input_array.origin, input_array.metadata, None )
           case None =>
             logger.info(" ##### KERNEL [%s]: Map Op: NONE".format( name ) )
