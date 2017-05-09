@@ -126,7 +126,7 @@ object Kernel extends Loggable {
     logger.info("&MERGE: start (%s <-> %s), sample rdd0 = %s, rdd1 = %s".format( k0.toString, k1.toString, rdd0.head._2.getSampleDataStr(10,0), rdd1.head._2.getSampleDataStr(10,0)  ) )
     val new_key = k0 + k1
     val new_elements = rdd0.elements.flatMap {
-      case (elkey, element0) =>  rdd1.elements.get(elkey).map( element1 => elkey -> { element0.append(element1) } )
+      case (elkey, element0) =>  rdd1.elements.get(elkey).map( element1 => elkey -> { if( k0.start <= k1.start ) { element0.append(element1) } else { element1.append(element0) } } )
     }
     logger.info("&MERGE: complete in time = %.4f s, result sample = %s".format( (System.nanoTime - t0) / 1.0E9, new_elements.head._2.getSampleDataStr(10,0) ) )
     new_key -> RDDRecord( new_elements, rdd0.mergeMetadata("merge", rdd1) )

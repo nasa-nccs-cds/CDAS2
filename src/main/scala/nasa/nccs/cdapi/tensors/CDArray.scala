@@ -430,9 +430,10 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     slices.reduce( _ append _ )
   }
   def getSampleData( size: Int, start: Int): Array[Float] = {
-    val end = Math.min( start+size, floatStorage.capacity )
+    val data = floatStorage.array()
+    val end = Math.min( start+size, data.length )
     if( start >= end ) { Array.emptyFloatArray }
-    else { ( ( start until (start+size) ) map { index => floatStorage.get(index) } ).toArray }
+    else { ( ( start until end ) map { index => data(index) } ).toArray }
   }
   def setStorageValue( index: StorageIndex, value: Float ): Unit = floatStorage.put( index, value )
   def this( shape: Array[Int], storage: FloatBuffer, invalid: Float ) = this( CDIndexMap(shape, List.empty), storage, invalid )
