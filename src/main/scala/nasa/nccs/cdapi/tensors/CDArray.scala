@@ -429,7 +429,11 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     val slices: Iterable[CDFloatArray] = for ( (i,elem) <- weights ) yield { slice(0,elem.index,1) * elem.weight0 + slice(0,elem.index+1,1) * elem.weight1 }
     slices.reduce( _ append _ )
   }
-  def getSampleData( size: Int, start: Int): Array[Float] = ( ( start to (start+size) ) map { index => floatStorage.get(index) } ).toArray
+  def getSampleData( size: Int, start: Int): Array[Float] = {
+    val end = Math.max( start+size, floatStorage.capacity )
+    if( start >= end ) { Array.emptyFloatArray }
+    else { ( ( start until (start+size) ) map { index => floatStorage.get(index) } ).toArray }
+  }
   def setStorageValue( index: StorageIndex, value: Float ): Unit = floatStorage.put( index, value )
   def this( shape: Array[Int], storage: FloatBuffer, invalid: Float ) = this( CDIndexMap(shape, List.empty), storage, invalid )
   def this( storage: FloatBuffer, invalid: Float ) = this( CDIndexMap( Array( storage.capacity()), List.empty ), storage, invalid )
