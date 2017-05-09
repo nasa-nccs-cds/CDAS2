@@ -123,12 +123,12 @@ object Kernel extends Loggable {
     val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
     val ( k0, k1 ) = ( a0._1, a1._1 )
     val t0 = System.nanoTime
-    logger.info("&MERGE: start (%s <-> %s)".format( k0.toString, k1.toString  ) )
+    logger.info("&MERGE: start (%s <-> %s), sample rdd0 = %s, rdd1 = %s".format( k0.toString, k1.toString, rdd0.head._2.getSampleDataStr(10,0), rdd1.head._2.getSampleDataStr(10,0)  ) )
     val new_key = k0 + k1
     val new_elements = rdd0.elements.flatMap {
       case (elkey, element0) =>  rdd1.elements.get(elkey).map( element1 => elkey -> { element0.append(element1) } )
     }
-    logger.info("&MERGE: complete in time = %.4f s".format( (System.nanoTime - t0) / 1.0E9 ) )
+    logger.info("&MERGE: complete in time = %.4f s, result sample = %s".format( (System.nanoTime - t0) / 1.0E9, new_elements.head._2.getSampleDataStr(10,0) ) )
     new_key -> RDDRecord( new_elements, rdd0.mergeMetadata("merge", rdd1) )
   }
 
