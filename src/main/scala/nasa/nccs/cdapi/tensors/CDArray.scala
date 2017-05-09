@@ -430,7 +430,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     slices.reduce( _ append _ )
   }
   def getSampleData( size: Int, start: Int): Array[Float] = {
-    val end = Math.max( start+size, floatStorage.capacity )
+    val end = Math.min( start+size, floatStorage.capacity )
     if( start >= end ) { Array.emptyFloatArray }
     else { ( ( start until (start+size) ) map { index => floatStorage.get(index) } ).toArray }
   }
