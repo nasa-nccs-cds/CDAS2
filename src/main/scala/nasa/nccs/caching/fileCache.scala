@@ -355,7 +355,7 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
 
   def timeAxis: CoordinateAxis1DTime = {
     val fullAxis = timeAxisOpt getOrElse( throw new Exception( "Missing time axis in Partitioner") )
-    fullAxis.section(sectionRange)
+    fullAxis
   }
   def getCalDateBounds( time_index: Int ): Array[CalendarDate] =
     timeAxis.getCoordBoundsDate(time_index)
@@ -408,7 +408,7 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
       } else {
         val seasonFilters = filters.flatMap( SeasonFilter.get )
         if( seasonFilters.length < filters.length ) throw new Exception ( "Unrecognized filter: " + filters.mkString(",") )
-        val timeSteps: List[CalendarDate] = timeAxis.getCalendarDates.toList
+        val timeSteps: List[CalendarDate] = timeAxis.section(sectionRange).getCalendarDates.toList
         for( (timeStep, timeIndex) <- timeSteps.zipWithIndex; seasonFilter <- seasonFilters ) { seasonFilter.processTimestep( timeIndex, timeStep  ) }
         val all_records = for( seasonFilter <- seasonFilters; record <- seasonFilter.getRecords ) yield { record }
         val partitions: IndexedSeq[Partition] = if( all_records.length < BatchSpec.nProcessors ) {
