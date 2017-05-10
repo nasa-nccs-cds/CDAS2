@@ -371,7 +371,8 @@ class DirectRDDVariableSpec( uid: String, metadata: Map[String,String], missing:
   def toHeapArray(partition: Partition, iRecord: Int ) = {
     val recordSection = partition.recordSection( section.toSection, iRecord )
     val fltData: CDFloatArray =  CDFloatArray.factory( readVariableData( recordSection ), missing )
-    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, origin=(%s), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, recordSection.getOrigin.mkString(","), recordSection.getShape.mkString(",") ) )
+    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, origin=(%s), shape=[%s], data buffer shape=[%s], data buffer size=%d, data buffer offset=%d, ".format(
+      section.toString(), partition.index, partition.dimIndex, recordSection.getOrigin.mkString(","), recordSection.getShape.mkString(","), fltData.getShape.mkString(","), fltData.getSize, fltData.getOffset ) )
     HeapFltArray( fltData, section.getOrigin, metadata, None )
   }
   def readVariableData(section: ma2.Section): ma2.Array =  NetcdfDatasetMgr.readVariableData(varShortName, dataPath, section )
