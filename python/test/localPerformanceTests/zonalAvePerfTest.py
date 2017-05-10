@@ -20,7 +20,7 @@ else:
 
 cldraGISSdset = "file:///home/tpmaxwel/.cdas/cache/collections/NCML/GISS_E2H_r1i1p1.ncml"
 localGISSdset = "file:///Users/tpmaxwel/.cdas/cache/collections/NCML/giss_r1i1p1.xml"
-currentGISSDataset = localGISSdset
+currentGISSDataset = cldraGISSdset
 
 try:
 
