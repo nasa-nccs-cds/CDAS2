@@ -141,7 +141,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   }
   def toXml: xml.Elem = <array shape={shape.mkString(",")} missing={getMissing().toString}> { data.mkString(",")} </array> % metadata
 }
-object HeapFltArray {
+object HeapFltArray extends Loggable {
   def apply( cdarray: CDFloatArray, origin: Array[Int], metadata: Map[String,String], optWeights: Option[Array[Float]] ): HeapFltArray = {
     val gridSpec = metadata.get( "gridfile" ).map( "file:/" + _ ).getOrElse("")
     new HeapFltArray(cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), gridSpec, metadata, optWeights, cdarray.getCoordMaps)
@@ -370,10 +370,15 @@ class ExtRDDPartSpec(val timeRange: RecordKey, val varSpecs: List[ RDDVariableSp
 class DirectRDDVariableSpec( uid: String, metadata: Map[String,String], missing: Float, section: CDSection, val varShortName: String, val dataPath: String  ) extends RDDVariableSpec( uid, metadata, missing, section  ) with Loggable {
   def toHeapArray(partition: Partition, iRecord: Int ) = {
     val recordSection = partition.recordSection( section.toSection, iRecord )
-    val fltData: CDFloatArray =  CDFloatArray.factory( readVariableData( recordSection ), missing )
-    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, origin=(%s), shape=[%s], data buffer shape=[%s], data buffer size=%d, data buffer offset=%d, ".format(
-      section.toString(), partition.index, partition.dimIndex, recordSection.getOrigin.mkString(","), recordSection.getShape.mkString(","), fltData.getShape.mkString(","), fltData.getSize, fltData.getOffset ) )
-    HeapFltArray( fltData, section.getOrigin, metadata, None )
+    val part_size = recordSection.getShape.fold(1)(_*_)
+    if( part_size > 0 ) {
+      val fltData: CDFloatArray = CDFloatArray.factory(readVariableData(recordSection), missing)
+      logger.debug("toHeapArray: %s, part[%d]: dim=%d, origin=(%s), shape=[%s], data shape=[%s], data size=%d, part size=%d, data buffer size=%d, recordSectionShape=%s, recordSectionOrigin=%s".format(
+        section.toString(), partition.index, partition.dimIndex, recordSection.getOrigin.mkString(","), recordSection.getShape.mkString(","), fltData.getShape.mkString(","), fltData.getSize, part_size, fltData.getStorageSize, recordSection.getShape.mkString(","), recordSection.getOrigin.mkString(",")))
+      HeapFltArray(fltData, section.getOrigin, metadata, None)
+    } else {
+      HeapFltArray.empty( section.getShape.length )
+    }
   }
   def readVariableData(section: ma2.Section): ma2.Array =  NetcdfDatasetMgr.readVariableData(varShortName, dataPath, section )
 }

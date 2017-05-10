@@ -149,7 +149,10 @@ abstract class Partition(val index: Int, val dimIndex: Int, val startIndex: Int,
   val endIndex: Int = startIndex + partSize - 1
 
   def recordSection( section: ma2.Section, iRecord: Int ): ma2.Section = {
-    new ma2.Section(section.getRanges).replaceRange(dimIndex, recordRange(iRecord)).intersect(section)
+    val rec_range = recordRange(iRecord)
+    val rv = new ma2.Section(section.getRanges).replaceRange(dimIndex, rec_range ).intersect(section)
+    logger.info( " *** RecordSection[%d]: dim=%d, range=[ %d, %d ]: %s -> %s ".format(iRecord,dimIndex,rec_range.first,rec_range.last, section.toString, rv.toString ) )
+    rv
   }
   def partSection(section: ma2.Section): ma2.Section = {
     new ma2.Section(section.getRanges).replaceRange(dimIndex, partRange)
@@ -226,7 +229,7 @@ class FilteredPartition(index: Int, dimIndex: Int, startIndex: Int, partSize: In
     new ma2.Range( start, origin(0)+records(iRecord).last )
   }
   override def nRecords: Int = records.length
-  override val toString: String = s"Part[$index]{dim:$dimIndex start:$startIndex partSize:$partSize sliceMemorySize:$sliceMemorySize origin:${origin.mkString(",")} shape:${shape.mkString(",")} records: ${records.map(_.toString).mkString("\n\t")})"
+  override val toString: String = s"Part[$index]{dim:$dimIndex start:$startIndex partSize:$partSize sliceMemorySize:$sliceMemorySize origin:${origin.mkString(",")} shape:${shape.mkString(",")} )"
 
   override def getRecordKey( iRecord: Int, grid: TargetGrid ): RecordKey = {
     val record = records(iRecord)

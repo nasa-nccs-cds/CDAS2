@@ -439,7 +439,9 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def this( shape: Array[Int], storage: FloatBuffer, invalid: Float ) = this( CDIndexMap(shape, List.empty), storage, invalid )
   def this( storage: FloatBuffer, invalid: Float ) = this( CDIndexMap( Array( storage.capacity()), List.empty ), storage, invalid )
   protected def getData: FloatBuffer = floatStorage
-  override def getSectionData(maxCopySize: Int = Int.MaxValue): FloatBuffer = if( getSize > 0 ) { super.getSectionData(maxCopySize).asInstanceOf[FloatBuffer] } else FloatBuffer.allocate(0)
+  override def getSectionData(maxCopySize: Int = Int.MaxValue): FloatBuffer = {
+    if( getSize > 0 ) { super.getSectionData(maxCopySize).asInstanceOf[FloatBuffer] } else FloatBuffer.allocate(0)
+  }
   def getStorageData: FloatBuffer = floatStorage
   def isMapped: Boolean = !floatStorage.hasArray
   def getCoordMaps = cdIndexMap.getCoordMaps
@@ -501,14 +503,25 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     new CDFloatArray( cdIndexMap, FloatBuffer.wrap(mappedData.toArray), invalid )
   }
   def copySectionData( maxValue: Int = Int.MaxValue ): FloatBuffer =  {
-//    printf( " >>>> copySectionData: cap=%d, maxval=%d index=%s".format( floatStorage.capacity(), maxValue, cdIndexMap.toString ) )
+    logger.info( " >>>> copySectionData: cap=%d, maxval=%d index=%s".format( floatStorage.capacity(), maxValue, cdIndexMap.toString ) )
     val size = getSize
     if( size == 0 ) {
       FloatBuffer.allocate(0)
     }  else {
-      val floatData = ( for ( index <- getIterator; if(index<maxValue); value = floatStorage.get(index) ) yield { value } );
+      val floatData = for ( index <- getIterator; if index < maxValue ) yield { getValue(index) }
       FloatBuffer.wrap(floatData.toArray)
     }
+  }
+
+  def getValue( index: Int ): Float  = {
+    try {
+      floatStorage.get(index)
+    } catch {
+      case ex: java.lang.IndexOutOfBoundsException =>
+        logger.error( "Index Error in copySectionData at index %d, index size = %d, storage size = %d, shape = [%s], isStorageCongruent = %s".format( index, getSize, getStorageSize, getShape.mkString(","), isStorageCongruent.toString ) )
+        throw new Exception( " Invalid array access ")
+    }
+
   }
   def append( other: CDFloatArray ): CDFloatArray = {
     val newIndex = getIndex.append( other.getIndex )

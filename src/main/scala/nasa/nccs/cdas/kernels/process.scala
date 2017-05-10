@@ -282,7 +282,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
         }
       }
     }
-    logger.debug("&COMBINE: %s, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
+//    logger.debug("&COMBINE: %s, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
     RDDRecord( Map(new_elements:_*), rdd0.mergeMetadata(context.operation.name, rdd1))
   }
 
