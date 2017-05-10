@@ -21,9 +21,11 @@ import nasa.nccs.esgf.process.{DataFragmentKey, _}
 import nasa.nccs.esgf.wps.cds2ServiceProvider
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.commons.io.{FileUtils, IOUtils}
+import ucar.ma2.Range
 import ucar.nc2.dataset.CoordinateAxis1DTime
 import ucar.nc2.time.CalendarPeriod.Field.{Month, Year}
 import ucar.{ma2, nc2}
+
 import scala.xml
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -348,10 +350,13 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
   val sliceMemorySize: Long = getMemorySize(1)
   val kernelConfig = workflowNodeOpt.map( _.operation.getConfiguration ).getOrElse( Map.empty )
   val filters = kernelConfig.getOrElse("filter","").split(",").filter( !_.isEmpty )
-  val sectionRange = _section.getRange(0)
+  val sectionRange: ma2.Range = _section.getRange(0)
   lazy val spec = computeRecordSizes()
 
-  def timeAxis: CoordinateAxis1DTime = timeAxisOpt getOrElse( throw new Exception( "Missing time axis in Partitioner") )
+  def timeAxis: CoordinateAxis1DTime = {
+    val fullAxis = timeAxisOpt getOrElse( throw new Exception( "Missing time axis in Partitioner") )
+    fullAxis.section(sectionRange)
+  }
   def getCalDateBounds( time_index: Int ): Array[CalendarDate] =
     timeAxis.getCoordBoundsDate(time_index)
   def getCalDate( time_index: Int ): CalendarDate = timeAxis.getCalendarDate( time_index )
