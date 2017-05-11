@@ -238,7 +238,9 @@ object Collections extends XmlResource {
             }
           })
         } catch {
-          case err: Exception => throw new Exception("Error opening collection data file {%s}: %s".format(filePath, err.getMessage))
+          case err: Exception =>
+            logger.error("Error opening collection data file {%s}: %s".format(filePath, err.getMessage))
+            logger.error( "\n\t\t" + err.getStackTrace.mkString("\n\t") )
         }
       } else {
         logger.warn( "Collections file does not exist: " + filePath )
