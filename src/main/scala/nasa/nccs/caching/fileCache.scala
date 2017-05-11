@@ -389,13 +389,14 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
         val partSize = Math.min(_nSlicesPerPart, baseShape(0) - startIndex)
         RegularPartition(partIndex, 0, startIndex, partSize, _nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape)
       })
-      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, sliceMemorySize: $sliceMemorySize, nSlicesPerRecord: ${_nSlicesPerRecord}, recordMemorySize: ${_recordMemorySize}, nRecordsPerPart: ${_nRecordsPerPart}, partMemorySize: ${_partMemorySize}, nPartitions: ${_nPartitions} \n---------------------------------------------\n")
+      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating batched partitions: preferredNParts: $_preferredNParts, sectionMemorySize: $sectionMemorySize, sliceMemorySize: $sliceMemorySize, nSlicesPerRecord: ${_nSlicesPerRecord}, recordMemorySize: ${_recordMemorySize}, nRecordsPerPart: ${_nRecordsPerPart}, partMemorySize: ${_partMemorySize}, nPartitions: ${partitions.length} \n---------------------------------------------\n")
       new CDASPartitionSpec( partitions )
     } else {
       if( filters.isEmpty ) {
         val __nPartitions: Int = BatchSpec.nProcessors - 1
         val __nSlicesPerPart: Int = math.ceil(baseShape(0) / __nPartitions.toFloat).toInt
-        val __nSlicesPerRecord: Int = math.max(math.round(recordSize / sliceMemorySize.toFloat), 1)
+        val __maxSlicesPerRecord: Int = math.max(math.round(recordSize / sliceMemorySize.toFloat), 1)
+        val __nSlicesPerRecord: Int = math.min( __maxSlicesPerRecord, __nSlicesPerPart )
         val __nRecordsPerPart: Int = math.ceil(__nSlicesPerPart / __nSlicesPerRecord.toFloat).toInt
         val __recordMemorySize: Long = getMemorySize(__nSlicesPerRecord)
         val __partMemorySize: Long = __recordMemorySize * __nRecordsPerPart
@@ -404,7 +405,7 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
           val partSize = Math.min(__nSlicesPerPart, baseShape(0) - startIndex)
           if(partSize>0) { Some( RegularPartition(partIndex, 0, startIndex, partSize, __nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape ) ) } else { None }
         })
-        logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions: sectionMemorySize: $sectionMemorySize, sliceMemorySize: $sliceMemorySize, nSlicesPerRecord: ${__nSlicesPerRecord}, recordMemorySize: ${__recordMemorySize}, nRecordsPerPart: ${__nRecordsPerPart}, partMemorySize: ${__partMemorySize}, nPartitions: ${__nPartitions} \n---------------------------------------------\n")
+        logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions: nAvailCores: $__nPartitions, sectionMemorySize: $sectionMemorySize, sliceMemorySize: $sliceMemorySize, nSlicesPerRecord: ${__nSlicesPerRecord}, recordMemorySize: ${__recordMemorySize}, nRecordsPerPart: ${__nRecordsPerPart}, partMemorySize: ${__partMemorySize}, nPartitions: ${partitions.length} \n---------------------------------------------\n")
         new CDASPartitionSpec( partitions )
       } else {
         val seasonFilters = filters.flatMap( SeasonFilter.get )
