@@ -344,7 +344,7 @@ class DirectRDDRecordSpec(val partition: Partition, iRecord: Int, val timeRange:
     rv
   }
 
-  def toString() = s"RDD-Record[${iRecord.toString}]{ ${partition.toString}, ${timeRange.toString} }"
+  override def toString() = s"RDD-Record[${iRecord.toString}]{ ${partition.toString}, ${timeRange.toString} }"
 
   def empty( uid: String ): Boolean = varSpecs.find( _.uid == uid ) match {
     case Some( varSpec ) => varSpec.empty
