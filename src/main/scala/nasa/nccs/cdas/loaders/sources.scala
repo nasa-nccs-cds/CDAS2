@@ -227,7 +227,7 @@ object Collections extends XmlResource {
         try {
           logger.info( "Loading collections from file: " + filePath )
           val children = XML.loadFile(filePath).child
-          children.foreach(node => node.attribute("id") match {
+          children.foreach( node => node.attribute("id") match {
             case None => None;
             case Some(id) => try {
               val collection = getCollection(node, scope)
@@ -238,7 +238,7 @@ object Collections extends XmlResource {
             }
           })
         } catch {
-          case err: Exception =>
+          case err: Throwable =>
             logger.error("Error opening collection data file {%s}: %s".format(filePath, err.getMessage))
             logger.error( "\n\t\t" + err.getStackTrace.mkString("\n\t") )
         }
