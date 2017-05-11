@@ -344,6 +344,8 @@ class DirectRDDRecordSpec(val partition: Partition, iRecord: Int, val timeRange:
     rv
   }
 
+  def toString() = s"RDD-Record[${iRecord.toString}]{ ${partition.toString}, ${timeRange.toString} }"
+
   def empty( uid: String ): Boolean = varSpecs.find( _.uid == uid ) match {
     case Some( varSpec ) => varSpec.empty
     case None => true
@@ -373,7 +375,7 @@ class DirectRDDVariableSpec( uid: String, metadata: Map[String,String], missing:
     val part_size = recordSection.getShape.fold(1)(_*_)
     if( part_size > 0 ) {
       val fltData: CDFloatArray = CDFloatArray.factory(readVariableData(recordSection), missing)
-      logger.debug("toHeapArray: %s, part[%d]: dim=%d, origin=(%s), shape=[%s], data shape=[%s], data size=%d, part size=%d, data buffer size=%d, recordSectionShape=%s, recordSectionOrigin=%s".format(
+      logger.debug("READ Variable section: %s, part[%d]: dim=%d, origin=(%s), shape=[%s], data shape=[%s], data size=%d, part size=%d, data buffer size=%d, recordSectionShape=%s, recordSectionOrigin=%s".format(
         section.toString(), partition.index, partition.dimIndex, recordSection.getOrigin.mkString(","), recordSection.getShape.mkString(","), fltData.getShape.mkString(","), fltData.getSize, part_size, fltData.getStorageSize, recordSection.getShape.mkString(","), recordSection.getOrigin.mkString(",")))
       HeapFltArray(fltData, section.getOrigin, metadata, None)
     } else {

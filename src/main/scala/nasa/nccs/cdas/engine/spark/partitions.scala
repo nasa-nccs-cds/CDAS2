@@ -100,6 +100,7 @@ class RecordKey(start: Long, end: Long, val elemStart: Int, val numElems: Int ) 
     }
   }
   override def print( implicit strRep: StrRep ) = s"{ ${strRep(start)}<->${strRep(end)}, ${elemStart}<->${elemEnd} }"
+  override def toString() = s"Key[ ${strRep(start)}<->${strRep(end)}, ${elemStart}<->${elemEnd} ]"
 }
 
 object RangePartitioner {

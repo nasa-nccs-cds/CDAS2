@@ -967,7 +967,7 @@ object NetcdfDatasetMgr extends Loggable {
     val cpath = cleanPath(path)
     val key = getKey(path)
     val result = datasetCache.getOrElseUpdate( key, acquireDataset(cpath) )
-    logger.info(s"   Accessed Dataset using key: $key   ")
+//    logger.info(s"   Accessed Dataset using key: $key, path: $cpath")
     result
   }
 

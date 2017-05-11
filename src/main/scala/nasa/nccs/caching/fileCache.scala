@@ -156,6 +156,7 @@ abstract class Partition(val index: Int, val dimIndex: Int, val startIndex: Int,
     logger.info( " *** RecordSection[%d]: dim=%d, range=[ %d, %d ]: %s -> %s ".format(iRecord,dimIndex,rec_range.first,rec_range.last, section.toString, rv.toString ) )
     rv
   }
+  override def toString() = s"Part[$index]{ start=$startIndex, size=$partSize, origin=(${origin.mkString(",")}), shape=(${shape.mkString(",")}) ]"
   def partSection(section: ma2.Section): ma2.Section = {
     new ma2.Section(section.getRanges).replaceRange(dimIndex, partRange)
   }
