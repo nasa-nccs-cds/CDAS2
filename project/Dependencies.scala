@@ -1,5 +1,9 @@
 import sbt._
 
+object Versions {
+  val ucar = "4.6.8"
+}
+
 object Library {
   val logback        = "ch.qos.logback"     %  "logback-core"   % "1.1.3"
   val mockitoAll     = "org.mockito"       %  "mockito-all"     % "1.10.19"
@@ -9,10 +13,10 @@ object Library {
   val sparkStreaming = "org.apache.spark"  %% "spark-streaming" % "1.6.0"
   val commonsIO      = "commons-io"         % "commons-io"      % "2.5"
   val zeromq         = "org.zeromq"         % "jeromq"          % "0.3.5"
-  val cdm            = "edu.ucar"           % "cdm"             % "4.6.10"
-  val clcommon       = "edu.ucar"           % "clcommon"        % "4.6.10"
-  val netcdf4        = "edu.ucar"           % "netcdf4"         % "4.6.10"
-  val opendap        = "edu.ucar"           % "opendap"         % "4.6.10"
+  val cdm            = "edu.ucar"           % "cdm"             % Versions.ucar
+  val clcommon       = "edu.ucar"           % "clcommon"        % Versions.ucar
+  val netcdf4        = "edu.ucar"           % "netcdf4"         % Versions.ucar
+  val opendap        = "edu.ucar"           % "opendap"         % Versions.ucar
   val nd4s           = "org.nd4j"           % "nd4s_2.11"       % "0.4-rc3.8"
   val nd4j           =  "org.nd4j"          % "nd4j-x86"        % "0.4-rc3.8"
   val httpservices   = "edu.ucar"           %  "httpservices"   % "4.6.0"
