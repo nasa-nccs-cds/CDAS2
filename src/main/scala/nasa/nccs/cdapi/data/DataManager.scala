@@ -11,6 +11,9 @@ import org.apache.spark.rdd.RDD
 import ucar.nc2.constants.AxisType
 import ucar.ma2
 import java.nio
+
+import nasa.nccs.cdas.kernels.KernelContext
+
 import scala.xml
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -224,9 +227,9 @@ object HeapLongArray {
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], metadata: Map[String,String], missing: Float ): HeapLongArray = HeapLongArray( CDLongArray.factory(ucarray), origin, metadata )
 }
 
-class RDDRecord(val elements: Map[String,HeapFltArray], metadata: Map[String,String] ) extends MetadataCarrier(metadata) {
+class RDDRecord(val elements: Map[String,HeapFltArray], metadata: Map[String,String], val startTime: Long ) extends MetadataCarrier(metadata) {
   def ++( other: RDDRecord ): RDDRecord = {
-    new RDDRecord( elements ++ other.elements, metadata ++ other.metadata)
+    new RDDRecord( elements ++ other.elements, metadata ++ other.metadata, Math.max( startTime, other.startTime ) )
   }
   def hasMultiGrids: Boolean = {
     if( elements.size == 0 ) return false
@@ -240,13 +243,13 @@ class RDDRecord(val elements: Map[String,HeapFltArray], metadata: Map[String,Str
         if( array.shape(0) != conversionMap.values.head.toSize )  throw new Exception( s"Unexpected time conversion input size: ${array.shape(0)} vs ${conversionMap.values.head.toSize}" )
         array
     })
-    new RDDRecord( new_elements, metadata )
+    new RDDRecord( new_elements, metadata, startTime )
   }
 
   def slice( startIndex: Int, size: Int ): RDDRecord = {
     logger.info( s"RDDPartition: slice --> nElems:{${elements.size}} startIndex:{${startIndex}} size:{${size}} ")
     val new_elems = elements.mapValues( _.slice(startIndex,size) )
-    new RDDRecord( new_elems, metadata )
+    new RDDRecord( new_elems, metadata, startTime )
   }
 
   def hasMultiTimeScales( trsOpt: Option[String]=None ): Boolean = {
@@ -258,7 +261,7 @@ class RDDRecord(val elements: Map[String,HeapFltArray], metadata: Map[String,Str
     val commonElems = elements.keySet.union( other.elements.keySet )
     val appendedElems: Set[(String,HeapFltArray)] = commonElems flatMap ( key =>
       other.elements.get(key).fold  (elements.get(key) map (e => key -> e))  (e1 => Some( key-> elements.get(key).fold (e1) (e0 => e0.append(e1)))))
-    new RDDRecord( Map(appendedElems.toSeq:_*), metadata ++ other.metadata )
+    new RDDRecord( Map(appendedElems.toSeq:_*), metadata ++ other.metadata, startTime )
   }
 //  def split( index: Int ): (RDDPartition,RDDPartition) = { }
   def getShape = elements.head._2.shape
@@ -272,35 +275,35 @@ class RDDRecord(val elements: Map[String,HeapFltArray], metadata: Map[String,Str
     val values: Iterable[xml.Node] = elements.values.map(_.toXml)
     <partition> {values} </partition>  % metadata
   }
-  def configure( key: String, value: String ): RDDRecord = new RDDRecord( elements, metadata + ( key -> value ) )
+  def configure( key: String, value: String ): RDDRecord = new RDDRecord( elements, metadata + ( key -> value ), startTime )
 }
 
 object RDDRecord {
-  def apply ( elements: Map[String,HeapFltArray] = Map.empty,  metadata: Map[String,String] = Map.empty ) =
-    new RDDRecord( elements, metadata )
-  def apply ( rdd: RDDRecord ) = new RDDRecord( rdd.elements, rdd.metadata )
-  def merge( rdd_parts: Seq[RDDRecord] ) = rdd_parts.foldLeft( RDDRecord() )( _ ++ _ )
-  def empty: RDDRecord = { new RDDRecord( Map.empty[String,HeapFltArray], Map.empty[String,String] ) }
+  def apply ( elements: Map[String,HeapFltArray],  metadata: Map[String,String], startTime: Long ) = new RDDRecord( elements, metadata, startTime )
+  def apply ( rdd: RDDRecord ) = new RDDRecord( rdd.elements, rdd.metadata, rdd.startTime )
+  def merge( rdd_parts: Seq[RDDRecord] ) = rdd_parts.foldLeft( RDDRecord.empty )( _ ++ _ )
+  def empty: RDDRecord = { new RDDRecord( Map.empty[String,HeapFltArray], Map.empty[String,String], 0L ) }
 }
 
 object RDDPartSpec {
-  def apply( partition: CachePartition, tgrid: TargetGrid, varSpecs: List[ RDDVariableSpec ] ): RDDPartSpec = new RDDPartSpec( partition, partition.getPartitionRecordKey(tgrid), varSpecs )
+  def apply( partition: CachePartition, tgrid: TargetGrid, varSpecs: List[ RDDVariableSpec ],  startTime: Long ): RDDPartSpec = new RDDPartSpec( partition, partition.getPartitionRecordKey(tgrid), varSpecs, startTime )
 }
 
-class RDDPartSpec(val partition: CachePartition, val timeRange: RecordKey, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
+class RDDPartSpec(val partition: CachePartition, val timeRange: RecordKey, val varSpecs: List[ RDDVariableSpec ], val startTime: Long ) extends Serializable with Loggable {
 
-  def getRDDPartition: RDDRecord = {
+  def getRDDPartition(kernelContext: KernelContext): RDDRecord = {
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition)) ): _* )
-    val rv = RDDRecord( elements )
+    val rv = RDDRecord( elements, Map.empty, startTime )
     logger.debug( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
+    kernelContext.addTimestamp( "Created input RDD { partition = %s }".format( partition.toString ) )
     rv
   }
 
   def getRDDMetaPartition: RDDRecord = {
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toMetaArray(partition)) ): _* )
-    val rv = RDDRecord( elements )
+    val rv = RDDRecord( elements, Map.empty, startTime )
     logger.debug( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
     rv
   }
@@ -316,12 +319,12 @@ class RDDPartSpec(val partition: CachePartition, val timeRange: RecordKey, val v
 }
 
 object DirectRDDPartSpec {
-  def apply(partition: Partition, tgrid: TargetGrid, varSpecs: List[ DirectRDDVariableSpec ] ): DirectRDDPartSpec = new DirectRDDPartSpec( partition, partition.getPartitionRecordKey(tgrid), varSpecs )
+  def apply(partition: Partition, tgrid: TargetGrid, varSpecs: List[ DirectRDDVariableSpec ], startTime: Long ): DirectRDDPartSpec = new DirectRDDPartSpec( partition, partition.getPartitionRecordKey(tgrid), varSpecs, startTime )
 }
 
-class DirectRDDPartSpec(val partition: Partition, val timeRange: RecordKey, val varSpecs: List[ DirectRDDVariableSpec ] ) extends Serializable with Loggable {
+class DirectRDDPartSpec(val partition: Partition, val timeRange: RecordKey, val varSpecs: List[ DirectRDDVariableSpec ], val startTime: Long ) extends Serializable with Loggable {
 
-  def getRDDRecordSpecs(): IndexedSeq[DirectRDDRecordSpec] = ( 0 until partition.nRecords ) map ( DirectRDDRecordSpec( this, _ ) )
+  def getRDDRecordSpecs(): IndexedSeq[DirectRDDRecordSpec] = ( 0 until partition.nRecords ) map ( DirectRDDRecordSpec( this, _, startTime ) )
 
   def empty( uid: String ): Boolean = varSpecs.find( _.uid == uid ) match {
     case Some( varSpec ) => varSpec.empty
@@ -331,18 +334,22 @@ class DirectRDDPartSpec(val partition: Partition, val timeRange: RecordKey, val 
 }
 
 object DirectRDDRecordSpec {
-  def apply( partSpec: DirectRDDPartSpec, iRecord: Int ): DirectRDDRecordSpec = new DirectRDDRecordSpec( partSpec.partition, iRecord, partSpec.timeRange, partSpec.varSpecs )
+  def apply( partSpec: DirectRDDPartSpec, iRecord: Int, startTime: Long ): DirectRDDRecordSpec = new DirectRDDRecordSpec( partSpec.partition, iRecord, partSpec.timeRange, partSpec.varSpecs, startTime )
 }
 
-class DirectRDDRecordSpec(val partition: Partition, iRecord: Int, val timeRange: RecordKey, val varSpecs: List[ DirectRDDVariableSpec ] ) extends Serializable with Loggable {
+class DirectRDDRecordSpec(val partition: Partition, iRecord: Int, val timeRange: RecordKey, val varSpecs: List[ DirectRDDVariableSpec ], val startTime: Long ) extends Serializable with Loggable {
 
-  def getRDDPartition: RDDRecord = {
+  def getRDDPartition(kernelContext: KernelContext): RDDRecord = {
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition,iRecord)) ): _* )
-    val rv = RDDRecord( elements )
+    val rv = RDDRecord( elements, Map.empty, startTime )
     logger.debug( "DirectRDDRecordSpec{ partition = %s, record = %d }: completed data input in %.4f sec".format( partition.toString, iRecord, (System.nanoTime() - t0) / 1.0E9) )
+    kernelContext.addTimestamp( "Created input RDD { partition = %s, record = %d }".format( partition.toString, iRecord) )
     rv
   }
+
+  val currentExecutionTime: Double = (System.nanoTime() - startTime)/1.0E9
+  val currTimeStr: String = "CurrentExecutionTime: %.4f".format( (System.nanoTime() - startTime)/1.0E9 )
 
   override def toString() = s"RDD-Record[${iRecord.toString}]{ ${partition.toString}, ${timeRange.toString} }"
 
@@ -354,16 +361,17 @@ class DirectRDDRecordSpec(val partition: Partition, iRecord: Int, val timeRange:
 }
 
 object ExtRDDPartSpec {
-  def apply(timeRange: RecordKey, varSpecs: List[ RDDVariableSpec ] ): ExtRDDPartSpec = new ExtRDDPartSpec( timeRange, varSpecs )
+  def apply(timeRange: RecordKey, varSpecs: List[ RDDVariableSpec ], startTime: Long ): ExtRDDPartSpec = new ExtRDDPartSpec( timeRange, varSpecs, startTime )
 }
 
-class ExtRDDPartSpec(val timeRange: RecordKey, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
+class ExtRDDPartSpec(val timeRange: RecordKey, val varSpecs: List[ RDDVariableSpec ], val startTime: Long ) extends Serializable with Loggable {
 
-  def getRDDPartition: RDDRecord = {
+  def getRDDPartition(kernelContext: KernelContext): RDDRecord = {
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toMetaArray ) ): _* )
-    val rv = RDDRecord( elements )
+    val rv = RDDRecord( elements, Map.empty, startTime )
     logger.debug( "RDDPartSpec: completed data input in %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
+    kernelContext.addTimestamp( "Created input RDD { varSpecs = (%s) }".format( varSpecs.map(_.uid).mkString(",") ) )
     rv
   }
 
@@ -389,9 +397,11 @@ class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val mi
 
   def toHeapArray( partition: CachePartition ) = {
     val rv = HeapFltArray( partition.dataSection(section, missing), section.getOrigin, metadata, None )
-    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
+    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s], %s".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
     rv
   }
+
+
   def toMetaArray = {
     val rv = HeapFltArray( section.getShape, section.getOrigin, metadata )
     logger.debug( "toHeapArray: %s".format( section.toString() ) )
@@ -399,7 +409,7 @@ class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val mi
   }
   def toMetaArray( partition: Partition ) = {
     val rv = HeapFltArray( partition.partSection( section.toSection( partition.partitionOrigin ) ).getShape, section.getOrigin, metadata )
-    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
+    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s] %s".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
     rv
   }
   def empty = section.getShape.contains(0)

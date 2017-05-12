@@ -117,6 +117,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val t2 = System.nanoTime()
     logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec, postOp time = %.3f sec   ********** \n".format(node.kernel.name,node.kernel.id, node.operation.identifier, (t2 - t0) / 1.0E9, (t2 - t1) / 1.0E9))
     if( Try( requestCx.config("unitTest","false").toBoolean ).getOrElse(false)  ) { node.kernel.cleanUp(); }
+    kernelContext.logTimingReport("executeKernel")
     result
   }
 
@@ -133,7 +134,9 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     prepareInputs(node, kernelContext, requestCx, batchIndex) map ( inputs => {
       logger.info( s"Executing mapReduce Batch ${batchIndex.toString} for node ${node.getNodeId}" )
       val mapresult = node.map(inputs, kernelContext)
+      kernelContext.logTimingReport("Begin Mapreduce batch " + batchIndex )
       val result: ( RecordKey, RDDRecord ) = node.reduce( mapresult, kernelContext, batchIndex )
+      kernelContext.logTimingReport("Complete Mapreduce batch " + batchIndex )
       mapReduceBatch( node, kernelContext, requestCx, batchIndex + 1 ) match {
         case Some( next_result ) =>
           val reduceOp = node.kernel.getReduceOp(kernelContext)
@@ -295,14 +298,14 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val rawRddMap: Map[String,RDD[(RecordKey,RDDRecord)]] = opInputs flatMap { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
           val opSection: Option[ma2.Section] = getOpSectionIntersection( dataInput.getGrid, node )
-          executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node, batchIndex ) map ( result => uid -> result )
+          executionMgr.serverContext.spark.getRDD( uid, dataInput, requestCx, opSection, node, batchIndex, kernelContext ) map ( result => uid -> result )
         case ( directInput: CDASDirectDataInput ) =>
           val opSection: Option[ma2.Section] = getOpSectionIntersection( directInput.getGrid, node )
-          executionMgr.serverContext.spark.getRDD( uid, directInput, requestCx, opSection, node, batchIndex ) map ( result => uid -> result )
+          executionMgr.serverContext.spark.getRDD( uid, directInput, requestCx, opSection, node, batchIndex, kernelContext ) map ( result => uid -> result )
         case ( extInput: ExternalDataInput ) =>
           if( batchIndex > 0 ) { None } else {
             val opSection: Option[ma2.Section] = getOpSectionIntersection( extInput.getGrid, node )
-            executionMgr.serverContext.spark.getRDD(uid, extInput, requestCx, opSection, node) map (result => uid -> result)
+            executionMgr.serverContext.spark.getRDD(uid, extInput, requestCx, opSection, node, kernelContext ) map (result => uid -> result)
           }
         case ( kernelInput: DependencyOperationInput  ) =>
           val keyValOpt = stream( kernelInput.inputNode, requestCx, batchIndex ) map ( result => uid -> result )
