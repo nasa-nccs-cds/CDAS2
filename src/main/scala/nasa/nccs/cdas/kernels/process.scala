@@ -58,7 +58,11 @@ class KernelContext( val operation: OperationContext, val grids: Map[String,Opti
   def conf( params: Map[String,String] ): KernelContext = new KernelContext( operation, grids, sectionMap, domains, configuration ++ params )
   def commutativeReduction: Boolean = if( getAxes.includes(0) ) { true } else { false }
   def doesTimeReduction: Boolean = getAxes.includes(0)
-  def addTimestamp( label: String ): Unit = timings.add( (System.nanoTime() - startTime, label) )
+  def addTimestamp( label: String ): Unit = {
+    val time = System.nanoTime() - startTime
+    timings.add( (time, label) )
+    logger.info(  "\nTIMESTAMP [ %.4f ] -> %s\n".format(time/1.0E9, label) )
+  }
   def getTimingReport(label: String): String = s"TIMING[${operation.name}]( $label ):\n\t" + (timings.map { case (time,label) => "[ %.4f ] -> %s ".format(time/1.0E9, label) }).mkString("\n\t")
   def logTimingReport(label: String): Unit = logger.info(getTimingReport(label))
 
