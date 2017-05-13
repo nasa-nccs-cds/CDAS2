@@ -20,7 +20,7 @@ import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
 import scala.collection.JavaConversions._
-import scala.collection.SortedMap
+import scala.collection.mutable.SortedSet
 
 object Port {
   def apply( name: String, cardinality: String, description: String="", datatype: String="", identifier: String="" ) = {
@@ -42,7 +42,7 @@ class Port( val name: String, val cardinality: String, val description: String, 
 class KernelContext( val operation: OperationContext, val grids: Map[String,Option[GridContext]], val sectionMap: Map[String,Option[CDSection]],  val domains: Map[String,DomainContainer],  _configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
   val crsOpt = getCRS
   val trsOpt = getTRS
-  val timings: SortedMap[Long,String] = SortedMap.empty
+  val timings: SortedSet[(Long,String)] = SortedSet.empty
   val startTime: Long = System.nanoTime()
   val configuration = crsOpt.map( crs => _configuration + ("crs" -> crs ) ) getOrElse( _configuration )
   lazy val grid: GridContext = getTargetGridContext
@@ -58,7 +58,7 @@ class KernelContext( val operation: OperationContext, val grids: Map[String,Opti
   def conf( params: Map[String,String] ): KernelContext = new KernelContext( operation, grids, sectionMap, domains, configuration ++ params )
   def commutativeReduction: Boolean = if( getAxes.includes(0) ) { true } else { false }
   def doesTimeReduction: Boolean = getAxes.includes(0)
-  def addTimestamp( label: String ): Unit = timings.put( System.nanoTime() - startTime, label )
+  def addTimestamp( label: String ): Unit = timings.add( (System.nanoTime() - startTime, label) )
   def getTimingReport(label: String): String = s"TIMING[${operation.name}]( $label ):\n\t" + (timings.map { case (time,label) => "[ %.4f ] -> %s ".format(time/1.0E9, label) }).mkString("\n\t")
   def logTimingReport(label: String): Unit = logger.info(getTimingReport(label))
 
