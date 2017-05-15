@@ -35,7 +35,8 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
   def generateKernelContext( requestCx: RequestContext ): KernelContext = {
     val sectionMap: Map[String, Option[CDSection]] = requestCx.inputs.mapValues(_.map(_.cdsection)).map(identity)
     val gridMap: Map[String,Option[GridContext]] = requestCx.getTargetGrids.map { case (uid,tgridOpt) => uid -> tgridOpt.map( tg => GridContext(uid,tg)) }
-    new KernelContext( operation, gridMap, sectionMap, requestCx.domains, requestCx.getConfiguration)
+    val startTime: Long = System.currentTimeMillis()
+    new KernelContext( operation, gridMap, sectionMap, requestCx.domains, requestCx.getConfiguration, startTime )
   }
 
   def reduce(mapresult: RDD[(RecordKey,RDDRecord)], context: KernelContext, batchIndex: Int ): (RecordKey,RDDRecord) = {
@@ -47,6 +48,7 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
       val nParts: Int = if( context.commutativeReduction ) { mapresult.partitions.length } else { 1 }
       val result = mapresult.sortByKey(true,nParts) reduce kernel.getReduceOp(context)
       logger.debug("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
+      context.addTimestamp( "FINISHED reduce Operation" )
       result
     }
   }

@@ -39,11 +39,10 @@ class Port( val name: String, val cardinality: String, val description: String, 
   }
 }
 
-class KernelContext( val operation: OperationContext, val grids: Map[String,Option[GridContext]], val sectionMap: Map[String,Option[CDSection]],  val domains: Map[String,DomainContainer],  _configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
+class KernelContext( val operation: OperationContext, val grids: Map[String,Option[GridContext]], val sectionMap: Map[String,Option[CDSection]],  val domains: Map[String,DomainContainer],  _configuration: Map[String,String], val startTime: Long ) extends Loggable with Serializable with ScopeContext {
   val crsOpt = getCRS
   val trsOpt = getTRS
   val timings: SortedSet[(Float,String)] = SortedSet.empty
-  val startTime: Long = System.currentTimeMillis()
   val configuration = crsOpt.map( crs => _configuration + ("crs" -> crs ) ) getOrElse( _configuration )
   lazy val grid: GridContext = getTargetGridContext
   def findGrid( varUid: String ): Option[GridContext] = grids.find( item => item._1.split('-')(0).equals(varUid) ).flatMap( _._2 )
@@ -55,7 +54,7 @@ class KernelContext( val operation: OperationContext, val grids: Map[String,Opti
   private def getCRS: Option[String] =
     operation.getDomain flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("crs") ) )
   private def getTRS: Option[String] = operation.getDomain flatMap ( domId => domains.get( domId ).flatMap ( dc => dc.metadata.get("trs") ) )
-  def conf( params: Map[String,String] ): KernelContext = new KernelContext( operation, grids, sectionMap, domains, configuration ++ params )
+  def conf( params: Map[String,String] ): KernelContext = new KernelContext( operation, grids, sectionMap, domains, configuration ++ params, startTime )
   def commutativeReduction: Boolean = if( getAxes.includes(0) ) { true } else { false }
   def doesTimeReduction: Boolean = getAxes.includes(0)
   def addTimestamp( label: String ): Unit = {
@@ -141,6 +140,7 @@ object Kernel extends Loggable {
       case (elkey, element0) =>  rdd1.elements.get(elkey).map( element1 => elkey -> { if( k0.start <= k1.start ) { element0.append(element1) } else { element1.append(element0) } } )
     }
     logger.info("&MERGE: complete in time = %.4f s, result sample = %s".format( (System.nanoTime - t0) / 1.0E9, new_elements.head._2.getSampleDataStr(10,0) ) )
+    context.addTimestamp("&MERGE: complete, key = " + new_key.toString )
     new_key -> RDDRecord( new_elements, rdd0.mergeMetadata("merge", rdd1), context.startTime )
   }
 
