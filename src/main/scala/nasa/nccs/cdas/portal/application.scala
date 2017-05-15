@@ -2,6 +2,7 @@ package nasa.nccs.cdas.portal
 import java.nio.file.{Files, Path, Paths}
 
 import nasa.nccs.cdas.engine.spark.CDSparkContext
+import nasa.nccs.cdas.portal.CDASApplication.logger
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode._
 import nasa.nccs.cdas.utilities.appParameters
@@ -96,10 +97,14 @@ object CDASApplication extends Loggable {
 object TestApplication extends Loggable {
   def main(args: Array[String]) {
     import CDASapp._
-    val parameter_file = elem(args, 0, "")
+    logger.info(s"Executing Test with args: ${args.mkString(",")}}")
+    val connect_mode = elem(args, 0, "bind")
+    val request_port = elem(args, 1, "0").toInt
+    val response_port = elem(args, 2, "0").toInt
+    val parameter_file = elem(args, 3, "")
     val appConfiguration = getConfiguration( parameter_file )
-    appParameters.addConfigParams( appConfiguration )
-
+    val cmode = if (connect_mode.toLowerCase.startsWith("c")) CONNECT else BIND
+    
     val sc = CDSparkContext()
     val indices = sc.sparkContext.parallelize( Array( 1, 2, 3, 4, 5 ,6 ,7 ) )
     val timings = indices.map( i => System.nanoTime() )
