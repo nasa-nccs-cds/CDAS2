@@ -243,10 +243,10 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     }
 
   test("Seasons-filter") {
-    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":30,"end":40,"system":"indices"},"lon":{"start":30,"end":40,"system":"indices"},"lev":{"start":10,"end":10,"system":"indices"},"time":{"start":0,"end":100,"system":"indices"}}],variable=[{"uri":"file:///Users/tpmaxwel/.cdas/cache/collections/NCML/giss_r1i1p1.xml","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","axes":"xt","filter":"DJF"}]]"""
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":30,"end":50,"system":"indices"},"time":{"start":0,"end":200,"system":"indices"}}],variable=[{"uri":"file:///Users/tpmaxwel/.cdas/cache/collections/NCML/giss_r1i1p1.xml","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","axes":"xt","filter":"DJF"}]]"""
     val result_node = executeTest(datainputs)
-    val result_value = getResultValue(result_node)
-    println( "Op Result:       " + result_value )
+    val result_data = getResultData( result_node, true )
+    println( "Op Result:       " + result_data.toDataString )
   }
 
   test("pyTimeSum-dap") {

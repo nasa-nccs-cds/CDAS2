@@ -4,12 +4,13 @@ import nasa.nccs.utilities.Logger;
 import org.apache.commons.lang.StringUtils;
 import org.zeromq.ZMQ;
 import nasa.nccs.utilities.CDASLogManager;
-
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Map;
 
 
 public abstract class CDASPortal {
@@ -58,7 +59,17 @@ public abstract class CDASPortal {
         response_socket.send( StringUtils.join( request_args,  "!" ).getBytes(), 0);
         logger.info( " Sent response: " + rId );
     }
-
+    private void sendArrayData( String rid, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
+        logger.debug( String.format("Portal: Sending response data to client for rid %s, nbytes=%d", rid, data.length ));
+        List<String> slist = Arrays.asList( "array", rid, ia2s(origin), ia2s(shape), m2s(metadata), "1" );
+        String header = StringUtils.join(slist,"|");
+        logger.debug("Sending header: " + header);
+        sendDataPacket( header, data );
+    }
+    public void sendDataPacket( String header, byte[] data ) {
+        response_socket.send(header.getBytes(), 0 );
+        response_socket.send(data, 0 );
+    }
     public abstract void postArray( String header, byte[] data );
     public abstract void execUtility( String[] utilSpec );
 
@@ -114,4 +125,13 @@ public abstract class CDASPortal {
         try { response_socket.close(); }  catch ( Exception ex ) { ; }
     }
 
+    public String ia2s( int[] array ) { return Arrays.toString(array).replaceAll("\\[|\\]|\\s", ""); }
+    public String sa2s( String[] array ) { return StringUtils.join(array,","); }
+    public String m2s( Map<String, String> metadata ) {
+        ArrayList<String> items = new ArrayList<String>();
+        for (Map.Entry<String,String> entry : metadata.entrySet() ) {
+            items.add( entry.getKey() + ":" + entry.getValue() );
+        }
+        return StringUtils.join(items,";" );
+    }
 }
