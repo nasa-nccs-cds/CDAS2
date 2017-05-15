@@ -40,7 +40,9 @@ object Library {
 object Dependencies {
   import Library._
 
-  val scala = Seq( joda, scalactic, commonsIO, scalatest, logback )
+  val scala = Seq( joda, scalactic, commonsIO )
+
+  val test = Seq( scalatest, logback )
 
   val scala_xml = Seq( scalaxml, scalaparser )
 
