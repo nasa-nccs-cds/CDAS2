@@ -42,8 +42,8 @@ class Port( val name: String, val cardinality: String, val description: String, 
 class KernelContext( val operation: OperationContext, val grids: Map[String,Option[GridContext]], val sectionMap: Map[String,Option[CDSection]],  val domains: Map[String,DomainContainer],  _configuration: Map[String,String] ) extends Loggable with Serializable with ScopeContext {
   val crsOpt = getCRS
   val trsOpt = getTRS
-  val timings: SortedSet[(Long,String)] = SortedSet.empty
-  val startTime: Long = System.nanoTime()
+  val timings: SortedSet[(Float,String)] = SortedSet.empty
+  val startTime: Long = System.currentTimeMillis()
   val configuration = crsOpt.map( crs => _configuration + ("crs" -> crs ) ) getOrElse( _configuration )
   lazy val grid: GridContext = getTargetGridContext
   def findGrid( varUid: String ): Option[GridContext] = grids.find( item => item._1.split('-')(0).equals(varUid) ).flatMap( _._2 )
@@ -59,10 +59,10 @@ class KernelContext( val operation: OperationContext, val grids: Map[String,Opti
   def commutativeReduction: Boolean = if( getAxes.includes(0) ) { true } else { false }
   def doesTimeReduction: Boolean = getAxes.includes(0)
   def addTimestamp( label: String ): Unit = {
-    val curtime: Long = System.nanoTime()
-    val time: Long = curtime - startTime
+    val curtime: Long = System.currentTimeMillis()
+    val time: Float = ( curtime - startTime ) / 1.0E6f
     timings.add( (time, label) )
-    logger.info(  "\nTIMESTAMP(%d:%d) [ %d ] -> %s\n".format( curtime, startTime, time, label) )
+    logger.info(  "\nTIMESTAMP [ %.4f ] -> %s\n".format(  time, label) )
   }
   def getTimingReport(label: String): String = s"TIMING[${operation.name}]( $label ):\n\t" + (timings.map { case (time,label) => "[ %.4f ] -> %s ".format(time/1.0E9, label) }).mkString("\n\t")
   def logTimingReport(label: String): Unit = logger.info(getTimingReport(label))
