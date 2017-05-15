@@ -1,4 +1,5 @@
 import nasa.nccs.cdapi.tensors.CDFloatArray
+import nasa.nccs.cdas.engine.spark.CDSparkContext
 import nasa.nccs.cdas.loaders.Collections
 import nasa.nccs.cdas.utilities.runtime
 import nasa.nccs.utilities.{CDASLogManager, Loggable}
@@ -14,6 +15,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   import ucar.nc2.dataset.NetcdfDataset
   val serverConfiguration = Map[String,String]()
   val webProcessManager = new ProcessManager( serverConfiguration )
+  val scontext: CDSparkContext = webProcessManager.apiManager.providers.head._2.cds2ExecutionManager.serverContext.spark
   val nExp = 3
   val shutdown_after = false
   val use_6hr_data = false
@@ -26,6 +28,14 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   val printer = new scala.xml.PrettyPrinter(200, 3)
   after {
     if(shutdown_after) { cleanup() }
+  }
+
+  test("Timing") {
+    val indices = scontext.sparkContext.parallelize( Array( 1 until 50 ) )
+    val timings = indices.map( i => System.nanoTime() )
+    val t0 = System.nanoTime()
+    val time_list = timings.collect().map( _.toString ) mkString (",")
+    println( t0.toString + ": " + time_list )
   }
 
   test("RemoveCollections") {
