@@ -95,11 +95,16 @@ object CDASApplication extends Loggable {
 
 object TestApplication extends Loggable {
   def main(args: Array[String]) {
+    import CDASapp._
+    val parameter_file = elem(args, 0, "")
+    val appConfiguration = getConfiguration( parameter_file )
+    appParameters.addConfigParams( appConfiguration )
+
     val sc = CDSparkContext()
-    val indices = sc.sparkContext.parallelize( Array( 1 until 50 ) )
+    val indices = sc.sparkContext.parallelize( Array( 1, 2, 3, 4, 5 ,6 ,7 ) )
     val timings = indices.map( i => System.nanoTime() )
     val t0 = System.nanoTime()
-    val time_list = timings.collect().map( _.toString ) mkString (",")
+    val time_list = timings.collect().map( _.toString ) mkString (", ")
     println( t0.toString + ": " + time_list )
   }
 }
