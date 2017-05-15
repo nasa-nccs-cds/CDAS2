@@ -110,6 +110,6 @@ object TestApplication extends Loggable {
     val timings = indices.map( i => System.nanoTime() )
     val t0 = System.nanoTime()
     val time_list = timings.collect().map( tval => (tval/1.0E9)_.toString ) mkString (", ")
-    println( (t0/1.0E9)_.toString + ": " + time_list )
+    println( (t0/1.0E9).toString + ": " + time_list )
   }
 }
