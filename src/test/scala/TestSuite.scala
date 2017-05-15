@@ -30,14 +30,6 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     if(shutdown_after) { cleanup() }
   }
 
-  test("Timing") {
-    val indices = scontext.sparkContext.parallelize( Array( 1 until 50 ) )
-    val timings = indices.map( i => System.nanoTime() )
-    val t0 = System.nanoTime()
-    val time_list = timings.collect().map( _.toString ) mkString (",")
-    println( t0.toString + ": " + time_list )
-  }
-
   test("RemoveCollections") {
     Collections.removeCollections(mod_collections.map(_._2).toArray)
     for( (model, collection) <- mod_collections ) Collections.findCollection( collection ) match {

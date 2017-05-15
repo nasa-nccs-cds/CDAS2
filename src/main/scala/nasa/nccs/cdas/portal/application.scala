@@ -107,8 +107,8 @@ object TestApplication extends Loggable {
 
     val sc = CDSparkContext()
     val indices = sc.sparkContext.parallelize( Array( 1, 2, 3, 4, 5 ,6 ,7 ) )
-    val timings = indices.map( i => System.nanoTime() )
-    val t0 = System.nanoTime()
+    val timings = indices.map( i => System.currentTimeMillis() )
+    val t0 = System.currentTimeMillis()
     val time_list = timings.collect().map( tval => (tval/1.0E9).toString ) mkString (", ")
     println( (t0/1.0E9).toString + ": " + time_list )
   }
