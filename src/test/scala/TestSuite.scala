@@ -441,7 +441,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     values / counts
   }
 
-  def getDataNodes( result_node: xml.Elem, print_result: Boolean = false  ): xml.NodeSeq = {
+  def getDataNodes( result_node: xml.Node, print_result: Boolean = false  ): xml.NodeSeq = {
     if(print_result) { println( s"Result Node:\n${result_node.toString}\n" ) }
     result_node.label match {
       case "response" => result_node \\ "outputs" \\ "data"
@@ -449,21 +449,21 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     }
   }
 
-  def getResultData( result_node: xml.Elem, print_result: Boolean = false ): CDFloatArray = {
+  def getResultData( result_node: xml.Node, print_result: Boolean = false ): CDFloatArray = {
     val data_nodes: xml.NodeSeq = getDataNodes( result_node, print_result )
     try{  CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue ) } catch { case err: Exception => CDFloatArray.empty }
   }
 
-  def getResultValue( result_node: xml.Elem ): Float = {
+  def getResultValue( result_node: xml.Node ): Float = {
     val data_nodes: xml.NodeSeq = getDataNodes( result_node )
     try{ data_nodes.head.text.toFloat } catch { case err: Exception => Float.NaN }
   }
 
-  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
+  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Node = {
     val t0 = System.nanoTime()
     val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString, "unitTest" -> "true" )
     val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
-    val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
+    val response: xml.Node = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
     for( child_node <- response.child ) if ( child_node.label.startsWith("exception")) { throw new Exception( child_node.toString ) }
     println("Completed test '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
     response
@@ -473,17 +473,17 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     webProcessManager.shutdown( service )
   }
 
-  def getCapabilities( identifier: String="", async: Boolean = false ): xml.Elem = {
+  def getCapabilities( identifier: String="", async: Boolean = false ): xml.Node = {
     val t0 = System.nanoTime()
-    val response: xml.Elem = webProcessManager.getCapabilities(service, identifier )
+    val response: xml.Node = webProcessManager.getCapabilities(service, identifier )
     webProcessManager.logger.info("Completed GetCapabilities '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
     webProcessManager.logger.info( printer.format(response) )
     response
   }
 
-  def describeProcess( identifier: String, async: Boolean = false ): xml.Elem = {
+  def describeProcess( identifier: String, async: Boolean = false ): xml.Node = {
     val t0 = System.nanoTime()
-    val response: xml.Elem = webProcessManager.describeProcess(service, identifier )
+    val response: xml.Node = webProcessManager.describeProcess(service, identifier )
     webProcessManager.logger.info("Completed DescribeProcess '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
     webProcessManager.logger.info( printer.format(response) )
     response
@@ -506,22 +506,22 @@ class CDASDemoTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     println( "Op Result:       " + result_data )
   }
 
-  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
+  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Node = {
     val t0 = System.nanoTime()
     val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString, "unitTest" -> "true" )
     val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
-    val response: xml.Elem = webProcessManager.executeProcess("cds2", identifier, parsed_data_inputs, runargs)
+    val response: xml.Node = webProcessManager.executeProcess("cds2", identifier, parsed_data_inputs, runargs)
     for( child_node <- response.child ) if ( child_node.label.startsWith("exception")) { throw new Exception( child_node.toString ) }
     println("Completed test '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
     response
   }
 
-  def getResultData( result_node: xml.Elem, print_result: Boolean = false ): CDFloatArray = {
+  def getResultData( result_node: xml.Node, print_result: Boolean = false ): CDFloatArray = {
     val data_nodes: xml.NodeSeq = getDataNodes( result_node, print_result )
     try{  CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue ) } catch { case err: Exception => CDFloatArray.empty }
   }
 
-  def getDataNodes( result_node: xml.Elem, print_result: Boolean = false  ): xml.NodeSeq = {
+  def getDataNodes( result_node: xml.Node, print_result: Boolean = false  ): xml.NodeSeq = {
     if(print_result) { println( s"Result Node:\n${result_node.toString}\n" ) }
     result_node.label match {
       case "response" => result_node \\ "outputs" \\ "data"
@@ -908,11 +908,11 @@ class CDASDemoTestSuite extends FunSuite with Loggable with BeforeAndAfter {
 //  val result_value = data_nodes.head.text
 //  //    assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value ($result_value vs $nco_verified_result) computed for Sum")
 //
-//  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
+//  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Node = {
 //    val t0 = System.nanoTime()
 //    val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString )
 //    val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
-//    val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
+//    val response: xml.Node = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
 //    webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
 //    response
 //  }
