@@ -58,8 +58,6 @@ class KernelContext( val operation: OperationContext, val grids: Map[String,Opti
   def commutativeReduction: Boolean = if( getAxes.includes(0) ) { true } else { false }
   def doesTimeReduction: Boolean = getAxes.includes(0)
   def addTimestamp( label: String ): Unit = { profiler.timestamp(label) }
-  def getTimingReport(label: String): String = profiler.toString
-  def logTimingReport(label: String): Unit = logger.info(getTimingReport(label))
 
   private def getTargetGridContext: GridContext = crsOpt match {
     case Some( crs ) =>

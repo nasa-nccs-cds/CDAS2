@@ -27,7 +27,9 @@ object ProfilingTool {
     val broadcastedStartTime: Broadcast[Long] = sparkContext.broadcast( startTimeMS )
     val starting_timestamp = new TimeStamp( 0f, "Job Start")
     val timestamps: Accumulable[mutable.ListBuffer[TimeStamp], TimeStamp] = sparkContext.accumulable(new mutable.ListBuffer[TimeStamp]())
-    new ProfilingTool( broadcastedStartTime, timestamps )
+    val profiler = new ProfilingTool( broadcastedStartTime, timestamps )
+    profiler.timestamp("Startup")
+    profiler
   }
 }
 

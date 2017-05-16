@@ -110,16 +110,14 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def executeKernel( requestCx: RequestContext, node: WorkflowNode  ): RDDRecord = {
-    val profiler = ProfilingTool( executionMgr.serverContext.spark.sparkContext )
     val t0 = System.currentTimeMillis()
-    val kernelContext = node.generateKernelContext( requestCx, profiler )
+    val kernelContext = node.generateKernelContext( requestCx, requestCx.profiler )
     var pre_result: RDDRecord = mapReduce( node, kernelContext, requestCx )
     val t1 = System.currentTimeMillis()
     val result = node.kernel.postRDDOp( pre_result, kernelContext  )
     if( Try( requestCx.config("unitTest","false").toBoolean ).getOrElse(false)  ) { node.kernel.cleanUp(); }
     val t2 = System.currentTimeMillis()
     logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec, postOp time = %.3f sec   ********** \n".format(node.kernel.name,node.kernel.id, node.operation.identifier, (t2 - t0) / 1.0E3, (t2 - t1) / 1.0E3))
-    kernelContext.logTimingReport("executeKernel")
     result
   }
 
@@ -136,9 +134,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     prepareInputs(node, kernelContext, requestCx, batchIndex) map ( inputs => {
       logger.info( s"Executing mapReduce Batch ${batchIndex.toString} for node ${node.getNodeId}" )
       val mapresult = node.map(inputs, kernelContext)
-      kernelContext.logTimingReport("Begin Mapreduce batch " + batchIndex )
       val result: ( RecordKey, RDDRecord ) = node.reduce( mapresult, kernelContext, batchIndex )
-      kernelContext.logTimingReport("Complete Mapreduce batch " + batchIndex )
       mapReduceBatch( node, kernelContext, requestCx, batchIndex + 1 ) match {
         case Some( next_result ) =>
           val reduceOp = node.kernel.getReduceOp(kernelContext)

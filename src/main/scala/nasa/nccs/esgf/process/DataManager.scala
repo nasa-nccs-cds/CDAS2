@@ -1,5 +1,6 @@
 package nasa.nccs.esgf.process
 import java.util.Formatter
+
 import scala.xml
 import nasa.nccs.caching._
 import nasa.nccs.cdapi.cdm._
@@ -13,7 +14,7 @@ import nasa.nccs.cdas.engine.spark.{CDSparkContext, RangePartitioner, RecordKey,
 import nasa.nccs.cdas.kernels.{AxisIndices, KernelContext}
 import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
-import nasa.nccs.utilities.{Loggable, cdsutils}
+import nasa.nccs.utilities.{Loggable, ProfilingTool, cdsutils}
 import org.apache.spark.rdd.RDD
 import ucar.nc2.Dimension
 import ucar.nc2.time.{CalendarDate, CalendarDateRange}
@@ -49,7 +50,7 @@ trait ScopeContext {
   def config( key: String ): Option[String] = __configuration__.get(key)
 }
 
-class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[String, Option[DataFragmentSpec]], request: TaskRequest, private val configuration: Map[String,String] ) extends ScopeContext {
+class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[String, Option[DataFragmentSpec]], request: TaskRequest, val profiler: ProfilingTool, private val configuration: Map[String,String] ) extends ScopeContext with Loggable {
   val test = 1
   def getConfiguration = configuration.map(identity)
   def getConf( key: String, default: String ) = configuration.getOrElse(key,default)
@@ -73,6 +74,9 @@ class RequestContext( val domains: Map[String,DomainContainer], val inputs: Map[
         targetGrid.getGridFile
     }
   }
+
+  def getTimingReport(label: String): String = profiler.toString
+  def logTimingReport(label: String): Unit = logger.info(getTimingReport(label))
 
   def getDomain(domain_id: String): DomainContainer = domains.get(domain_id) match {
     case Some(domain_container) => domain_container

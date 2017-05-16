@@ -1,19 +1,25 @@
 package nasa.nccs.cdas.engine
 import java.io.{IOException, PrintWriter, StringWriter}
+
 import scala.xml
 import java.io.File
+
 import nasa.nccs.cdapi.cdm.{Collection, PartitionedFragment, _}
 import nasa.nccs.cdas.loaders.{Collections, Masks}
 import nasa.nccs.esgf.process._
+
 import scala.concurrent.ExecutionContext.Implicits.global
-import nasa.nccs.utilities.{Loggable, cdsutils}
+import nasa.nccs.utilities.{Loggable, ProfilingTool, cdsutils}
 import nasa.nccs.cdas.kernels.{Kernel, KernelMgr, KernelModule}
+
 import scala.concurrent.{Await, Future, Promise}
 import java.util.concurrent.atomic.AtomicReference
+
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
 import nasa.nccs.caching._
 import ucar.{ma2, nc2}
 import nasa.nccs.cdas.utilities.{GeoTools, appParameters, runtime}
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import nasa.nccs.cdas.workers.python.PythonWorkerPortal
@@ -128,15 +134,17 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
 
   def createRequestContext(request: TaskRequest, run_args: Map[String,String] ): RequestContext = {
     val t0 = System.nanoTime
+    val profiler = ProfilingTool( serverContext.spark.sparkContext )
     val sourceContainers = request.variableMap.values.filter(_.isSource)
     val t1 = System.nanoTime
     val sources = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
       yield serverContext.createInputSpec( data_container, domainOpt, request )
     val t2 = System.nanoTime
     val sourceMap: Map[String,Option[DataFragmentSpec]] = Map(sources.toSeq:_*)
-    val rv = new RequestContext (request.domainMap, sourceMap, request, run_args )
+    val rv = new RequestContext (request.domainMap, sourceMap, request, profiler, run_args )
     val t3 = System.nanoTime
     logger.info( " LoadInputDataT: %.4f %.4f %.4f, MAXINT: %.2f G".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, Int.MaxValue/1.0E9 ) )
+    profiler.timestamp( " LoadInputDataT " )
     rv
   }
 
@@ -273,8 +281,6 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
     executeWorkflows(request, requestContext)
   }
 
-  def getRequestContext( request: TaskRequest, run_args: Map[String,String] ): RequestContext = createRequestContext( request, run_args )
-
   def blockingExecute( request: TaskRequest, run_args: Map[String,String] ): WPSResponse =  {
     logger.info("Blocking Execute { runargs: " + run_args.toString + ", request: " + request.toString + " }")
     runtime.printMemoryUsage(logger)
@@ -289,6 +295,7 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
           logger.info("Executing task request " + request.name )
           val requestContext = createRequestContext (request, run_args)
           executeWorkflows (request, requestContext )
+          requestContext.logTimingReport("Executed task request " + request.name)
       }
     } catch {
       case err: Exception => new WPSExceptionReport(err)
