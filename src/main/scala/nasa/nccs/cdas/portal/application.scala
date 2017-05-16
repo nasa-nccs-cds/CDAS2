@@ -70,7 +70,7 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
         logger.info( "\n\n     **** Found result Href: " + href + " ****** \n\n")
         logger.info( "Do Nothing now- output written to disk")
       case None =>
-        logger.error( "Can't find result Id in direct response")
+        logger.error( "Can't find result Id in direct response: " + response.toString() )
     }
   }
 
