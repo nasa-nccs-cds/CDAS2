@@ -737,8 +737,8 @@ abstract class SingularRDDKernel( options: Map[String,String] = Map.empty ) exte
       case None => throw new Exception( "Missing input to '" + this.getClass.getName + "' map op: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
     }
     logger.info("Executed Kernel %s map op, time = %.4f s".format(name, (System.nanoTime - t0) / 1.0E9))
-    context.addTimestamp( "Map Op complete" )
-    RDDRecord( Map( elem ), Map.empty )
+    context.addTimestamp( "Map Op complete, record mdata = " + inputs.metadata.mkString(";"))
+    RDDRecord( Map( elem ), inputs.metadata )
   }
 }
 

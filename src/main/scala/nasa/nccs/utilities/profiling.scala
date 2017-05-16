@@ -5,7 +5,7 @@ import org.apache.spark.broadcast.Broadcast
 import scala.collection.mutable
 
 object TimeStamp {
-  def apply( startTime: Long, label: String ): TimeStamp = { new TimeStamp( (System.currentTimeMillis()-startTime)/1.0E6f, label ) }
+  def apply( startTime: Long, label: String ): TimeStamp = { new TimeStamp( (System.currentTimeMillis()-startTime)/1.0E3f, label ) }
 }
 
 class TimeStamp( val elapasedJobTime: Float, val label: String ) extends Serializable with Ordered [TimeStamp]  {
