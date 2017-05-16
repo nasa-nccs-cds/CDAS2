@@ -9,7 +9,7 @@ object TimeStamp {
 }
 
 class TimeStamp( val elapasedJobTime: Float, val label: String ) extends Serializable with Ordered [TimeStamp]  {
-  override def toString(): String = { s"TimeStamp { ${elapasedJobTime.toString} => $label" }
+  override def toString(): String = { s"TimeStamp[${Thread.currentThread.getId.toString}] { ${elapasedJobTime.toString} => $label" }
   def compare (that: TimeStamp) = { elapasedJobTime.compareTo( that.elapasedJobTime ) }
 }
 
@@ -35,6 +35,6 @@ object ProfilingTool {
 
 class ProfilingTool( val startTime: Broadcast[Long], timestamps: Accumulable[mutable.ListBuffer[TimeStamp], TimeStamp] ) extends Serializable {
   def timestamp( label: String ): Unit = { timestamps += TimeStamp( startTime.value, label ) }
-  def getTimestamps: List[TimeStamp] = (timestamps.localValue ++ timestamps.value).sorted.toList
-  override def toString = "\n\n\t\t\tTIMESTAMPS:\n\t" + getTimestamps.map( _.toString() ).mkString("\n\t") + "\n\n"
+  def getTimestamps: List[TimeStamp] = timestamps.value.sorted.toList
+  override def toString = " *** TIMESTAMPS: ***\n\n\t" + getTimestamps.map( _.toString() ).mkString("\n\t") + "\n\n"
 }
