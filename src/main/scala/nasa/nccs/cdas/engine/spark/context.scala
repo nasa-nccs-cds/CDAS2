@@ -179,7 +179,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     val partitions = pFrag.partitions
     val tgrid: TargetGrid = pFrag.getGrid
     val rddPartSpecs: Array[RDDPartSpec] = partitions.getBatch(batchIndex) map (partition =>
-      RDDPartSpec(partition, tgrid, List(pFrag.getRDDVariableSpec(uid, partition, opSection)), kernelContext.startTime)
+      RDDPartSpec(partition, tgrid, List(pFrag.getRDDVariableSpec(uid, partition, opSection)))
       ) filterNot (_.empty(uid))
     logger.info("Discarded empty partitions: Creating RDD with <<%d>> items".format( rddPartSpecs.length ))
     if (rddPartSpecs.length == 0) { None }
@@ -195,7 +195,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
       val partitions = partMgr.partitions
       val tgrid: TargetGrid = requestCx.getTargetGrid(uid).getOrElse(throw new Exception("Missing target grid for uid " + uid))
       val batch= partitions.getBatch(batchIndex)
-      val rddPartSpecs: Array[DirectRDDPartSpec] = batch map ( partition => DirectRDDPartSpec(partition, tgrid, List(directInput.getRDDVariableSpec(uid, opSection)), kernelContext.startTime)) filterNot (_.empty(uid))
+      val rddPartSpecs: Array[DirectRDDPartSpec] = batch map ( partition => DirectRDDPartSpec(partition, tgrid, List(directInput.getRDDVariableSpec(uid, opSection)))) filterNot (_.empty(uid))
       logger.info("\n **************************************************************** \n ---> Processing Batch %d: Creating input RDD with <<%d>> partitions for node %s".format(batchIndex,rddPartSpecs.length,node.getNodeId))
       if (rddPartSpecs.length == 0) { None }
       else {
@@ -210,7 +210,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
   def getRDD(uid: String, extInput: ExternalDataInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode, kernelContext: KernelContext ): Option[ RDD[ (RecordKey,RDDRecord) ] ] = {
     val tgrid: TargetGrid = extInput.getGrid
     val ( key, varSpec ) = extInput.getKeyedRDDVariableSpec(uid, opSection)
-    val rddPartSpec = ExtRDDPartSpec( key, List(varSpec), kernelContext.startTime )
+    val rddPartSpec = ExtRDDPartSpec( key, List(varSpec) )
     val parallelized_rddspecs = sparkContext parallelize Seq( rddPartSpec ) keyBy (_.timeRange)
     Some( parallelized_rddspecs mapValues ( spec => spec.getRDDPartition(kernelContext) ) )
   }

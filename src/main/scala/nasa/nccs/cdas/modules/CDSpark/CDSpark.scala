@@ -146,7 +146,7 @@ class multiAverage extends Kernel(Map.empty) {
     logger.info("&MAP: Finished Kernel %s, inputs = %s, output = %s, time = %.4f s".format(name, context.operation.inputs.mkString(","), context.operation.rid, (System.nanoTime - t0)/1.0E9) )
     context.addTimestamp( "Map Op complete" )
     val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
-    RDDRecord( Map( context.operation.rid -> HeapFltArray( resultArray, input_arrays(0).origin, input_arrays.head.gridSpec, result_metadata, missing) ), inputs.metadata, context.startTime )
+    RDDRecord( Map( context.operation.rid -> HeapFltArray( resultArray, input_arrays(0).origin, input_arrays.head.gridSpec, result_metadata, missing) ), inputs.metadata )
   }
 }
 
@@ -171,7 +171,7 @@ class average extends SingularRDDKernel(Map.empty) {
     })
     logger.info("Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9))
     context.addTimestamp( "Map Op complete" )
-    RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ), context.startTime )
+    RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
   override def combineRDD(context: KernelContext)(a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)(a0, a1)
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
@@ -204,7 +204,7 @@ class timeBin extends Kernel(Map.empty) {
     val result_array = HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), Some( weights_sum_masked.getArrayData() ) )
     logger.info("Executed Kernel %s map op, input = %s, index=%s, time = %.4f s".format(name, id, result_array.toCDFloatArray.getIndex.toString , (System.nanoTime - t0) / 1.0E9))
     context.addTimestamp( "Map Op complete" )
-    RDDRecord( Map( context.operation.rid -> result_array ), inputs.metadata ++ List( "rid" -> context.operation.rid ), context.startTime )
+    RDDRecord( Map( context.operation.rid -> result_array ), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
   override def combineRDD(context: KernelContext)( a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)( a0, a1 )
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )

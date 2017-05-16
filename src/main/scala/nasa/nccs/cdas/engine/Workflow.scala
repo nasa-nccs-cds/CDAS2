@@ -8,7 +8,7 @@ import nasa.nccs.cdas.engine.spark.{RecordKey$, _}
 import nasa.nccs.cdas.kernels.Kernel.RDDKeyValPair
 import nasa.nccs.cdas.kernels._
 import nasa.nccs.esgf.process._
-import nasa.nccs.utilities.{DAGNode, Loggable}
+import nasa.nccs.utilities.{DAGNode, Loggable, ProfilingTool}
 import nasa.nccs.wps._
 import org.apache.spark.rdd.RDD
 import ucar.ma2
@@ -32,11 +32,10 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
 
   def getKernelOption( key: String , default: String = ""): String = kernel.options.getOrElse(key,default)
 
-  def generateKernelContext( requestCx: RequestContext ): KernelContext = {
+  def generateKernelContext( requestCx: RequestContext, profiler: ProfilingTool ): KernelContext = {
     val sectionMap: Map[String, Option[CDSection]] = requestCx.inputs.mapValues(_.map(_.cdsection)).map(identity)
     val gridMap: Map[String,Option[GridContext]] = requestCx.getTargetGrids.map { case (uid,tgridOpt) => uid -> tgridOpt.map( tg => GridContext(uid,tg)) }
-    val startTime: Long = System.currentTimeMillis()
-    new KernelContext( operation, gridMap, sectionMap, requestCx.domains, requestCx.getConfiguration, startTime )
+    new KernelContext( operation, gridMap, sectionMap, requestCx.domains, requestCx.getConfiguration, profiler )
   }
 
   def reduce(mapresult: RDD[(RecordKey,RDDRecord)], context: KernelContext, batchIndex: Int ): (RecordKey,RDDRecord) = {
@@ -111,7 +110,8 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def executeKernel( requestCx: RequestContext, node: WorkflowNode  ): RDDRecord = {
-    val kernelContext = node.generateKernelContext( requestCx )
+    val profiler = ProfilingTool( executionMgr.serverContext.spark.sparkContext )
+    val kernelContext = node.generateKernelContext( requestCx, profiler )
     val t0 = System.nanoTime()
     var pre_result: RDDRecord = mapReduce( node, kernelContext, requestCx )
     val t1 = System.nanoTime()
@@ -191,7 +191,8 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def stream(node: WorkflowNode, requestCx: RequestContext, batchIndex: Int ): Option[ RDD[ (RecordKey,RDDRecord) ] ] = {
-    val kernelContext = node.generateKernelContext( requestCx )
+    val profiler = ProfilingTool( executionMgr.serverContext.spark.sparkContext )
+    val kernelContext = node.generateKernelContext( requestCx, profiler )
     streamMapReduceBatch( node, kernelContext, requestCx, batchIndex )      // TODO: Break stream at time reduction boundaries.
   }
 

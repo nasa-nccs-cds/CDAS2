@@ -181,7 +181,7 @@ class PartitionedFragment( val partitions: CachePartitions, val maskOpt: Option[
     val partition = partitions.getPart(partIndex)
     val data: CDFloatArray = partition.data( fragmentSpec.missing_value )
     val spec: DataFragmentSpec = partFragSpec(partIndex)
-    RDDRecord( Map( spec.uid -> HeapFltArray(data, fragSpec.getOrigin, spec.getMetadata(), None) ), Map.empty, startTime )
+    RDDRecord( Map( spec.uid -> HeapFltArray(data, fragSpec.getOrigin, spec.getMetadata(), None) ), Map.empty )
   }
 
 //  def domainRDDPartition(partIndex: Int, optSection: Option[ma2.Section] ): Option[RDDPartition] = domainCDDataSection( partIndex, optSection ) match {
