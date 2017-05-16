@@ -1,6 +1,8 @@
 package nasa.nccs.cdas.portal
 import java.nio.file.{Files, Path, Paths}
-
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+import nasa.nccs.cdapi.data.{HeapFltArray, RDDRecord}
 import nasa.nccs.cdas.engine.spark.CDSparkContext
 import nasa.nccs.cdas.portal.CDASApplication.logger
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
@@ -57,19 +59,22 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
     val response = processManager.executeProcess( process, process_name, datainputs, runargs.mapValues(_.toString) )
     val responseType = runargs.getOrElse("result","xml")
     sendResponse( taskSpec(0), printer.format( response ) )
-    if( responseType == "cdms" ) { sendDirectResponse( response ) }
+    if( responseType == "cdms" ) { sendDirectResponse( taskSpec(0), response ) }
   }
 
-
-
-  def sendDirectResponse( response: xml.Elem ): Unit =  {
-//    processManager.getResult()
+  def sendDirectResponse( responseId: String, response: xml.Elem ): Unit =  {
     val refs: xml.NodeSeq = response \\ "data"
-    logger.info( "@@@@@  sendDirectResponse, found " + refs.length + " nodes @@@@@")
     val resultHref = refs.flatMap( _.attribute("href") ).find( _.nonEmpty ).map( _.text ) match {
       case Some( href ) =>
-        logger.info( "\n\n     **** Found result Href: " + href + " ****** \n\n")
-        logger.info( "Do Nothing now- output written to disk")
+        val rid = href.split("[/]").last
+        logger.info( "\n\n     **** Found result Id: " + rid + " ****** \n\n")
+        processManager.getResultVariable("cdas",rid) match {
+          case Some( resultVar ) =>
+            val data: HeapFltArray = resultVar.result.elements.head._2
+            sendArrayData( rid, data.origin, data.shape, data.toByteArray, data.metadata )
+          case None => logger.error( "Can't find result variable " + rid)
+        }
+
       case None =>
         logger.error( "Can't find result Id in direct response: " + response.toString() )
     }

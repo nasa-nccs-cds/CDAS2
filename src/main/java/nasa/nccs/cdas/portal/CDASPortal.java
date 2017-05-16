@@ -59,7 +59,7 @@ public abstract class CDASPortal {
         response_socket.send( StringUtils.join( request_args,  "!" ).getBytes(), 0);
         logger.info( " Sent response: " + rId );
     }
-    private void sendArrayData( String rid, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
+    public void sendArrayData( String rid, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
         logger.debug( String.format("Portal: Sending response data to client for rid %s, nbytes=%d", rid, data.length ));
         List<String> slist = Arrays.asList( "array", rid, ia2s(origin), ia2s(shape), m2s(metadata), "1" );
         String header = StringUtils.join(slist,"|");
