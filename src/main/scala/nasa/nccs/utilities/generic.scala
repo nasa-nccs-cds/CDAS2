@@ -170,10 +170,10 @@ object cdsutils {
 
 
   def time[R](logger:Logger, label: String)(block: => R): R = {
-    val t0 = System.nanoTime()
+    val t0 = System.currentTimeMillis()
     val result = block
-    val t1 = System.nanoTime()
-    logger.debug( "%s: Time = %.4f s".format( label, (t1-t0)/1.0E9 ))
+    val t1 = System.currentTimeMillis()
+    logger.debug( "%s: Time = %.4f s".format( label, (t1-t0)/1.0E3 ))
     result
   }
 

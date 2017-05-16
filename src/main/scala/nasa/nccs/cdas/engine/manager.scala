@@ -287,13 +287,8 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
           executeUtilityRequest( req_ids(1), request, run_args )
         case _ =>
           logger.info("Executing task request " + request.name )
-          val t1 = System.nanoTime
           val requestContext = createRequestContext (request, run_args)
-          val t2 = System.nanoTime
-          val rv = executeWorkflows (request, requestContext)
-          val t3 = System.nanoTime
-          logger.info ("Execute Completed: CreateTargetGrid> %.4f, LoadVariablesT> %.4f, ExecuteWorkflowT> %.4f, totalT> %.4f ".format ((t1 - t0) / 1.0E9, (t2 - t1) / 1.0E9, (t3 - t2) / 1.0E9, (t3 - t0) / 1.0E9) )
-          rv
+          executeWorkflows (request, requestContext )
       }
     } catch {
       case err: Exception => new WPSExceptionReport(err)
