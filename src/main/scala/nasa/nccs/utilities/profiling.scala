@@ -33,6 +33,6 @@ object ProfilingTool {
 
 class ProfilingTool( val startTime: Broadcast[Long], timestamps: Accumulable[mutable.ListBuffer[TimeStamp], TimeStamp] ) extends Serializable {
   def timestamp( label: String ): Unit = { timestamps += TimeStamp( startTime.value, label ) }
-  def getTimestamps: List[TimeStamp] = timestamps.value.sorted.toList
+  def getTimestamps: List[TimeStamp] = (timestamps.localValue ++ timestamps.value).sorted.toList
   override def toString = "\n\n\t\t\tTIMESTAMPS:\n\t" + getTimestamps.map( _.toString() ).mkString("\n\t") + "\n\n"
 }
