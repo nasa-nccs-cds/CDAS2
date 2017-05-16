@@ -85,6 +85,17 @@ abstract class WPSExecuteResponse( val serviceInstance: String ) extends WPSResp
     case ResponseSyntax.Generic =>
       <data id={id} uom={units} shape={array.getShape.mkString(",")}>  {array.mkBoundedDataString(",", maxSize)}  </data>
   }
+
+  def getDataRef( syntax: ResponseSyntax.Value, id: String, resultId: String, optFileRef: Option[String] ): xml.Elem = syntax match {
+    case ResponseSyntax.WPS => optFileRef match {
+      case Some( fileRef ) => <wps:Data id={id} href={"result://"+resultId} file={fileRef}> </wps:Data>
+      case None =>            <wps:Data id={id} href={"result://"+resultId}> </wps:Data>
+    }
+    case ResponseSyntax.Generic => optFileRef match {
+      case Some( fileRef ) => <data id={id} href={"result://"+resultId} file={fileRef}> </data>
+      case None =>            <data id={id} href={"result://"+resultId}> </data>
+    }
+  }
 }
 
 abstract class WPSProcessExecuteResponse( serviceInstance: String, val processes: List[WPSProcess] ) extends WPSExecuteResponse(serviceInstance) {
@@ -183,7 +194,9 @@ class RDDExecutionResult(serviceInstance: String, process: WPSProcess, id: Strin
 }
 
 class RefExecutionResult(serviceInstance: String, process: WPSProcess, id: String, resultId: String, resultFileOpt: Option[String] ) extends WPSDirectExecuteResponse( serviceInstance, process, resultId, resultFileOpt )  with Loggable {
-  def getProcessOutputs( syntax: ResponseSyntax.Value, process_id: String, output_id: String  ): Iterable[xml.Elem] = Iterable.empty[xml.Elem]
+  def getProcessOutputs( syntax: ResponseSyntax.Value, process_id: String, output_id: String  ): Iterable[xml.Elem] = {
+    Seq( getDataRef( syntax, id, resultId, resultFileOpt ) )
+  }
 }
 
 
