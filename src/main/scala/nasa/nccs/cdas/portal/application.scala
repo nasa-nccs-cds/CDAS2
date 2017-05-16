@@ -64,7 +64,8 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
 
   def sendDirectResponse( response: xml.Elem ): Unit =  {
 //    processManager.getResult()
-    val refs: xml.NodeSeq = response \\ "Output" \\ "Reference"
+    val refs: xml.NodeSeq = response \\ "data"
+    logger.info( "@@@@@  sendDirectResponse, found " + refs.length + " nodes @@@@@")
     val resultHref = refs.flatMap( _.attribute("href") ).find( _.nonEmpty ).map( _.text ) match {
       case Some( href ) =>
         logger.info( "\n\n     **** Found result Href: " + href + " ****** \n\n")
