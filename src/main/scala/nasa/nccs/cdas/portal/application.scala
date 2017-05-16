@@ -60,11 +60,17 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
     if( responseType == "cdms" ) { sendDirectResponse( response ) }
   }
 
+
+
   def sendDirectResponse( response: xml.Elem ): Unit =  {
+//    processManager.getResult()
     val refs: xml.NodeSeq = response \\ "Output" \\ "Reference"
     val resultHref = refs.flatMap( _.attribute("href") ).find( _.nonEmpty ).map( _.text ) match {
-      case Some( href ) => logger.info( "Do Nothing now- output written to disk")
-      case None => logger.error( "Can't find result Id in direct response")
+      case Some( href ) =>
+        logger.info( "\n\n     **** Found result Href: " + href + " ****** \n\n")
+        logger.info( "Do Nothing now- output written to disk")
+      case None =>
+        logger.error( "Can't find result Id in direct response")
     }
   }
 

@@ -1,7 +1,9 @@
 package nasa.nccs.esgf.wps
+import nasa.nccs.caching.RDDTransientVariable
 import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode
 import nasa.nccs.cdas.portal.CDASPortalClient
 import nasa.nccs.utilities.Loggable
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConversions._
 import scala.xml
@@ -60,6 +62,12 @@ class ProcessManager( serverConfiguration: Map[String,String] ) extends GenericP
     logger.info( "CDAS ProcessManager-> getResult: " + resultId)
     val serviceProvider = apiManager.getServiceProvider(service)
     serviceProvider.getResult(resultId)
+  }
+
+  def getResultVariable( service: String, resultId: String ): Option[RDDTransientVariable] = {
+    logger.info( "CDAS ProcessManager-> getResult: " + resultId)
+    val serviceProvider = apiManager.getServiceProvider(service)
+    serviceProvider.getResultVariable(resultId)
   }
 
   def getResultStatus( service: String, resultId: String ): xml.Node = {

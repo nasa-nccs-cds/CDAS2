@@ -2,8 +2,11 @@ package nasa.nccs.esgf.wps
 
 import java.io.{PrintWriter, StringWriter}
 import java.util.concurrent.ExecutionException
+
+import nasa.nccs.caching.RDDTransientVariable
 import nasa.nccs.wps.{BlockingExecutionResult, WPSExceptionReport, WPSResponse}
 import nasa.nccs.utilities.{Loggable, cdsutils}
+
 import scala.xml
 
 trait ServiceProvider extends Loggable {
@@ -21,6 +24,7 @@ trait ServiceProvider extends Loggable {
   }
 
   def getResultFilePath( resultId: String ): Option[String]
+  def getResultVariable( resultId: String ): Option[RDDTransientVariable]
   def getResult( resultId: String ): xml.Node
   def getResultStatus( resultId: String ): xml.Node
 
@@ -86,6 +90,7 @@ object cds2ServiceProvider extends ServiceProvider {
   }
   override def getResultFilePath( resultId: String ): Option[String] = cds2ExecutionManager.getResultFilePath( resultId )
   override def getResult( resultId: String ): xml.Node = cds2ExecutionManager.getResult( resultId )
+  override def getResultVariable( resultId: String ): Option[RDDTransientVariable] = cds2ExecutionManager.getResultVariable( resultId )
   override def getResultStatus( resultId: String ): xml.Node = cds2ExecutionManager.getResultStatus( resultId )
 
 }

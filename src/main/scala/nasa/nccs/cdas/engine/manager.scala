@@ -315,8 +315,9 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
 //    }
 //  }
 
-  def getResultFilePath( resId: String ): Option[String] = {
-    collectionDataCache.getExistingResult( resId ) match {
+  def getResultVariable( resId: String ): Option[RDDTransientVariable] = collectionDataCache.getExistingResult( resId )
+
+  def getResultFilePath( resId: String ): Option[String] = getResultVariable( resId ) match {
       case Some( tvar: RDDTransientVariable ) =>
         val result = tvar.result.elements.values.head
         val resultFile = Kernel.getResultFile( resId )
@@ -324,9 +325,6 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
         else { saveResultToFile(resId, tvar.getGridId, result.toCDFloatArray, tvar.request, serverContext, result.metadata, List.empty[nc2.Attribute] ) }
       case None => None
     }
-    //          } else { new WPSMergedEventReport(List(new UtilityExecutionResult(resId, <error> {"Result not yet ready"} </error>))) }
-  }
-
 
   def getResult( resId: String ): xml.Node = {
     logger.info( "Locating result: " + resId )
@@ -346,8 +344,6 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
     }
     new WPSExecuteStatus( "WPS", message, resId ).toXml
   }
-
-
 
   def asyncExecute( request: TaskRequest, run_args: Map[String,String] ): WPSReferenceExecuteResponse = {
     logger.info("Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
@@ -414,15 +410,12 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
       case "util" =>  new WPSMergedEventReport( request.operations.map( utilityExecution( _, requestCx )))
       case x =>
         logger.info( "---------->>> Execute Workflows: " + request.operations.mkString(",") )
-        new MergedWPSExecuteResponse( request.id.toString, streamWorkflows( request, requestCx ) )
+        val responses = request.workflow.executeRequest( requestCx )
+        new MergedWPSExecuteResponse( request.id.toString, responses )
     }
     FragmentPersistence.close()
 //    logger.info( "---------->>> Execute Workflows: Created XML response: " + results.toXml.toString )
     results
-  }
-
-  def streamWorkflows( request: TaskRequest, requestCx: RequestContext ): List[WPSProcessExecuteResponse] = {
-    request.workflow.executeRequest( requestCx )
   }
 
   def executeUtility( operationCx: OperationContext, requestCx: RequestContext ): UtilityExecutionResult = {
