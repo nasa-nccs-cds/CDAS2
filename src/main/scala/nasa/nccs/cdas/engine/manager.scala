@@ -294,8 +294,9 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
         case _ =>
           logger.info("Executing task request " + request.name )
           val requestContext = createRequestContext (request, run_args)
-          executeWorkflows (request, requestContext )
+          val response = executeWorkflows (request, requestContext )
           requestContext.logTimingReport("Executed task request " + request.name)
+          response
       }
     } catch {
       case err: Exception => new WPSExceptionReport(err)

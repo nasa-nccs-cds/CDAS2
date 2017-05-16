@@ -187,10 +187,8 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def stream(node: WorkflowNode, requestCx: RequestContext, batchIndex: Int ): Option[ RDD[ (RecordKey,RDDRecord) ] ] = {
-    val profiler = ProfilingTool( executionMgr.serverContext.spark.sparkContext )
-    val kernelContext = node.generateKernelContext( requestCx, profiler )
+    val kernelContext = node.generateKernelContext( requestCx, requestCx.profiler )
     val rv = streamMapReduceBatch( node, kernelContext, requestCx, batchIndex )      // TODO: Break stream at time reduction boundaries.
-    kernelContext.logTimingReport("executeKernel")
     rv
   }
 
