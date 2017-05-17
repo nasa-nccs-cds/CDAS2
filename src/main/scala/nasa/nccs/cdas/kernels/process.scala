@@ -132,8 +132,9 @@ object Kernel extends Loggable {
     val new_elements = rdd0.elements.flatMap {
       case (elkey, element0) =>  rdd1.elements.get(elkey).map( element1 => elkey -> { if( k0.start <= k1.start ) { element0.append(element1) } else { element1.append(element0) } } )
     }
-    logger.info("&MERGE: complete in time = %.4f s, result sample = %s".format( (System.nanoTime - t0) / 1.0E9, new_elements.head._2.getSampleDataStr(10,0) ) )
-    context.addTimestamp("&MERGE: complete, key = " + new_key.toString )
+    val dt = (System.nanoTime - t0) / 1.0E9
+    logger.info("&MERGE: complete in time = %.4f s, result sample = %s".format( dt, new_elements.head._2.getSampleDataStr(10,0) ) )
+    context.addTimestamp("&MERGE: complete, time = %.4f s, key = ".format( dt, new_key.toString ) )
     new_key -> RDDRecord( new_elements, rdd0.mergeMetadata("merge", rdd1) )
   }
 
@@ -734,8 +735,9 @@ abstract class SingularRDDKernel( options: Map[String,String] = Map.empty ) exte
         }
       case None => throw new Exception( "Missing input to '" + this.getClass.getName + "' map op: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
     }
-    logger.info("Executed Kernel %s map op, time = %.4f s".format(name, (System.nanoTime - t0) / 1.0E9))
-    context.addTimestamp( "Map Op complete, record mdata = " + inputs.metadata.mkString(";"))
+    val dt = (System.nanoTime - t0) / 1.0E9
+    logger.info("Executed Kernel %s map op, time = %.4f s".format(name, dt ))
+    context.addTimestamp( "Map Op complete, time = %.4f s, record mdata = %s".format( dt, inputs.metadata.mkString(";") ) )
     RDDRecord( Map( elem ), inputs.metadata )
   }
 }

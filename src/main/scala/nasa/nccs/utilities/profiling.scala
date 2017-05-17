@@ -1,7 +1,8 @@
 package nasa.nccs.utilities
 
-import org.apache.spark.{Accumulable, AccumulableParam, Accumulator, SparkContext}
+import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
+
 import scala.collection.mutable
 
 object TimeStamp {
@@ -9,7 +10,7 @@ object TimeStamp {
 }
 
 class TimeStamp( val elapasedJobTime: Float, val label: String ) extends Serializable with Ordered [TimeStamp]  {
-  override def toString(): String = { s"TimeStamp[${Thread.currentThread.getId.toString}] { ${elapasedJobTime.toString} => $label" }
+  override def toString(): String = { s"TimeStamp[${SparkEnv.get.executorId}] { ${elapasedJobTime.toString} => $label" }
   def compare (that: TimeStamp) = { elapasedJobTime.compareTo( that.elapasedJobTime ) }
 }
 
@@ -24,7 +25,6 @@ object ProfilingTool {
 
   def apply( sparkContext: SparkContext ): ProfilingTool = {
     val startTimeMS: Long = System.currentTimeMillis()
-//    val broadcastedStartTime: Broadcast[Long] = sparkContext.broadcast( startTimeMS )
     val starting_timestamp = new TimeStamp( 0f, "Job Start")
     val timestamps: Accumulable[mutable.ListBuffer[TimeStamp], TimeStamp] = sparkContext.accumulable(new mutable.ListBuffer[TimeStamp]())
     val profiler = new ProfilingTool( startTimeMS, timestamps )

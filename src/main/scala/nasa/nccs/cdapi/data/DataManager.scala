@@ -295,8 +295,9 @@ class RDDPartSpec(val partition: CachePartition, val timeRange: RecordKey, val v
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition)) ): _* )
     val rv = RDDRecord( elements, Map( "partRange" -> partition.partRange.toString ) )
-    logger.debug( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, (System.nanoTime() - t0) / 1.0E9) )
-    kernelContext.addTimestamp( "Created input RDD { partition = %s }".format( partition.toString ) )
+    val dt = (System.nanoTime() - t0) / 1.0E9
+    logger.debug( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, dt) )
+    kernelContext.addTimestamp( "Created input RDD { partition = %s } in %.4f sec".format( partition.toString, dt ) )
     rv
   }
 
