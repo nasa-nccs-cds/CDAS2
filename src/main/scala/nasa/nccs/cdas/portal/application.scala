@@ -118,7 +118,7 @@ object TestApplication extends Loggable {
     val cmode = if (connect_mode.toLowerCase.startsWith("c")) CONNECT else BIND
 
     val sc = CDSparkContext()
-    val indices = sc.sparkContext.parallelize( Array( 1, 2, 3, 4, 5 ,6 ,7 ) )
+    val indices = sc.sparkContext.parallelize( Array.fill(100)(0) )
     val base_time = System.currentTimeMillis()
     val timings = indices.map( i => ( System.currentTimeMillis() - base_time) )
     val time_list = timings.collect().map( tval => (tval/1.0E3).toString ) mkString (", ")
