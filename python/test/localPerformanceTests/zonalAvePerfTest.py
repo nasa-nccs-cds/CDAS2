@@ -47,6 +47,8 @@ try:
     print "!! Completed OP in time {0}".format( time.time()-t0 ); sys.stdout.flush()
     print "Responses = " + str(responses)
 
+    response_manager.join()
+
 except Exception, err:
     traceback.print_exc()
 

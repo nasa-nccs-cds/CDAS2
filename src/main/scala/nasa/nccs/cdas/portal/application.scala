@@ -52,12 +52,21 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
     sendResponse( resultSpec(0), printer.format( result )  )
   }
 
+  def getRunArgs( taskSpec: Array[String] ): Map[String,String] = {
+    val runargs = if( taskSpec.length > 4 ) wpsObjectParser.parseMap( taskSpec(4) ) else Map.empty[String, Any]
+    if( !runargs.keys.contains("response") ) {
+      val async = runargs.getOrElse("async","false").toString.toBoolean
+      val defaultResponseType = if( async ) { "file" } else { "xml" }
+      runargs.mapValues(_.toString) + ("response" -> defaultResponseType )
+    } else runargs.mapValues(_.toString)
+  }
+
   override def execute( taskSpec: Array[String] ) = {
     val process_name = elem(taskSpec,2)
     val datainputs = if( taskSpec.length > 3 ) wpsObjectParser.parseDataInputs( taskSpec(3) ) else Map.empty[String, Seq[Map[String, Any]]]
-    val runargs = if( taskSpec.length > 4 ) wpsObjectParser.parseMap( taskSpec(4) ) else Map.empty[String, Any]
-    val response = processManager.executeProcess( process, process_name, datainputs, runargs.mapValues(_.toString) )
-    val responseType = runargs.getOrElse("result","xml")
+    val runargs = getRunArgs( taskSpec )
+    val responseType = runargs.getOrElse("response","xml")
+    val response = processManager.executeProcess( process, process_name, datainputs, runargs )
     if( responseType == "cdms" ) { sendDirectResponse( taskSpec(0), response ) }
     sendResponse( taskSpec(0), printer.format( response ) )
   }
