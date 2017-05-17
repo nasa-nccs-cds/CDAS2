@@ -344,8 +344,9 @@ class DirectRDDRecordSpec(val partition: Partition, iRecord: Int, val timeRange:
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition,iRecord)) ): _* )
     val rv = RDDRecord( elements, Map.empty )
-    logger.debug( "DirectRDDRecordSpec{ partition = %s, record = %d }: completed data input in %.4f sec".format( partition.toString, iRecord, (System.nanoTime() - t0) / 1.0E9) )
-    kernelContext.addTimestamp( "Created input RDD { partition = %s, record = %d }".format( partition.toString, iRecord) )
+    val dt = (System.nanoTime() - t0) / 1.0E9
+    logger.debug( "DirectRDDRecordSpec{ partition = %s, record = %d }: completed data input in %.4f sec".format( partition.toString, iRecord, dt) )
+    kernelContext.addTimestamp( "Created input RDD { partition = %s, record = %d } in %.4f sec".format( partition.toString, iRecord, dt) )
     rv
   }
 
@@ -368,8 +369,9 @@ class ExtRDDPartSpec(val timeRange: RecordKey, val varSpecs: List[ RDDVariableSp
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toMetaArray ) ): _* )
     val rv = RDDRecord( elements, Map.empty )
-    logger.debug( "RDDPartSpec: completed data input in %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
-    kernelContext.addTimestamp( "Created input RDD { varSpecs = (%s) }".format( varSpecs.map(_.uid).mkString(",") ) )
+    val dt = (System.nanoTime() - t0) / 1.0E9
+    logger.debug( "RDDPartSpec: completed data input in %.4f sec".format( dt) )
+    kernelContext.addTimestamp( "Created input RDD { varSpecs = (%s) } in %.4f sec".format( varSpecs.map(_.uid).mkString(","), dt ) )
     rv
   }
 
