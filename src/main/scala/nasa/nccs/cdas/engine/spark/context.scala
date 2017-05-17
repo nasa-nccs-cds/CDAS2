@@ -186,7 +186,7 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     else {
       val partitioner = RangePartitioner(rddPartSpecs.map(_.timeRange))
       val parallelized_rddspecs = sparkContext parallelize rddPartSpecs keyBy (_.timeRange) partitionBy partitioner
-      Some( parallelized_rddspecs mapValues (spec => spec.getRDDPartition(kernelContext)) )     // repartitionAndSortWithinPartitions partitioner
+      Some( parallelized_rddspecs mapValues (spec => spec.getRDDPartition(kernelContext,batchIndex)) )     // repartitionAndSortWithinPartitions partitioner
     }
   }
 
@@ -207,12 +207,12 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
     } )
   }
 
-  def getRDD(uid: String, extInput: ExternalDataInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode, kernelContext: KernelContext ): Option[ RDD[ (RecordKey,RDDRecord) ] ] = {
+  def getRDD(uid: String, extInput: ExternalDataInput, requestCx: RequestContext, opSection: Option[ma2.Section], node: WorkflowNode, kernelContext: KernelContext, batchIndex: Int ): Option[ RDD[ (RecordKey,RDDRecord) ] ] = {
     val tgrid: TargetGrid = extInput.getGrid
     val ( key, varSpec ) = extInput.getKeyedRDDVariableSpec(uid, opSection)
     val rddPartSpec = ExtRDDPartSpec( key, List(varSpec) )
     val parallelized_rddspecs = sparkContext parallelize Seq( rddPartSpec ) keyBy (_.timeRange)
-    Some( parallelized_rddspecs mapValues ( spec => spec.getRDDPartition(kernelContext) ) )
+    Some( parallelized_rddspecs mapValues ( spec => spec.getRDDPartition(kernelContext,batchIndex) ) )
   }
 
  /* def inputConversion( dataInput: PartitionedFragment, targetGrid: TargetGrid ): PartitionedFragment = {

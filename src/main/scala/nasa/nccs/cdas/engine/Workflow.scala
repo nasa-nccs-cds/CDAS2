@@ -306,7 +306,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
         case ( extInput: ExternalDataInput ) =>
           if( batchIndex > 0 ) { None } else {
             val opSection: Option[ma2.Section] = getOpSectionIntersection( extInput.getGrid, node )
-            executionMgr.serverContext.spark.getRDD(uid, extInput, requestCx, opSection, node, kernelContext ) map (result => uid -> result)
+            executionMgr.serverContext.spark.getRDD(uid, extInput, requestCx, opSection, node, kernelContext, batchIndex ) map (result => uid -> result)
           }
         case ( kernelInput: DependencyOperationInput  ) =>
           val keyValOpt = stream( kernelInput.inputNode, requestCx, batchIndex ) map ( result => uid -> result )
