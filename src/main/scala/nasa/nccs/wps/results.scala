@@ -115,7 +115,7 @@ abstract class WPSProcessExecuteResponse( serviceInstance: String, val processes
         </wps:ProcessOutputs>
       </wps:ExecuteResponse>
     case ResponseSyntax.Generic =>
-      <response> {getOutputs} </response>
+      <response> {getReference} {getFileReference} {getResultReference} {getOutputs} </response>
   }
 
   def getOutputs: List[xml.Elem] = syntax match {
