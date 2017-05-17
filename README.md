@@ -15,7 +15,7 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
         >> cd <prefix>
         >> git clone https://github.com/nasa-nccs-cds/CDAS2.git 
 
-    2) Build the application:
+    2) Build the application (for a clean build one can execute "sbt clean" before "sbt package"):
 
         >> cd CDAS2
         >> sbt package
