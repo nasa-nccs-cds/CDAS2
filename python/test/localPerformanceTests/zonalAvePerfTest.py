@@ -44,7 +44,7 @@ try:
     print "Sending request on port {0}, server {1}: {2}".format( portal.request_port, server, datainputs ); sys.stdout.flush()
     rId = portal.sendMessage( "execute", [ "CDSpark.workflow", datainputs, '{ "result":"cdms", "async":"true" }'] )
     responses = response_manager.getResponses(rId)
-    print "Completed OP in time {0}".format( time.time()-t0 ); sys.stdout.flush()
+    print "!! Completed OP in time {0}".format( time.time()-t0 ); sys.stdout.flush()
     print "Responses = " + str(responses)
 
 except Exception, err:
