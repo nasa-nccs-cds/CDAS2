@@ -196,13 +196,13 @@ class CDSparkContext( @transient val sparkContext: SparkContext ) extends Loggab
       val tgrid: TargetGrid = requestCx.getTargetGrid(uid).getOrElse(throw new Exception("Missing target grid for uid " + uid))
       val batch= partitions.getBatch(batchIndex)
       val rddPartSpecs: Array[DirectRDDPartSpec] = batch map ( partition => DirectRDDPartSpec(partition, tgrid, List(directInput.getRDDVariableSpec(uid, opSection)))) filterNot (_.empty(uid))
-      logger.info("\n **************************************************************** \n ---> Processing Batch %d: Creating input RDD with <<%d>> partitions for node %s".format(batchIndex,rddPartSpecs.length,node.getNodeId))
       if (rddPartSpecs.length == 0) { None }
       else {
+        logger.info("\n **************************************************************** \n ---> Processing Batch %d: Creating input RDD with <<%d>> partitions for node %s".format(batchIndex,rddPartSpecs.length,node.getNodeId))
         val partitioner = RangePartitioner(rddPartSpecs.map(_.timeRange))
         logger.info("Creating RDD with records:\n\t" + rddPartSpecs.flatMap( _.getRDDRecordSpecs() ).map( _.toString ).mkString("\n\t"))
         val parallelized_rddspecs = sparkContext parallelize rddPartSpecs.flatMap( _.getRDDRecordSpecs() ) keyBy (_.timeRange) partitionBy partitioner
-        Some(parallelized_rddspecs mapValues (spec => spec.getRDDPartition(kernelContext)) )
+        Some(parallelized_rddspecs mapValues (spec => spec.getRDDPartition(kernelContext,batchIndex)) )
       }
     } )
   }

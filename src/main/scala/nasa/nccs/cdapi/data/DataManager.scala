@@ -291,13 +291,13 @@ object RDDPartSpec {
 
 class RDDPartSpec(val partition: CachePartition, val timeRange: RecordKey, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
 
-  def getRDDPartition(kernelContext: KernelContext): RDDRecord = {
+  def getRDDPartition(kernelContext: KernelContext, batchIndex: Int): RDDRecord = {
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition)) ): _* )
     val rv = RDDRecord( elements, Map( "partRange" -> partition.partRange.toString ) )
     val dt = (System.nanoTime() - t0) / 1.0E9
     logger.debug( "RDDPartSpec{ partition = %s }: completed data input in %.4f sec".format( partition.toString, dt) )
-    kernelContext.addTimestamp( "Created input RDD { partition = %s } in %.4f sec".format( partition.toString, dt ) )
+    kernelContext.addTimestamp( "Created input RDD { partition = %s, batch = %d  } in %.4f sec".format( partition.toString, batchIndex, dt ) )
     rv
   }
 
@@ -340,13 +340,13 @@ object DirectRDDRecordSpec {
 
 class DirectRDDRecordSpec(val partition: Partition, iRecord: Int, val timeRange: RecordKey, val varSpecs: List[ DirectRDDVariableSpec ] ) extends Serializable with Loggable {
 
-  def getRDDPartition(kernelContext: KernelContext): RDDRecord = {
+  def getRDDPartition(kernelContext: KernelContext, batchIndex: Int ): RDDRecord = {
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition,iRecord)) ): _* )
     val rv = RDDRecord( elements, Map.empty )
     val dt = (System.nanoTime() - t0) / 1.0E9
     logger.debug( "DirectRDDRecordSpec{ partition = %s, record = %d }: completed data input in %.4f sec".format( partition.toString, iRecord, dt) )
-    kernelContext.addTimestamp( "Created input RDD { partition = %s, record = %d } in %.4f sec".format( partition.toString, iRecord, dt) )
+    kernelContext.addTimestamp( "Created input RDD { partition = %s, record = %d, batch = %d } in %.4f sec".format( partition.toString, iRecord, batchIndex, dt) )
     rv
   }
 
@@ -365,13 +365,13 @@ object ExtRDDPartSpec {
 
 class ExtRDDPartSpec(val timeRange: RecordKey, val varSpecs: List[ RDDVariableSpec ] ) extends Serializable with Loggable {
 
-  def getRDDPartition(kernelContext: KernelContext): RDDRecord = {
+  def getRDDPartition(kernelContext: KernelContext, batchIndex: Int): RDDRecord = {
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toMetaArray ) ): _* )
     val rv = RDDRecord( elements, Map.empty )
     val dt = (System.nanoTime() - t0) / 1.0E9
     logger.debug( "RDDPartSpec: completed data input in %.4f sec".format( dt) )
-    kernelContext.addTimestamp( "Created input RDD { varSpecs = (%s) } in %.4f sec".format( varSpecs.map(_.uid).mkString(","), dt ) )
+    kernelContext.addTimestamp( "Created input RDD { varSpecs = (%s), batchIndex = %d } in %.4f sec".format( varSpecs.map(_.uid).mkString(","), batchIndex, dt ) )
     rv
   }
 

@@ -737,7 +737,7 @@ abstract class SingularRDDKernel( options: Map[String,String] = Map.empty ) exte
     }
     val dt = (System.nanoTime - t0) / 1.0E9
     logger.info("Executed Kernel %s map op, time = %.4f s".format(name, dt ))
-    context.addTimestamp( "Map Op complete, time = %.4f s, record mdata = %s".format( dt, inputs.metadata.mkString(";") ) )
+    context.addTimestamp( "Map Op complete, time = %.4f s, shape = (%s), record mdata = %s".format( dt, shape.mkString(","), inputs.metadata.mkString(";") ) )
     RDDRecord( Map( elem ), inputs.metadata )
   }
 }
