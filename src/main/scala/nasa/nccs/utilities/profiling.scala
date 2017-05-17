@@ -1,16 +1,21 @@
 package nasa.nccs.utilities
 
+import java.lang.management.ManagementFactory
+
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 
 import scala.collection.mutable
 
 object TimeStamp {
+  val pid = ManagementFactory.getRuntimeMXBean.getName
+  val eid = SparkEnv.get.executorId
   def apply( startTime: Long, label: String ): TimeStamp = { new TimeStamp( (System.currentTimeMillis()-startTime)/1.0E3f, label ) }
 }
 
 class TimeStamp( val elapasedJobTime: Float, val label: String ) extends Serializable with Ordered [TimeStamp]  {
-  override def toString(): String = { s"TimeStamp[${SparkEnv.get.executorId}] { ${elapasedJobTime.toString} => $label" }
+  import TimeStamp._
+  override def toString(): String = { s"TimeStamp[${eid}:${pid}] { ${elapasedJobTime.toString} => $label" }
   def compare (that: TimeStamp) = { elapasedJobTime.compareTo( that.elapasedJobTime ) }
 }
 
