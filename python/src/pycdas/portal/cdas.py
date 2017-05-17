@@ -47,7 +47,7 @@ class ResponseManager(Thread):
         return self.cached_results.setdefault(id,[])
 
     def cacheArray(self, id, array ):
-        self.logger.info( "Caching array: " + id )
+        print( "Caching array: " + id )
         self.getArrays(id).append(array)
 
     def getArrays(self, id ):
