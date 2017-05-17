@@ -19,7 +19,7 @@ class TimeStamp( val elapasedJobTime: Float, val label: String ) extends Seriali
   def compare (that: TimeStamp) = { elapasedJobTime.compareTo( that.elapasedJobTime ) }
 }
 
-object ProfilingTool {
+object ProfilingTool extends Loggable {
 
   implicit def listAccum[TimeStamp]: AccumulableParam[mutable.ListBuffer[TimeStamp], TimeStamp] =
     new AccumulableParam[mutable.ListBuffer[TimeStamp], TimeStamp] {
@@ -33,6 +33,7 @@ object ProfilingTool {
     val starting_timestamp = new TimeStamp( 0f, "Job Start")
     val timestamps: Accumulable[mutable.ListBuffer[TimeStamp], TimeStamp] = sparkContext.accumulable(new mutable.ListBuffer[TimeStamp]())
     val profiler = new ProfilingTool( startTimeMS, timestamps )
+    logger.info( s"Starting profiler in sparkContext '${sparkContext.applicationId}' with master '${sparkContext.master}' ")
     profiler.timestamp("Startup")
     profiler
   }
