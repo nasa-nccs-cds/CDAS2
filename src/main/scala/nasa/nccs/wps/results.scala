@@ -111,7 +111,7 @@ abstract class WPSProcessExecuteResponse( serviceInstance: String, val processes
         <wps:ProcessStarted>CDAS Process executing</wps:ProcessStarted>
       </wps:Status>
         <wps:ProcessOutputs>
-          {getOutputs}
+          {getReference}{getFileReference}{getResultReference}{getOutputs}
         </wps:ProcessOutputs>
       </wps:ExecuteResponse>
     case ResponseSyntax.Generic =>
@@ -123,7 +123,7 @@ abstract class WPSProcessExecuteResponse( serviceInstance: String, val processes
       processes.flatMap(p => p.outputs.map(output => <outputs> {getProcessOutputs(syntax, p.identifier, output.identifier)} </outputs>))
     case ResponseSyntax.WPS =>
       processes.flatMap(p => p.outputs.map(output => <wps:Output>
-        {output.getHeader}{getReference}{getFileReference}{getResultReference}{getProcessOutputs(syntax,p.identifier, output.identifier)}
+        {output.getHeader}{getProcessOutputs(syntax,p.identifier, output.identifier)}
       </wps:Output>))
   }
 

@@ -349,7 +349,6 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
     logger.info("Execute { runargs: " + run_args.toString + ",  request: " + request.toString + " }")
     runtime.printMemoryUsage(logger)
     val jobId = collectionDataCache.addJob( request.getJobRec(run_args) )
-    val async = run_args.getOrElse("async", "false").toBoolean
     val req_ids = request.name.split('.')
     req_ids(0) match {
       case "util" =>
