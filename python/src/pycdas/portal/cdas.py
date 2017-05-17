@@ -40,6 +40,7 @@ class ResponseManager(Thread):
         self.setDaemon(True)
 
     def cacheResult(self, id, result ):
+        self.logger.info( "Caching result array: " + id )
         self.getResults(id).append(result)
 
     def getResults(self, id ):

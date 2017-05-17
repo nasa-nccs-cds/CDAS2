@@ -58,8 +58,8 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
     val runargs = if( taskSpec.length > 4 ) wpsObjectParser.parseMap( taskSpec(4) ) else Map.empty[String, Any]
     val response = processManager.executeProcess( process, process_name, datainputs, runargs.mapValues(_.toString) )
     val responseType = runargs.getOrElse("result","xml")
-    sendResponse( taskSpec(0), printer.format( response ) )
     if( responseType == "cdms" ) { sendDirectResponse( taskSpec(0), response ) }
+    sendResponse( taskSpec(0), printer.format( response ) )
   }
 
   def sendDirectResponse( responseId: String, response: xml.Elem ): Unit =  {
