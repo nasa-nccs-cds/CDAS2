@@ -7,7 +7,7 @@ import org.apache.commons.io.FileUtils
 
 import collection.mutable
 import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EntryWeigher, EvictionListener}
-import nasa.nccs.utilities.{Loggable, Timestamp}
+import nasa.nccs.utilities.Loggable
 import nasa.nccs.cdapi.cdm.DiskCacheFileMgr
 import nasa.nccs.cdas.utilities.appParameters
 

@@ -18,8 +18,7 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
     2) Build the application:
 
         >> cd CDAS2
-        >> sbt publish
-        >> sbt stage
+        >> sbt package
 
      3) Run unit tests:
 
@@ -29,7 +28,12 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
 
         >> source <prefix>/CDAS2/bin/setup_runtime.sh
 
-     6) Access demos:
+     6) Startup the CDAS server:
+     
+        >> cd CDAS2
+        >> ./bin/startup_cdas_local.sh
+
+     7) Access demos:
 
         Designed to be deployed with the CDWPS framework (https://github.com/nasa-nccs-cds/CDWPS)
 
@@ -45,6 +49,11 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
     
         >> source <prefix>/CDAS2/bin/setup_runtime.sh
         >> source activate cdas2
+        
+    4) Build CDAS python pacakges:
+    
+        >> cd CDAS
+        >> python setup.py
 
 ####  Code development:
 

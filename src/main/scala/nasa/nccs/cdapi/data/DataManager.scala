@@ -394,7 +394,7 @@ class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val mi
 
   def toHeapArray( partition: CachePartition ) = {
     val rv = HeapFltArray( partition.dataSection(section, missing), section.getOrigin, metadata, None )
-    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s], %s".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
+    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
     rv
   }
 
@@ -406,7 +406,7 @@ class RDDVariableSpec( val uid: String, val metadata: Map[String,String], val mi
   }
   def toMetaArray( partition: Partition ) = {
     val rv = HeapFltArray( partition.partSection( section.toSection( partition.partitionOrigin ) ).getShape, section.getOrigin, metadata )
-    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s] %s".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
+    logger.debug( "toHeapArray: %s, part[%d]: dim=%d, range=(%d:%d), shape=[%s]".format( section.toString(), partition.index, partition.dimIndex, partition.startIndex, partition.endIndex, partition.shape.mkString(",") ) )
     rv
   }
   def empty = section.getShape.contains(0)

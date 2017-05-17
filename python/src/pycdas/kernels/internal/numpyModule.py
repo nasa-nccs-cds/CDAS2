@@ -80,21 +80,23 @@ class WeightedAverageKernel(Kernel):
         results = []
         for input_pair in inputs_with_weights:
             input = inputs.get( input_pair[0] )  # npArray
-            weights = inputs.get( input_pair[1] ).array if( input_pair[1] != None ) else None
-            axes = self.getOrderedAxes(task,input)
-            self.logger.info("\n Executing average, input: " + str( input_pair[0] ) + ", task metadata = " + str(task.metadata) + " Input metadata: " + str( input.metadata ) )
-            t0 = time.time()
-            result = input.array
-            for axis in axes:
-                current_shape = list( result.shape )
-                ( result, weights ) = np.ma.average( result, axis, weights, True )
-                current_shape[axis] = 1
-                result = result.reshape( current_shape )
-                weights = weights.reshape( current_shape )
+            if( input == None ): raise Exception( "Can't find input " + input_pair[0] + " in numpyModule.WeightedAverageKernel")
+            else :
+                weights = inputs.get( input_pair[1] ).array if( input_pair[1] != None ) else None
+                axes = self.getOrderedAxes(task,input)
+                self.logger.info("\n Executing average, input: " + str( input_pair[0] ) + ", task metadata = " + str(task.metadata) + " Input metadata: " + str( input.metadata ) )
+                t0 = time.time()
+                result = input.array
+                for axis in axes:
+                    current_shape = list( result.shape )
+                    ( result, weights ) = np.ma.average( result, axis, weights, True )
+                    current_shape[axis] = 1
+                    result = result.reshape( current_shape )
+                    weights = weights.reshape( current_shape )
 
-            results.append( npArray.createResult( task, input, result ) )
-            t1 = time.time()
-            self.logger.info( " ------------------------------- AVEW KERNEL: Operating on input '{0}', shape = {1}, origin = {2}, time = {3}".format( input.name, input.shape, input.origin, t1-t0 ))
+                results.append( npArray.createResult( task, input, result ) )
+                t1 = time.time()
+                self.logger.info( " ------------------------------- AVEW KERNEL: Operating on input '{0}', shape = {1}, origin = {2}, time = {3}".format( input.name, input.shape, input.origin, t1-t0 ))
         return results
 
     def getOrderedAxes(self,task,input):
