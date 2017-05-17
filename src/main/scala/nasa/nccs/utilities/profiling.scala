@@ -24,17 +24,17 @@ object ProfilingTool {
 
   def apply( sparkContext: SparkContext ): ProfilingTool = {
     val startTimeMS: Long = System.currentTimeMillis()
-    val broadcastedStartTime: Broadcast[Long] = sparkContext.broadcast( startTimeMS )
+//    val broadcastedStartTime: Broadcast[Long] = sparkContext.broadcast( startTimeMS )
     val starting_timestamp = new TimeStamp( 0f, "Job Start")
     val timestamps: Accumulable[mutable.ListBuffer[TimeStamp], TimeStamp] = sparkContext.accumulable(new mutable.ListBuffer[TimeStamp]())
-    val profiler = new ProfilingTool( broadcastedStartTime, timestamps )
+    val profiler = new ProfilingTool( startTimeMS, timestamps )
     profiler.timestamp("Startup")
     profiler
   }
 }
 
-class ProfilingTool( val startTime: Broadcast[Long], timestamps: Accumulable[mutable.ListBuffer[TimeStamp], TimeStamp] ) extends Serializable {
-  def timestamp( label: String ): Unit = { timestamps += TimeStamp( startTime.value, label ) }
+class ProfilingTool( val startTime: Long, timestamps: Accumulable[mutable.ListBuffer[TimeStamp], TimeStamp] ) extends Serializable {
+  def timestamp( label: String ): Unit = { timestamps += TimeStamp( startTime, label ) }
   def getTimestamps: List[TimeStamp] = timestamps.value.sorted.toList
   override def toString = " *** TIMESTAMPS: ***\n\n\t" + getTimestamps.map( _.toString() ).mkString("\n\t") + "\n\n"
 }

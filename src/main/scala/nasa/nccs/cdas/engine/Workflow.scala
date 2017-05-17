@@ -110,14 +110,14 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def executeKernel( requestCx: RequestContext, node: WorkflowNode  ): RDDRecord = {
-    val t0 = System.currentTimeMillis()
+    val t0 = System.nanoTime()
     val kernelContext = node.generateKernelContext( requestCx, requestCx.profiler )
     var pre_result: RDDRecord = mapReduce( node, kernelContext, requestCx )
-    val t1 = System.currentTimeMillis()
+    val t1 = System.nanoTime()
     val result = node.kernel.postRDDOp( pre_result, kernelContext  )
     if( Try( requestCx.config("unitTest","false").toBoolean ).getOrElse(false)  ) { node.kernel.cleanUp(); }
-    val t2 = System.currentTimeMillis()
-    logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec, postOp time = %.3f sec   ********** \n".format(node.kernel.name,node.kernel.id, node.operation.identifier, (t2 - t0) / 1.0E3, (t2 - t1) / 1.0E3))
+    val t2 = System.nanoTime()
+    logger.info(s"********** Completed Execution of Kernel[%s(%s)]: %s , total time = %.3f sec, postOp time = %.3f sec   ********** \n".format(node.kernel.name,node.kernel.id, node.operation.identifier, (t2 - t0) / 1.0E9, (t2 - t1) / 1.0E9))
     result
   }
 
