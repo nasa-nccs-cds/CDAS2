@@ -90,6 +90,7 @@ class ResponseManager(Thread):
                 header = toks[2]
                 data = self.request_socket.recv()
                 array = npArray.createInput(header,data)
+                self.logger.info("Received array: {0}".format(rId))
                 self.cacheArray( rId, array )
 
             elif type == "response":
