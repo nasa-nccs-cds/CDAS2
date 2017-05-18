@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 export CDAS_CACHE_DIR=${CDAS_CACHE_DIR:-${HOME}/.cdas/cache}
-export SPARK_CONF_DIR=${SPARK_CONF_DIR:-${HOME}/.cdas/conf}
 export CDAS_MAX_MEM=${CDAS_MAX_MEM:-32000M}
 export CDAS_BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export CDAS_HOME_DIR=${CDAS_BIN_DIR}/..
