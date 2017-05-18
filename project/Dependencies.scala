@@ -1,16 +1,16 @@
 import sbt._
 
 object Versions {
-  val ucar = "4.6.8"
+  val ucar = "4.6.10"
 }
 
 object Library {
   val logback        = "ch.qos.logback"     %  "logback-core"   % "1.1.3"
   val mockitoAll     = "org.mockito"       %  "mockito-all"     % "1.10.19"
   val scalaTest      = "org.scalatest"     %% "scalatest"       % "2.2.4"
-  val sparkSQL       = "org.apache.spark"  %% "spark-sql"       % "1.6.0"
-  val sparkCore      = "org.apache.spark"  %% "spark-core"      % "1.6.0"
-  val sparkStreaming = "org.apache.spark"  %% "spark-streaming" % "1.6.0"
+  val sparkSQL       = "org.apache.spark"  %% "spark-sql"       % "1.6.3"
+  val sparkCore      = "org.apache.spark"  %% "spark-core"      % "1.6.3"
+  val sparkStreaming = "org.apache.spark"  %% "spark-streaming" % "1.6.3"
   val commonsIO      = "commons-io"         % "commons-io"      % "2.5"
   val zeromq         = "org.zeromq"         % "jeromq"          % "0.3.5"
   val cdm            = "edu.ucar"           % "cdm"             % Versions.ucar
@@ -19,8 +19,8 @@ object Library {
   val opendap        = "edu.ucar"           % "opendap"         % Versions.ucar
   val nd4s           = "org.nd4j"           % "nd4s_2.11"       % "0.4-rc3.8"
   val nd4j           =  "org.nd4j"          % "nd4j-x86"        % "0.4-rc3.8"
-  val httpservices   = "edu.ucar"           %  "httpservices"   % "4.6.0"
-  val udunits        = "edu.ucar"           %  "udunits"        % "4.6.0"
+  val httpservices   = "edu.ucar"           %  "httpservices"   % Versions.ucar // "4.6.0"
+  val udunits        = "edu.ucar"           %  "udunits"        % Versions.ucar // "4.6.0"
   val joda           = "joda-time"          % "joda-time"       % "2.8.1"
   val natty          = "com.joestelmach"    % "natty"           % "0.12"
   val py4j           = "net.sf.py4j"        % "py4j"            % "0.10.4"
