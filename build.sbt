@@ -73,8 +73,11 @@ unmanagedJars in Compile ++= {
   sys.env.get("CDAS_UNMANAGED_JARS") match {
     case Some(jars_dir) =>
       val customJars: PathFinder =  file(jars_dir) ** (("*.jar" -- "*netcdf*") -- "*concurrentlinkedhashmap*")
-      val pw = new PrintWriter(cdas_cache_dir.value)
-      pw.write( customJars.getPaths.mkString("\n") )
+      val classpath_file = cdas_cache_dir.value / "classpath.txt"
+      val pw = new PrintWriter( classpath_file )
+      val jars_list = customJars.getPaths.mkString("\n")
+      pw.write( jars_list )
+      println( jars_list )
       customJars.classpath
     case None =>
       PathFinder.empty.classpath
