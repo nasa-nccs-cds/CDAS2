@@ -1,3 +1,4 @@
+import java.io.PrintWriter
 import java.nio.file.Files.copy
 import java.nio.file.Paths.get
 
@@ -40,8 +41,8 @@ libraryDependencies ++= {
 dependencyOverrides ++= Set( "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4" )
 
 sbtcp := {
-  val files: Seq[File] = (fullClasspath in Compile).value.files
-  val sbtClasspath : String = files.map(x => x.getAbsolutePath).mkString(":")
+  val files: Seq[String] = (fullClasspath in Compile).value.files.map(x => x.getAbsolutePath)
+  val sbtClasspath : String = files.mkString(":")
   println("Set SBT classpath to 'sbt-classpath' environment variable")
   System.setProperty("sbt-classpath", sbtClasspath)
 }
@@ -72,6 +73,8 @@ unmanagedJars in Compile ++= {
   sys.env.get("CDAS_UNMANAGED_JARS") match {
     case Some(jars_dir) =>
       val customJars: PathFinder =  file(jars_dir) ** (("*.jar" -- "*netcdf*") -- "*concurrentlinkedhashmap*")
+      val pw = new PrintWriter(cdas_cache_dir.value)
+      pw.write( customJars.getPaths.mkString("\n") )
       customJars.classpath
     case None =>
       PathFinder.empty.classpath
