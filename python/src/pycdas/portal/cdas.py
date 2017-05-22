@@ -115,20 +115,24 @@ class ResponseManager(Thread):
         for response in responses:
             e = xml.etree.ElementTree.fromstring( response )
             for data_node in e.iter('data'):
-                resultFileUri = data_node.get("file", "")
-                if resultFileUri:
-                    dset = cdms2.open( resultFileUri )
-                    for fvar in dset.variables:
-                        vars.append( dset(fvar) )
-                else :
-                    resultUri = data_node.get("href","")
-                    if resultUri:
-                        resultId = resultUri.split("/")[-1]
-                        result_arrays = self.cached_arrays.get( resultId, [] )
+                resultUri = data_node.get("href","")
+                if resultUri:
+                    resultId = resultUri.split("/")[-1]
+                    result_arrays = self.cached_arrays.get( resultId, [] )
+                    if result_arrays:
                         for result_array in result_arrays:
                             vars.append( result_array.getVariable() )
                     else:
-                        self.logger.error( "Empty response node: " + str(data_node) )
+                        resultFileUri = data_node.get("file", "")
+                        if resultFileUri:
+                            dset = cdms2.open( resultFileUri )
+                            for fvar in dset.variables:
+                                vars.append( dset(fvar) )
+                        else:
+                            self.logger.error( "Empty response node: " + str(data_node) )
+                else :
+                    self.logger.error( "Empty response node: " + str(data_node) )
+
             return vars
 
 class CDASPortal:
