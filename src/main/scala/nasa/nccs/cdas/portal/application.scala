@@ -67,7 +67,7 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
     val runargs = getRunArgs( taskSpec )
     val responseType = runargs.getOrElse("response","xml")
     val response = processManager.executeProcess( process, process_name, datainputs, runargs )
-    if( responseType == "cdms" ) { sendDirectResponse( taskSpec(0), response ) }
+    if( responseType == "object" ) { sendDirectResponse( taskSpec(0), response ) }
     sendResponse( taskSpec(0), printer.format( response ) )
   }
 
@@ -115,22 +115,22 @@ object CDASApplication extends Loggable {
   }
 }
 
-object TestApplication extends Loggable {
-  def main(args: Array[String]) {
-    import CDASapp._
-    logger.info(s"Executing Test with args: ${args.mkString(",")}}")
-    val connect_mode = elem(args, 0, "bind")
-    val request_port = elem(args, 1, "0").toInt
-    val response_port = elem(args, 2, "0").toInt
-    val parameter_file = elem(args, 3, "")
-    val appConfiguration = getConfiguration( parameter_file )
-    val cmode = if (connect_mode.toLowerCase.startsWith("c")) CONNECT else BIND
-
-    val sc = CDSparkContext()
-    val indices = sc.sparkContext.parallelize( Array.fill(100)(0) )
-    val base_time = System.currentTimeMillis()
-    val timings = indices.map( i => ( System.currentTimeMillis() - base_time) )
-    val time_list = timings.collect().map( tval => (tval/1.0E3).toString ) mkString (", ")
-    println( time_list )
-  }
-}
+//object TestApplication extends Loggable {
+//  def main(args: Array[String]) {
+//    import CDASapp._
+//    logger.info(s"Executing Test with args: ${args.mkString(",")}}")
+//    val connect_mode = elem(args, 0, "bind")
+//    val request_port = elem(args, 1, "0").toInt
+//    val response_port = elem(args, 2, "0").toInt
+//    val parameter_file = elem(args, 3, "")
+//    val appConfiguration = getConfiguration( parameter_file )
+//    val cmode = if (connect_mode.toLowerCase.startsWith("c")) CONNECT else BIND
+//
+//    val sc = CDSparkContext()
+//    val indices = sc.sparkContext.parallelize( Array.fill(100)(0) )
+//    val base_time = System.currentTimeMillis()
+//    val timings = indices.map( i => ( System.currentTimeMillis() - base_time) )
+//    val time_list = timings.collect().map( tval => (tval/1.0E3).toString ) mkString (", ")
+//    println( time_list )
+//  }
+//}

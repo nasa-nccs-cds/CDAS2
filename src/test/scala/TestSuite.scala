@@ -46,7 +46,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
         case Some( url ) =>
           val collection_path = url.getFile
           val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
-          val agg_result_node = executeTest (datainputs, false, "util.agg")
+          val agg_result_node = executeTest (datainputs, Map.empty, "util.agg")
           logger.info (s"Agg collection $collection Result: " + printer.format (agg_result_node) )
         case None => throw new Exception( s"Can't find collection $collection for model  $model")
       }
@@ -60,7 +60,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
         case Some( url ) =>
           val collection_path = url.getFile
           val datainputs = s"""[variable=[{"uri":"collection:/$collection","path":"$collection_path"}]]"""
-          val agg_result_node = executeTest (datainputs, false, "util.agg")
+          val agg_result_node = executeTest (datainputs, Map.empty, "util.agg")
           logger.info (s"Agg collection $collection Result: " + printer.format (agg_result_node) )
         case None => throw new Exception( s"Can't find collection $collection for model  $model")
       }
@@ -80,7 +80,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     for( (model, collection) <- mod_collections ) {
       val datainputs = s"""[domain=[{"name":"d0","time":{"start":0,"end":150,"system":"indices"}}],variable=[{"uri":"collection:/$collection","name":"tas:v1","domain":"d0"}]]"""
       print( s"Caching collection $collection" )
-      val cache_result_node = executeTest(datainputs, false, "util.cache")
+      val cache_result_node = executeTest(datainputs, Map.empty, "util.cache")
       logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
       runtime.printMemoryUsage
     }
@@ -88,7 +88,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
       for( (model, collection) <- cip_collections ) {
         val datainputs = s"""[domain=[{"name":"d0","lat":{"start":0,"end":40,"system":"values"},"lon":{"start":0,"end":40,"system":"values"},"time":{"start":"2000-01-01","end":"2005-01-01","system":"values"}}],variable=[{"uri":"collection:/$collection","name":"ta:v1","domain":"d0"}]]"""
         print( s"Caching collection $collection" )
-        val cache_result_node = executeTest(datainputs, false, "util.cache")
+        val cache_result_node = executeTest(datainputs, Map.empty, "util.cache")
         logger.info(s"Cache $collection:tas Result: " + printer.format(cache_result_node))
         runtime.printMemoryUsage
       }
@@ -214,6 +214,12 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
       println("Verified Result: " + nco_verified_result)
       assert(Math.abs(result_value - nco_verified_result) / nco_verified_result < eps, s" Incorrect value computed for Max")
     }
+
+  test("Maximum-local") {
+    val datainputs = s"""[domain=[{"name":"d0","time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"file:///Users/tpmaxwel/.cdas/cache/collections/NCML/MERRA_DAILY.ncml","name":"t:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"xy"}]]"""
+    val result_node = executeTest(datainputs, Map("response"->"file"))
+    println("Op Result:       " + printer.format( result_node ) )// result_data.mkBoundedDataString("[ ",", "," ]",100))
+  }
 
     test("Maximum-cache-twice") {
       val nco_verified_result = 309.7112
@@ -451,9 +457,9 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     try{ data_nodes.head.text.toFloat } catch { case err: Exception => Float.NaN }
   }
 
-  def executeTest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
+  def executeTest( datainputs: String, runArgs: Map[String,String]=Map.empty, identifier: String = "CDSpark.workflow"  ): xml.Elem = {
     val t0 = System.nanoTime()
-    val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString, "unitTest" -> "true", "response" -> "cdms" )
+    val runargs = runArgs ++ Map("responseform" -> "", "storeexecuteresponse" -> "true", "unitTest" -> "true" )
     val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
     val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
     for( child_node <- response.child ) if ( child_node.label.startsWith("exception")) { throw new Exception( child_node.toString ) }

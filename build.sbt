@@ -77,7 +77,6 @@ unmanagedJars in Compile ++= {
       val pw = new PrintWriter( classpath_file )
       val jars_list = customJars.getPaths.mkString("\n")
       pw.write( jars_list )
-      println( jars_list )
       customJars.classpath
     case None =>
       PathFinder.empty.classpath

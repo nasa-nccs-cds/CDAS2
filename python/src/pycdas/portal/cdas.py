@@ -1,4 +1,4 @@
-import zmq, traceback, time, logging
+import zmq, traceback, time, logging, xml, cdms2
 from threading import Thread
 from pycdas.cdasArray import npArray
 import random, string
@@ -83,12 +83,13 @@ class ResponseManager(Thread):
     def processNextResponse(self):
         try:
             response = self.socket.recv()
+            self.logger.info( "Received response: {0}".format(response) )
             toks = response.split('!')
             rId = toks[0]
             type = toks[1]
             if type == "array":
                 header = toks[2]
-                data = self.request_socket.recv()
+                data = self.socket.recv()
                 array = npArray.createInput(header,data)
                 self.logger.info("Received array: {0}".format(rId))
                 self.cacheArray( rId, array )
@@ -107,6 +108,28 @@ class ResponseManager(Thread):
             results = self.getResults(rId)
             if( (len(results) > 0) or not wait): return results
             else: time.sleep(0.25)
+
+    def getResponseVariables(self, rId, wait=True):
+        responses = self.getResponses( rId, wait )
+        vars = []
+        for response in responses:
+            e = xml.etree.ElementTree.fromstring( response )
+            for data_node in e.iter('data'):
+                resultFileUri = data_node.get("file", "")
+                if resultFileUri:
+                    dset = cdms2.open( resultFileUri )
+                    for fvar in dset.variables:
+                        vars.append( dset(fvar) )
+                else :
+                    resultUri = data_node.get("href","")
+                    if resultUri:
+                        resultId = resultUri.split("/")[-1]
+                        result_arrays = self.cached_arrays.get( resultId, [] )
+                        for result_array in result_arrays:
+                            vars.append( result_array.getVariable() )
+                    else:
+                        self.logger.error( "Empty response node: " + str(data_node) )
+            return vars
 
 class CDASPortal:
 

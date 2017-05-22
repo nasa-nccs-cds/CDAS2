@@ -61,8 +61,10 @@ public abstract class CDASPortal {
     }
     public void sendArrayData( String rid, int[] origin, int[] shape, byte[] data, Map<String, String> metadata ) {
         logger.debug( String.format("Portal: Sending response data to client for rid %s, nbytes=%d", rid, data.length ));
-        List<String> slist = Arrays.asList( "array", rid, ia2s(origin), ia2s(shape), m2s(metadata), "1" );
-        String header = StringUtils.join(slist,"|");
+        List<String> array_header_fields = Arrays.asList( "array", rid, ia2s(origin), ia2s(shape), m2s(metadata), "1" );
+        String array_header = StringUtils.join(array_header_fields,"|");
+        List<String> header_fields = Arrays.asList( rid,"array", array_header );
+        String header = StringUtils.join(header_fields,"!");
         logger.debug("Sending header: " + header);
         sendDataPacket( header, data );
     }

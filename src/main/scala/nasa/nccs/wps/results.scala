@@ -111,11 +111,11 @@ abstract class WPSProcessExecuteResponse( serviceInstance: String, val processes
         <wps:ProcessStarted>CDAS Process executing</wps:ProcessStarted>
       </wps:Status>
         <wps:ProcessOutputs>
-          {getReference}{getFileReference}{getResultReference}{getOutputs}
+          {getOutputs}
         </wps:ProcessOutputs>
       </wps:ExecuteResponse>
     case ResponseSyntax.Generic =>
-      <response> {getReference} {getFileReference} {getResultReference} {getOutputs} </response>
+      <response>  {getOutputs} </response>
   }
 
   def getOutputs: List[xml.Elem] = syntax match {
