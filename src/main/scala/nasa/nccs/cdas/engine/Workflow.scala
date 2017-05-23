@@ -272,18 +272,18 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def needsRegrid(rdd: RDD[(RecordKey,RDDRecord)], requestCx: RequestContext, kernelContext: KernelContext ): Boolean = {
-//    val sampleRDDPart: RDDRecord = rdd.first._2
-//    val targetGrid = requestCx.getTargetGrid (kernelContext.grid.uid).getOrElse (throw new Exception ("Undefined Target Grid for kernel " + kernelContext.operation.identifier) )
-//    if( targetGrid.getGridSpec.startsWith("gspec") ) return true
-//    sampleRDDPart.elements.foreach { case(uid,data) => if( data.gridSpec != targetGrid.getGridSpec ) kernelContext.crsOpt match {
-//      case Some( crs ) =>
-//        return true
-//      case None =>
-//        requestCx.getTargetGrid(uid) match {
-//          case Some(tgrid) => if( !tgrid.shape.sameElements( targetGrid.shape ) ) return true
-//          case None => throw new Exception (s"Undefined Grid in input ${uid} for kernel " + kernelContext.operation.identifier)
-//        }
-//    }}
+    val sampleRDDPart: RDDRecord = rdd.first._2
+    val targetGrid = requestCx.getTargetGrid (kernelContext.grid.uid).getOrElse (throw new Exception ("Undefined Target Grid for kernel " + kernelContext.operation.identifier) )
+    if( targetGrid.getGridSpec.startsWith("gspec") ) return true
+    sampleRDDPart.elements.foreach { case(uid,data) => if( data.gridSpec != targetGrid.getGridSpec ) kernelContext.crsOpt match {
+      case Some( crs ) =>
+        return true
+      case None =>
+        requestCx.getTargetGrid(uid) match {
+          case Some(tgrid) => if( !tgrid.shape.sameElements( targetGrid.shape ) ) return true
+          case None => throw new Exception (s"Undefined Grid in input ${uid} for kernel " + kernelContext.operation.identifier)
+        }
+    }}
     return false
   }
 
@@ -322,8 +322,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     } else {
       logger.info("\n\n ----------------------- Completed RDD input map[%d], keys: { %s }, thread: %s -------\n".format(batchIndex,rawRddMap.keys.mkString(", "), Thread.currentThread().getId ))
       val unifiedRDD = unifyRDDs(rawRddMap, kernelContext, requestCx, node)
-     // Some(unifyGrids(unifiedRDD, requestCx, kernelContext, node))   TODO: turn on automated regridding
-      Some( unifiedRDD )
+      Some( unifyGrids(unifiedRDD, requestCx, kernelContext, node) )
     }
   }
 
