@@ -9,7 +9,7 @@ val kernelPackages = settingKey[ Seq[String] ]("A list of user-defined Kernel pa
 
 name := "CDAS2"
 version := "1.2.2-SNAPSHOT"
-scalaVersion := "2.10.5"
+scalaVersion := "2.11.7"
 organization := "nasa.nccs"
 
 lazy val root = project in file(".")
@@ -34,7 +34,7 @@ libraryDependencies ++= ( Dependencies.cache ++ Dependencies.geo ++ Dependencies
 libraryDependencies ++= {
   sys.env.get("YARN_CONF_DIR") match {
     case Some(yarn_config) => Seq.empty
-    case None => Dependencies.spark ++ Dependencies.scala
+    case None => Dependencies.spark ++ Dependencies.scala ++ Dependencies.xml
   }
 }
 
