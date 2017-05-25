@@ -90,7 +90,9 @@ object CDSparkContext extends Loggable {
 
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     appParameters( "spark.master" ) match {
-      case Some(cval) => sc.setMaster(cval)
+      case Some(cval) =>
+        logger.info( s" >>>>> Set Spark Master from appParameters: $cval" )
+        sc.setMaster(cval)
       case None => Unit
     }
 

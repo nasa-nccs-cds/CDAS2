@@ -43,12 +43,12 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
     
     2) Create cdas2 conda environment:
         
-        >> conda create -n cdas2  -c conda-forge -c uvcdat/label/2.8 -c uvcdat uvcdat nco pyzmq psutil lxml
+        >> conda create -n cdas -c conda-forge -c uvcdat uvcdat nco pyzmq psutil lxml
         
     3) Initialize shell enviromnment for cdas:
     
         >> source <prefix>/CDAS2/bin/setup_runtime.sh
-        >> source activate cdas2
+        >> source activate cdas
         
     4) Build CDAS python pacakges:
     
