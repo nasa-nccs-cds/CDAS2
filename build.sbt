@@ -34,7 +34,7 @@ libraryDependencies ++= ( Dependencies.cache ++ Dependencies.geo ++ Dependencies
 libraryDependencies ++= {
   sys.env.get("YARN_CONF_DIR") match {
     case Some(yarn_config) => Seq.empty
-    case None => Dependencies.spark ++ Dependencies.scala ++ Dependencies.xml
+    case None => Dependencies.spark ++ Dependencies.scala                     // ++ Dependencies.xml     : For 2.11 or later!
   }
 }
 
