@@ -44,6 +44,9 @@ object CDSparkContext extends Loggable {
     logger.info( "CDAS env: \n\t" +  ( System.getenv.map { case (k,v) => k + ": " + v } ).mkString("\n\t") )
 
     val sparkContext = new SparkContext( getSparkConf( appName, logConf, enableMetrics) )
+
+    val CDAS_APP_CLASSPATH = System.getenv.getOrDefault( "CDAS_APP_CLASSPATH", "" )
+    CDAS_APP_CLASSPATH.split("[:]").foreach( jarPath => { logger.info(" #### ADD JAR: " + jarPath); sparkContext.addJar(jarPath) } )
     sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
     val rv = new CDSparkContext( sparkContext )
 
