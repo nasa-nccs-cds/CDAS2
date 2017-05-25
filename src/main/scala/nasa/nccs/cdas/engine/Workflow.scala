@@ -322,7 +322,8 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     } else {
       logger.info("\n\n ----------------------- Completed RDD input map[%d], keys: { %s }, thread: %s -------\n".format(batchIndex,rawRddMap.keys.mkString(", "), Thread.currentThread().getId ))
       val unifiedRDD = unifyRDDs(rawRddMap, kernelContext, requestCx, node)
-      Some( unifyGrids(unifiedRDD, requestCx, kernelContext, node) )
+//      Some( unifyGrids(unifiedRDD, requestCx, kernelContext, node) )
+      Some( unifiedRDD )
     }
   }
 
