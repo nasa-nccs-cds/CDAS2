@@ -87,7 +87,7 @@ unmanagedJars in Compile ++= {
   sys.env.get("SPARK_HOME") match {
     case Some(spark_dir) =>
       val spark_classpath = ( ( file(spark_dir) / "jars" ) ** "*.jar" ).classpath
-      println( "Adding Spark Classpath: " + spark_classpath.toString() )
+      println( "Adding Spark Jars:\n\t -- " + spark_classpath.map(_.data.toString).mkString("\n\t -- ") )
       spark_classpath
     case None => PathFinder.empty.classpath
   }

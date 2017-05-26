@@ -84,16 +84,16 @@ object CDSparkContext extends Loggable {
     val sc = new SparkConf(false)
       .setAppName( appName )
       .set("spark.logConf", logConf.toString )
-      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer") //
-      .set("spark.kryoserializer.buffer",kyro_buffer_mb)
-      .set("spark.kryoserializer.buffer.max", appParameters( "kryoserializer.buffer.max", default_kyro_buffer_max ) )
+//      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer") //
+//      .set("spark.kryoserializer.buffer",kyro_buffer_mb)
+//      .set("spark.kryoserializer.buffer.max", appParameters( "kryoserializer.buffer.max", default_kyro_buffer_max ) )
       .set("spark.local.dir", cdas_cache_dir )
       .set("spark.file.transferTo", "false" )
 
     addConfig( sc, "spark.executor.memory",  "spark.executor.memory" )
     addConfig( sc, "spark.executor.cores", "spark.executor.cores" )
     addConfig( sc, "spark.num.executors", "spark.num.executors" )
-    sc.registerKryoClasses( Array(classOf[DirectRDDRecordSpec], classOf[RecordKey], classOf[RDDRecord], classOf[DirectRDDVariableSpec], classOf[CDSection], classOf[HeapFltArray], classOf[Partition], classOf[CDCoordMap] ) )
+//    sc.registerKryoClasses( Array(classOf[DirectRDDRecordSpec], classOf[RecordKey], classOf[RDDRecord], classOf[DirectRDDVariableSpec], classOf[CDSection], classOf[HeapFltArray], classOf[Partition], classOf[CDCoordMap] ) )
 
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     appParameters( "spark.master" ) match {
