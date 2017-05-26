@@ -9,7 +9,7 @@ val kernelPackages = settingKey[ Seq[String] ]("A list of user-defined Kernel pa
 
 name := "CDAS2"
 version := "1.2.2-SNAPSHOT"
-scalaVersion := "2.10.5"
+scalaVersion := "2.11.7"
 organization := "nasa.nccs"
 
 lazy val root = project in file(".")
@@ -38,7 +38,7 @@ libraryDependencies ++= {
   }
 }
 
-dependencyOverrides ++= Set( "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4" )
+// dependencyOverrides ++= Set( "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4" )
 
 sbtcp := {
   val files: Seq[String] = (fullClasspath in Compile).value.files.map(x => x.getAbsolutePath)

@@ -2,7 +2,7 @@ import sbt._
 
 object Versions {
   val ucar = "4.6.10"
-  val spark = "1.6.3"
+  val spark = "2.1.1"
 }
 
 object Library {

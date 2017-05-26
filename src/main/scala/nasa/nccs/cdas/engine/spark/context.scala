@@ -1,11 +1,9 @@
 package nasa.nccs.cdas.engine.spark
 
-import java.nio.file.Paths
-
+import java.nio.file.{Files, Paths}
 import nasa.nccs.caching._
 import nasa.nccs.cdapi.cdm._
 import nasa.nccs.cdapi.data._
-import ucar.nc2.time.CalendarDate
 import nasa.nccs.cdas.engine.WorkflowNode
 import nasa.nccs.cdas.kernels.{Kernel, KernelContext}
 import nasa.nccs.cdas.utilities.appParameters
@@ -14,12 +12,11 @@ import nasa.nccs.utilities.Loggable
 import org.apache.spark.rdd.RDD
 import nasa.nccs.cdas.utilities
 import org.apache.spark.{Partitioner, SparkConf, SparkContext}
-import ucar.ma2
 import java.lang.management.ManagementFactory
-
+import ucar.ma2
+import ucar.nc2.time.{CalendarDate, CalendarDateRange, CalendarPeriod}
 import com.sun.management.OperatingSystemMXBean
 import nasa.nccs.cdapi.tensors.CDCoordMap
-import ucar.nc2.dataset.CoordinateAxis1DTime
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -47,7 +44,13 @@ object CDSparkContext extends Loggable {
 
     val SPARK_CLASSPATH = System.getenv.toMap.getOrElse( "SPARK_CLASSPATH", "" )
     logger.info(" #### SPARK_CLASSPATH: " + SPARK_CLASSPATH )
-    SPARK_CLASSPATH.split("[:]").foreach( jarPath => { logger.info(" #### ADD JAR: " + jarPath); sparkContext.addJar(jarPath) } )
+    SPARK_CLASSPATH.split("[:]").map( Paths.get(_) ).foreach( jarPath => {
+      try {
+        if ( Files.exists(jarPath) && Files.isRegularFile(jarPath) ) {
+          sparkContext.addJar(jarPath.toString )
+          logger.info("     #### ADD JAR: " + jarPath.toString);
+        } } catch { case err: Throwable => logger.error("!!!! Error adding JAR: " + jarPath.toString); }
+    } )
     sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
     val rv = new CDSparkContext( sparkContext )
 
