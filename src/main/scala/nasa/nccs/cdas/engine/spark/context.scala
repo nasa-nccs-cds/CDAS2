@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.engine.spark
 
-import java.nio.file.Paths
+import java.nio.file.{ Paths, Files }
 
 import nasa.nccs.caching._
 import nasa.nccs.cdapi.cdm._
@@ -27,12 +27,13 @@ import scala.collection.JavaConverters._
 object CDSparkContext extends Loggable {
   val mb = 1024 * 1024
   val totalRAM = ManagementFactory.getOperatingSystemMXBean.asInstanceOf[OperatingSystemMXBean].getTotalPhysicalMemorySize / mb
-  val kyro_buffer_mb = "64m"
-  val default_kyro_buffer_max = "1000m"
+  val kryo_buffer_mb = "64m"
+  val default_kryo_buffer_max = "1000m"
   val runtime = Runtime.getRuntime
   val default_executor_memory = (totalRAM-10).toString + "m"
   val default_executor_cores = (runtime.availableProcessors-1).toString
   val default_num_executors = "1"
+  val useKyro = false
 
   def apply( appName: String="CDAS", logConf: Boolean = true, enableMetrics: Boolean = false ) : CDSparkContext = {
     logger.info( "--------------------------------------------------------")
@@ -44,10 +45,15 @@ object CDSparkContext extends Loggable {
     logger.info( "CDAS env: \n\t" +  ( System.getenv.map { case (k,v) => k + ": " + v } ).mkString("\n\t") )
 
     val sparkContext = new SparkContext( getSparkConf( appName, logConf, enableMetrics) )
-
     val SPARK_CLASSPATH = System.getenv.toMap.getOrElse( "SPARK_CLASSPATH", "" )
-    logger.info(" #### SPARK_CLASSPATH: " + SPARK_CLASSPATH )
-    SPARK_CLASSPATH.split("[:]").foreach( jarPath => { logger.info(" #### ADD JAR: " + jarPath); sparkContext.addJar(jarPath) } )
+    SPARK_CLASSPATH.split("[:]").map( Paths.get(_) ).foreach( jarPath => {
+        try {
+            if ( Files.exists(jarPath) && Files.isRegularFile(jarPath) ) {
+                sparkContext.addJar(jarPath.toString )
+                logger.info("     #### ADD JAR: " + jarPath.toString);
+              } } catch { case err: Throwable => logger.error("!!!! Error adding JAR: " + jarPath.toString); }
+      } )
+
     sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
     val rv = new CDSparkContext( sparkContext )
 
@@ -81,16 +87,21 @@ object CDSparkContext extends Loggable {
     val sc = new SparkConf(false)
       .setAppName( appName )
       .set("spark.logConf", logConf.toString )
-      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer") //
-      .set("spark.kryoserializer.buffer",kyro_buffer_mb)
-      .set("spark.kryoserializer.buffer.max", appParameters( "kryoserializer.buffer.max", default_kyro_buffer_max ) )
       .set("spark.local.dir", cdas_cache_dir )
       .set("spark.file.transferTo", "false" )
+
+    if( useKyro ) {
+      sc.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+        .set("spark.kryoserializer.buffer",kryo_buffer_mb)
+        .set("spark.kryoserializer.buffer.max", appParameters( "kryoserializer.buffer.max", default_kryo_buffer_max ) )
+        .registerKryoClasses( Array(classOf[DirectRDDRecordSpec], classOf[RecordKey], classOf[RDDRecord], classOf[DirectRDDVariableSpec], classOf[CDSection], classOf[HeapFltArray], classOf[Partition], classOf[CDCoordMap] ) )
+    } else {
+      sc.set("spark.serializer", "org.apache.spark.serializer.JavaSerializer")
+    }
 
     addConfig( sc, "spark.executor.memory",  "spark.executor.memory" )
     addConfig( sc, "spark.executor.cores", "spark.executor.cores" )
     addConfig( sc, "spark.num.executors", "spark.num.executors" )
-    sc.registerKryoClasses( Array(classOf[DirectRDDRecordSpec], classOf[RecordKey], classOf[RDDRecord], classOf[DirectRDDVariableSpec], classOf[CDSection], classOf[HeapFltArray], classOf[Partition], classOf[CDCoordMap] ) )
 
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     appParameters( "spark.master" ) match {
