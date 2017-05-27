@@ -83,12 +83,12 @@ unmanagedJars in Compile ++= {
   }
 }
 
-unmanagedJars in Compile ++= {
-  sys.env.get("SPARK_HOME") match {
-    case Some(spark_dir) =>  ( file(spark_dir) ** "*.jar" ).classpath
-    case None => PathFinder.empty.classpath
-  }
-}
+//unmanagedJars in Compile ++= {
+//  sys.env.get("SPARK_HOME") match {
+//    case Some(spark_dir) =>  ( file(spark_dir) ** "*.jar" ).classpath
+//    case None => PathFinder.empty.classpath
+//  }
+//}
 
 unmanagedClasspath in Test ++= Seq( conda_lib_dir.value )
 unmanagedClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value )

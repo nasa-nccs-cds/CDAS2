@@ -45,14 +45,14 @@ object CDSparkContext extends Loggable {
     logger.info( "CDAS env: \n\t" +  ( System.getenv.map { case (k,v) => k + ": " + v } ).mkString("\n\t") )
 
     val sparkContext = new SparkContext( getSparkConf( appName, logConf, enableMetrics) )
-    val SPARK_CLASSPATH = System.getenv.toMap.getOrElse( "SPARK_CLASSPATH", "" )
-    SPARK_CLASSPATH.split("[:]").map( Paths.get(_) ).foreach( jarPath => {
-        try {
-            if ( Files.exists(jarPath) && Files.isRegularFile(jarPath) ) {
-                sparkContext.addJar(jarPath.toString )
-                logger.info("     #### ADD JAR: " + jarPath.toString);
-              } } catch { case err: Throwable => logger.error("!!!! Error adding JAR: " + jarPath.toString); }
-      } )
+//    val SPARK_CLASSPATH = System.getenv.toMap.getOrElse( "SPARK_CLASSPATH", "" )
+//    SPARK_CLASSPATH.split("[:]").map( Paths.get(_) ).foreach( jarPath => {
+//        try {
+//            if ( Files.exists(jarPath) && Files.isRegularFile(jarPath) ) {
+//                sparkContext.addJar(jarPath.toString )
+//                logger.info("     #### ADD JAR: " + jarPath.toString);
+//              } } catch { case err: Throwable => logger.error("!!!! Error adding JAR: " + jarPath.toString); }
+//      } )
 
     sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
     val rv = new CDSparkContext( sparkContext )
