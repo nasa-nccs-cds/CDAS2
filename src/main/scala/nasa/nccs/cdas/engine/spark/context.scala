@@ -99,9 +99,9 @@ object CDSparkContext extends Loggable {
       sc.set("spark.serializer", "org.apache.spark.serializer.JavaSerializer")
     }
 
-    addConfig( sc, "spark.executor.memory",  "spark.executor.memory" )
-    addConfig( sc, "spark.executor.cores", "spark.executor.cores" )
-    addConfig( sc, "spark.num.executors", "spark.num.executors" )
+//    addConfig( sc, "spark.executor.memory",  "spark.executor.memory" )
+//    addConfig( sc, "spark.executor.cores", "spark.executor.cores" )
+//    addConfig( sc, "spark.num.executors", "spark.num.executors" )
 
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     appParameters( "spark.master" ) match {
