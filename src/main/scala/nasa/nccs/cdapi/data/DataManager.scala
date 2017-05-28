@@ -82,7 +82,7 @@ abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray
   def getSampleData( size: Int, start: Int): Array[Float] = toCDFloatArray.getSampleData( size, start )
   def getSampleDataStr( size: Int, start: Int): String = toCDFloatArray.getSampleData( size, start ).mkString( "[ ",", "," ]")
   def uid: String = metadata.getOrElse("uid", metadata.getOrElse("collection","") + ":" + metadata.getOrElse("name",""))
-  override def toString = "<array shape=(%s), %s> %s </array>".format( shape.mkString(","), metadata.mkString(","), cdsutils.toString(data.mkString(",")) )
+  override def toString = "<array shape=(%s), %s> %s </array>".format( shape.mkString(","), metadata.mkString(",") )
 
 }
 
