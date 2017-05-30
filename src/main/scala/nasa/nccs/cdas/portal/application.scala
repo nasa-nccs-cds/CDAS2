@@ -1,5 +1,6 @@
 package nasa.nccs.cdas.portal
 import java.nio.file.{Files, Path, Paths}
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDRecord}
@@ -9,6 +10,7 @@ import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode._
 import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.utilities.Loggable
+import org.apache.spark.SparkEnv
 
 import scala.xml
 import scala.io.Source
@@ -129,8 +131,10 @@ object TestApplication extends Loggable {
     val sc = CDSparkContext()
     val indices = sc.sparkContext.parallelize( Array.fill(100)(0) )
     val base_time = System.currentTimeMillis()
-    val timings = indices.map( i => ( System.currentTimeMillis() - base_time) )
-    val time_list = timings.collect().map( tval => (tval/1.0E3).toString ) mkString (", ")
+    val timings = indices.map( i => ( s"  E${SparkEnv.get.executorId} -> %.4f".format( (System.currentTimeMillis() - base_time)/1.0E3 ) ) )
+    val time_list = timings.collect() mkString ("\n")
     println( time_list )
   }
 }
+
+// nasa.nccs.cdas.portal.TestApplication
