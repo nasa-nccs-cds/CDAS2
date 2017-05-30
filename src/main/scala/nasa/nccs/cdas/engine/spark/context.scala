@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.engine.spark
 
-import java.nio.file.Paths
+import java.nio.file.{ Paths, Files }
 
 import nasa.nccs.caching._
 import nasa.nccs.cdapi.cdm._
@@ -42,10 +42,6 @@ object CDSparkContext extends Loggable {
     logger.info( "CDAS env: \n\t" +  ( System.getenv.map { case (k,v) => k + ": " + v } ).mkString("\n\t") )
 
     val sparkContext = new SparkContext( getSparkConf( appName, logConf, enableMetrics) )
-
-    val SPARK_CLASSPATH = System.getenv.toMap.getOrElse( "SPARK_CLASSPATH", "" )
-    logger.info(" #### SPARK_CLASSPATH: " + SPARK_CLASSPATH )
-    SPARK_CLASSPATH.split("[:]").foreach( jarPath => { logger.info(" #### ADD JAR: " + jarPath); sparkContext.addJar(jarPath) } )
     sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
     val rv = new CDSparkContext( sparkContext )
 

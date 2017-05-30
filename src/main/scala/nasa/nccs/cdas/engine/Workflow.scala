@@ -295,6 +295,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode, batchIndex: Int ): Option[RDD[(RecordKey,RDDRecord)]] = {
+    val enableRegridding = false
     logger.info( "Generating RDD for inputs: " + opInputs.keys.mkString(", ") )
     val rawRddMap: Map[String,RDD[(RecordKey,RDDRecord)]] = opInputs flatMap { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
@@ -322,7 +323,8 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     } else {
       logger.info("\n\n ----------------------- Completed RDD input map[%d], keys: { %s }, thread: %s -------\n".format(batchIndex,rawRddMap.keys.mkString(", "), Thread.currentThread().getId ))
       val unifiedRDD = unifyRDDs(rawRddMap, kernelContext, requestCx, node)
-      Some( unifyGrids(unifiedRDD, requestCx, kernelContext, node) )
+      if( enableRegridding) { Some( unifyGrids(unifiedRDD, requestCx, kernelContext, node) ) }
+      else { Some( unifiedRDD ) }
     }
   }
 
