@@ -11,9 +11,10 @@ object TimeStamp {
   def apply( startTime: Long, label: String ): TimeStamp = { new TimeStamp( (System.currentTimeMillis()-startTime)/1.0E3f, label ) }
 
   def getWorkerSignature: String = {
-    val node_name = ManagementFactory.getRuntimeMXBean.getName // .split("@").last.split(".").head
     val thread: Thread = Thread.currentThread()
-    s"E${SparkEnv.get.executorId}:${node_name}:${thread.getName}:${thread.getId}"
+    val node_name = ManagementFactory.getRuntimeMXBean.getName.split("[@]").last.split("[.]").head
+    val worker_name = thread.getName.split("[-]").last
+    s"${node_name}:E${SparkEnv.get.executorId}:W${worker_name}"
   }
 }
 
