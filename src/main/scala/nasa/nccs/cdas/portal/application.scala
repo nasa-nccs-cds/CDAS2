@@ -125,6 +125,7 @@ object TestApplication extends Loggable {
     val base_time = System.currentTimeMillis()
     val timings = indices.map( getProfileDiagnostic(base_time) )
     val time_list = timings.collect() mkString ("\n")
+    println( " @@@ NPart = " + indices.getNumPartitions.toString )
     println( time_list )
   }
   def getProfileDiagnostic( base_time: Float )( index: Int ): String = {
