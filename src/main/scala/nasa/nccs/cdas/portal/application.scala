@@ -120,17 +120,8 @@ object CDASApplication extends Loggable {
 
 object TestApplication extends Loggable {
   def main(args: Array[String]) {
-    import CDASapp._
-    logger.info(s"Executing Test with args: ${args.mkString(",")}}")
-    val connect_mode = elem(args, 0, "bind")
-    val request_port = elem(args, 1, "0").toInt
-    val response_port = elem(args, 2, "0").toInt
-    val parameter_file = elem(args, 3, "")
-    val appConfiguration = getConfiguration( parameter_file )
-    val cmode = if (connect_mode.toLowerCase.startsWith("c")) CONNECT else BIND
-
     val sc = CDSparkContext()
-    val indices = sc.sparkContext.parallelize( Array.iterate(0,500)( i => i ) )
+    val indices = sc.sparkContext.parallelize( Array.range(0,500) )
     val base_time = System.currentTimeMillis()
     val timings = indices.map( getProfileDiagnostic(base_time) )
     val time_list = timings.collect() mkString ("\n")
