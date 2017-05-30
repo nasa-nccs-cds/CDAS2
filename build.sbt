@@ -60,6 +60,8 @@ ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 import java.util.Properties
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
+lazy val cdasPythonRunScript = settingKey[File]("The cdas python worker startup script")
+lazy val cdasDefaultPythonRunScript = settingKey[File]("The default cdas python worker startup script")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
@@ -101,8 +103,8 @@ stage ~= { (file: File) => cdas2Patch( file / "bin" / "cdas2" ); file }
 cdas_cache_dir := getCacheDir()
 cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
-
-// try{ IO.write( cdasProperties.value, "", cdasPropertiesFile.value ) } catch { case err: Exception => println("Error writing to properties file: " + err.getMessage ) }
+cdasPythonRunScript := cdas_cache_dir.value / "startup_python_worker.sh"
+cdasDefaultPythonRunScript := baseDirectory.value / "bin" / "startup_python_worker.sh"
 
 cdasProperties := {
   val prop = new Properties()
@@ -110,6 +112,10 @@ cdasProperties := {
     if( !cdasPropertiesFile.value.exists() ) {
       println("Copying default property file: " + cdasDefaultPropertiesFile.value.toString )
       copy( cdasDefaultPropertiesFile.value.toPath, cdasPropertiesFile.value.toPath )
+    }
+    if( !cdasPythonRunScript.value.exists() ) {
+      println("Copying default python run script: " + cdasDefaultPythonRunScript.value.toString )
+      copy( cdasDefaultPythonRunScript.value.toPath, cdasPythonRunScript.value.toPath )
     }
     println("Loading property file: " + cdasPropertiesFile.value.toString )
     IO.load( prop, cdasPropertiesFile.value )

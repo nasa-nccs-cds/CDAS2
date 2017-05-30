@@ -21,8 +21,8 @@ public class PythonWorker extends Worker {
         try {
             FileSystem fileSystems = FileSystems.getDefault();
             Path log_path = fileSystems.getPath( System.getProperty("user.home"), ".cdas", String.format("python-worker-%d.log",request_port) );
+            Path run_script = fileSystems.getPath( System.getProperty("user.home"), ".cdas", "cache", "startup_python_worker.sh" );
             Map<String, String> sysenv = System.getenv();
-            Path run_script = fileSystems.getPath( sysenv.get("CDAS_BIN_DIR"), "startup_python_worker.sh" );
 //            ProcessBuilder pb = new ProcessBuilder( "python", "-m", "pycdas.worker", String.valueOf(request_port), String.valueOf(result_port) );
             ProcessBuilder pb = new ProcessBuilder( run_script.toString(), String.valueOf(request_port), String.valueOf(result_port) );
             Map<String, String> env = pb.environment();
