@@ -121,7 +121,7 @@ object CDASApplication extends Loggable {
 object TestApplication extends Loggable {
   def main(args: Array[String]) {
     val sc = CDSparkContext()
-    val indices = sc.sparkContext.parallelize( Array.range(0,500), 18 )
+    val indices = sc.sparkContext.parallelize( Array.range(0,500), 100 )
     val base_time = System.currentTimeMillis()
     val timings = indices.map( getProfileDiagnostic(base_time) )
     val time_list = timings.collect() mkString ("\n")
