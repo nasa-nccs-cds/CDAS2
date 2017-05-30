@@ -15,7 +15,8 @@ object TimeStamp {
 
 class TimeStamp( val elapasedJobTime: Float, val label: String ) extends Serializable with Ordered [TimeStamp]  {
   import TimeStamp._
-  override def toString(): String = { s"TimeStamp[${eid}:${pid}] { ${elapasedJobTime.toString} => $label" }
+  val tid = s"TimeStamp[${eid}:${pid}]"
+  override def toString(): String = { s"TimeStamp[${tid}] { ${elapasedJobTime.toString} => $label" }
   def compare (that: TimeStamp) = { elapasedJobTime.compareTo( that.elapasedJobTime ) }
 }
 
