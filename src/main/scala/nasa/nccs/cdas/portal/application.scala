@@ -1,4 +1,5 @@
 package nasa.nccs.cdas.portal
+import java.lang.management.ManagementFactory
 import java.nio.file.{Files, Path, Paths}
 
 import scala.collection.JavaConversions._
@@ -129,11 +130,14 @@ object TestApplication extends Loggable {
     val cmode = if (connect_mode.toLowerCase.startsWith("c")) CONNECT else BIND
 
     val sc = CDSparkContext()
-    val indices = sc.sparkContext.parallelize( Array.fill(100)(0) )
+    val indices = sc.sparkContext.parallelize( Array.iterate(0,500)( i => i ) )
     val base_time = System.currentTimeMillis()
-    val timings = indices.map( i => ( s"  E${SparkEnv.get.executorId} -> %.4f".format( (System.currentTimeMillis() - base_time)/1.0E3 ) ) )
+    val timings = indices.map( getProfileDiagnostic(base_time) )
     val time_list = timings.collect() mkString ("\n")
     println( time_list )
+  }
+  def getProfileDiagnostic( base_time: Float )( index: Int ): String = {
+    s"  T{$index} => E${SparkEnv.get.executorId}:${ManagementFactory.getRuntimeMXBean.getName} -> %.4f".format( (System.currentTimeMillis() - base_time)/1.0E3 )
   }
 }
 
