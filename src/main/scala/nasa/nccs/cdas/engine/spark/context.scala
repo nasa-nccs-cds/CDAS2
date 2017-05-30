@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.engine.spark
 
-import java.nio.file.{ Paths, Files }
+import java.nio.file.{Files, Paths}
 
 import nasa.nccs.caching._
 import nasa.nccs.cdapi.cdm._
@@ -13,12 +13,13 @@ import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.Loggable
 import org.apache.spark.rdd.RDD
 import nasa.nccs.cdas.utilities
-import org.apache.spark.{Partitioner, SparkConf, SparkContext}
+import org.apache.spark.{Partitioner, SparkConf, SparkContext, SparkEnv}
 import ucar.ma2
 import java.lang.management.ManagementFactory
 
 import com.sun.management.OperatingSystemMXBean
 import nasa.nccs.cdapi.tensors.CDCoordMap
+import nasa.nccs.cdas.portal.TestApplication.logger
 import ucar.nc2.dataset.CoordinateAxis1DTime
 
 import scala.collection.JavaConversions._
@@ -50,6 +51,12 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------")
     logger.info( "Spark Configuration: \n" +  sparkContext.getConf.getAll.mkString("\n") )
     rv
+  }
+
+  def getWorkerSignature: String = {
+    val node_name = ManagementFactory.getRuntimeMXBean.getName.split("@").last.split(".").head
+    val thread: Thread = Thread.currentThread()
+    s"E${SparkEnv.get.executorId}:${node_name}:${thread.getName}:${thread.getId}"
   }
 
   def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )

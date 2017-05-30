@@ -8,14 +8,18 @@ import org.apache.spark.broadcast.Broadcast
 import scala.collection.mutable
 
 object TimeStamp {
-  val pid = ManagementFactory.getRuntimeMXBean.getName
-  val eid = SparkEnv.get.executorId
   def apply( startTime: Long, label: String ): TimeStamp = { new TimeStamp( (System.currentTimeMillis()-startTime)/1.0E3f, label ) }
+
+  def getWorkerSignature: String = {
+    val node_name = ManagementFactory.getRuntimeMXBean.getName.split("@").last.split(".").head
+    val thread: Thread = Thread.currentThread()
+    s"E${SparkEnv.get.executorId}:${node_name}:${thread.getName}:${thread.getId}"
+  }
 }
 
 class TimeStamp( val elapasedJobTime: Float, val label: String ) extends Serializable with Ordered [TimeStamp]  {
   import TimeStamp._
-  val tid = s"TimeStamp[${eid}:${pid}]"
+  val tid = s"TimeStamp[${getWorkerSignature}]"
   override def toString(): String = { s"TimeStamp[${tid}] { ${elapasedJobTime.toString} => $label" }
   def compare (that: TimeStamp) = { elapasedJobTime.compareTo( that.elapasedJobTime ) }
 }
