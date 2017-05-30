@@ -14,14 +14,16 @@ object TimeStamp {
     val thread: Thread = Thread.currentThread()
     val node_name = ManagementFactory.getRuntimeMXBean.getName.split("[@]").last.split("[.]").head
     val worker_name = thread.getName.split("[-]").last
-    s"${node_name}:E${SparkEnv.get.executorId}:W${worker_name}"
+    s"${node_name}-E${SparkEnv.get.executorId}-W${worker_name}"
   }
 }
 
-class TimeStamp( val elapasedJobTime: Float, val label: String ) extends Serializable with Ordered [TimeStamp]  {
+class TimeStamp( val elapasedJobTime: Float, val label: String ) extends Serializable with Ordered [TimeStamp] with Loggable {
   import TimeStamp._
   val tid = s"TimeStamp[${getWorkerSignature}]"
-  override def toString(): String = { s"TimeStamp[${tid}] { ${elapasedJobTime.toString} => $label" }
+  val sval = s"TimeStamp[${tid}] { ${elapasedJobTime.toString} => $label"
+  logger.info( sval )
+  override def toString(): String = { sval }
   def compare (that: TimeStamp) = { elapasedJobTime.compareTo( that.elapasedJobTime ) }
 }
 
