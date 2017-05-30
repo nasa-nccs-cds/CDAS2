@@ -22,7 +22,6 @@ class TimeStamp( val elapasedJobTime: Float, val label: String ) extends Seriali
   import TimeStamp._
   val tid = s"TimeStamp[${getWorkerSignature}]"
   val sval = s"TimeStamp[${tid}] { ${elapasedJobTime.toString} => $label"
-  logger.info( sval )
   override def toString(): String = { sval }
   def compare (that: TimeStamp) = { elapasedJobTime.compareTo( that.elapasedJobTime ) }
 }
