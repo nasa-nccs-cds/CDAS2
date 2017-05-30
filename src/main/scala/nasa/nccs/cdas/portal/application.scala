@@ -121,14 +121,16 @@ object CDASApplication extends Loggable {
 object TestApplication extends Loggable {
   def main(args: Array[String]) {
     val sc = CDSparkContext()
-    val indices = sc.sparkContext.parallelize( Array.range(0,500) )
+    val indices = sc.sparkContext.parallelize( Array.range(0,500), 18 )
     val base_time = System.currentTimeMillis()
     val timings = indices.map( getProfileDiagnostic(base_time) )
     val time_list = timings.collect() mkString ("\n")
     println( time_list )
   }
   def getProfileDiagnostic( base_time: Float )( index: Int ): String = {
-    s"  T{$index} => E${SparkEnv.get.executorId}:${ManagementFactory.getRuntimeMXBean.getName} -> %.4f".format( (System.currentTimeMillis() - base_time)/1.0E3 )
+    val result = s"  T{$index} => E${SparkEnv.get.executorId}:${ManagementFactory.getRuntimeMXBean.getName} -> %.4f".format( (System.currentTimeMillis() - base_time)/1.0E3 )
+    logger.info( result )
+    result
   }
 }
 
