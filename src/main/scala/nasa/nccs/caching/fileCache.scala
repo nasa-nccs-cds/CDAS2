@@ -63,13 +63,7 @@ object BatchSpec extends Loggable {
   lazy val nParts = nProcessors - 1
   def apply( index: Int ): BatchSpec = new BatchSpec( index*nParts, nParts )
 
-  def getSparkMaxCores = {
-    val nCores = serverContext.getConfiguration.getOrElse("spark.executor.cores",serverContext.spark.totalClusterCores.toString).toInt
-    val nExecutors = serverContext.getConfiguration.getOrElse("spark.num.executors","1").toInt
-    val rv = nCores * nExecutors
-    logger.info( s"Computing # Spark cores: nCoresPerExec = $nCores, nExecutors = $nExecutors, total Cores = $rv ")
-    rv
-  }
+  def getSparkMaxCores = { serverContext.spark.totalClusterCores.toString.toInt }
 }
 
 case class BatchSpec( iStartPart: Int, nParts: Int ) {
@@ -392,7 +386,7 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
       new CDASPartitionSpec( partitions )
     } else {
       if( filters.isEmpty ) {
-        val __nPartitions: Int = BatchSpec.nProcessors - 1
+        val __nPartitions: Int = ( BatchSpec.nProcessors ) / 2
         val __nSlicesPerPart: Int = math.ceil(baseShape(0) / __nPartitions.toFloat).toInt
         val __maxSlicesPerRecord: Int = math.max(math.round(recordSize / sliceMemorySize.toFloat), 1)
         val __nSlicesPerRecord: Int = math.min( __maxSlicesPerRecord, __nSlicesPerPart )
