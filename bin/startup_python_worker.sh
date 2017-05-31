@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 
-source ~/.bash_profile
+source activate cdas
 python -m pycdas.worker $*
 

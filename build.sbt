@@ -62,13 +62,17 @@ lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
 lazy val cdasPythonRunScript = settingKey[File]("The cdas python worker startup script")
 lazy val cdasDefaultPythonRunScript = settingKey[File]("The default cdas python worker startup script")
+lazy val cdasSetupScript = settingKey[File]("The cdas setup runtime script")
+lazy val cdasDefaultSetupScript = settingKey[File]("The default cdas setup runtime script")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
+lazy val cdas_sbin_dir = settingKey[File]("The CDAS sbin directory.")
 lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
 val cdasProperties = settingKey[Properties]("The cdas properties map")
 
 cdas_conf_dir := baseDirectory.value / "src" / "universal" / "conf"
+cdas_sbin_dir := getCDASbinDir
 conda_lib_dir := getCondaLibDir
 
 unmanagedJars in Compile ++= {
@@ -103,8 +107,10 @@ stage ~= { (file: File) => cdas2Patch( file / "bin" / "cdas2" ); file }
 cdas_cache_dir := getCacheDir()
 cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
-cdasPythonRunScript := cdas_cache_dir.value / "startup_python_worker.sh"
+cdasPythonRunScript := cdas_sbin_dir.value / "startup_python_worker.sh"
 cdasDefaultPythonRunScript := baseDirectory.value / "bin" / "startup_python_worker.sh"
+cdasSetupScript := cdas_sbin_dir.value / "setup_runtime.sh"
+cdasDefaultSetupScript := baseDirectory.value / "bin" / "setup_runtime.sh"
 
 cdasProperties := {
   val prop = new Properties()
@@ -116,6 +122,10 @@ cdasProperties := {
     if( !cdasPythonRunScript.value.exists() ) {
       println("Copying default python run script: " + cdasDefaultPythonRunScript.value.toString )
       copy( cdasDefaultPythonRunScript.value.toPath, cdasPythonRunScript.value.toPath )
+    }
+    if( !cdasSetupScript.value.exists() ) {
+      println("Copying default setup script: " + cdasDefaultSetupScript.value.toString )
+      copy( cdasDefaultSetupScript.value.toPath, cdasSetupScript.value.toPath )
     }
     println("Loading property file: " + cdasPropertiesFile.value.toString )
     IO.load( prop, cdasPropertiesFile.value )
@@ -138,6 +148,12 @@ def getCacheDir(): File = {
   val ncml_dir = cache_dir / "collections" / "NCML";
   ncml_dir.mkdirs();
   cache_dir
+}
+
+def getCDASbinDir(): File = {
+  val bin_dir =  file(System.getProperty("user.home")) / ".cdas" / "sbin";
+  bin_dir.mkdirs();
+  bin_dir
 }
 
 cdasLocalCollectionsFile :=  {
