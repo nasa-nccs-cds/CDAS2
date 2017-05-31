@@ -61,5 +61,10 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
     
     2) Start IDEA and import the CDAS2 Project from Version Control (github) using the address https://github.com/nasa-nccs-cds/CDAS2.git.
     
+####  Acknowledgements:
+
+    CDAS uses the YourKit profiler (https://www.yourkit.com/java/profiler/), by YourKit, LLC, 
+    which supports open source projects with innovative and intelligent tools for profiling Java and .Net applications.
+    
     
 
