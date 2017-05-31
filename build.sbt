@@ -68,11 +68,13 @@ lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val cdas_conf_dir = settingKey[File]("The CDAS conf directory.")
 lazy val cdas_sbin_dir = settingKey[File]("The CDAS sbin directory.")
+lazy val cdas_logs_dir = settingKey[File]("The CDAS logs directory.")
 lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
 val cdasProperties = settingKey[Properties]("The cdas properties map")
 
 cdas_conf_dir := baseDirectory.value / "src" / "universal" / "conf"
 cdas_sbin_dir := getCDASbinDir
+cdas_logs_dir := getCDASlogsDir
 conda_lib_dir := getCondaLibDir
 
 unmanagedJars in Compile ++= {
@@ -154,6 +156,12 @@ def getCDASbinDir(): File = {
   val bin_dir =  file(System.getProperty("user.home")) / ".cdas" / "sbin";
   bin_dir.mkdirs();
   bin_dir
+}
+
+def getCDASlogsDir(): File = {
+  val log_dir =  file(System.getProperty("user.home")) / ".cdas" / "logs";
+  log_dir.mkdirs();
+  log_dir
 }
 
 cdasLocalCollectionsFile :=  {

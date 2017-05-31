@@ -20,8 +20,8 @@ public class PythonWorker extends Worker {
     Process startup() throws Exception {
         try {
             FileSystem fileSystems = FileSystems.getDefault();
-            Path log_path = fileSystems.getPath( System.getProperty("user.home"), ".cdas", String.format("python-worker-%d.log",request_port) );
-            Path run_script = fileSystems.getPath( System.getProperty("user.home"), ".cdas", "cache", "startup_python_worker.sh" );
+            Path log_path = fileSystems.getPath( System.getProperty("user.home"), ".cdas", "logs", String.format("python-worker-%d.log",request_port) );
+            Path run_script = fileSystems.getPath( System.getProperty("user.home"), ".cdas", "sbin", "startup_python_worker.sh" );
             Map<String, String> sysenv = System.getenv();
 //            ProcessBuilder pb = new ProcessBuilder( "python", "-m", "pycdas.worker", String.valueOf(request_port), String.valueOf(result_port) );
             ProcessBuilder pb = new ProcessBuilder( run_script.toString(), String.valueOf(request_port), String.valueOf(result_port) );
