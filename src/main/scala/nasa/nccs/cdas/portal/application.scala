@@ -74,6 +74,8 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
     sendResponse( taskSpec(0), printer.format( response ) )
   }
 
+  def shutdown = { processManager.shutdown( process ) }
+
   def sendDirectResponse( responseId: String, response: xml.Elem ): Unit =  {
     val refs: xml.NodeSeq = response \\ "data"
     val resultHref = refs.flatMap( _.attribute("href") ).find( _.nonEmpty ).map( _.text ) match {
@@ -114,8 +116,10 @@ object CDASApplication extends Loggable {
     val appConfiguration = getConfiguration( parameter_file )
     val cmode = if (connect_mode.toLowerCase.startsWith("c")) CONNECT else BIND
     val app = new CDASapp(cmode, request_port, response_port, appConfiguration)
+    sys.addShutdownHook( { app.term() } )
     app.run()
   }
+
 }
 
 object TestApplication extends Loggable {
