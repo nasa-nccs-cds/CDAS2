@@ -386,7 +386,7 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
       new CDASPartitionSpec( partitions )
     } else {
       if( filters.isEmpty ) {
-        val __nPartitions: Int = ( BatchSpec.nProcessors ) / 2
+        val __nPartitions: Int = ( BatchSpec.nProcessors ) / 5
         val __nSlicesPerPart: Int = math.ceil(baseShape(0) / __nPartitions.toFloat).toInt
         val __maxSlicesPerRecord: Int = math.max(math.round(recordSize / sliceMemorySize.toFloat), 1)
         val __nSlicesPerRecord: Int = math.min( __maxSlicesPerRecord, __nSlicesPerPart )
