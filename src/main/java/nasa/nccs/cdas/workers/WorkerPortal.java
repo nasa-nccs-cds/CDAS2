@@ -47,10 +47,10 @@ public abstract class WorkerPortal {
 
     public void shutdown() {
         logger.info( "\t   *** WorkerPortal SHUTDOWN *** " );
-        while( !availableWorkers.isEmpty() ) {
+        while( !availableWorkers.isEmpty() ) try {
             Worker worker = availableWorkers.poll();
             worker.quit();
-        }
+        } catch ( Exception ex ) {;}
         while( !busyWorkers.isEmpty() ) { busyWorkers.poll().quit(); }
         try { Thread.sleep(2000); } catch ( Exception ex ) {;}
     }

@@ -39,8 +39,8 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------\n\n")
 
     val cl = ClassLoader.getSystemClassLoader
-    logger.info( "Loaded jars: \n\t" + cl.asInstanceOf[java.net.URLClassLoader].getURLs.mkString("\n\t") )
-    logger.info( "CDAS env: \n\t" +  ( System.getenv.map { case (k,v) => k + ": " + v } ).mkString("\n\t") )
+//    logger.info( "Loaded jars: \n\t" + cl.asInstanceOf[java.net.URLClassLoader].getURLs.mkString("\n\t") )
+//    logger.info( "CDAS env: \n\t" +  ( System.getenv.map { case (k,v) => k + ": " + v } ).mkString("\n\t") )
 
     val sparkContext = new SparkContext( getSparkConf( appName, logConf, enableMetrics) )
     sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
@@ -49,7 +49,6 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  CDSparkContext Creation FINISHED  **** ")
     logger.info( "--------------------------------------------------------")
-    logger.info( "Spark Configuration: \n" +  sparkContext.getConf.getAll.mkString("\n") )
     rv
   }
 
