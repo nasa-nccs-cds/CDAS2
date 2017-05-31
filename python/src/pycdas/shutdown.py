@@ -1,10 +1,10 @@
 import subprocess, signal, os
-p = subprocess.Popen(['ps', '-A'], stdout=subprocess.PIPE)
+p = subprocess.Popen(['ps', '-fu', '$USER', "|", "grep", "python"], stdout=subprocess.PIPE)
 out, err = p.communicate()
 
 print "Killing zombie workers: "
 for line in out.splitlines():
-   if (('pycdas' in line) or ('CDAS2' in line)) and not ('shutdown' in line):
+   if not ('shutdown' in line):
      print " >> " + line
-     pid = int(line.split(None, 1)[0])
+     pid = int(line.split()[1])
      os.kill(pid, signal.SIGKILL)
