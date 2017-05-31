@@ -11,10 +11,8 @@ import nasa.nccs.esgf.process._
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.utilities.{Loggable, ProfilingTool, cdsutils}
 import nasa.nccs.cdas.kernels.{Kernel, KernelMgr, KernelModule}
-
-import scala.concurrent.{Await, Future, Promise}
 import java.util.concurrent.atomic.AtomicReference
-
+import scala.concurrent.{Await, Future, Promise}
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
 import nasa.nccs.caching._
 import ucar.{ma2, nc2}
@@ -22,12 +20,11 @@ import nasa.nccs.cdas.utilities.{GeoTools, appParameters, runtime}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import nasa.nccs.cdas.workers.python.PythonWorkerPortal
 import nasa.nccs.cdas.engine.spark.CDSparkContext
 import nasa.nccs.wps._
 import ucar.nc2.Attribute
 import scala.io.Source
-import scala.xml.Elem
+
 
 class Counter(start: Int = 0) {
   private val index = new AtomicReference(start)
@@ -50,18 +47,13 @@ object CDS2ExecutionManager extends Loggable {
     import sys.process._
     val slaves_file = Paths.get( sys.env("SPARK_HOME"), "conf", "slaves" ).toFile
     if( slaves_file.exists && slaves_file.canRead ) {
-      println( "Shutting down python workers:\n" )
-      for (slave <- Source.fromFile(slaves_file).getLines(); if !slave.isEmpty && !slave.startsWith("#") )  {
-        try {
-          println("ssh %s \"$HOME/.cdas/sbin/shutdown_python_worker.sh\"".format(slave.trim) !!)
-        } catch {
-          case err: Exception => println( "Error: " + err.toString )
-        }
+      val shutdown_futures = for (slave <- Source.fromFile(slaves_file).getLines(); if !slave.isEmpty && !slave.startsWith("#") ) yield  {
+          Future { "ssh %s \"$HOME/.cdas/sbin/shutdown_python_worker.sh\"".format(slave.trim) !! }
       }
-
+      Future.sequence( shutdown_futures )
     } else {
-      println( "No slaves file found, shutting down python workers locally:")
-      println( "$HOME/.cdas/sbin/shutdown_python_worker.sh" !! )
+      logger.info( "No slaves file found, shutting down python workers locally:")
+      "$HOME/.cdas/sbin/shutdown_python_worker.sh" !!
     }
   }
 
