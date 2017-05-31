@@ -63,8 +63,8 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
     
 ####  Acknowledgements:
 
-    CDAS uses the YourKit profiler (https://www.yourkit.com/java/profiler/), by YourKit, LLC, which 
-    supports open source projects with innovative and intelligent tools for profiling Java and .Net applications.
+    CDAS uses the YourKit profiler (https://www.yourkit.com/java/profiler/), by YourKit, LLC, which supports 
+    open source projects with innovative and intelligent tools for profiling Java and .Net applications.
     
     
 
