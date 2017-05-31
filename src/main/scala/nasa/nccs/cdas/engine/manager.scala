@@ -43,11 +43,15 @@ object CDS2ExecutionManager extends Loggable {
   def apply(): CDS2ExecutionManager = { new CDS2ExecutionManager }
 
   def shutdown() = {
+    shutdown_python_workers()
+  }
+
+  def shutdown_python_workers() = {
     import sys.process._
     val slaves_file = Paths.get( sys.env("SPARK_HOME"), "conf", "slaves" ).toFile
     if( slaves_file.exists && slaves_file.canRead ) {
       for (slave <- Source.fromFile(slaves_file).getLines()) {
-        s" "
+        s"""ssh ${slave.trim} "~/.cdas/sbin/shutdown_python_worker.sh"""" !
       }
     }
   }
@@ -74,6 +78,8 @@ object CDS2ExecutionManager extends Loggable {
 
 class CDS2ExecutionManager extends WPSServer with Loggable {
   import CDS2ExecutionManager._
+  shutdown_python_workers()
+  
   val serverContext = new ServerContext( collectionDataCache, CDSparkContext() )
   val kernelManager = new KernelMgr()
 
