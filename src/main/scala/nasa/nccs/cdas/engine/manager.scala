@@ -53,7 +53,7 @@ object CDS2ExecutionManager extends Loggable {
       println( "Shutting down python workers:\n" )
       for (slave <- Source.fromFile(slaves_file).getLines(); if !slave.isEmpty && !slave.startsWith("#") )  {
         try {
-          println("""ssh %s "$HOME/.cdas/sbin/shutdown_python_worker.sh""".format(slave.trim) !!)
+          println("ssh %s \"$HOME/.cdas/sbin/shutdown_python_worker.sh\"".format(slave.trim) !!)
         } catch {
           case err: Exception => println( "Error: " + err.toString )
         }
