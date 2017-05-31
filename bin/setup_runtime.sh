@@ -26,7 +26,7 @@ alias cdshd='unset CDAS_SERVER_ADDRESS; unset CDAS_SERVER_PORT; $CDSHELL_CMD'
 alias cdshw='export CDAS_SERVER_ADDRESS=localhost; unset CDAS_SERVER_PORT; $CDSHELL_CMD'
 alias cdshr='export CDAS_SERVER_ADDRESS=localhost; export CDAS_SERVER_PORT=9001; $CDSHELL_CMD'
 alias cdup='cd $CDAS_HOME_DIR; ./bin/update.sh; rm ~/.cdas/*.log; python ./python/src/pycdas/shutdown.py'
-alias cdupy='cd $CDAS_HOME_DIR; python setup.py install; rm ~/.cdas/*.log; python ./python/src/pycdas/shutdown.py'
+alias cdupy='cd $CDAS_HOME_DIR; python setup.py install; rm ~/.cdas/logs/*.log; ~/.cdas/bin/shutdown_python_worker.sh'
 alias rncml='rm $CDAS_CACHE_DIR/collections/NCML/*'
 alias rfrag='rm $CDAS_CACHE_DIR/fragment/*'
 

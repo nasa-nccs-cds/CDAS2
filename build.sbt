@@ -62,6 +62,8 @@ lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
 lazy val cdasPythonRunScript = settingKey[File]("The cdas python worker startup script")
 lazy val cdasDefaultPythonRunScript = settingKey[File]("The default cdas python worker startup script")
+lazy val cdasPythonShutdownScript = settingKey[File]("The cdas python worker shutdown script")
+lazy val cdasDefaultPythonShutdownScript = settingKey[File]("The default cdas python worker shutdown script")
 lazy val cdasSetupScript = settingKey[File]("The cdas setup runtime script")
 lazy val cdasDefaultSetupScript = settingKey[File]("The default cdas setup runtime script")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
@@ -111,6 +113,8 @@ cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
 cdasPythonRunScript := cdas_sbin_dir.value / "startup_python_worker.sh"
 cdasDefaultPythonRunScript := baseDirectory.value / "bin" / "startup_python_worker.sh"
+cdasPythonShutdownScript := cdas_sbin_dir.value / "shutdown_python_worker.sh"
+cdasDefaultPythonShutdownScript := baseDirectory.value / "bin" / "shutdown_python_worker.sh"
 cdasSetupScript := cdas_sbin_dir.value / "setup_runtime.sh"
 cdasDefaultSetupScript := baseDirectory.value / "bin" / "setup_runtime.sh"
 
@@ -124,6 +128,10 @@ cdasProperties := {
     if( !cdasPythonRunScript.value.exists() ) {
       println("Copying default python run script: " + cdasDefaultPythonRunScript.value.toString )
       copy( cdasDefaultPythonRunScript.value.toPath, cdasPythonRunScript.value.toPath )
+    }
+    if( !cdasPythonShutdownScript.value.exists() ) {
+      println("Copying default python shutdown script: " + cdasDefaultPythonShutdownScript.value.toString )
+      copy( cdasDefaultPythonShutdownScript.value.toPath, cdasPythonShutdownScript.value.toPath )
     }
     if( !cdasSetupScript.value.exists() ) {
       println("Copying default setup script: " + cdasDefaultSetupScript.value.toString )

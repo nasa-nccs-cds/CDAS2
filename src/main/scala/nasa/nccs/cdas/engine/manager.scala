@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.engine
 import java.io.{IOException, PrintWriter, StringWriter}
-
+import java.nio.file.{ Paths, Files }
 import scala.xml
 import java.io.File
 
@@ -26,7 +26,7 @@ import nasa.nccs.cdas.workers.python.PythonWorkerPortal
 import nasa.nccs.cdas.engine.spark.CDSparkContext
 import nasa.nccs.wps._
 import ucar.nc2.Attribute
-
+import scala.io.Source
 import scala.xml.Elem
 
 class Counter(start: Int = 0) {
@@ -43,7 +43,13 @@ object CDS2ExecutionManager extends Loggable {
   def apply(): CDS2ExecutionManager = { new CDS2ExecutionManager }
 
   def shutdown() = {
-    PythonWorkerPortal.getInstance().quit()
+    import sys.process._
+    val slaves_file = Paths.get( sys.env("SPARK_HOME"), "conf", "slaves" ).toFile
+    if( slaves_file.exists && slaves_file.canRead ) {
+      for (slave <- Source.fromFile(slaves_file).getLines()) {
+        s" "
+      }
+    }
   }
 
   //    appParameters( handler_type_key, "spark" ) match {
