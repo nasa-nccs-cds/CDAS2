@@ -1,6 +1,6 @@
 import numpy as np
 import numpy.ma as ma
-import time, traceback, logging, struct
+import time, traceback, logging, struct, sys
 from messageParser import mParse
 IO_DType = np.dtype( np.float32 ).newbyteorder('>')
 from abc import ABCMeta, abstractmethod
