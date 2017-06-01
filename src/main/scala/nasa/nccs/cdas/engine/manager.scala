@@ -46,14 +46,17 @@ object CDS2ExecutionManager extends Loggable {
   def shutdown_python_workers() = {
     import sys.process._
     val slaves_file = Paths.get( sys.env("SPARK_HOME"), "conf", "slaves" ).toFile
+    val shutdown_script = Paths.get( sys.env("HOME"), ".cdas", "sbin", "shutdown_python_worker.sh" ).toFile
     if( slaves_file.exists && slaves_file.canRead ) {
       val shutdown_futures = for (slave <- Source.fromFile(slaves_file).getLines(); if !slave.isEmpty && !slave.startsWith("#") ) yield  {
-          Future { "ssh %s \"$HOME/.cdas/sbin/shutdown_python_worker.sh\"".format(slave.trim) !! }
+          Future { "ssh %s \"%s\"".format(slave.trim,shutdown_script.toString) !! }
       }
       Future.sequence( shutdown_futures )
-    } else {
+    } else try {
       logger.info( "No slaves file found, shutting down python workers locally:")
-      "$HOME/.cdas/sbin/shutdown_python_worker.sh" !!
+      shutdown_script.toString !!
+    } catch {
+      case err: Exception => logger.error( "Error shutting down python workers: " + err.toString )
     }
   }
 
