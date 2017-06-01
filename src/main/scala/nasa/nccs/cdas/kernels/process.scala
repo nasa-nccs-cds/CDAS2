@@ -265,12 +265,9 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
       if( elements0.size != elements1.size ) {
         throw new Exception( s"Mismatched rdds in reduction for kernel ${context.operation.identifier}: ${elements0.size} != ${elements1.size}" )
       }
-      if( elements0.size != nOutputsPerInput ) { throw new Exception( s"Missing elements in reduction rdds for kernel ${context.operation.identifier}: ${elements0.size} != ${nOutputsPerInput}" ) }
+      if( elements0.size != nOutputsPerInput ) { throw new Exception( s"Wrong number of elements in reduction rdds for kernel ${context.operation.identifier}: ${elements0.size} != ${nOutputsPerInput}, element keys = [${elements0.map(_._1).mkString(",")}]" ) }
       if( elements0.size != elements1.size ) {
         throw new Exception( s"Mismatched rdds in reduction for kernel ${context.operation.identifier}: ${elements0.size} != ${elements1.size}" )
-      }
-      if( elements0.size != nOutputsPerInput ) {
-        throw new Exception( s"Missing elements in reduction rdds for kernel ${context.operation.identifier}: ${elements0.size} != ${nOutputsPerInput}" )
       }
       if( elements0.size == 1 ) {
         reduceCombineOp match {
