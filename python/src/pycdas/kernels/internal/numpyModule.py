@@ -62,8 +62,10 @@ class AverageKernel(Kernel):
         self.logger.info("\n\n Execute Operations, inputs: " + str( task.inputs ) + ", task metadata = " + str(task.metadata) + ", axes = " + str(axes) )
         for input in kernel_inputs:
             t0 = time.time()
-            results.append( npArray.createResult( task, input,  input.array.sum( axis=axes,   keepdims=True ) ) )
-            results.append( npArray.createAuxResult( task.rId + "_WEIGHTS_", input.origin, dict( input.metadata, **task.metadata ),  input.array.count(axis=self.getAxes(task.metadata), keepdims=True ) ) )
+            result_array = input.array.sum( axis=axes,   keepdims=True )
+            mask_array = input.array.count(axis=self.getAxes(task.metadata), keepdims=True )
+            results.append( npArray.createResult( task, input, result_array  ) )
+            results.append( npArray.createAuxResult( task.rId + "_WEIGHTS_", dict( input.metadata, **task.metadata ), input, mask_array  ) )
             t1 = time.time()
             self.logger.info( " ------------------------------- SUMW KERNEL: Operating on input '{0}', shape = {1}, origin = {2}, time = {3}".format( input.name, input.shape, input.origin, t1-t0 ))
         return results

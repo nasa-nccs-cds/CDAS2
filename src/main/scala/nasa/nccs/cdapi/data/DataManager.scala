@@ -165,6 +165,7 @@ object HeapFltArray extends Loggable {
     val buffer = tvar.getDataBuffer()
     val buff_size = buffer.capacity()
     val undef = buffer.getFloat(buff_size-4)
+    logger.info( "Received #NBYTES: " + buff_size + ", #UNDEF: " + undef.toString )
     val data_buffer = nio.ByteBuffer.wrap( buffer.array(), 0, buff_size-4 )
     val ucarray: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, tvar.getShape, data_buffer )
     val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter(CDArray[Float](ucarray, undef ) )

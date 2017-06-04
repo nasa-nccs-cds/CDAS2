@@ -258,14 +258,15 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     val t0 = System.nanoTime
     val axes = context.getAxes
     val key_group_prefixes: Set[String] = rdd0.elements.keys.map( key => key.split("~").head ).toSet
-    val key_groups: Set[(String,IndexedSeq[String])] = key_group_prefixes map ( key_prefix =>  key_prefix -> rdd0.elements.keys.filter( _.startsWith( key_prefix )).toIndexedSeq )
+    val key_groups: Set[(String,IndexedSeq[String])] = key_group_prefixes map ( key_prefix =>  key_prefix -> rdd0.elements.keys.filter( _.split("~").head.equals( key_prefix ) ).toIndexedSeq )
     val new_elements: IndexedSeq[(String,HeapFltArray)] = key_groups.toIndexedSeq.flatMap { case ( group_key, key_group ) =>
-      val elements0: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd0.elements.filter { case (k,v) => k.startsWith(key) } )
-      val elements1: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd1.elements.filter { case (k,v) => k.startsWith(key) } )
+      val elements0: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd0.elements.filter { case (k,v) => k.equals(key) } )
+      val elements1: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd1.elements.filter { case (k,v) => k.equals(key) } )
       if( elements0.size != elements1.size ) {
         throw new Exception( s"Mismatched rdds in reduction for kernel ${context.operation.identifier}: ${elements0.size} != ${elements1.size}" )
       }
-      if( elements0.size != nOutputsPerInput ) { throw new Exception( s"Wrong number of elements in reduction rdds for kernel ${context.operation.identifier}: ${elements0.size} != ${nOutputsPerInput}, element keys = [${elements0.map(_._1).mkString(",")}]" ) }
+      if( elements0.size != nOutputsPerInput ) {
+        throw new Exception( s"Wrong number of elements in reduction rdds for kernel ${context.operation.identifier}: ${elements0.size} != ${nOutputsPerInput}, element keys = [${elements0.map(_._1).mkString(",")}]" ) }
       if( elements0.size != elements1.size ) {
         throw new Exception( s"Mismatched rdds in reduction for kernel ${context.operation.identifier}: ${elements0.size} != ${elements1.size}" )
       }
@@ -340,8 +341,10 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
             resultValues.put( index, v0 )
             resultWeights.put( index, weights0.data(index) )
           } else {
-            resultValues.put( index, v0 + v1)
-            resultWeights.put( index, weights0.data(index) + weights1.data(index) )
+            val w0 = weights0.data(index);
+            val w1 = weights1.data(index);
+            resultValues.put( index, v0 + v1 )
+            resultWeights.put( index,  w0 + w1 )
           }
         }
       case None =>
@@ -871,9 +874,9 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
       worker.sendRequest(context.operation.identifier, context.operation.inputs.toArray, metadata )
       val resultItems = for( iInput <-  0 until (operation_input_arrays.length * nOutputsPerInput)  ) yield {
         val tvar: TransVar = worker.getResult
-        logger.info( "Received result Var: " + tvar.toString )
         val uid = tvar.getMetaData.get( "uid" )
         val result = HeapFltArray( tvar )
+        logger.info( "Received result Var: " + tvar.toString + ", first = " + result.data(0).toString + " undef = " + result.missing.getOrElse(0.0))
         context.operation.rid + ":" + uid + "~" + tvar.id() -> result
       }
       logger.info( "Gateway: Executing operation %s in time %.4f s".format( context.operation.identifier, (System.nanoTime - t1) / 1.0E9 ) )
