@@ -70,6 +70,8 @@ class AverageKernel(Kernel):
             self.logger.info( " ------------------------------- SUMW KERNEL: Operating on input '{0}', shape = {1}, origin = {2}, time = {3}".format( input.name, input.shape, input.origin, t1-t0 ))
         return results
 
+
+
 class WeightedAverageKernel(Kernel):
     def __init__( self ):
         Kernel.__init__( self, KernelSpec("avew", "Weighted Average Kernel","Computes the weighted average of the array elements along the given axes.", reduceOp="avew", weights="cosine" ) )
@@ -77,7 +79,8 @@ class WeightedAverageKernel(Kernel):
     def executeOperations(self, task, inputs):
         available_inputIds = [ inputId.split('-')[0] for inputId in inputs ]
         data_inputIds = [ inputId.split('-')[0] for inputId in task.inputs ]
-        weight_inputIds = [ ( inputId+"_WEIGHTS_" if (inputId+"_WEIGHTS_" in available_inputIds) else None ) for inputId in data_inputIds ]
+        wids = [ inputId + "_WEIGHTS_" for inputId in data_inputIds ]
+        weight_inputIds = [ ( wid if (wid in available_inputIds) else None ) for wid in wids ]
         inputs_with_weights = zip( data_inputIds, weight_inputIds )
         results = []
         for input_pair in inputs_with_weights:

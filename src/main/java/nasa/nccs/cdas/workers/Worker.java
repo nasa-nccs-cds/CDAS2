@@ -162,11 +162,7 @@ public abstract class Worker {
                 float[] weights = weightsOpt.get();
                 int[] shape = { weights.length };
                 byte[] weight_data = ArrayUtils.addAll( Array.factory(DataType.FLOAT, shape, weights ).getDataAsByteBuffer().array(), byteBuffer.array() );
-                String[] weights_toks = id.split("[-]");
-                String weights_id = null;
-                if( weights_toks.length > 1 ) weights_id = weights_toks[0]  + "_WEIGHTS_-" + weights_toks[1];
-                else weights_id =  id + "_WEIGHTS_";
-                _sendArrayData( weights_id, array.origin(), shape, weight_data, array.mdata()  );
+                _sendArrayData( id + "_WEIGHTS_", array.origin(), shape, weight_data, array.mdata()  );
             }
         }
         else _sendArrayMetadata( id, array.origin(), array.shape(), array.mdata() );

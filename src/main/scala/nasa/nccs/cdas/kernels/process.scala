@@ -254,14 +254,14 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   }
 
 
-  def combineRDD(context: KernelContext)(rdd0: RDDRecord, rdd1: RDDRecord ): RDDRecord = {
+  def combineRDDLegacy(context: KernelContext)(rdd0: RDDRecord, rdd1: RDDRecord ): RDDRecord = {
     val t0 = System.nanoTime
     val axes = context.getAxes
     val key_group_prefixes: Set[String] = rdd0.elements.keys.map( key => key.split("~").head ).toSet
     val key_groups: Set[(String,IndexedSeq[String])] = key_group_prefixes map ( key_prefix =>  key_prefix -> rdd0.elements.keys.filter( _.split("~").head.equals( key_prefix ) ).toIndexedSeq )
     val new_elements: IndexedSeq[(String,HeapFltArray)] = key_groups.toIndexedSeq.flatMap { case ( group_key, key_group ) =>
-      val elements0: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd0.elements.filter { case (k,v) => k.equals(key) } )
-      val elements1: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd1.elements.filter { case (k,v) => k.equals(key) } )
+      val elements0: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd0.elements.filter { case (k,v) => if(key.contains("_WEIGHTS_")) k.equals(key) else k.startsWith(key) } )
+      val elements1: IndexedSeq[(String,HeapFltArray)] = key_group flatMap ( key => rdd1.elements.filter { case (k,v) => if(key.contains("_WEIGHTS_")) k.equals(key) else k.startsWith(key) } )
       if( elements0.size != elements1.size ) {
         throw new Exception( s"Mismatched rdds in reduction for kernel ${context.operation.identifier}: ${elements0.size} != ${elements1.size}" )
       }
@@ -287,6 +287,28 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
       }
     }
 //    logger.debug("&COMBINE: %s, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
+    context.addTimestamp( "combineRDD complete" )
+    RDDRecord( Map(new_elements:_*), rdd0.mergeMetadata(context.operation.name, rdd1) )
+  }
+
+  def combineRDD(context: KernelContext)(rdd0: RDDRecord, rdd1: RDDRecord ): RDDRecord = {
+    val t0 = System.nanoTime
+    val axes = context.getAxes
+    val elements0: IndexedSeq[(String,HeapFltArray)] = rdd0.elements.toIndexedSeq
+    val keys = rdd0.elements.keys
+    if( keys.size != nOutputsPerInput ) {
+      throw new Exception( s"Wrong number of elements in reduction rdds for kernel ${context.operation.identifier}: ${keys.size} != ${nOutputsPerInput}, element keys = [${keys.mkString(",")}]" ) }
+    val new_elements: IndexedSeq[(String,HeapFltArray)] = elements0 flatMap { case ( key0, array0 ) => rdd1.elements.get(key0) match {
+        case Some(array1) => reduceCombineOp match {
+            case Some(combineOp) =>
+              if (axes.includes(0)) Some( key0 -> array0.combine( combineOp, array1 ) )
+              else Some(key0 -> array0.append(array1))
+            case None => Some(key0 -> array0.append(array1))
+          }
+        case None => None
+      }
+    }
+    //    logger.debug("&COMBINE: %s, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
     context.addTimestamp( "combineRDD complete" )
     RDDRecord( Map(new_elements:_*), rdd0.mergeMetadata(context.operation.name, rdd1) )
   }
@@ -440,8 +462,14 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
           val averageValues = FloatBuffer.allocate(  values.data.length )
           values.missing match {
             case Some( undef ) =>
+              logger.info( "\n\n ******** UNDEF: " + undef.toString  )
               for( index <- 0 until values.data.length; value = values.data(index); weight = weights.data(index) ) {
-                if( value == undef ) { undef } else { averageValues.put( values.data(index) / weights.data(index) ) }
+                if( value == undef ) { undef }
+                else {
+                  val dval = values.data(index)
+                  val wval =  weights.data(index)
+                  averageValues.put( dval / wval )
+                }
               }
             case None =>
               for( index <- 0 until values.data.length ) { averageValues.put( values.data(index) / weights.data(index) ) }
