@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Stream;
+
 import org.apache.commons.lang.StringUtils;
 
 public abstract class Worker {
@@ -160,9 +162,11 @@ public abstract class Worker {
             scala.Option<float[]> weightsOpt = array.weights();
             if( weightsOpt.isDefined() ) {
                 float[] weights = weightsOpt.get();
-                int[] shape = { weights.length };
+                int[] shape = Stream.of( array.attr("wshape").split(",") ).mapToInt(Integer::parseInt).toArray();
                 byte[] weight_data = ArrayUtils.addAll( Array.factory(DataType.FLOAT, shape, weights ).getDataAsByteBuffer().array(), byteBuffer.array() );
-                _sendArrayData( id + "_WEIGHTS_", array.origin(), shape, weight_data, array.mdata()  );
+                String[] idtoks =  id.split("-");
+                idtoks[0] = idtoks[0] + "_WEIGHTS_";
+                _sendArrayData( String.join("-", idtoks ), array.origin(), shape, weight_data, array.mdata()  );
             }
         }
         else _sendArrayMetadata( id, array.origin(), array.shape(), array.mdata() );
