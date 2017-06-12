@@ -163,6 +163,7 @@ public abstract class Worker {
             if( weightsOpt.isDefined() ) {
                 float[] weights = weightsOpt.get();
                 int[] shape = Stream.of( array.attr("wshape").split(",") ).mapToInt(Integer::parseInt).toArray();
+//                int[] shape = { weights.length };
                 byte[] weight_data = ArrayUtils.addAll( Array.factory(DataType.FLOAT, shape, weights ).getDataAsByteBuffer().array(), byteBuffer.array() );
                 String[] idtoks =  id.split("-");
                 idtoks[0] = idtoks[0] + "_WEIGHTS_";

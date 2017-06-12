@@ -81,8 +81,6 @@ class npArray(CDArray):
         return npArray( id, input.origin, result_array.shape, metadata, result_array, input.undef )
 
     def toBytes( self, dtype ):
-        logger = logging.getLogger("worker")
-        logger.info(" array toBytes: #UNDEF: " + str(self.undef) )
         return self.array.astype(dtype).tobytes() + np.array([self.undef]).astype(dtype).tobytes() # bytearray(struct.pack("f", self.undef))
 
     @classmethod
@@ -206,9 +204,7 @@ class cdmsArray(CDArray):
         return self.variable.data
 
     def toBytes( self, dtype ):
-        logger = logging.getLogger("worker")
-        logger.info(" var toBytes: #UNDEF: " + str(self.undef) )
-        return self.variable.data.astype(dtype).tobytes() + np.array([self.undef]).astype(dtype).tobytes() # bytearray( struct.pack("f", self.variable.getMissing()))
+        return self.variable.data.astype(dtype).tobytes() + np.array([ self.variable.getMissing() ]).astype(dtype).tobytes() # bytearray( struct.pack("f", self.variable.getMissing()))
 
     def __init__(self, _id, _origin, _shape, _metadata, cdVariable ):
         super(cdmsArray, self).__init__(_id,_origin,_shape,_metadata)

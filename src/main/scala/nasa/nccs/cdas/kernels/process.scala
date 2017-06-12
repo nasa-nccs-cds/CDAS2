@@ -462,7 +462,6 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
           val averageValues = FloatBuffer.allocate(  values.data.length )
           values.missing match {
             case Some( undef ) =>
-              logger.info( "\n\n ******** UNDEF: " + undef.toString  )
               for( index <- 0 until values.data.length; value = values.data(index); weight = weights.data(index) ) {
                 if( value == undef ) { undef }
                 else {
