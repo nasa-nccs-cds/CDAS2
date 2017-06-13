@@ -135,7 +135,8 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   }
 
   def toByteArray() = {
-    bb.putFloat( 0, missing.getOrElse(Float.NaN) )
+    val mval = missing.getOrElse(Float.MaxValue)
+    bb.putFloat( 0, mval )
     toUcarFloatArray.getDataAsByteBuffer().array() ++ bb.array()
   }
   def combine( combineOp: CDArray.ReduceOp[Float], other: HeapFltArray ): HeapFltArray = {

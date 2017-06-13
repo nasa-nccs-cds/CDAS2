@@ -24,9 +24,13 @@ datafile1="/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/2005/JAN/MERRA300.prod.a
 
 # ncwa -O -v tas -d lat,5,5 -d lon,5,10 -a time -y sum ${datafile} tsumval.nc
 
-ncwa -O -v tas -d time,10,10 -a lat,lon -y max ${datafile} ~/test/out/maxval.nc
-ncdump ~/test/out/maxval.nc
+# ncwa -O -v tas -d time,10,10 -a lat,lon -y max ${datafile} ~/test/out/maxval.nc
+# ncdump ~/test/out/maxval.nc
 
 #"""[domain=[{"name":"d0","lat":{"start":30,"end":40,"system":"values"},"time":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"collection:/giss_r1i1p1","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","domain":"d0","axes":"x"}]]"""
 
 
+ncks -O -v tas  -d lat,5,5 -d lon,5,5 ${datafile} ~/test/out/sample_data.nc
+ncwa -O -v tas -a time ~/test/out/sample_data.nc ~/test/out/time_ave.nc
+ncbo -O -v tas ~/test/out/sample_data.nc ~/test/out/time_ave.nc ~/test/out/dev.nc
+ncra -O -y rmssdn  ~/test/out/dev.nc ~/test/out/stdev.nc

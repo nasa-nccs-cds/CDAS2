@@ -375,8 +375,8 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
           resultWeights.put( weights0.data(index) + weights1.data(index) )
         }
     }
-    val valuesArray =  HeapFltArray( CDFloatArray( values0.shape,  resultValues.array,  values0.missing.getOrElse(Float.NaN) ),  values0.origin,  values0.metadata,  values0.weights  )
-    val weightsArray = HeapFltArray( CDFloatArray( weights0.shape, resultWeights.array, weights0.missing.getOrElse(Float.NaN) ), weights0.origin, weights0.metadata, weights0.weights )
+    val valuesArray =  HeapFltArray( CDFloatArray( values0.shape,  resultValues.array,  values0.missing.getOrElse(Float.MaxValue) ),  values0.origin,  values0.metadata,  values0.weights  )
+    val weightsArray = HeapFltArray( CDFloatArray( weights0.shape, resultWeights.array, weights0.missing.getOrElse(Float.MaxValue) ), weights0.origin, weights0.metadata, weights0.weights )
     logger.info("Completed weightedSumReduction '%s' in %.4f sec, shape = %s".format(identifier, ( System.nanoTime() - t0 ) / 1.0E9, values0.shape.mkString(",") ) )
     IndexedSeq( values_key -> valuesArray, weights_key -> weightsArray )
   }
@@ -433,8 +433,8 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
           weightedValues0.put( index, (weightedValues0.get(index) + weightedValues1.get(index)) / weightsSum.get(index) )
         }
     }
-    val valuesArray =  HeapFltArray( CDFloatArray( values0.shape,  weightedValues0.array,  values0.missing.getOrElse(Float.NaN) ),  values0.origin,  values0.metadata,  values0.weights  )
-    val weightsArray = HeapFltArray( CDFloatArray( weights0.shape, weightsSum.array, weights0.missing.getOrElse(Float.NaN) ), weights0.origin, weights0.metadata, weights0.weights )
+    val valuesArray =  HeapFltArray( CDFloatArray( values0.shape,  weightedValues0.array,  values0.missing.getOrElse(Float.MaxValue) ),  values0.origin,  values0.metadata,  values0.weights  )
+    val weightsArray = HeapFltArray( CDFloatArray( weights0.shape, weightsSum.array, weights0.missing.getOrElse(Float.MaxValue) ), weights0.origin, weights0.metadata, weights0.weights )
     logger.info("Completed weightedAveReduction '%s' in %.4f sec, shape = %s".format(identifier, ( System.nanoTime() - t0 ) / 1.0E9, values0.shape.mkString(",") ) )
     IndexedSeq( values_key -> valuesArray, weights_key -> weightsArray )
   }
@@ -462,21 +462,57 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
           val averageValues = FloatBuffer.allocate(  values.data.length )
           values.missing match {
             case Some( undef ) =>
-              for( index <- 0 until values.data.length; value = values.data(index); weight = weights.data(index) ) {
+              for( index <- values.data.indices; value = values.data(index) ) {
                 if( value == undef ) { undef }
                 else {
-                  val dval = values.data(index)
                   val wval =  weights.data(index)
-                  averageValues.put( dval / wval )
+                  averageValues.put( value / wval )
                 }
               }
             case None =>
-              for( index <- 0 until values.data.length ) { averageValues.put( values.data(index) / weights.data(index) ) }
+              for( index <- values.data.indices ) { averageValues.put( values.data(index) / weights.data(index) ) }
           }
-          val valuesArray =  HeapFltArray( CDFloatArray( values.shape,  averageValues.array,  values.missing.getOrElse(Float.NaN) ),  values.origin,  values.metadata,  values.weights  )
+          val valuesArray =  HeapFltArray( CDFloatArray( values.shape,  averageValues.array,  values.missing.getOrElse(Float.MaxValue) ),  values.origin,  values.metadata,  values.weights  )
           context.addTimestamp( "postRDDOp complete" )
           new RDDRecord( Map( values_key -> valuesArray ), pre_result.metadata )
-        } else { throw new Exception( "Unrecognized postOp configuration: " + postOp) }
+        } else if( (postOp == "sqrt") || (postOp == "rms") ) {
+          val new_elements = pre_result.elements map { case (values_key, values) =>
+            val averageValues = FloatBuffer.allocate(values.data.length)
+            values.missing match {
+              case Some(undef) =>
+                if( postOp == "sqrt" ) {
+                  for (index <- values.data.indices; value = values.data(index)) {
+                    if (value == undef) { undef }
+                    else { averageValues.put(Math.sqrt(value).toFloat) }
+                  }
+                } else if( postOp == "rms" ) {
+                  val norm_factor = values.metadata.getOrElse("N","1").toInt - 1
+                  if( norm_factor == 1 ) { logger.error( "Missing norm factor in rms") }
+                  for (index <- values.data.indices; value = values.data(index)) {
+                    if (value == undef) { undef }
+                    else { averageValues.put(Math.sqrt(value/norm_factor).toFloat  ) }
+                  }
+                }
+              case None =>
+                if( postOp == "sqrt" ) {
+                  for (index <- values.data.indices) {
+                    averageValues.put(Math.sqrt(values.data(index)).toFloat)
+                  }
+                } else if( postOp == "rms" ) {
+                  val norm_factor = values.metadata.getOrElse("N", "1").toInt - 1
+                  if( norm_factor == 1 ) { logger.error( "Missing norm factor in rms") }
+                  for (index <- values.data.indices) {
+                    averageValues.put( Math.sqrt(values.data(index)/norm_factor).toFloat  )
+                  }
+                }
+            }
+            val newValuesArray = HeapFltArray(CDFloatArray(values.shape, averageValues.array, values.missing.getOrElse(Float.MaxValue)), values.origin, values.metadata, values.weights)
+            ( values_key -> newValuesArray )
+          }
+          context.addTimestamp( "postRDDOp complete" )
+          new RDDRecord( new_elements, pre_result.metadata )
+        }
+        else { throw new Exception( "Unrecognized postOp configuration: " + postOp ) }
       case None => pre_result
     }
   }

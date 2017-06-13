@@ -82,6 +82,13 @@ class diff2 extends DualRDDKernel(Map("mapOp" -> "subt")) {
   val description = "Computes element-wise diffs for a pair of input variables over specified roi"
 }
 
+class sqdiff2 extends DualRDDKernel(Map("mapOp" -> "sqdiff")) {
+  val inputs = List( WPSDataInput("input variables", 2, 2 ) )
+  val outputs = List( WPSProcessOutput( "operation result" ) )
+  val title = "Element-wise Squared Difference"
+  val description = "Computes element-wise squared diffs for a pair of input variables over specified roi"
+}
+
 class mult2 extends DualRDDKernel(Map("mapOp" -> "mult")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )

@@ -66,7 +66,9 @@ public abstract class Worker {
             }
             TransVar result = results.poll();
             if( result == null ) try { Thread.sleep(100); } catch( Exception err ) { return null; }
-            else { return result; }
+            else {
+                return result;
+            }
         }
     }
 
