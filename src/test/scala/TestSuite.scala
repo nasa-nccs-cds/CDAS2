@@ -354,19 +354,28 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     }
 
   test("StdDev-dap") {
-    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 229.7638, 228.6798, 227.2885, 226.3925, 224.6436, 224.0204 ).map(_.toFloat), Float.MaxValue )
+    // # NCO Verification script:
+    //  datafile="http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
+    //  ncks -O -v tas  -d lat,5,5 -d lon,5,10 ${datafile} ~/test/out/sample_data.nc
+    //  ncwa -O -v tas -a time ~/test/out/sample_data.nc ~/test/out/time_ave.nc
+    //  ncbo -O -v tas ~/test/out/sample_data.nc ~/test/out/time_ave.nc ~/test/out/dev.nc
+    //  ncra -O -y rmssdn  ~/test/out/dev.nc ~/test/out/stdev.nc
+    //  ncdump ~/test/out/stdev.nc
+
+    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 8.891345, 9.084756, 9.556104, 9.460443, 10.18193, 10.28795 ).map(_.toFloat), Float.MaxValue )
     val datainputs =
       s"""[
             domain=[{"name":"d0","lat":{"start":5,"end":5,"system":"indices"},"lon":{"start":5,"end":10,"system":"indices"}}],
             variable=[{"uri":"http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc","name":"tas:v1","domain":"d0"}],
-            operation=[       {"name":"CDSpark.average","input":"v1","domain":"d0","axes":"t","id":"v1m"}
-                              {"name":"CDSpark.sqdiff2","input":"v1,v1m","domain":"d0","postOp":"rms"}]
+            operation=[       {"name":"CDSpark.average","input":"v1","domain":"d0","axes":"t","id":"v1m"},
+                              {"name":"CDSpark.sqDiff2","input":"v1,v1m","domain":"d0","id":"v1ss"},
+                              {"name":"CDSpark.rmSum","input":"v1ss","domain":"d0","axes":"t"}]
           ]""".replaceAll("\\s", "")
     val result_node = executeTest(datainputs)
     val result_data = getResultData( result_node )
-    println( "Op Result:       " + result_data )
-//    println( "Verified Result: " + nco_verified_result )
-//    assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Max")
+    println( "Op Result:       " + result_data.mkDataString(", ")  )
+    println( "Verified Result: " + nco_verified_result.mkDataString(", ") )
+    assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Max")
   }
 
   test("TimeAve-npana") { if(use_npana_data) {

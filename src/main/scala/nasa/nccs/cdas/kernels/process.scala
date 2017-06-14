@@ -486,8 +486,11 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
                     else { averageValues.put(Math.sqrt(value).toFloat) }
                   }
                 } else if( postOp == "rms" ) {
-                  val norm_factor = values.metadata.getOrElse("N","1").toInt - 1
-                  if( norm_factor == 1 ) { logger.error( "Missing norm factor in rms") }
+                  val axes = context.config("axes", "").toUpperCase // values.metadata.getOrElse("axes","")
+                  val roi: ma2.Section = CDSection.deserialize( values.metadata.getOrElse("roi","") )
+                  val reduce_ranges = axes.flatMap( axis => CDSection.getRange( roi, axis.toString ) )
+                  val norm_factor = reduce_ranges.map( _.length() ).fold(1)(_ * _) - 1
+                  if( norm_factor == 0 ) { throw new Exception( "Missing or unrecognized 'axes' parameter in rms reduce op")}
                   for (index <- values.data.indices; value = values.data(index)) {
                     if (value == undef) { undef }
                     else { averageValues.put(Math.sqrt(value/norm_factor).toFloat  ) }
@@ -807,21 +810,16 @@ abstract class SingularRDDKernel( options: Map[String,String] = Map.empty ) exte
 
 abstract class DualRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
   override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
-    val t0 = System.nanoTime
-    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
-    val async = context.config("async", "false").toBoolean
-    val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[ArrayBase[Float]]())( _ ++ _ )
-    assert( input_arrays.size > 1, "Missing input(s) to dual input operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
-    val i0 = input_arrays(0).toCDFloatArray
-    val i1 = input_arrays(1).toCDFloatArray
-    val result_array: CDFloatArray = mapCombineOp match {
-      case Some( combineOp ) => CDFloatArray.combine( combineOp, i0, i1 )
-      case None => i0
-    }
-    val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
-    logger.info("Executed Kernel %s map op, time = %.4f s".format(name,  (System.nanoTime - t0) / 1.0E9))
-    context.addTimestamp( "Map Op complete" )
-    RDDRecord( Map( context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
+    if( mapCombineOp.isDefined ) {
+      val t0 = System.nanoTime
+      val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.map(id => inputs.findElements(id)).foldLeft(List[ArrayBase[Float]]())(_ ++ _)
+      assert(input_arrays.size > 1, "Missing input(s) to dual input operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
+      val result_array: CDFloatArray =  CDFloatArray.combine( mapCombineOp.get, input_arrays(0).toCDFloatArray, input_arrays(1).toCDFloatArray )
+      val result_metadata = input_arrays.head.metadata ++ inputs.metadata ++ List("uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile(inputs.elements))
+      logger.info("Executed Kernel %s map op, time = %.4f s".format(name, (System.nanoTime - t0) / 1.0E9))
+      context.addTimestamp("Map Op complete")
+      RDDRecord(Map(context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None)), inputs.metadata)
+    } else { inputs }
   }
 }
 

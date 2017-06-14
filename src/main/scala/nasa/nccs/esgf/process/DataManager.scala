@@ -379,6 +379,7 @@ object CDSection {
   def serialize( section: ma2.Section): String = section.getRanges map ( r => r.getName + "," + r.first.toString + "," + r.last.toString ) mkString("+")
   def deserialize( section: String ): ma2.Section = new ma2.Section( section.split('+').map( rspec => { val sspec = rspec.split(','); new ma2.Range(sspec(0).trim,sspec(1).toInt,sspec(2).toInt) } ):_* )
   def merge( sect0: String, sect1: String ): String = CDSection.serialize( CDSection.deserialize(sect0).union( CDSection.deserialize(sect1) ) )
+  def getRange( section: ma2.Section, axis: String ): Option[ma2.Range] = section.getRanges.find( _.getName == axis )
 }
 class CDSection( origin: Array[Int], shape: Array[Int] ) extends Serializable {
   def toSection: ma2.Section = new ma2.Section( origin, shape )

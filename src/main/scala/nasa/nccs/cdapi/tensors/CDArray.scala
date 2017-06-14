@@ -268,7 +268,7 @@ object CDFloatArray extends Loggable with Serializable {
     case x if x.startsWith("ave") => addOp
     case x if x.startsWith("add") => addOp
     case x if x.startsWith("sub") => subtractOp
-    case x if x.startsWith("sqdif") => sqDiffOp
+    case x if x.startsWith("sqDif") => sqDiffOp
     case x if x.startsWith("mul") => multiplyOp
     case x if x.startsWith("div") => divideOp
     case x if x.startsWith("max") => maxOp
