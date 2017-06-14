@@ -82,13 +82,6 @@ class diff2 extends DualRDDKernel(Map("mapOp" -> "subt")) {
   val description = "Computes element-wise diffs for a pair of input variables over specified roi"
 }
 
-class sqDiff2 extends DualRDDKernel(Map("mapOp" -> "sqDiff")) {
-  val inputs = List( WPSDataInput("input variables", 2, 2 ) )
-  val outputs = List( WPSProcessOutput( "operation result" ) )
-  val title = "Element-wise Squared Difference"
-  val description = "Computes element-wise squared diffs for a pair of input variables over specified roi"
-}
-
 class mult2 extends DualRDDKernel(Map("mapOp" -> "mult")) {
   val inputs = List( WPSDataInput("input variables", 2, 2 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
@@ -127,7 +120,7 @@ class rmSum extends SingularRDDKernel(Map("mapreduceOp" -> "sum","postOp"->"rms"
   val description = "Computes root mean sum of input variable over specified axes and roi"
 }
 
-class rms extends SingularRDDKernel(Map("mapOp" -> "sqSum","reduceOp" -> "sum","postOp"->"rms")) {
+class rms extends SingularRDDKernel( Map("mapOp" -> "sqAdd", "reduceOp" -> "sum", "postOp"->"rms" ) ) {
   val inputs = List( WPSDataInput("input variables", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Root Mean Square"

@@ -250,6 +250,7 @@ object CDFloatArray extends Loggable with Serializable {
   val bTrue: Byte = 1
   val bFalse: Byte = 0
   def CountCombine( op: ReduceOpFlt, invalid: Float )( elem: (Float,Float), value: Float ): (Float,Float) = if( value == invalid ) { elem } else ( op( elem._1, value ), elem._2 + 1f )
+  def errorOp(opName: String): ReduceOpFlt = (x:Float, y:Float) => { throw new Exception( "Unrecognized Op: " + opName ) }
   val addOp: ReduceOpFlt = (x:Float, y:Float) => ( x + y )
   val sqAddOp: ReduceOpFlt = (x:Float, y:Float) => ( x + y*y )
   val addOpN: ReduceWNOpFlt = ( vals: Iterable[Float], invalid: Float ) => vals.foldLeft[(Float,Float)]((0f,0f))( CountCombine(addOp,invalid) )
@@ -274,8 +275,7 @@ object CDFloatArray extends Loggable with Serializable {
     case x if x.startsWith("max") => maxOp
     case "min" => minOp
     case "custom" => customOp
-    case _ =>
-      throw new Exception( "Unrecognized Op: " + opName )
+    case _ => errorOp( opName )
   }
 
   def apply( cdIndexMap: CDIndexMap, floatData: Array[Float], invalid: Float ): CDFloatArray  = new CDFloatArray( cdIndexMap, FloatBuffer.wrap(floatData),  invalid )
