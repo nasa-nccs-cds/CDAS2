@@ -121,10 +121,17 @@ class sum extends SingularRDDKernel(Map("mapreduceOp" -> "sum")) {
 }
 
 class rmSum extends SingularRDDKernel(Map("mapreduceOp" -> "sum","postOp"->"rms")) {
-  val inputs = List( WPSDataInput("input variables", 2, 2 ) )
+  val inputs = List( WPSDataInput("input variables", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Element-wise Root Mean Sum"
   val description = "Computes root mean sum of input variable over specified axes and roi"
+}
+
+class rms extends SingularRDDKernel(Map("mapOp" -> "sqSum","reduceOp" -> "sum","postOp"->"rms")) {
+  val inputs = List( WPSDataInput("input variables", 1, 1 ) )
+  val outputs = List( WPSProcessOutput( "operation result" ) )
+  val title = "Element-wise Root Mean Square"
+  val description = "Computes root mean square of input variable over specified axes and roi"
 }
 
 class multiAverage extends Kernel(Map.empty) {

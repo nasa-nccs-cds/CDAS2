@@ -251,10 +251,10 @@ object CDFloatArray extends Loggable with Serializable {
   val bFalse: Byte = 0
   def CountCombine( op: ReduceOpFlt, invalid: Float )( elem: (Float,Float), value: Float ): (Float,Float) = if( value == invalid ) { elem } else ( op( elem._1, value ), elem._2 + 1f )
   val addOp: ReduceOpFlt = (x:Float, y:Float) => ( x + y )
+  val sqAddOp: ReduceOpFlt = (x:Float, y:Float) => ( x + y*y )
   val addOpN: ReduceWNOpFlt = ( vals: Iterable[Float], invalid: Float ) => vals.foldLeft[(Float,Float)]((0f,0f))( CountCombine(addOp,invalid) )
   val aveOpN: ReduceNOpFlt = ( vals: Iterable[Float], invalid: Float ) => { val (sum,count) = vals.foldLeft[(Float,Float)]((0f,0f))( CountCombine(addOp,invalid) ); if(count == 0) invalid else sum/count }
   val subtractOp: ReduceOpFlt = (x:Float, y:Float) => ( x - y )
-  val sqDiffOp: ReduceOpFlt = (x:Float, y:Float) =>  { val z = ( x - y ); z*z }
   val multiplyOp: ReduceOpFlt = (x:Float, y:Float) => ( x * y )
   val divideOp: ReduceOpFlt = (x:Float, y:Float) => ( x / y )
   val maxOp: ReduceOpFlt = (x:Float, y:Float) => ( if( x > y ) x else y )
@@ -267,8 +267,8 @@ object CDFloatArray extends Loggable with Serializable {
     case x if x.startsWith("sum") => addOp
     case x if x.startsWith("ave") => addOp
     case x if x.startsWith("add") => addOp
+    case x if x.startsWith("sqAdd") => sqAddOp
     case x if x.startsWith("sub") => subtractOp
-    case x if x.startsWith("sqDif") => sqDiffOp
     case x if x.startsWith("mul") => multiplyOp
     case x if x.startsWith("div") => divideOp
     case x if x.startsWith("max") => maxOp
