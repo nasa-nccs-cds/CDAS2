@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.engine.spark
 
-import java.nio.file.Paths
+import java.nio.file.{Files, Paths}
 
 import nasa.nccs.caching._
 import nasa.nccs.cdapi.cdm._
@@ -13,12 +13,13 @@ import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.Loggable
 import org.apache.spark.rdd.RDD
 import nasa.nccs.cdas.utilities
-import org.apache.spark.{Partitioner, SparkConf, SparkContext}
+import org.apache.spark.{Partitioner, SparkConf, SparkContext, SparkEnv}
 import ucar.ma2
 import java.lang.management.ManagementFactory
 
 import com.sun.management.OperatingSystemMXBean
 import nasa.nccs.cdapi.tensors.CDCoordMap
+import nasa.nccs.cdas.portal.TestApplication.logger
 import ucar.nc2.dataset.CoordinateAxis1DTime
 
 import scala.collection.JavaConversions._
@@ -27,8 +28,6 @@ import scala.collection.JavaConverters._
 object CDSparkContext extends Loggable {
   val mb = 1024 * 1024
   val totalRAM = ManagementFactory.getOperatingSystemMXBean.asInstanceOf[OperatingSystemMXBean].getTotalPhysicalMemorySize / mb
-  val kyro_buffer_mb = "64m"
-  val default_kyro_buffer_max = "1000m"
   val runtime = Runtime.getRuntime
   val default_executor_memory = (totalRAM-10).toString + "m"
   val default_executor_cores = (runtime.availableProcessors-1).toString
@@ -40,8 +39,8 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------\n\n")
 
     val cl = ClassLoader.getSystemClassLoader
-    logger.info( "Loaded jars: \n\t" +  (cl.asInstanceOf[java.net.URLClassLoader].getURLs).mkString("\n\t") )
-    logger.info( "CDAS env: \n\t" +  (System.getenv().map { case (k,v) => k + ": " + v }).mkString("\n\t") )
+//    logger.info( "Loaded jars: \n\t" + cl.asInstanceOf[java.net.URLClassLoader].getURLs.mkString("\n\t") )
+//    logger.info( "CDAS env: \n\t" +  ( System.getenv.map { case (k,v) => k + ": " + v } ).mkString("\n\t") )
 
     val sparkContext = new SparkContext( getSparkConf( appName, logConf, enableMetrics) )
     sparkContext.setLogLevel( appParameters("spark.log.level", "WARN" ) )
@@ -50,8 +49,13 @@ object CDSparkContext extends Loggable {
     logger.info( "--------------------------------------------------------")
     logger.info( "   ****  CDSparkContext Creation FINISHED  **** ")
     logger.info( "--------------------------------------------------------")
-    logger.info( "Spark Configuration: \n" +  sparkContext.getConf.getAll.mkString("\n") )
     rv
+  }
+
+  def getWorkerSignature: String = {
+    val node_name = ManagementFactory.getRuntimeMXBean.getName.split("@").last.split(".").head
+    val thread: Thread = Thread.currentThread()
+    s"E${SparkEnv.get.executorId}:${node_name}:${thread.getName}:${thread.getId}"
   }
 
   def apply( conf: SparkConf ) : CDSparkContext = new CDSparkContext( new SparkContext(conf) )
@@ -77,26 +81,20 @@ object CDSparkContext extends Loggable {
     val sc = new SparkConf(false)
       .setAppName( appName )
       .set("spark.logConf", logConf.toString )
-      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer") //
-      .set("spark.kryoserializer.buffer",kyro_buffer_mb)
-      .set("spark.kryoserializer.buffer.max", appParameters( "kryoserializer.buffer.max", default_kyro_buffer_max ) )
       .set("spark.local.dir", cdas_cache_dir )
       .set("spark.file.transferTo", "false" )
-
-    addConfig( sc, "spark.executor.memory",  "spark.executor.memory" )
-    addConfig( sc, "spark.executor.cores", "spark.executor.cores" )
-    addConfig( sc, "spark.num.executors", "spark.num.executors" )
-    sc.registerKryoClasses( Array(classOf[DirectRDDRecordSpec], classOf[RecordKey], classOf[RDDRecord], classOf[DirectRDDVariableSpec], classOf[CDSection], classOf[HeapFltArray], classOf[Partition], classOf[CDCoordMap] ) )
+      .set("spark.kryoserializer.buffer.max", "1000m" )
+      .registerKryoClasses( Array(classOf[DirectRDDRecordSpec], classOf[RecordKey], classOf[RDDRecord], classOf[DirectRDDVariableSpec], classOf[CDSection], classOf[HeapFltArray], classOf[Partition], classOf[CDCoordMap] ) )
 
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
     appParameters( "spark.master" ) match {
-      case Some(cval) => sc.setMaster(cval)
+      case Some(cval) =>
+        logger.info( s" >>>>> Set Spark Master from appParameters: $cval" )
+        sc.setMaster(cval)
       case None => Unit
     }
-
     utilities.runtime.printMemoryUsage
     utilities.runtime.printMemoryUsage(logger)
-    logger.info( s"Initialize Spark Configuration:\n\t" + ( sc.getAll.map { case (k,v) => "** " + k + ": " + v } ).mkString("\n\t") )
     sc
   }
 

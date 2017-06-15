@@ -6,13 +6,15 @@ object runtime {
   def printMemoryUsage(logger: Logger) = {
     val mb = 1024 * 1024
     val runtime = Runtime.getRuntime
-    logger.info("--------------------------------- MEMORY USAGE ---------------------------------")
-    logger.info("** Used Memory: %d M ".format((runtime.totalMemory - runtime.freeMemory) / mb))
-    logger.info("** Free Memory: %d M ".format(runtime.freeMemory / mb))
-    logger.info("** Total Memory: %d M ".format(runtime.totalMemory / mb))
-    logger.info("** Max Memory: %d M ".format(runtime.maxMemory / mb))
-    logger.info("** Processors:   " + runtime.availableProcessors )
-    logger.info("--------------------------------- ------------ ---------------------------------")
+    val buf = new StringBuilder
+    buf ++= "\n--------------------------------- MEMORY USAGE ---------------------------------\n"
+    buf ++= "** Used Memory: %d M \n".format((runtime.totalMemory - runtime.freeMemory) / mb)
+    buf ++= "** Free Memory: %d M \n".format(runtime.freeMemory / mb)
+    buf ++= "** Total Memory: %d M \n".format(runtime.totalMemory / mb)
+    buf ++= "** Max Memory: %d M \n".format(runtime.maxMemory / mb)
+    buf ++= "** Processors:   " + runtime.availableProcessors
+    buf ++= "\n--------------------------------- ------------ ---------------------------------\n"
+    logger.info( buf.toString )
   }
 
   def printMemoryUsage = {

@@ -1,5 +1,7 @@
 package nasa.nccs.cdas.portal
+import java.lang.management.ManagementFactory
 import java.nio.file.{Files, Path, Paths}
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import nasa.nccs.cdapi.data.{HeapFltArray, RDDRecord}
@@ -9,6 +11,7 @@ import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode._
 import nasa.nccs.cdas.utilities.appParameters
 import nasa.nccs.utilities.Loggable
+import org.apache.spark.SparkEnv
 
 import scala.xml
 import scala.io.Source
@@ -71,6 +74,8 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
     sendResponse( taskSpec(0), printer.format( response ) )
   }
 
+  def shutdown = { processManager.shutdown( process ) }
+
   def sendDirectResponse( responseId: String, response: xml.Elem ): Unit =  {
     val refs: xml.NodeSeq = response \\ "data"
     val resultHref = refs.flatMap( _.attribute("href") ).find( _.nonEmpty ).map( _.text ) match {
@@ -111,26 +116,27 @@ object CDASApplication extends Loggable {
     val appConfiguration = getConfiguration( parameter_file )
     val cmode = if (connect_mode.toLowerCase.startsWith("c")) CONNECT else BIND
     val app = new CDASapp(cmode, request_port, response_port, appConfiguration)
+    sys.addShutdownHook( { app.term() } )
     app.run()
+  }
+
+}
+
+object TestApplication extends Loggable {
+  def main(args: Array[String]) {
+    val sc = CDSparkContext()
+    val indices = sc.sparkContext.parallelize( Array.range(0,500), 100 )
+    val base_time = System.currentTimeMillis()
+    val timings = indices.map( getProfileDiagnostic(base_time) )
+    val time_list = timings.collect() mkString ("\n")
+    println( " @@@ NPart = " + indices.getNumPartitions.toString )
+    println( time_list )
+  }
+  def getProfileDiagnostic( base_time: Float )( index: Int ): String = {
+    val result = s"  T{$index} => E${SparkEnv.get.executorId}:${ManagementFactory.getRuntimeMXBean.getName} -> %.4f".format( (System.currentTimeMillis() - base_time)/1.0E3 )
+    logger.info( result )
+    result
   }
 }
 
-//object TestApplication extends Loggable {
-//  def main(args: Array[String]) {
-//    import CDASapp._
-//    logger.info(s"Executing Test with args: ${args.mkString(",")}}")
-//    val connect_mode = elem(args, 0, "bind")
-//    val request_port = elem(args, 1, "0").toInt
-//    val response_port = elem(args, 2, "0").toInt
-//    val parameter_file = elem(args, 3, "")
-//    val appConfiguration = getConfiguration( parameter_file )
-//    val cmode = if (connect_mode.toLowerCase.startsWith("c")) CONNECT else BIND
-//
-//    val sc = CDSparkContext()
-//    val indices = sc.sparkContext.parallelize( Array.fill(100)(0) )
-//    val base_time = System.currentTimeMillis()
-//    val timings = indices.map( i => ( System.currentTimeMillis() - base_time) )
-//    val time_list = timings.collect().map( tval => (tval/1.0E3).toString ) mkString (", ")
-//    println( time_list )
-//  }
-//}
+// nasa.nccs.cdas.portal.TestApplication

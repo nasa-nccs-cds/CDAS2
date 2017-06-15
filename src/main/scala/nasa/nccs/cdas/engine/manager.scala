@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.engine
 import java.io.{IOException, PrintWriter, StringWriter}
-
+import java.nio.file.{ Paths, Files }
 import scala.xml
 import java.io.File
 
@@ -11,10 +11,8 @@ import nasa.nccs.esgf.process._
 import scala.concurrent.ExecutionContext.Implicits.global
 import nasa.nccs.utilities.{Loggable, ProfilingTool, cdsutils}
 import nasa.nccs.cdas.kernels.{Kernel, KernelMgr, KernelModule}
-
-import scala.concurrent.{Await, Future, Promise}
 import java.util.concurrent.atomic.AtomicReference
-
+import scala.concurrent.{Await, Future, Promise}
 import nasa.nccs.cdapi.tensors.{CDArray, CDByteArray, CDFloatArray}
 import nasa.nccs.caching._
 import ucar.{ma2, nc2}
@@ -22,12 +20,11 @@ import nasa.nccs.cdas.utilities.{GeoTools, appParameters, runtime}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import nasa.nccs.cdas.workers.python.PythonWorkerPortal
 import nasa.nccs.cdas.engine.spark.CDSparkContext
 import nasa.nccs.wps._
 import ucar.nc2.Attribute
+import scala.io.Source
 
-import scala.xml.Elem
 
 class Counter(start: Int = 0) {
   private val index = new AtomicReference(start)
@@ -43,7 +40,24 @@ object CDS2ExecutionManager extends Loggable {
   def apply(): CDS2ExecutionManager = { new CDS2ExecutionManager }
 
   def shutdown() = {
-    PythonWorkerPortal.getInstance().quit()
+    shutdown_python_workers()
+  }
+
+  def shutdown_python_workers() = {
+    import sys.process._
+    val slaves_file = Paths.get( sys.env("SPARK_HOME"), "conf", "slaves" ).toFile
+    val shutdown_script = Paths.get( sys.env("HOME"), ".cdas", "sbin", "shutdown_python_worker.sh" ).toFile
+    if( slaves_file.exists && slaves_file.canRead ) {
+      val shutdown_futures = for (slave <- Source.fromFile(slaves_file).getLines(); if !slave.isEmpty && !slave.startsWith("#") ) yield  {
+          Future { "ssh %s \"%s\"".format(slave.trim,shutdown_script.toString) !! }
+      }
+      Future.sequence( shutdown_futures )
+    } else try {
+      logger.info( "No slaves file found, shutting down python workers locally:")
+      shutdown_script.toString !!
+    } catch {
+      case err: Exception => logger.error( "Error shutting down python workers: " + err.toString )
+    }
   }
 
   //    appParameters( handler_type_key, "spark" ) match {
@@ -68,6 +82,8 @@ object CDS2ExecutionManager extends Loggable {
 
 class CDS2ExecutionManager extends WPSServer with Loggable {
   import CDS2ExecutionManager._
+  shutdown_python_workers()
+
   val serverContext = new ServerContext( collectionDataCache, CDSparkContext() )
   val kernelManager = new KernelMgr()
 

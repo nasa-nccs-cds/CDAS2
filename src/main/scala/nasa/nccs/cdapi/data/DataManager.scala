@@ -82,7 +82,7 @@ abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray
   def getSampleData( size: Int, start: Int): Array[Float] = toCDFloatArray.getSampleData( size, start )
   def getSampleDataStr( size: Int, start: Int): String = toCDFloatArray.getSampleData( size, start ).mkString( "[ ",", "," ]")
   def uid: String = metadata.getOrElse("uid", metadata.getOrElse("collection","") + ":" + metadata.getOrElse("name",""))
-  override def toString = "<array shape=(%s), %s> %s </array>".format( shape.mkString(","), metadata.mkString(","), cdsutils.toString(data.mkString(",")) )
+  override def toString = "<array shape=(%s), %s> %s </array>".format( shape.mkString(","), metadata.mkString(",") )
 
 }
 
@@ -135,7 +135,8 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   }
 
   def toByteArray() = {
-    bb.putFloat( 0, missing.getOrElse(Float.NaN) )
+    val mval = missing.getOrElse(Float.MaxValue)
+    bb.putFloat( 0, mval )
     toUcarFloatArray.getDataAsByteBuffer().array() ++ bb.array()
   }
   def combine( combineOp: CDArray.ReduceOp[Float], other: HeapFltArray ): HeapFltArray = {
@@ -157,7 +158,7 @@ object HeapFltArray extends Loggable {
     new HeapFltArray(cdarray.getShape, origin, cdarray.getArrayData(), Some(cdarray.getInvalid), gridSpec, metadata, optWeights.map(_.getArrayData()), cdarray.getCoordMaps)
   }
   def apply( heaparray: HeapFltArray, weights: CDFloatArray ): HeapFltArray = {
-    new HeapFltArray( heaparray.shape, heaparray.origin, heaparray.data, Some(heaparray.getMissing()), heaparray.gridSpec, heaparray.metadata, Some(weights.getArrayData()), heaparray.indexMaps )
+    new HeapFltArray( heaparray.shape, heaparray.origin, heaparray.data, Some(heaparray.getMissing()), heaparray.gridSpec, heaparray.metadata + ("wshape" -> weights.getShape.mkString(",")), Some(weights.getArrayData()), heaparray.indexMaps )
   }
   def apply( ucarray: ucar.ma2.Array, origin: Array[Int], gridSpec: String, metadata: Map[String,String], missing: Float ): HeapFltArray = HeapFltArray( CDArray(ucarray,missing), origin, gridSpec, metadata, None )
 
@@ -166,6 +167,7 @@ object HeapFltArray extends Loggable {
     val buff_size = buffer.capacity()
     val undef = buffer.getFloat(buff_size-4)
     val data_buffer = nio.ByteBuffer.wrap( buffer.array(), 0, buff_size-4 )
+    logger.info( "Creating Array, num floats in buff = " + ((buff_size-4)/4).toString + ", shape = " + tvar.getShape.mkString(",") )
     val ucarray: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, tvar.getShape, data_buffer )
     val floatArray: CDFloatArray = CDFloatArray.cdArrayConverter(CDArray[Float](ucarray, undef ) )
     val gridSpec = _gridSpec.getOrElse("file:/" + tvar.getMetaData.get("gridfile"))

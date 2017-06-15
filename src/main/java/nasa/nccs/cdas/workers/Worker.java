@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Stream;
+
 import org.apache.commons.lang.StringUtils;
 
 public abstract class Worker {
@@ -64,7 +66,9 @@ public abstract class Worker {
             }
             TransVar result = results.poll();
             if( result == null ) try { Thread.sleep(100); } catch( Exception err ) { return null; }
-            else { return result; }
+            else {
+                return result;
+            }
         }
     }
 
@@ -160,13 +164,12 @@ public abstract class Worker {
             scala.Option<float[]> weightsOpt = array.weights();
             if( weightsOpt.isDefined() ) {
                 float[] weights = weightsOpt.get();
-                int[] shape = { weights.length };
+                int[] shape = Stream.of( array.attr("wshape").split(",") ).mapToInt(Integer::parseInt).toArray();
+//                int[] shape = { weights.length };
                 byte[] weight_data = ArrayUtils.addAll( Array.factory(DataType.FLOAT, shape, weights ).getDataAsByteBuffer().array(), byteBuffer.array() );
-                String[] weights_toks = id.split("[-]");
-                String weights_id = null;
-                if( weights_toks.length > 1 ) weights_id = weights_toks[0]  + "_WEIGHTS_-" + weights_toks[1];
-                else weights_id =  id + "_WEIGHTS_";
-                _sendArrayData( weights_id, array.origin(), shape, weight_data, array.mdata()  );
+                String[] idtoks =  id.split("-");
+                idtoks[0] = idtoks[0] + "_WEIGHTS_";
+                _sendArrayData( String.join("-", idtoks ), array.origin(), shape, weight_data, array.mdata()  );
             }
         }
         else _sendArrayMetadata( id, array.origin(), array.shape(), array.mdata() );

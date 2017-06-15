@@ -71,7 +71,6 @@ class Worker(object):
         self.logger.info( "Sending Result, header: {0}".format( header ) )
         self.result_socket.send( header )
         result_data = resultVar.toBytes( IO_DType )
-        self.logger.info( "Sending Result data,  nbytes: {0}".format( str(len(result_data) ) ) )
         self.result_socket.send(result_data)
 
     def sendError( self, err ):

@@ -63,13 +63,7 @@ object BatchSpec extends Loggable {
   lazy val nParts = nProcessors - 1
   def apply( index: Int ): BatchSpec = new BatchSpec( index*nParts, nParts )
 
-  def getSparkMaxCores = {
-    val nCores = serverContext.getConfiguration.getOrElse("spark.executor.cores",serverContext.spark.totalClusterCores.toString).toInt
-    val nExecutors = serverContext.getConfiguration.getOrElse("spark.num.executors","1").toInt
-    val rv = nCores * nExecutors
-    logger.info( s"Computing # Spark cores: nCoresPerExec = $nCores, nExecutors = $nExecutors, total Cores = $rv ")
-    rv
-  }
+  def getSparkMaxCores = { serverContext.spark.totalClusterCores.toString.toInt }
 }
 
 case class BatchSpec( iStartPart: Int, nParts: Int ) {
@@ -375,7 +369,49 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
 
   def computeRecordSizes( ): CDASPartitionSpec = {
     val sparkConfig = BatchSpec.serverContext.spark.sparkContext.getConf.getAll map { case (key, value ) =>  key + " -> " + value } mkString( "\n\t")
-    logger.info( " @@@@@ SPARK CONFIG: \n\t" + sparkConfig )
+    val _preferredNParts = math.ceil( sectionMemorySize / partitionSize.toFloat ).toInt
+    if( filters.isEmpty ) {
+      val _nSlicesPerRecord: Int = math.max(recordSize.toFloat / sliceMemorySize, 1.0).round.toInt
+      val _recordMemorySize: Long = getMemorySize(_nSlicesPerRecord)
+      val _nRecordsPerPart: Int = math.max(partitionSize.toFloat / _recordMemorySize, 1.0).round.toInt
+      val _partMemorySize: Long = _nRecordsPerPart * _recordMemorySize
+      val _nSlicesPerPart: Int = _nRecordsPerPart * _nSlicesPerRecord
+      val _nPartitions: Int = math.ceil(sectionMemorySize / _partMemorySize.toFloat).toInt
+      val partitions = (0 until _nPartitions) map ( partIndex => {
+        val startIndex = partIndex * _nSlicesPerPart
+        val partSize = Math.min(_nSlicesPerPart, baseShape(0) - startIndex)
+        RegularPartition(partIndex, 0, startIndex, partSize, _nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape)
+      })
+      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating batched partitions: preferredNParts: ${_preferredNParts}, sectionMemorySize: $sectionMemorySize, sliceMemorySize: $sliceMemorySize, nSlicesPerRecord: ${_nSlicesPerRecord}, recordMemorySize: ${_recordMemorySize}, nRecordsPerPart: ${_nRecordsPerPart}, partMemorySize: ${_partMemorySize}, nPartitions: ${partitions.length} \n---------------------------------------------\n")
+      new CDASPartitionSpec( partitions )
+    } else {
+      val seasonFilters = filters.flatMap( SeasonFilter.get )
+      if( seasonFilters.length < filters.length ) throw new Exception ( "Unrecognized filter: " + filters.mkString(",") )
+      val timeSteps: List[CalendarDate] = timeAxis.section(sectionRange).getCalendarDates.toList
+      for( (timeStep, timeIndex) <- timeSteps.zipWithIndex; seasonFilter <- seasonFilters ) { seasonFilter.processTimestep( timeIndex, timeStep  ) }
+      val all_records = for( seasonFilter <- seasonFilters; record <- seasonFilter.getRecords ) yield { record }
+      val partitions: IndexedSeq[Partition] = if( all_records.length < BatchSpec.nProcessors ) {
+        for( ( record, partIndex ) <- all_records.zipWithIndex ) yield {
+          new FilteredPartition(partIndex, 0, record.first, record.length, sliceMemorySize, _section.getOrigin, baseShape, Array(record))
+        }
+      } else {
+        val nRecs = seasonFilters(0).getNRecords
+        val seasonRecsPerPartition = Math.ceil( nRecs / ( BatchSpec.nProcessors - 1f ) ).toInt
+        val nParts = Math.ceil( nRecs / seasonRecsPerPartition.toFloat ).toInt
+        val partSize = Math.ceil( baseShape(0)/nParts.toFloat ).toInt
+        ( 0 until nParts ) map ( partIndex => {
+          val iRecStart = partIndex*seasonRecsPerPartition
+          val records = seasonFilters flatMap ( _.getPartitionRecords(iRecStart,seasonRecsPerPartition) )
+          new FilteredPartition(partIndex, 0, records.head.first, partSize, sliceMemorySize, _section.getOrigin, baseShape, records )
+        } )
+      }
+      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions for ${BatchSpec.nProcessors} procs: \n ${partitions.map( _.toString ).mkString( "\n\t" )}  \n---------------------------------------------\n")
+      new CDASPartitionSpec( partitions )
+    }
+  }
+
+  def computeRecordSizes1( ): CDASPartitionSpec = {
+    val sparkConfig = BatchSpec.serverContext.spark.sparkContext.getConf.getAll map { case (key, value ) =>  key + " -> " + value } mkString( "\n\t")
     val _preferredNParts = math.ceil( sectionMemorySize / partitionSize.toFloat ).toInt
     if( _preferredNParts > BatchSpec.nProcessors * 1.5 ) {
       val _nSlicesPerRecord: Int = math.max(recordSize.toFloat / sliceMemorySize, 1.0).round.toInt
@@ -393,7 +429,7 @@ class CDASPartitioner( private val _section: ma2.Section, val workflowNodeOpt: O
       new CDASPartitionSpec( partitions )
     } else {
       if( filters.isEmpty ) {
-        val __nPartitions: Int = BatchSpec.nProcessors - 1
+        val __nPartitions: Int = BatchSpec.nProcessors
         val __nSlicesPerPart: Int = math.ceil(baseShape(0) / __nPartitions.toFloat).toInt
         val __maxSlicesPerRecord: Int = math.max(math.round(recordSize / sliceMemorySize.toFloat), 1)
         val __nSlicesPerRecord: Int = math.min( __maxSlicesPerRecord, __nSlicesPerPart )

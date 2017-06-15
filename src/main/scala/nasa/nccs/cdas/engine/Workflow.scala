@@ -167,11 +167,14 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val t0 = System.nanoTime()
     if( context.doesTimeReduction ) {
       val nparts = mapresult.getNumPartitions
-      if( !node.kernel.parallelizable || (nparts==1) ) { mapresult }
+      if( !node.kernel.parallelizable || (nparts==1) ) {
+        mapresult.mapValues( record => node.kernel.postRDDOp( record, context  ) )
+      }
       else {
         val inputNParts = mapresult.partitions.length
         val intermediateNParts: Int = if (context.commutativeReduction) { inputNParts } else { 1 }
-        val result = mapresult.sortByKey( true, intermediateNParts ) reduce node.kernel.getReduceOp(context)
+        val pre_result_pair = mapresult.sortByKey( true, intermediateNParts ) reduce node.kernel.getReduceOp(context)
+        val result = pre_result_pair._1 -> node.kernel.postRDDOp( pre_result_pair._2, context  )
         logger.debug("\n\n ----------------------- FINISHED stream reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
         val results = List.fill(inputNParts)( result )
         executionMgr.serverContext.spark.sparkContext.parallelize( results )
@@ -272,18 +275,18 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def needsRegrid(rdd: RDD[(RecordKey,RDDRecord)], requestCx: RequestContext, kernelContext: KernelContext ): Boolean = {
-//    val sampleRDDPart: RDDRecord = rdd.first._2
-//    val targetGrid = requestCx.getTargetGrid (kernelContext.grid.uid).getOrElse (throw new Exception ("Undefined Target Grid for kernel " + kernelContext.operation.identifier) )
-//    if( targetGrid.getGridSpec.startsWith("gspec") ) return true
-//    sampleRDDPart.elements.foreach { case(uid,data) => if( data.gridSpec != targetGrid.getGridSpec ) kernelContext.crsOpt match {
-//      case Some( crs ) =>
-//        return true
-//      case None =>
-//        requestCx.getTargetGrid(uid) match {
-//          case Some(tgrid) => if( !tgrid.shape.sameElements( targetGrid.shape ) ) return true
-//          case None => throw new Exception (s"Undefined Grid in input ${uid} for kernel " + kernelContext.operation.identifier)
-//        }
-//    }}
+    val sampleRDDPart: RDDRecord = rdd.first._2
+    val targetGrid = requestCx.getTargetGrid (kernelContext.grid.uid).getOrElse (throw new Exception ("Undefined Target Grid for kernel " + kernelContext.operation.identifier) )
+    if( targetGrid.getGridSpec.startsWith("gspec") ) return true
+    sampleRDDPart.elements.foreach { case(uid,data) => if( data.gridSpec != targetGrid.getGridSpec ) kernelContext.crsOpt match {
+      case Some( crs ) =>
+        return true
+      case None =>
+        requestCx.getTargetGrid(uid) match {
+          case Some(tgrid) => if( !tgrid.shape.sameElements( targetGrid.shape ) ) return true
+          case None => throw new Exception (s"Undefined Grid in input ${uid} for kernel " + kernelContext.operation.identifier)
+        }
+    }}
     return false
   }
 
@@ -295,6 +298,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def domainRDDPartition( opInputs: Map[String,OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode, batchIndex: Int ): Option[RDD[(RecordKey,RDDRecord)]] = {
+    val enableRegridding = false
     logger.info( "Generating RDD for inputs: " + opInputs.keys.mkString(", ") )
     val rawRddMap: Map[String,RDD[(RecordKey,RDDRecord)]] = opInputs flatMap { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
@@ -322,8 +326,8 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     } else {
       logger.info("\n\n ----------------------- Completed RDD input map[%d], keys: { %s }, thread: %s -------\n".format(batchIndex,rawRddMap.keys.mkString(", "), Thread.currentThread().getId ))
       val unifiedRDD = unifyRDDs(rawRddMap, kernelContext, requestCx, node)
-     // Some(unifyGrids(unifiedRDD, requestCx, kernelContext, node))   TODO: turn on automated regridding
-      Some( unifiedRDD )
+      if( enableRegridding) { Some( unifyGrids(unifiedRDD, requestCx, kernelContext, node) ) }
+      else { Some( unifiedRDD ) }
     }
   }
 

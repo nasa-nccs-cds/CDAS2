@@ -1,9 +1,13 @@
 import numpy as np
 import numpy.ma as ma
-import time, traceback, logging, struct
+import time, traceback, logging, struct, sys
 from messageParser import mParse
 IO_DType = np.dtype( np.float32 ).newbyteorder('>')
 from abc import ABCMeta, abstractmethod
+
+def getFillValue( array ):
+    try:    return array.get_fill_value()
+    except: return sys.float_info.max
 
 class CDArray:
     __metaclass__ = ABCMeta
@@ -70,14 +74,14 @@ class npArray(CDArray):
 
     @classmethod
     def createResult(cls, task, input, result_array ):
-        return npArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array, result_array.get_fill_value() )
+        return npArray( task.rId, input.origin, result_array.shape, dict( input.metadata, **task.metadata ), result_array, input.undef )
 
     @classmethod
-    def createAuxResult( cls, id, origin, metadata, result_array ):
-        return npArray( id, origin, result_array.shape, metadata, result_array, result_array.get_fill_value() )
+    def createAuxResult( cls, id, metadata, input, result_array ):
+        return npArray( id, input.origin, result_array.shape, metadata, result_array, input.undef )
 
     def toBytes( self, dtype ):
-        return self.array.astype(dtype).tobytes() + bytearray(struct.pack("f", self.undef))
+        return self.array.astype(dtype).tobytes() + np.array([self.undef]).astype(dtype).tobytes() # bytearray(struct.pack("f", self.undef))
 
     @classmethod
     def createInput(self, header, data):
@@ -91,9 +95,9 @@ class npArray(CDArray):
         if data:
             logger.info(" *** Creating Input, id = {0}, data size = {1}, shape = {2}".format( id, len(data), str(shape) ) )
             raw_data = np.frombuffer( data, dtype=IO_DType ).astype(np.float32)
-            logger.info(" *** buffer len = {0}, undef = {1}".format( str(len(raw_data)), str(raw_data[-1]) ) )
-            data_array = ma.masked_invalid( raw_data[0:-1].reshape(shape) )
             undef_value = raw_data[-1]
+            logger.info(" *** buffer len = {0}, undef = {1}".format( str(len(raw_data)), str(undef_value) ) )
+            data_array = ma.masked_invalid( raw_data[0:-1].reshape(shape) )
             nparray =  ma.masked_equal(data_array,undef_value) if ( undef_value != 1.0 ) else data_array
         else:
             nparray = None
@@ -109,7 +113,7 @@ class npArray(CDArray):
         self.array = _ndarray
         self.undef = _undef
         self.variable = None
-        self.logger.info(" *** Creating data array, nbytes = " + str(self.nbytes()) )
+        self.logger.info(" *** Creating NP data array, nbytes = " + str(self.nbytes()) + ", undef = " + str(self.undef) )
 
     def getSelector(self, variable, **args):
         kargs = {}
@@ -200,7 +204,7 @@ class cdmsArray(CDArray):
         return self.variable.data
 
     def toBytes( self, dtype ):
-        return self.variable.data.astype(dtype).tobytes() + bytearray( struct.pack("f", self.variable.getMissing()))
+        return self.variable.data.astype(dtype).tobytes() + np.array([ self.variable.getMissing() ]).astype(dtype).tobytes() # bytearray( struct.pack("f", self.variable.getMissing()))
 
     def __init__(self, _id, _origin, _shape, _metadata, cdVariable ):
         super(cdmsArray, self).__init__(_id,_origin,_shape,_metadata)

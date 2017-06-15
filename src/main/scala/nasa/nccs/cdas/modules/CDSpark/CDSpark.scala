@@ -96,7 +96,6 @@ class div2 extends DualRDDKernel(Map("mapOp" -> "divide")) {
   val description = "Computes element-wise divisions for a pair of input variables data over specified roi"
 }
 
-
 class min extends SingularRDDKernel(Map("mapreduceOp" -> "min")) {
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
@@ -112,6 +111,20 @@ class sum extends SingularRDDKernel(Map("mapreduceOp" -> "sum")) {
   val title = "Space/Time Sum"
   val description = "Computes sums of element values from input variable data over specified axes and roi"
   override val initValue: Float = 0f
+}
+
+class rmSum extends SingularRDDKernel(Map("mapreduceOp" -> "sum","postOp"->"rms")) {
+  val inputs = List( WPSDataInput("input variables", 1, 1 ) )
+  val outputs = List( WPSProcessOutput( "operation result" ) )
+  val title = "Element-wise Root Mean Sum"
+  val description = "Computes root mean sum of input variable over specified axes and roi"
+}
+
+class rms extends SingularRDDKernel( Map("mapOp" -> "sqAdd", "reduceOp" -> "sum", "postOp"->"rms" ) ) {
+  val inputs = List( WPSDataInput("input variables", 1, 1 ) )
+  val outputs = List( WPSProcessOutput( "operation result" ) )
+  val title = "Element-wise Root Mean Square"
+  val description = "Computes root mean square of input variable over specified axes and roi"
 }
 
 class multiAverage extends Kernel(Map.empty) {
@@ -158,12 +171,13 @@ class average extends SingularRDDKernel(Map.empty) {
 
   override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime
-    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
+    val axes = context.config("axes","")
+    val axisIndices: AxisIndices = context.grid.getAxisIndices( axes )
     val async = context.config("async", "false").toBoolean
     val elems = context.operation.inputs.map( inputId => inputs.element(inputId) match {
       case Some( input_data ) =>
         val input_array = input_data.toCDFloatArray
-        val accumulation_index = input_array.getAccumulationIndex( axes.args )
+        val accumulation_index = input_array.getAccumulationIndex( axisIndices.args )
         val weights: CDFloatArray = KernelUtilities.getWeights(inputId, context)
         val (weighted_value_sum_masked, weights_sum_masked) = input_array.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index, Some(weights) )
         context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked.getArrayData()) )
@@ -171,7 +185,7 @@ class average extends SingularRDDKernel(Map.empty) {
     })
     logger.info("Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9))
     context.addTimestamp( "Map Op complete" )
-    RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+    RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid, "axes" -> axes.toUpperCase ) )
   }
   override def combineRDD(context: KernelContext)(a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)(a0, a1)
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )

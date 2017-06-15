@@ -14,8 +14,7 @@ f = cdms2.openDataset(dataPath)
 var = f( varName, time=slice(0,1),level=slice(10,11) )
 s = var[0]
 x = vcs.init()
-x.plot(s,variable = var)
-nbDisplay(x)
+x.plot(s,variable = var,bg=True)
 
 
 

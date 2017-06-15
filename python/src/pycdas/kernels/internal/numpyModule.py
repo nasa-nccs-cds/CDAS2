@@ -1,6 +1,7 @@
 from pycdas.kernels.Kernel import Kernel, KernelSpec
 from pycdas.cdasArray import npArray
 import numpy as np
+import numpy.ma as ma
 import time
 
 class StdKernel(Kernel):
@@ -62,11 +63,15 @@ class AverageKernel(Kernel):
         self.logger.info("\n\n Execute Operations, inputs: " + str( task.inputs ) + ", task metadata = " + str(task.metadata) + ", axes = " + str(axes) )
         for input in kernel_inputs:
             t0 = time.time()
-            results.append( npArray.createResult( task, input,  input.array.sum( axis=axes,   keepdims=True ) ) )
-            results.append( npArray.createAuxResult( task.rId + "_WEIGHTS_", input.origin, dict( input.metadata, **task.metadata ),  input.array.count(axis=self.getAxes(task.metadata), keepdims=True ) ) )
+            result_array = input.array.sum( axis=axes,   keepdims=True )
+            mask_array = input.array.count(axis=self.getAxes(task.metadata), keepdims=True )
+            results.append( npArray.createResult( task, input, result_array  ) )
+            results.append( npArray.createAuxResult( task.rId + "_WEIGHTS_", dict( input.metadata, **task.metadata ), input, mask_array  ) )
             t1 = time.time()
             self.logger.info( " ------------------------------- SUMW KERNEL: Operating on input '{0}', shape = {1}, origin = {2}, time = {3}".format( input.name, input.shape, input.origin, t1-t0 ))
         return results
+
+
 
 class WeightedAverageKernel(Kernel):
     def __init__( self ):
@@ -75,8 +80,10 @@ class WeightedAverageKernel(Kernel):
     def executeOperations(self, task, inputs):
         available_inputIds = [ inputId.split('-')[0] for inputId in inputs ]
         data_inputIds = [ inputId.split('-')[0] for inputId in task.inputs ]
-        weight_inputIds = [ ( inputId+"_WEIGHTS_" if (inputId+"_WEIGHTS_" in available_inputIds) else None ) for inputId in data_inputIds ]
+        wids = [ inputId + "_WEIGHTS_" for inputId in data_inputIds ]
+        weight_inputIds = [ ( wid if (wid in available_inputIds) else None ) for wid in wids ]
         inputs_with_weights = zip( data_inputIds, weight_inputIds )
+        self.logger.info("@@@@ data_inputIds = " + str(data_inputIds) + ", weight_inputIds = " + str(weight_inputIds) + ", inputs = " + str(inputs) )
         results = []
         for input_pair in inputs_with_weights:
             input = inputs.get( input_pair[0] )  # npArray
@@ -84,12 +91,14 @@ class WeightedAverageKernel(Kernel):
             else :
                 weights = inputs.get( input_pair[1] ).array if( input_pair[1] != None ) else None
                 axes = self.getOrderedAxes(task,input)
-                self.logger.info("\n Executing average, input: " + str( input_pair[0] ) + ", task metadata = " + str(task.metadata) + " Input metadata: " + str( input.metadata ) )
+                self.logger.info("\n Executing average, input: " + str( input_pair[0] ) + ", shape = " + str(input.array.shape)+ ", task metadata = " + str(task.metadata) + " Input metadata: " + str( input.metadata ) )
                 t0 = time.time()
                 result = input.array
                 for axis in axes:
                     current_shape = list( result.shape )
-                    ( result, weights ) = np.ma.average( result, axis, weights, True )
+                    self.logger.info(" --> Exec: axis: " + str(axis) + ", shape: " + str(current_shape) )
+#                    ( result, weights ) = ma.average( result, axis, weights, True )
+                    ( result, weights ) = ma.average( result, axis, np.broadcast_to( weights, current_shape ), True )
                     current_shape[axis] = 1
                     result = result.reshape( current_shape )
                     weights = weights.reshape( current_shape )

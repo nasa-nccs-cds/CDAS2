@@ -76,6 +76,7 @@ public abstract class CDASPortal {
     public abstract void execUtility( String[] utilSpec );
 
     public abstract void execute( String[] taskSpec );
+    public abstract void shutdown();
     public abstract void getCapabilities( String[] utilSpec );
     public abstract void describeProcess( String[] utilSpec );
 
@@ -121,10 +122,12 @@ public abstract class CDASPortal {
     }
 
     public void term() {
+        logger.info( "CDAS Shutdown");
         active = false;
         PythonWorkerPortal.getInstance().quit();
         try { request_socket.close(); }  catch ( Exception ex ) { ; }
         try { response_socket.close(); }  catch ( Exception ex ) { ; }
+        shutdown();
     }
 
     public String ia2s( int[] array ) { return Arrays.toString(array).replaceAll("\\[|\\]|\\s", ""); }
