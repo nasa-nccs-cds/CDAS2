@@ -385,8 +385,9 @@ class DirectRDDVariableSpec( uid: String, metadata: Map[String,String], missing:
     val part_size = recordSection.getShape.fold(1)(_*_)
     if( part_size > 0 ) {
       val fltData: CDFloatArray = CDFloatArray.factory(readVariableData(recordSection), missing)
-      logger.debug("READ Variable section: %s, part[%d]: dim=%d, origin=(%s), shape=[%s], data shape=[%s], data size=%d, part size=%d, data buffer size=%d, recordSectionShape=%s, recordSectionOrigin=%s".format(
-        section.toString(), partition.index, partition.dimIndex, recordSection.getOrigin.mkString(","), recordSection.getShape.mkString(","), fltData.getShape.mkString(","), fltData.getSize, part_size, fltData.getStorageSize, recordSection.getShape.mkString(","), recordSection.getOrigin.mkString(",")))
+      logger.debug("READ Variable section: %s, part[%d]: dim=%d, origin=(%s), shape=[%s], data shape=[%s], data size=%d, part size=%d, data buffer size=%d, recordSectionShape=%s, recordSectionOrigin=%s\n --> data sample = %s".format(
+        section.toString(), partition.index, partition.dimIndex, recordSection.getOrigin.mkString(","), recordSection.getShape.mkString(","), fltData.getShape.mkString(","),
+        fltData.getSize, part_size, fltData.getStorageSize, recordSection.getShape.mkString(","), recordSection.getOrigin.mkString(","), fltData.mkBoundedDataString(", ", 32) ) )
       HeapFltArray(fltData, section.getOrigin, metadata, None)
     } else {
       HeapFltArray.empty( section.getShape.length )

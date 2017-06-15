@@ -1,5 +1,5 @@
 from pycdas.portal.cdas import *
-import time, sys
+import time, sys, os
 
 startServer = False
 portal = None
@@ -7,6 +7,7 @@ request_port = 4356
 response_port = 4357
 host = "cldra"
 server = "localhost"
+cdas_cache_dir = os.environ['CDAS_CACHE_DIR']
 
 if host == "webmap":
     dataset = "file:/att/gpfsfs/ffs2004/ppl/tpmaxwel/cdas/cache/collections/NCML/merra_mon_ua.xml"
@@ -18,9 +19,9 @@ else:
     dataset = "http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
     var = "tas"
 
-cldraGISSdset = "file:///home/tpmaxwel/.cdas/cache/collections/NCML/GISS_E2H_r1i1p1.ncml"
-cldraMERRAdset = "file:///home/tpmaxwel/.cdas/cache/collections/NCML/CIP_MERRA_mon_ua.ncml"
-localGISSdset = "file:///Users/tpmaxwel/.cdas/cache/collections/NCML/giss_r1i1p1.xml"
+cldraGISSdset = "file://%s/collections/NCML/GISS_E2H_r1i1p1.ncml" % ( cdas_cache_dir )
+cldraMERRAdset = "file://%s/collections/NCML/CIP_MERRA_mon_ua.ncml" % ( cdas_cache_dir )
+localGISSdset = "file://%s/collections/NCML/giss_r1i1p1.xml" % ( cdas_cache_dir )
 
 gissVar="tas"
 merraVar="ua"
