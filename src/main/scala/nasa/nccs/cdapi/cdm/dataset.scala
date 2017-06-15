@@ -943,9 +943,10 @@ object NetcdfDatasetMgr extends Loggable {
         try {
           runtime.printMemoryUsage(logger)
           val t0 = System.nanoTime()
-          val rv = variable.read(section)
-          logger.info( "Reading variable %s section, shape: (%s), size = %.2f M, read time = %.4f sec".format( varShortName, section.getShape.mkString(","), (section.computeSize*4.0)/MB, (System.nanoTime() - t0) / 1.0E9 ))
-          rv
+          val ma2array = variable.read(section)
+          val sample_data = ( 0 until Math.min(16,ma2array.getSize).toInt ) map ma2array.getFloat
+          logger.info( "Reading variable %s, section shape: (%s), section origin: (%s), variable shape: (%s), size = %.2f M, read time = %.4f sec, sample data = [ %s ]".format( varShortName, section.getShape.mkString(","), section.getOrigin.mkString(","), variable.getShape.mkString(","), (section.computeSize*4.0)/MB, (System.nanoTime() - t0) / 1.0E9, sample_data.mkString(", ") ))
+          ma2array
         } catch {
           case err: Exception =>
             logger.error("Can't read data for variable %s in dataset %s due to error: %s".format(varShortName, ncDataset.getLocation, err.toString));
