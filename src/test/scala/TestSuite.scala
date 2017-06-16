@@ -243,25 +243,25 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     assert( result_data.maxScaledDiff( unverified_result )  < eps, s" Incorrect value computed for Max")
   }
 
-  test("ESGF_Demo") {
-      val unverified_result: CDFloatArray = CDFloatArray(  Array( 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908 ).map(_.toFloat), Float.MaxValue )
-      val GISS_H_vids = ( 1 to nExp ) map { index => s"vH$index" }
-      val GISS_E2R_vids = ( 1 to nExp ) map { index => s"vR$index" }
-      val GISS_H_variables     = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
-      val GISS_E2R_variables = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_E2R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
-      val datainputs = s"""[
-             variable=[$GISS_H_variables,$GISS_E2R_variables],
-             domain=[       {"name":"d0","time":{"start":"1985-01-01T00:00:00Z","end":"1985-04-04T00:00:00Z","system":"values"}},{"name":"d1","crs":"gaussian~128"}],
-             operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
-                            {"name":"CDSpark.multiAverage","input":"${GISS_E2R_vids.mkString(",")}","domain":"d0","id":"eaGISS-E2R"},
-                            {"name":"CDSpark.multiAverage","input":"eaGISS-E2R,eaGISS-H","domain":"d1","result":"esgfDemo"} ]
-            ]""".replaceAll("\\s", "")
-      val result_node = executeTest(datainputs)
-      val result_data = CDFloatArray( getResultData( result_node, false ).slice(0,0,10) )
-      println( " ** Op Result:         " + result_data.mkDataString(", ") )
-      println( " ** Unverified Result: " + unverified_result.mkDataString(", ") )
-      assert( result_data.maxScaledDiff( unverified_result )  < eps, s" Incorrect value computed for Max")
-    }
+//  test("ESGF_Demo") {
+//      val unverified_result: CDFloatArray = CDFloatArray(  Array( 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908 ).map(_.toFloat), Float.MaxValue )
+//      val GISS_H_vids = ( 1 to nExp ) map { index => s"vH$index" }
+//      val GISS_E2R_vids = ( 1 to nExp ) map { index => s"vR$index" }
+//      val GISS_H_variables     = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
+//      val GISS_E2R_variables = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_E2R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
+//      val datainputs = s"""[
+//             variable=[$GISS_H_variables,$GISS_E2R_variables],
+//             domain=[       {"name":"d0","time":{"start":"1985-01-01T00:00:00Z","end":"1985-04-04T00:00:00Z","system":"values"}},{"name":"d1","crs":"gaussian~128"}],
+//             operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
+//                            {"name":"CDSpark.multiAverage","input":"${GISS_E2R_vids.mkString(",")}","domain":"d0","id":"eaGISS-E2R"},
+//                            {"name":"CDSpark.multiAverage","input":"eaGISS-E2R,eaGISS-H","domain":"d1","result":"esgfDemo"} ]
+//            ]""".replaceAll("\\s", "")
+//      val result_node = executeTest(datainputs)
+//      val result_data = CDFloatArray( getResultData( result_node, false ).slice(0,0,10) )
+//      println( " ** Op Result:         " + result_data.mkDataString(", ") )
+//      println( " ** Unverified Result: " + unverified_result.mkDataString(", ") )
+//      assert( result_data.maxScaledDiff( unverified_result )  < eps, s" Incorrect value computed for Max")
+//    }
 
     test("TimeSum-dap") {
       val nco_verified_result: CDFloatArray = CDFloatArray( Array( 140615.5f, 139952f, 139100.6f, 138552.2f, 137481.9f, 137100.5f ), Float.MaxValue )
