@@ -1,3 +1,6 @@
+import java.net.URI
+import java.nio.file.{Path, Paths}
+
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.engine.spark.CDSparkContext
 import nasa.nccs.cdas.loaders.Collections
@@ -30,6 +33,10 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   val service = "cds2"
   val run_args = Map("async" -> "false")
   val printer = new scala.xml.PrettyPrinter(200, 3)
+  val test_data_dir = sys.env.get("CDAS_HOME_DIR") match {
+    case Some(cdas_home) => Paths.get( cdas_home, "src", "test", "resources", "data" )
+    case None => Paths.get("")
+  }
   after {
     if(shutdown_after) { cleanup() }
   }
@@ -148,11 +155,12 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("pyTimeAveTestLocal") {
-//    datafile="/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MERRA2/6hr/MERRA2_200.inst6_3d_ana_Np.20000101.nc4"
+//    datafile=".../MERRA2_200.inst6_3d_ana_Np_T.20000101.nc4"
 //    ncwa -O -v T -d lat,10,10 -d lon,20,20 -a time ${datafile} ~/test/out/time_ave.nc
 //    ncdump ~/test/out/time_ave.nc
+    val data_file: URI = Paths.get( test_data_dir.toString, "MERRA2_200.inst6_3d_ana_Np_T.20000101.nc4" ).toUri
     val nco_result: CDFloatArray = CDFloatArray( Array(   262.6826, 261.1128, 259.5385, 257.9672, 256.5204, 254.8353, 253.2784, 251.6964, 247.9638, 243.8583, 239.538, 235.9563, 232.1338, 227.2614, 221.6774, 216.0401 ).map(_.toFloat), Float.MaxValue )
-    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":10,"end":10,"system":"indices"},"lon":{"start":20,"end":20,"system":"indices"}}],variable=[{"uri":"file:///Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MERRA2/6hr/MERRA2_200.inst6_3d_ana_Np.20000101.nc4","name":"T:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","domain":"d0","axes":"t"}]]"""
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":10,"end":10,"system":"indices"},"lon":{"start":20,"end":20,"system":"indices"}}],variable=[{"uri":"%s","name":"T:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","domain":"d0","axes":"t"}]]""".format( data_file.toString )
     val result_node = executeTest(datainputs)
     val result_data = CDFloatArray( getResultData( result_node ) )
     println( " ** CDMS Result:       " + result_data.mkBoundedDataString(", ",16) )
