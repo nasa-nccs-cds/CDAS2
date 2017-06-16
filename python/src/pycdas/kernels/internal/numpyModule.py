@@ -9,7 +9,7 @@ class StdKernel(Kernel):
         Kernel.__init__( self, KernelSpec("std", "Standard Deviation", "Computes the standard deviation of the array elements along the given axes.", parallelize=False ) )  # Temporarily forcing some python kernels to run in serial mode
 
     def executeOperation( self, task, input ):
-        result = input.array.std( axis=self.getAxes(task.metadata), keepdims=True )
+        result = input.array.std( axis=self.getAxes(task.metadata), keepdims=True ).filled( input.array.fill_value )
         return npArray.createResult( task, input, result )
 
 class MaxKernel(Kernel):
@@ -17,31 +17,31 @@ class MaxKernel(Kernel):
         Kernel.__init__( self, KernelSpec("max", "Maximum", "Computes the maximun of the array elements along the given axes.", reduceOp="max" ) )
 
     def executeOperation( self, task, input ):
-        return npArray.createResult( task, input, input.array.max( axis=self.getAxes(task.metadata), keepdims=True ) )
+        return npArray.createResult( task, input, input.array.max( axis=self.getAxes(task.metadata), keepdims=True ).filled( input.array.fill_value ) )
 
 class MaxKernelSerial(Kernel):
     def __init__( self ):
         Kernel.__init__( self, KernelSpec("maxSer", "Maximum (Serial)", "Computes the maximun of the array elements along the given axes without parallelization (for testing).", parallelize=False  ) )
 
     def executeOperation( self, task, input ):
-        return npArray.createResult( task, input, input.array.max( axis=self.getAxes(task.metadata), keepdims=True ) )
+        return npArray.createResult( task, input, input.array.max( axis=self.getAxes(task.metadata), keepdims=True ).filled( input.array.fill_value ) )
 
 class MaxKernelCustom(Kernel):
     def __init__( self ):
         Kernel.__init__( self, KernelSpec("maxCustRed", "Maximum (Serial)", "Computes the maximun of the array elements along the given axes without parallelization (for testing).", reduceOp="custom"  )  )
 
     def executeOperation( self, task, input ):
-        return npArray.createResult( task, input, input.array.max( axis=self.getAxes(task.metadata), keepdims=True ) )
+        return npArray.createResult( task, input, input.array.max( axis=self.getAxes(task.metadata), keepdims=True ).filled( input.array.fill_value ) )
 
     def reduce( self, input0, input1, task ):
-        return npArray.createResult( task, input0, np.maximum( input0.array, input1.array ) )
+        return npArray.createResult( task, input0, np.maximum( input0.array, input1.array ).filled( input0.array.fill_value ) )
 
 class MinKernel(Kernel):
     def __init__( self ):
         Kernel.__init__( self, KernelSpec("min", "Minimum", "Computes the minimun of the array elements along the given axes.", reduceOp="min" ) )
 
     def executeOperation( self, task, input ):
-        return npArray.createResult( task, input, input.array.min( axis=self.getAxes(task.metadata), keepdims=True ) )
+        return npArray.createResult( task, input, input.array.min( axis=self.getAxes(task.metadata), keepdims=True ).filled( input.array.fill_value ) )
 
 
 class SumKernel(Kernel):
@@ -49,7 +49,7 @@ class SumKernel(Kernel):
         Kernel.__init__( self, KernelSpec("sum", "Sum","Computes the sum of the array elements along the given axes.", reduceOp="sum" ) )
     def executeOperation( self, task, input ):
         self.logger.info( " ------------------------------- SUM KERNEL: Operating on input '{0}', shape = {1}, origin = {2}".format( input.name, input.shape, input.origin ) )
-        return npArray.createResult( task, input, input.array.sum( axis=self.getAxes(task.metadata), keepdims=True ) )
+        return npArray.createResult( task, input, input.array.sum( axis=self.getAxes(task.metadata), keepdims=True ).filled( input.array.fill_value ) )
 
 class AverageKernel(Kernel):
     def __init__( self ):
@@ -60,15 +60,15 @@ class AverageKernel(Kernel):
         if None in kernel_inputs: raise Exception( "ExecuteTask ERROR: required input {0} not available in task inputs: {1}".format(task.inputs, inputs.keys()))
         results = []
         axes = self.getAxes(task.metadata)
-        self.logger.info("\n\n Execute Operations, inputs: " + str( task.inputs ) + ", task metadata = " + str(task.metadata) + ", axes = " + str(axes) )
+        self.logger.info("  ~~~~~~~~~~~~~~~~~~~~~~~~~~ Execute Operations, inputs: " + str( task.inputs ) + ", task metadata = " + str(task.metadata) + ", axes = " + str(axes) )
         for input in kernel_inputs:
             t0 = time.time()
             result_array = input.array.sum( axis=axes,   keepdims=True )
             mask_array = input.array.count(axis=self.getAxes(task.metadata), keepdims=True )
-            results.append( npArray.createResult( task, input, result_array  ) )
+            results.append( npArray.createResult( task, input, result_array.filled( input.array.fill_value )  ) )
             results.append( npArray.createAuxResult( task.rId + "_WEIGHTS_", dict( input.metadata, **task.metadata ), input, mask_array  ) )
             t1 = time.time()
-            self.logger.info( " ------------------------------- SUMW KERNEL: Operating on input '{0}', shape = {1}, origin = {2}, time = {3}".format( input.name, input.shape, input.origin, t1-t0 ))
+            self.logger.info( " ------------------------------- SUMW KERNEL: Operating on input '{0}', shape = {1}, origin = {2}, result sample = {3}, undef = {4}, time = {5}".format( input.name, input.shape, input.origin, result_array.flat[0:10], input.array.fill_value, t1-t0 ))
         return results
 
 
@@ -103,7 +103,7 @@ class WeightedAverageKernel(Kernel):
                     result = result.reshape( current_shape )
                     weights = weights.reshape( current_shape )
 
-                results.append( npArray.createResult( task, input, result ) )
+                results.append( npArray.createResult( task, input, result.filled( input.array.fill_value ) ) )
                 t1 = time.time()
                 self.logger.info( " ------------------------------- AVEW KERNEL: Operating on input '{0}', shape = {1}, origin = {2}, time = {3}".format( input.name, input.shape, input.origin, t1-t0 ))
         return results
@@ -123,11 +123,11 @@ class PtpKernel(Kernel):
     def __init__( self ):
         Kernel.__init__( self, KernelSpec("ptp", "Peak to Peak","Computes the peak to peak (maximum - minimum) value the along given axes.", parallelize=False ) )
     def executeOperation( self, task, input ):
-        return npArray.createResult( task, input, input.array.ptp( axis=self.getAxes(task.metadata), keepdims=True ) )
+        return npArray.createResult( task, input, input.array.ptp( axis=self.getAxes(task.metadata), keepdims=True ).filled( input.array.fill_value ) )
 
 class VarKernel(Kernel):
     def __init__( self ):
         Kernel.__init__( self, KernelSpec("var", "Variance","Computes the variance of the array elements along the given axes.", parallelize=False ) )
     def executeOperation( self, task, input ):
-        return npArray.createResult( task, input, input.array.var( axis=self.getAxes(task.metadata), keepdims=True ) )
+        return npArray.createResult( task, input, input.array.var( axis=self.getAxes(task.metadata), keepdims=True ).filled( input.array.fill_value ) )
 

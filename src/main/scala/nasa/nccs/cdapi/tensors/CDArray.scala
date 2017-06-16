@@ -395,6 +395,8 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     }
   }
 
+  def sample(size: Int): CDFloatArray = CDFloatArray(getSectionArray(size),getInvalid)
+
   def reinterp( weights: Map[Int,RemapElem] ): CDFloatArray = {
     val slices: Iterable[CDFloatArray] = for ( (i,elem) <- weights ) yield { slice(0,elem.index,1) * elem.weight0 + slice(0,elem.index+1,1) * elem.weight1 }
     slices.reduce( _ append _ )

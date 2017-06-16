@@ -148,13 +148,16 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("pyTimeAveTestLocal") {
-    val datainputs = s"""[domain=[{"name":"d0","level":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"file:///Users/tpmaxwel/.cdas/cache/collections/NCML/MERRA2-6hr-ana_Np.200001.ncml","name":"T:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","domain":"d0","axes":"t"}]]"""
-//    val datainputs = s"""[domain=[{"name":"d0","level":{"start":32,"end":32,"system":"indices"},"lat":{"start":100,"end":100,"system":"indices"}}],variable=[{"uri":"file:///Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MERRA2/6hr/MERRA2_200.inst6_3d_ana_Np.20000101.nc4","name":"T:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","domain":"d0","axes":"t"}]]"""
+//    datafile="/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MERRA2/6hr/MERRA2_200.inst6_3d_ana_Np.20000101.nc4"
+//    ncwa -O -v T -d lat,10,10 -d lon,20,20 -a time ${datafile} ~/test/out/time_ave.nc
+//    ncdump ~/test/out/time_ave.nc
+    val nco_result: CDFloatArray = CDFloatArray( Array(   262.6826, 261.1128, 259.5385, 257.9672, 256.5204, 254.8353, 253.2784, 251.6964, 247.9638, 243.8583, 239.538, 235.9563, 232.1338, 227.2614, 221.6774, 216.0401 ).map(_.toFloat), Float.MaxValue )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":10,"end":10,"system":"indices"},"lon":{"start":20,"end":20,"system":"indices"}}],variable=[{"uri":"file:///Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MERRA2/6hr/MERRA2_200.inst6_3d_ana_Np.20000101.nc4","name":"T:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","domain":"d0","axes":"t"}]]"""
     val result_node = executeTest(datainputs)
     val result_data = CDFloatArray( getResultData( result_node ) )
-    println( " ** CDMS Result:       " + result_data.mkBoundedDataString(", ",10) )
-    //    println( " ** NCO Result:       " + nco_result.mkDataString(", ") )
-    //    assert( result_data.maxScaledDiff( nco_result )  < eps, s" UVCDAT result (with generated weights) does not match NCO result (with cosine weighting)")
+    println( " ** CDMS Result:       " + result_data.mkBoundedDataString(", ",16) )
+    println( " ** NCO Result:       " + nco_result.mkDataString(", ") )
+    assert( result_data.sample(16).maxScaledDiff( nco_result )  < eps, s" UVCDAT result (with generated weights) does not match NCO result (with cosine weighting)")
   }
 
 //  test("pyMaxTestLocal") {

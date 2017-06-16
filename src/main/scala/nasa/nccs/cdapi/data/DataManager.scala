@@ -382,7 +382,7 @@ class ExtRDDPartSpec(val timeRange: RecordKey, val varSpecs: List[ RDDVariableSp
 class DirectRDDVariableSpec( uid: String, metadata: Map[String,String], missing: Float, section: CDSection, val varShortName: String, val dataPath: String  ) extends RDDVariableSpec( uid, metadata, missing, section  ) with Loggable {
   def toHeapArray(partition: Partition, iRecord: Int ) = {
     val recordSection = partition.recordSection( section.toSection, iRecord )
-    val part_size = recordSection.getShape.fold(1)(_*_)
+    val part_size = recordSection.getShape.product
     if( part_size > 0 ) {
       val fltData: CDFloatArray = CDFloatArray.factory(readVariableData(recordSection), missing)
       logger.debug("READ Variable section: %s, part[%d]: dim=%d, origin=(%s), shape=[%s], data shape=[%s], data size=%d, part size=%d, data buffer size=%d, recordSectionShape=%s, recordSectionOrigin=%s\n\n **********--> data sample = %s\n".format(
