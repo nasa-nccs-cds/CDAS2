@@ -337,7 +337,7 @@ object CDFloatArray extends Loggable with Serializable {
     val sameStructure = input0.getStride.sameElements(input1.getStride)
     val iter = MultiArrayIterator(input0,input1)
     val result = for (flatIndex <- iter; values = iter.values; v0 = values.head; v1 = values.last ) yield
-        if ( (v0 == iter.invalid) || (v1 == iter.invalid) ) iter.invalid else reductionOp( v0, v1 )
+        if ( (v0 == iter.invalid) || (v1 == iter.invalid) || v0.isNaN || v1.isNaN ) iter.invalid else reductionOp( v0, v1 )
     new CDFloatArray( iter.getShape, FloatBuffer.wrap(result.toArray), iter.invalid )
   }
 
@@ -373,7 +373,7 @@ object CDFloatArray extends Loggable with Serializable {
   def accumulate( reductionOp: ReduceOpFlt, input0: CDFloatArray, input1: CDFloatArray ): Unit = {
     val sameStructure = input0.getStride.sameElements(input1.getStride)
     val iter = MultiArrayIterator(input0,input1)
-    for ( flatIndex <- iter;  values = iter.values; v0 = values.head; v1 = values.last; if (v0 != iter.invalid) && (v1 != iter.invalid) ) {
+    for ( flatIndex <- iter;  values = iter.values; v0 = values.head; v1 = values.last; if (v0 != iter.invalid) && (v1 != iter.invalid) && !v1.isNaN && !v0.isNaN ) {
       input0.setStorageValue(flatIndex, reductionOp(v0, v1))
     }
   }
@@ -392,38 +392,6 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     try{ floatStorage.get( index ) } catch {
       case ex: Exception =>
         Float.NaN
-    }
-  }
-
-
-
-  def reduce1( reductionOp: CDArray.ReduceOp[Float], reduceDims: Array[Int], initVal: Float ): CDArray[Float] = {
-    if( reduceDims.isEmpty ) {
-      var value: Float = initVal
-//      val t0 = System.nanoTime()
-      for ( index <-( 0 until getSize ) ) {
-        val dval = getStorageValue( index )
-        if( valid(dval) ) { value = reductionOp(value, dval) }
-      }
-      if (value == initVal) value = getInvalid
-//      logger.info( s"Computing reduce, time = %.4f sec".format( (System.nanoTime() - t0) / 1.0E9) )
-      val shape = Array.fill[Int](getRank)(1)
-      CDArray[Float]( shape, Array[Float](value), getInvalid )
-    } else {
-//      val t0 = System.nanoTime()
-      val accumulator: CDArray[Float] = getAccumulator(reduceDims, initVal)
-      val iter = getIterator
-      for (index <- iter; array_value = getStorageValue(index); coordIndices = iter.getCoordinateIndices) {
-        if (valid(array_value)) {
-          val v0 = accumulator.getValue(coordIndices)
-          val reduced_value = reductionOp( v0, array_value)
-          accumulator.setValue(coordIndices, reduced_value)
-//          logger.info( "I-%d %.2f %.2f %.2f: coords = (%s), val = %.2f".format( accumulator.getIndex.getStorageIndex(coordIndices), array_value, v0, reduced_value, coordIndices.mkString(", "), accumulator.getValue(coordIndices) ) )
-        }
-      }
-      val rv = accumulator.getReducedArray
-//      logger.info( s"Computing generalized reduce, time = %.4f sec, value = %.2f".format( (System.nanoTime() - t0) / 1.0E9, rv.getStorageValue(0) ) )
-      rv
     }
   }
 
@@ -457,7 +425,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     if( maxSize < data.length ) { data.slice(0,maxSize) } else { data }
   }
   override def dup(): CDFloatArray = new CDFloatArray( cdIndexMap.getShape, this.getSectionData(), invalid )
-  def valid( value: Float ) = if( invalid.isNaN ) { !value.isNaN } else { value != invalid }
+  def valid( value: Float ) = { !invalid.isNaN && (value != invalid) }
   def toCDFloatArray( target: CDArray[Float] ) = new CDFloatArray( target.getIndex, target.getStorage.asInstanceOf[FloatBuffer], invalid )
   def spawn( shape: Array[Int], fillval: Float ): CDArray[Float] = CDArray( shape, FloatBuffer.wrap(Array.fill[Float]( shape.product )(fillval)), invalid  )
   def spawn( index: CDIndexMap, fillval: Float ): CDArray[Float] = {

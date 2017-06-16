@@ -4,15 +4,19 @@ import nasa.nccs.caching._
 import nasa.nccs.cdapi.data._
 import nasa.nccs.cdapi.tensors.{CDByteArray, CDFloatArray, CDIndexMap}
 import nasa.nccs.cdas.engine.WorkflowNode
-import nasa.nccs.cdas.engine.spark.{RecordKey}
+import nasa.nccs.cdas.engine.spark.RecordKey
+import nasa.nccs.esgf.process.DomainContainer.{filterMap, key_equals}
 import nasa.nccs.esgf.process.{DataFragmentSpec, _}
+import nasa.nccs.esgf.utilities.wpsNameMatchers
 import ucar.{ma2, nc2, unidata}
 import ucar.nc2.dataset.{CoordinateAxis1D, _}
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.nc2.constants.AxisType
+
 import scala.xml
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.util.matching.Regex
 
 object BoundsRole extends Enumeration { val Start, End = Value }
 
@@ -28,7 +32,7 @@ object CDSVariable extends Loggable {
 
 class CDSVariable( val name: String, val collection: Collection ) extends Loggable with Serializable {
   val attributes: Map[String,nc2.Attribute] = nc2.Attribute.makeMap( collection.getVariableMetadata( name ) ).toMap
-  val missing = getAttributeValue( "missing_value", "" ) match { case "" => Float.MaxValue; case s => s.toFloat }
+  val missing = findAttributeValue( "^.*missing.*$", "" ) match { case "" => Float.MaxValue; case s => s.toFloat }
   val description = getAttributeValue( "description", "" )
   val units = getAttributeValue( "units", "" )
   val dims = getAttributeValue( "dims", "" ).split(' ')
@@ -36,6 +40,13 @@ class CDSVariable( val name: String, val collection: Collection ) extends Loggab
   val fullname = getAttributeValue( "fullname", "" )
   val section = new ma2.Section( shape )
   def getFullSection: ma2.Section = section
+  def key_equals(key_regex: Regex)(map_item: (String, nc2.Attribute)): Boolean = {
+    key_regex.findFirstIn(map_item._1) match { case Some(x) => true; case None => false; }
+  }
+  def filterMap(raw_metadata: Map[String, nc2.Attribute],  keyRegExp: Regex, default: String ): String = {
+    raw_metadata.find(item=>key_equals(keyRegExp)(item)) match { case Some(x) => x._2.toString.split('=').last.replace('"',' ').trim; case None => default }
+  }
+  def findAttributeValue( keyRegExp: String, default_value: String ): String = filterMap( attributes, keyRegExp.r, default_value )
   def getAttributeValue( key: String, default_value: String  ) =  attributes.get( key ) match { case Some( attr_val ) => attr_val.toString.split('=').last.replace('"',' ').trim; case None => default_value }
   override def toString = "\nCDSVariable(%s) { description: '%s', shape: %s, dims: %s, }\n  --> Variable Attributes: %s".format(name, description, shape.mkString("[", " ", "]"), dims.mkString("[", ",", "]"), attributes.mkString("\n\t\t", "\n\t\t", "\n"))
   def normalize(sval: String): String = sval.stripPrefix("\"").stripSuffix("\"").toLowerCase
