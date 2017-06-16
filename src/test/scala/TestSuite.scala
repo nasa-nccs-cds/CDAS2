@@ -228,7 +228,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("ESGF_subDemo2") {
-    val unverified_result: CDFloatArray = CDFloatArray(  Array( 244.89293, 244.89293, 244.89293, 244.89293, 244.89294, 244.89293, 244.89293, 244.89293, 244.89293, 244.89293 ).map(_.toFloat), Float.MaxValue )
+    val unverified_result: CDFloatArray = CDFloatArray(  Array( 243.85841, 243.85841, 243.85841, 243.85841, 243.85841, 243.85841, 243.85841, 243.85841, 243.85841, 243.85841 ).map(_.toFloat), Float.MaxValue )
     val GISS_H_vids = ( 1 to nExp ) map { index => s"vH$index" }
     val GISS_H_variables     = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
     val datainputs = s"""[
