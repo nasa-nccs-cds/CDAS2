@@ -32,7 +32,14 @@ object CDSVariable extends Loggable {
 
 class CDSVariable( val name: String, val collection: Collection ) extends Loggable with Serializable {
   val attributes: Map[String,nc2.Attribute] = nc2.Attribute.makeMap( collection.getVariableMetadata( name ) ).toMap
-  val missing = findAttributeValue( "^.*missing.*$", "" ) match { case "" => Float.MaxValue; case s => s.toFloat }
+  val missing = findAttributeValue( "^.*missing.*$", "" ) match {
+    case "" =>
+      logger.warn( "Can't find missing value, attributes = " + attributes.keys.mkString(", ") )
+      Float.MaxValue;
+    case s =>
+      logger.info( "Found missing attribute value: " + s )
+      s.toFloat
+  }
   val description = getAttributeValue( "description", "" )
   val units = getAttributeValue( "units", "" )
   val dims = getAttributeValue( "dims", "" ).split(' ')
