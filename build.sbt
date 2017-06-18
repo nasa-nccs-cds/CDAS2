@@ -23,6 +23,7 @@ resolvers += "Boundless Maven Repository" at "http://repo.boundlessgeo.com/main"
 resolvers += "spray repo" at "http://repo.spray.io"
 resolvers += "Artima Maven Repository" at "http://repo.artima.com/releases"
 resolvers += "Geotoolkit" at "http://maven.geotoolkit.org/"
+resolvers += "Maven Central" at "http://central.maven.org/maven2/"
 
 enablePlugins(JavaAppPackaging)
 
