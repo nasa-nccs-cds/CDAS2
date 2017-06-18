@@ -240,7 +240,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
         case Some(inputSpec) =>
           logger.info("getInputSpec: %s -> %s ".format(uid, inputSpec.longname))
            if( workflowNode.kernel.extInputs ) {  uid -> new ExternalDataInput( inputSpec, workflowNode )                       }
-           else                                {  uid -> executionMgr.serverContext.getOperationInput(inputSpec, workflowNode )  }
+           else                                {  uid -> executionMgr.serverContext.getOperationInput(inputSpec, requestCx.getConfiguration, workflowNode )  }
         case None =>
           nodes.find(_.getResultId.equals(uid)) match {
             case Some(inode) =>

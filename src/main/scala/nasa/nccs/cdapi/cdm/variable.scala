@@ -160,8 +160,8 @@ class DirectOpDataInput(fragSpec: DataFragmentSpec, workflowNode: WorkflowNode  
     }
 }
 
-class CDASDirectDataInput(fragSpec: DataFragmentSpec, workflowNode: WorkflowNode ) extends DirectOpDataInput(fragSpec,workflowNode) {
-  def getPartitioner( optSection: Option[ma2.Section] = None ): Option[CDASPartitioner] = domainSection( optSection ) map { case( frag1, section) => new CDASPartitioner( section, Some(workflowNode), fragSpec.getTimeCoordinateAxis ) }
+class CDASDirectDataInput(fragSpec: DataFragmentSpec, partsConfig: Map[String,String], workflowNode: WorkflowNode ) extends DirectOpDataInput(fragSpec,workflowNode) {
+  def getPartitioner( optSection: Option[ma2.Section] = None ): Option[CDASPartitioner] = domainSection( optSection ) map { case( frag1, section) => new CDASPartitioner( section, partsConfig, Some(workflowNode), fragSpec.getTimeCoordinateAxis ) }
   override def data(partIndex: Int ): CDFloatArray = {
     CDFloatArray.empty
   }

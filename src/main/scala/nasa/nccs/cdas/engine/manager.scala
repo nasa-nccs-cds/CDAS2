@@ -169,7 +169,7 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
     for (data_container: DataContainer <- request.variableMap.values;
          if data_container.isSource;
          domainOpt = request.getDomain(data_container.getSource))
-      yield serverContext.cacheInputData(data_container, domainOpt, request.getTargetGrid(data_container), None )
+      yield serverContext.cacheInputData(data_container, run_args, domainOpt, request.getTargetGrid(data_container), None )
   }
 
   def deleteFragments( fragIds: Iterable[String] ) = {
