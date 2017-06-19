@@ -37,8 +37,8 @@ object DataAccessMode {
 object FragmentSelectionCriteria extends Enumeration { val Largest, Smallest = Value }
 
 trait DataLoader {
-  def getExistingFragment( fragSpec: DataFragmentSpec, workflowNodeOpt: Option[WorkflowNode]  ): Option[Future[PartitionedFragment]]
-  def cacheFragmentFuture( fragSpec: DataFragmentSpec, workflowNodeOpt: Option[WorkflowNode]  ): Future[PartitionedFragment];
+  def getExistingFragment( fragSpec: DataFragmentSpec, partsConfig: Map[String,String], workflowNodeOpt: Option[WorkflowNode]  ): Option[Future[PartitionedFragment]]
+  def cacheFragmentFuture( fragSpec: DataFragmentSpec, partsConfig: Map[String,String], workflowNodeOpt: Option[WorkflowNode]  ): Future[PartitionedFragment];
   def deleteFragments( fragIds: Iterable[String] )
   def clearCache: Set[String]
 }
@@ -522,9 +522,9 @@ class TargetGrid( variable: CDSVariable, roiOpt: Option[List[DomainAxis]]=None )
 // //   new PartitionedFragment( partitions, maskOpt, fragmentSpec )
 //  }
 
-  def loadFileDataIntoCache( fragmentSpec: DataFragmentSpec, workflowNodeOpt: Option[WorkflowNode], maskOpt: Option[CDByteArray] ): PartitionedFragment = {
+  def loadFileDataIntoCache( fragmentSpec: DataFragmentSpec, partsConfig: Map[String,String], workflowNodeOpt: Option[WorkflowNode], maskOpt: Option[CDByteArray] ): PartitionedFragment = {
     logger.info( "loadRoiViaCache" )
-    val cacheStream = new FileToCacheStream( fragmentSpec, workflowNodeOpt, maskOpt )
+    val cacheStream = new FileToCacheStream( fragmentSpec, partsConfig, workflowNodeOpt, maskOpt )
     val partitions: CachePartitions = cacheStream.cacheFloatData
     val newFragSpec = fragmentSpec.reshape( partitions.roi )
     val pfrag = new PartitionedFragment( partitions, maskOpt, newFragSpec )
@@ -538,15 +538,15 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
   def getVariable( collection: Collection, varname: String ): CDSVariable = collection.getVariable(varname)
   def getConfiguration: Map[String,String] = appParameters.getParameterMap
 
-  def getOperationInput( fragSpec: DataFragmentSpec, workflowNode: WorkflowNode ): OperationInput = {
-    dataLoader.getExistingFragment( fragSpec, Some(workflowNode) ) match {
+  def getOperationInput( fragSpec: DataFragmentSpec, partsConfig: Map[String,String], workflowNode: WorkflowNode ): OperationInput = {
+    dataLoader.getExistingFragment( fragSpec, partsConfig, Some(workflowNode) ) match {
       case Some( fragFut ) => Await.result( fragFut, Duration.Inf )
       case None =>
         if(fragSpec.autoCache) {
-          val fragFut = cacheInputData( fragSpec, Some(workflowNode) )
+          val fragFut = cacheInputData( fragSpec, partsConfig, Some(workflowNode) )
           Await.result( fragFut, Duration.Inf )
         }
-        else { new CDASDirectDataInput( fragSpec, workflowNode ) }
+        else { new CDASDirectDataInput( fragSpec, partsConfig, workflowNode ) }
     }
   }
 
@@ -623,11 +623,11 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
     rv
   }
 
-  def cacheInputData( fragSpec: DataFragmentSpec, workflowNodeOpt: Option[WorkflowNode] ): Future[PartitionedFragment] = {
+  def cacheInputData( fragSpec: DataFragmentSpec, partsConfig: Map[String,String], workflowNodeOpt: Option[WorkflowNode] ): Future[PartitionedFragment] = {
     logger.info( " ****>>>>>>>>>>>>> Cache Input Data: " + fragSpec.getKeyString )
-    dataLoader.getExistingFragment( fragSpec, workflowNodeOpt ) match {
+    dataLoader.getExistingFragment( fragSpec, partsConfig, workflowNodeOpt ) match {
       case Some(partFut) => partFut
-      case None => dataLoader.cacheFragmentFuture( fragSpec, workflowNodeOpt )
+      case None => dataLoader.cacheFragmentFuture( fragSpec, partsConfig, workflowNodeOpt )
     }
   }
 
@@ -637,7 +637,7 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
 
   def clearCache: Set[String] = dataLoader.clearCache
 
-  def cacheInputData( dataContainer: DataContainer, domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid, workflowNodeOpt: Option[WorkflowNode]  ): Option[( DataFragmentKey, Future[PartitionedFragment] )] = {
+  def cacheInputData( dataContainer: DataContainer, partsConfig: Map[String,String], domain_container_opt: Option[DomainContainer], targetGrid: TargetGrid, workflowNodeOpt: Option[WorkflowNode]  ): Option[( DataFragmentKey, Future[PartitionedFragment] )] = {
     val data_source: DataSource = dataContainer.getSource
     logger.info( "cacheInputData"  )
     val variable: CDSVariable = dataContainer.getVariable
@@ -653,13 +653,13 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
       val fragSpec = new DataFragmentSpec( dataContainer.uid, variable.name, variable.collection, data_source.fragIdOpt, Some(targetGrid), variable.dims.mkString(","),
       variable.units, variable.getAttributeValue("long_name", variable.fullname), section, optDomainSect, domain_mdata, variable.missing, maskOpt, data_source.autoCache )
       logger.info( "cache fragSpec: " + fragSpec.getKey.toString )
-      dataLoader.getExistingFragment(fragSpec, workflowNodeOpt) match {
+      dataLoader.getExistingFragment(fragSpec, partsConfig, workflowNodeOpt) match {
         case Some(partFut) =>
           logger.info( "Found existing cached fragment to match: " + fragSpec.getKey.toString )
           (fragSpec.getKey -> partFut)
         case None =>
           logger.info( "Creating new cached fragment: " + fragSpec.getKey.toString )
-          (fragSpec.getKey -> dataLoader.cacheFragmentFuture(fragSpec,workflowNodeOpt))
+          (fragSpec.getKey -> dataLoader.cacheFragmentFuture(fragSpec, partsConfig, workflowNodeOpt))
       }
     }
   }

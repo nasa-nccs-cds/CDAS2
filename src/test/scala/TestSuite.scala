@@ -1,3 +1,6 @@
+import java.net.URI
+import java.nio.file.{Path, Paths}
+
 import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.engine.spark.CDSparkContext
 import nasa.nccs.cdas.loaders.Collections
@@ -30,6 +33,10 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   val service = "cds2"
   val run_args = Map("async" -> "false")
   val printer = new scala.xml.PrettyPrinter(200, 3)
+  val test_data_dir = sys.env.get("CDAS_HOME_DIR") match {
+    case Some(cdas_home) => Paths.get( cdas_home, "src", "test", "resources", "data" )
+    case None => Paths.get("")
+  }
   after {
     if(shutdown_after) { cleanup() }
   }
@@ -148,13 +155,17 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("pyTimeAveTestLocal") {
-//    val datainputs = s"""[domain=[{"name":"d0","level":{"start":10,"end":10,"system":"indices"}}],variable=[{"uri":"file:///Users/tpmaxwel/.cdas/cache/collections/NCML/MERRA2-6hr-ana_Np.200001.ncml","name":"T:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","domain":"d0","axes":"t"}]]"""
-    val datainputs = s"""[domain=[{"name":"d0","level":{"start":32,"end":32,"system":"indices"},"lat":{"start":100,"end":100,"system":"indices"}}],variable=[{"uri":"file:///Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MERRA2/6hr/MERRA2_200.inst6_3d_ana_Np.20000101.nc4","name":"T:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","domain":"d0","axes":"t"}]]"""
-    val result_node = executeTest(datainputs)
+//    datafile=".../MERRA2_200.inst6_3d_ana_Np_T.20000101.nc4"
+//    ncwa -O -v T -d lat,10,10 -d lon,20,20 -a time ${datafile} ~/test/out/time_ave.nc
+//    ncdump ~/test/out/time_ave.nc
+    val data_file: URI = Paths.get( test_data_dir.toString, "MERRA2_200.inst6_3d_ana_Np_T.20000101.nc4" ).toUri
+    val nco_result: CDFloatArray = CDFloatArray( Array(   262.6826, 261.1128, 259.5385, 257.9672, 256.5204, 254.8353, 253.2784, 251.6964, 247.9638, 243.8583, 239.538, 235.9563, 232.1338, 227.2614, 221.6774, 216.0401 ).map(_.toFloat), Float.MaxValue )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":10,"end":10,"system":"indices"},"lon":{"start":20,"end":20,"system":"indices"}}],variable=[{"uri":"%s","name":"T:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","domain":"d0","axes":"t"}]]""".format( data_file.toString )
+    val result_node = executeTest( datainputs, Map("numParts"->"3") )
     val result_data = CDFloatArray( getResultData( result_node ) )
-    println( " ** CDMS Result:       " + result_data.mkBoundedDataString(", ",10) )
-    //    println( " ** NCO Result:       " + nco_result.mkDataString(", ") )
-    //    assert( result_data.maxScaledDiff( nco_result )  < eps, s" UVCDAT result (with generated weights) does not match NCO result (with cosine weighting)")
+    println( " ** CDMS Result:       " + result_data.mkBoundedDataString(", ",16) )
+    println( " ** NCO Result:       " + nco_result.mkDataString(", ") )
+    assert( result_data.sample(16).maxScaledDiff( nco_result )  < eps, s" UVCDAT result (with generated weights) does not match NCO result (with cosine weighting)")
   }
 
 //  test("pyMaxTestLocal") {
@@ -217,7 +228,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("ESGF_subDemo2") {
-    val unverified_result: CDFloatArray = CDFloatArray(  Array( 244.89293, 244.89293, 244.89293, 244.89293, 244.89294, 244.89293, 244.89293, 244.89293, 244.89293, 244.89293 ).map(_.toFloat), Float.MaxValue )
+    val unverified_result: CDFloatArray = CDFloatArray(  Array( 243.85841, 243.85841, 243.85841, 243.85841, 243.85841, 243.85841, 243.85841, 243.85841, 243.85841, 243.85841 ).map(_.toFloat), Float.MaxValue )
     val GISS_H_vids = ( 1 to nExp ) map { index => s"vH$index" }
     val GISS_H_variables     = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
     val datainputs = s"""[
@@ -232,25 +243,25 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     assert( result_data.maxScaledDiff( unverified_result )  < eps, s" Incorrect value computed for Max")
   }
 
-  test("ESGF_Demo") {
-      val unverified_result: CDFloatArray = CDFloatArray(  Array( 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908 ).map(_.toFloat), Float.MaxValue )
-      val GISS_H_vids = ( 1 to nExp ) map { index => s"vH$index" }
-      val GISS_E2R_vids = ( 1 to nExp ) map { index => s"vR$index" }
-      val GISS_H_variables     = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
-      val GISS_E2R_variables = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_E2R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
-      val datainputs = s"""[
-             variable=[$GISS_H_variables,$GISS_E2R_variables],
-             domain=[       {"name":"d0","time":{"start":"1985-01-01T00:00:00Z","end":"1985-04-04T00:00:00Z","system":"values"}},{"name":"d1","crs":"gaussian~128"}],
-             operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
-                            {"name":"CDSpark.multiAverage","input":"${GISS_E2R_vids.mkString(",")}","domain":"d0","id":"eaGISS-E2R"},
-                            {"name":"CDSpark.multiAverage","input":"eaGISS-E2R,eaGISS-H","domain":"d1","result":"esgfDemo"} ]
-            ]""".replaceAll("\\s", "")
-      val result_node = executeTest(datainputs)
-      val result_data = CDFloatArray( getResultData( result_node, false ).slice(0,0,10) )
-      println( " ** Op Result:         " + result_data.mkDataString(", ") )
-      println( " ** Unverified Result: " + unverified_result.mkDataString(", ") )
-      assert( result_data.maxScaledDiff( unverified_result )  < eps, s" Incorrect value computed for Max")
-    }
+//  test("ESGF_Demo") {
+//      val unverified_result: CDFloatArray = CDFloatArray(  Array( 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908, 242.11908 ).map(_.toFloat), Float.MaxValue )
+//      val GISS_H_vids = ( 1 to nExp ) map { index => s"vH$index" }
+//      val GISS_E2R_vids = ( 1 to nExp ) map { index => s"vR$index" }
+//      val GISS_H_variables     = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss_r${index}i1p1","name":"tas:${GISS_H_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
+//      val GISS_E2R_variables = ( ( 1 to nExp ) map { index =>  s"""{"uri":"collection:/giss-e2-r_r${index}i1p1","name":"tas:${GISS_E2R_vids(index-1)}","domain":"d0"}""" } ).mkString(",")
+//      val datainputs = s"""[
+//             variable=[$GISS_H_variables,$GISS_E2R_variables],
+//             domain=[       {"name":"d0","time":{"start":"1985-01-01T00:00:00Z","end":"1985-04-04T00:00:00Z","system":"values"}},{"name":"d1","crs":"gaussian~128"}],
+//             operation=[    {"name":"CDSpark.multiAverage","input":"${GISS_H_vids.mkString(",")}","domain":"d0","id":"eaGISS-H"},
+//                            {"name":"CDSpark.multiAverage","input":"${GISS_E2R_vids.mkString(",")}","domain":"d0","id":"eaGISS-E2R"},
+//                            {"name":"CDSpark.multiAverage","input":"eaGISS-E2R,eaGISS-H","domain":"d1","result":"esgfDemo"} ]
+//            ]""".replaceAll("\\s", "")
+//      val result_node = executeTest(datainputs)
+//      val result_data = CDFloatArray( getResultData( result_node, false ).slice(0,0,10) )
+//      println( " ** Op Result:         " + result_data.mkDataString(", ") )
+//      println( " ** Unverified Result: " + unverified_result.mkDataString(", ") )
+//      assert( result_data.maxScaledDiff( unverified_result )  < eps, s" Incorrect value computed for Max")
+//    }
 
     test("TimeSum-dap") {
       val nco_verified_result: CDFloatArray = CDFloatArray( Array( 140615.5f, 139952f, 139100.6f, 138552.2f, 137481.9f, 137100.5f ), Float.MaxValue )

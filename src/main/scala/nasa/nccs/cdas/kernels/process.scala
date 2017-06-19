@@ -351,26 +351,26 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     val resultValues = FloatBuffer.allocate(  weights0.data.length )
     values0.missing match {
       case Some( undef ) =>
-        for( index <- 0 until values0.data.length; v0 = values0.data(index); v1 = values1.data(index) ) {
-          if( v0 == undef ) {
-            if( v1 == undef ) {
+        for( index <- values0.data.indices; v0 = values0.data(index); v1 = values1.data(index) ) {
+          if( v0 == undef || v0.isNaN ) {
+            if( v1 == undef || v1.isNaN ) {
               resultValues.put( index, undef )
             } else {
               resultValues.put( index, v1 )
               resultWeights.put( index, weights1.data(index) )
             }
-          } else if( v1 == undef ) {
+          } else if( v1 == undef || v1.isNaN ) {
             resultValues.put( index, v0 )
             resultWeights.put( index, weights0.data(index) )
           } else {
-            val w0 = weights0.data(index);
-            val w1 = weights1.data(index);
+            val w0 = weights0.data(index)
+            val w1 = weights1.data(index)
             resultValues.put( index, v0 + v1 )
             resultWeights.put( index,  w0 + w1 )
           }
         }
       case None =>
-        for( index <- 0 until values0.data.length ) {
+        for( index <- values0.data.indices ) {
           resultValues.put( values0.data(index) + values1.data(index) )
           resultWeights.put( weights0.data(index) + weights1.data(index) )
         }
@@ -396,8 +396,8 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     values0.missing match {
       case Some( undef ) =>
         for( index <- values0.data.indices; v0 = values0.data(index); v1 = values1.data(index) ) {
-          if( v0 == undef ) {
-            if( v1 == undef ) {
+          if( v0 == undef || v0.isNaN ) {
+            if( v1 == undef || v1.isNaN ) {
               weightedValues0.put( index, undef )
               weightedValues1.put( index, undef )
             } else {
@@ -405,7 +405,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
               weightedValues1.put( index, v1*weights1.data(index) )
               weightsSum.put( index, weights1.data(index) )
             }
-          } else if( v1 == undef ) {
+          } else if( v1 == undef || v1.isNaN ) {
             weightedValues0.put( index, v0*weights0.data(index) )
             weightedValues1.put( index, undef )
             weightsSum.put( index, weights0.data(index) )
@@ -463,7 +463,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
           values.missing match {
             case Some( undef ) =>
               for( index <- values.data.indices; value = values.data(index) ) {
-                if( value == undef ) { undef }
+                if( value == undef || value.isNaN  ) { undef }
                 else {
                   val wval =  weights.data(index)
                   averageValues.put( value / wval )
@@ -482,7 +482,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
               case Some(undef) =>
                 if( postOp == "sqrt" ) {
                   for (index <- values.data.indices; value = values.data(index)) {
-                    if (value == undef) { undef }
+                    if (value == undef || value.isNaN  ) { undef }
                     else { averageValues.put(Math.sqrt(value).toFloat) }
                   }
                 } else if( postOp == "rms" ) {
@@ -492,7 +492,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
                   val norm_factor = reduce_ranges.map( _.length() ).fold(1)(_ * _) - 1
                   if( norm_factor == 0 ) { throw new Exception( "Missing or unrecognized 'axes' parameter in rms reduce op")}
                   for (index <- values.data.indices; value = values.data(index)) {
-                    if (value == undef) { undef }
+                    if (value == undef || value.isNaN  ) { undef }
                     else { averageValues.put(Math.sqrt(value/norm_factor).toFloat  ) }
                   }
                 }
