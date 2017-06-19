@@ -7,6 +7,7 @@ import nasa.nccs.cdapi.tensors.CDFloatArray
 import nasa.nccs.cdas.engine.spark.{RecordKey$, _}
 import nasa.nccs.cdas.kernels.Kernel.RDDKeyValPair
 import nasa.nccs.cdas.kernels._
+import nasa.nccs.cdas.utilities.runtime
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.{DAGNode, Loggable, ProfilingTool}
 import nasa.nccs.wps._
@@ -130,19 +131,21 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     }
   }
 
-  def mapReduceBatch( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext, batchIndex: Int ): Option[ ( RecordKey, RDDRecord ) ] =
-    prepareInputs(node, kernelContext, requestCx, batchIndex) map ( inputs => {
-      logger.info( s"Executing mapReduce Batch ${batchIndex.toString} for node ${node.getNodeId}" )
+  def mapReduceBatch( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext, batchIndex: Int ): Option[ ( RecordKey, RDDRecord ) ] = {
+    runtime.printMemoryUsage
+    prepareInputs(node, kernelContext, requestCx, batchIndex) map (inputs => {
+      logger.info(s"Executing mapReduce Batch ${batchIndex.toString} for node ${node.getNodeId}")
       val mapresult = node.map(inputs, kernelContext)
-      val result: ( RecordKey, RDDRecord ) = node.reduce( mapresult, kernelContext, batchIndex )
-      logger.info( s"Completed reduce op, result metadata: ${result._2.metadata.mkString(", ")}" )
-      mapReduceBatch( node, kernelContext, requestCx, batchIndex + 1 ) match {
-        case Some( next_result ) =>
+      val result: (RecordKey, RDDRecord) = node.reduce(mapresult, kernelContext, batchIndex)
+      logger.info(s"Completed reduce op, result metadata: ${result._2.metadata.mkString(", ")}")
+      mapReduceBatch(node, kernelContext, requestCx, batchIndex + 1) match {
+        case Some(next_result) =>
           val reduceOp = node.kernel.getReduceOp(kernelContext)
-          reduceOp( result, next_result )
+          reduceOp(result, next_result)
         case None => result
       }
     })
+  }
 
   def streamMapReduceBatch( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext, batchIndex: Int ): Option[RDD[(RecordKey,RDDRecord)]] =
     prepareInputs(node, kernelContext, requestCx, batchIndex) map ( inputs => {
