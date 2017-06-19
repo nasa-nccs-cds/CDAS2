@@ -104,10 +104,13 @@ class ResponseManager(Thread):
             self.logger.error( "CDAS error: {0}\n{1}\n".format(err, traceback.format_exc() ) )
 
     def getResponses( self, rId, wait=True ):
+        print "Waiting for a response from the server"
         while( True ):
             results = self.getResults(rId)
             if( (len(results) > 0) or not wait): return results
-            else: time.sleep(0.25)
+            else:
+                print "."
+                time.sleep(0.25)
 
     def getResponseVariables(self, rId, wait=True):
         responses = self.getResponses( rId, wait )
