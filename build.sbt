@@ -14,6 +14,7 @@ organization := "nasa.nccs"
 
 lazy val root = project in file(".")
 val sbtcp = taskKey[Unit]("sbt-classpath")
+val upscr = taskKey[Unit]("update-cdas-scripts")
 
 resolvers += "Unidata maven repository" at "http://artifacts.unidata.ucar.edu/content/repositories/unidata-releases"
 resolvers += "Java.net repository" at "http://download.java.net/maven/2"
@@ -126,29 +127,32 @@ cdasDefaultSetupScript := baseDirectory.value / "bin" / "setup_runtime.sh"
 cdasProperties := {
   val prop = new Properties()
   try{
-    if( !cdasPropertiesFile.value.exists() ) {
-      println("Copying default property file: " + cdasDefaultPropertiesFile.value.toString )
-      copy( cdasDefaultPropertiesFile.value.toPath, cdasPropertiesFile.value.toPath )
-    }
-
-    println("Copying default python run script: " + cdasDefaultPythonRunScript.value.toString )
-    copy( cdasDefaultPythonRunScript.value.toPath, cdasPythonRunScript.value.toPath )
-    println("Copying default python shutdown script: " + cdasDefaultPythonShutdownScript.value.toString )
-    copy( cdasDefaultPythonShutdownScript.value.toPath, cdasPythonShutdownScript.value.toPath )
-    println("Copying default cdas spark-cluster startup script: " + cdasDefaultStandaloneRunScript.value.toString )
-    copy( cdasDefaultStandaloneRunScript.value.toPath, cdasStandaloneRunScript.value.toPath )
-
-    if( !cdasSetupScript.value.exists() ) {
-      println("Copying default setup script: " + cdasDefaultSetupScript.value.toString )
-      copy( cdasDefaultSetupScript.value.toPath, cdasSetupScript.value.toPath )
-    }
-    println("Loading property file: " + cdasPropertiesFile.value.toString )
+     println("Loading property file: " + cdasPropertiesFile.value.toString )
     IO.load( prop, cdasPropertiesFile.value )
   } catch {
     case err: Exception => println("No property file found: " + cdasPropertiesFile.value.toString )
   }
   prop
 }
+
+upscr := {
+  if( !cdasPropertiesFile.value.exists() ) {
+    println("Copying default property file: " + cdasDefaultPropertiesFile.value.toString )
+    copy( cdasDefaultPropertiesFile.value.toPath, cdasPropertiesFile.value.toPath )
+  }
+  println("Copying default python run script: " + cdasDefaultPythonRunScript.value.toString )
+  copy( cdasDefaultPythonRunScript.value.toPath, cdasPythonRunScript.value.toPath )
+  println("Copying default python shutdown script: " + cdasDefaultPythonShutdownScript.value.toString )
+  copy( cdasDefaultPythonShutdownScript.value.toPath, cdasPythonShutdownScript.value.toPath )
+  println("Copying default cdas spark-cluster startup script: " + cdasDefaultStandaloneRunScript.value.toString )
+  copy( cdasDefaultStandaloneRunScript.value.toPath, cdasStandaloneRunScript.value.toPath )
+  if( !cdasSetupScript.value.exists() ) {
+    println("Copying default setup script: " + cdasDefaultSetupScript.value.toString )
+    copy( cdasDefaultSetupScript.value.toPath, cdasSetupScript.value.toPath )
+  }
+}
+
+compile  <<= (compile in Compile).dependsOn(upscr)
 
 def getCondaLibDir(): File = sys.env.get("CONDA_PREFIX") match {
   case Some(ldir) => file(ldir) / "lib"
