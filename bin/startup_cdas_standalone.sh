@@ -4,5 +4,5 @@ SPARK_PRINT_LAUNCH_COMMAND=true
 APP_DEP_JARS=$(find ~/.ivy2 -name "*.jar" )
 APP_DEP_CP=$(echo $APP_DEP_JARS | sed -r 's/[ \n\r]+/:/g')
 echo "Application classpath:  $APP_DEP_CP "
-$SPARK_HOME/bin/spark-submit --class nasa.nccs.cdas.portal.CDASApplication --master spark://cldralogin101:7077 --deploy-mode client --conf "spark.executor.extraClassPath=${APP_DEP_CP}" --conf "spark.driver.extraClassPath=${APP_DEP_CP}" --conf "spark.executor.memory=2g" --driver-memory 8g ${CDAS_JAR} bind 4356 4357 ${CDAS_CACHE_DIR}/cdas.properties
+$SPARK_HOME/bin/spark-submit --class nasa.nccs.cdas.portal.CDASApplication --master spark://cldralogin101:7077 --deploy-mode client --conf "spark.executor.extraClassPath=${APP_DEP_CP}" --conf "spark.driver.extraClassPath=${APP_DEP_CP}" --executor-memory 50G --driver-memory 8G ${CDAS_JAR} bind 4356 4357 ${CDAS_CACHE_DIR}/cdas.properties
 
