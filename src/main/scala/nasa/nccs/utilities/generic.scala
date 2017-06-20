@@ -1,12 +1,15 @@
 package nasa.nccs.utilities
 
 import java.io.{File, PrintWriter}
+import java.lang.management.ManagementFactory
 import java.util.jar.JarFile
 import java.nio.file.{Files, Path, Paths}
+
 import scala.xml
 import com.joestelmach.natty
 import ucar.nc2.time.CalendarDate
-import java.nio.file.{ Files, Path }
+import java.nio.file.{Files, Path}
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -32,7 +35,8 @@ import scala.collection.mutable
 
 class Logger( val name: String, val test: Boolean ) extends Serializable {
   val logid = if( test ) name + "-test" else name
-  val logFilePath: Path = Paths.get( System.getProperty("user.home"), ".cdas", logid + ".log" )
+  val node_name = ManagementFactory.getRuntimeMXBean.getName.split("@").last.split(".").head
+  val logFilePath: Path = Paths.get( System.getProperty("user.home"), ".cdas-", node_name, logid + ".log" )
   val writer = if(Files.exists(logFilePath)) {
     new PrintWriter(logFilePath.toString)
   } else {

@@ -329,6 +329,8 @@ class DirectRDDPartSpec(val partition: Partition, val timeRange: RecordKey, val 
 
   def getRDDRecordSpecs(): IndexedSeq[DirectRDDRecordSpec] = ( 0 until partition.nRecords ) map ( DirectRDDRecordSpec( this, _ ) )
 
+  def index = partition.index
+
   def empty( uid: String ): Boolean = varSpecs.find( _.uid == uid ) match {
     case Some( varSpec ) => varSpec.empty
     case None => true
@@ -345,13 +347,14 @@ class DirectRDDRecordSpec(val partition: Partition, iRecord: Int, val timeRange:
   def getRDDPartition(kernelContext: KernelContext, batchIndex: Int ): RDDRecord = {
     val t0 = System.nanoTime()
     val elements =  Map( varSpecs.flatMap( vSpec => if(vSpec.empty) None else Some(vSpec.uid, vSpec.toHeapArray(partition,iRecord)) ): _* )
-    val rv = RDDRecord( elements, Map.empty )
+    val rv = RDDRecord( elements, Map( "partIndex" -> partition.index.toString, "recIndex" -> iRecord.toString, "batchIndex" -> batchIndex.toString ) )
     val dt = (System.nanoTime() - t0) / 1.0E9
     logger.debug( "DirectRDDRecordSpec{ partition = %s, record = %d }: completed data input in %.4f sec".format( partition.toString, iRecord, dt) )
     kernelContext.addTimestamp( "Created input RDD { partition = %s, record = %d, batch = %d } in %.4f sec".format( partition.toString, iRecord, batchIndex, dt) )
     rv
   }
 
+  def index = partition.index
   override def toString() = s"RDD-Record[${iRecord.toString}]{ ${partition.toString}, ${timeRange.toString} }"
 
   def empty( uid: String ): Boolean = varSpecs.find( _.uid == uid ) match {
