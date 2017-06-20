@@ -141,11 +141,11 @@ upscr := {
     println("Copying default property file: " + cdasDefaultPropertiesFile.value.toString )
     copy( cdasDefaultPropertiesFile.value.toPath, cdasPropertiesFile.value.toPath )
   }
-  println("Copying default python run script: " + cdasDefaultPythonRunScript.value.toString )
+  println("Copying default python run script: " + cdasDefaultPythonRunScript.value.toString)
   copy( cdasDefaultPythonRunScript.value.toPath, cdasPythonRunScript.value.toPath, StandardCopyOption.REPLACE_EXISTING )
   println("Copying default python shutdown script: " + cdasDefaultPythonShutdownScript.value.toString )
   copy( cdasDefaultPythonShutdownScript.value.toPath, cdasPythonShutdownScript.value.toPath, StandardCopyOption.REPLACE_EXISTING )
-  println("Copying default cdas spark-cluster startup script: " + cdasDefaultStandaloneRunScript.value.toString )
+  println("Copying default cdas spark-cluster startup script: " + cdasDefaultStandaloneRunScript.value.toString  + " to " + cdasStandaloneRunScript.value.toString )
   copy( cdasDefaultStandaloneRunScript.value.toPath, cdasStandaloneRunScript.value.toPath, StandardCopyOption.REPLACE_EXISTING )
   if( !cdasSetupScript.value.exists() ) {
     println("Copying default setup script: " + cdasDefaultSetupScript.value.toString )
