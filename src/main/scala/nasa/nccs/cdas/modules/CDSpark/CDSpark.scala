@@ -185,7 +185,9 @@ class average extends SingularRDDKernel(Map.empty) {
     })
     logger.info("Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9))
     context.addTimestamp( "Map Op complete" )
-    RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid, "axes" -> axes.toUpperCase ) )
+    val rv = RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid, "axes" -> axes.toUpperCase ) )
+    logger.info("Returning result value")
+    rv
   }
   override def combineRDD(context: KernelContext)(a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)(a0, a1)
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
