@@ -10,6 +10,8 @@ import com.joestelmach.natty
 import ucar.nc2.time.CalendarDate
 import java.nio.file.{Files, Path}
 
+import nasa.nccs.esgf.process.UID
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -35,8 +37,7 @@ import scala.collection.mutable
 
 class Logger( val name: String, val test: Boolean ) extends Serializable {
   val logid = if( test ) name + "-test" else name
-  val node_name = ManagementFactory.getRuntimeMXBean.getName
-  val logFilePath: Path = Paths.get( System.getProperty("user.home"), ".cdas-", node_name, logid + ".log" )
+  val logFilePath: Path = Paths.get( System.getProperty("user.home"), ".cdas-", UID.toString, logid + ".log" )
   val writer = if(Files.exists(logFilePath)) {
     new PrintWriter(logFilePath.toString)
   } else {
