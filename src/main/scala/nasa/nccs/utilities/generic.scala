@@ -35,7 +35,7 @@ import scala.collection.mutable
 
 class Logger( val name: String, val test: Boolean ) extends Serializable {
   val logid = if( test ) name + "-test" else name
-  val node_name = ManagementFactory.getRuntimeMXBean.getName.split("@").last.split(".").head
+  val node_name = ManagementFactory.getRuntimeMXBean.getName
   val logFilePath: Path = Paths.get( System.getProperty("user.home"), ".cdas-", node_name, logid + ".log" )
   val writer = if(Files.exists(logFilePath)) {
     new PrintWriter(logFilePath.toString)
