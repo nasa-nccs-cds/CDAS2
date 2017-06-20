@@ -63,6 +63,8 @@ lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The cdas defaultproperties file")
 lazy val cdasPythonRunScript = settingKey[File]("The cdas python worker startup script")
 lazy val cdasDefaultPythonRunScript = settingKey[File]("The default cdas python worker startup script")
+lazy val cdasStandaloneRunScript = settingKey[File]("The cdas spark-cluster startup script")
+lazy val cdasDefaultStandaloneRunScript = settingKey[File]("The default cdas spark-cluster startup script")
 lazy val cdasPythonShutdownScript = settingKey[File]("The cdas python worker shutdown script")
 lazy val cdasDefaultPythonShutdownScript = settingKey[File]("The default cdas python worker shutdown script")
 lazy val cdasSetupScript = settingKey[File]("The cdas setup runtime script")
@@ -114,6 +116,8 @@ cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
 cdasPythonRunScript := cdas_sbin_dir.value / "startup_python_worker.sh"
 cdasDefaultPythonRunScript := baseDirectory.value / "bin" / "startup_python_worker.sh"
+cdasStandaloneRunScript := cdas_sbin_dir.value / "startup_cdas_standalone.sh"
+cdasDefaultStandaloneRunScript := baseDirectory.value / "bin" / "startup_cdas_standalone.sh"
 cdasPythonShutdownScript := cdas_sbin_dir.value / "shutdown_python_worker.sh"
 cdasDefaultPythonShutdownScript := baseDirectory.value / "bin" / "shutdown_python_worker.sh"
 cdasSetupScript := cdas_sbin_dir.value / "setup_runtime.sh"
@@ -126,14 +130,14 @@ cdasProperties := {
       println("Copying default property file: " + cdasDefaultPropertiesFile.value.toString )
       copy( cdasDefaultPropertiesFile.value.toPath, cdasPropertiesFile.value.toPath )
     }
-    if( !cdasPythonRunScript.value.exists() ) {
-      println("Copying default python run script: " + cdasDefaultPythonRunScript.value.toString )
-      copy( cdasDefaultPythonRunScript.value.toPath, cdasPythonRunScript.value.toPath )
-    }
-    if( !cdasPythonShutdownScript.value.exists() ) {
-      println("Copying default python shutdown script: " + cdasDefaultPythonShutdownScript.value.toString )
-      copy( cdasDefaultPythonShutdownScript.value.toPath, cdasPythonShutdownScript.value.toPath )
-    }
+
+    println("Copying default python run script: " + cdasDefaultPythonRunScript.value.toString )
+    copy( cdasDefaultPythonRunScript.value.toPath, cdasPythonRunScript.value.toPath )
+    println("Copying default python shutdown script: " + cdasDefaultPythonShutdownScript.value.toString )
+    copy( cdasDefaultPythonShutdownScript.value.toPath, cdasPythonShutdownScript.value.toPath )
+    println("Copying default cdas spark-cluster startup script: " + cdasDefaultStandaloneRunScript.value.toString )
+    copy( cdasDefaultStandaloneRunScript.value.toPath, cdasStandaloneRunScript.value.toPath )
+
     if( !cdasSetupScript.value.exists() ) {
       println("Copying default setup script: " + cdasDefaultSetupScript.value.toString )
       copy( cdasDefaultSetupScript.value.toPath, cdasSetupScript.value.toPath )
