@@ -109,7 +109,7 @@ class ResponseManager(Thread):
             results = self.getResults(rId)
             if( (len(results) > 0) or not wait): return results
             else:
-                print "."
+                print ".",
                 time.sleep(0.25)
 
     def getResponseVariables(self, rId, wait=True):
