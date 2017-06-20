@@ -1,6 +1,7 @@
 import java.io.PrintWriter
 import java.nio.file.Files.copy
 import java.nio.file.Paths.get
+import java.nio.file.StandardCopyOption
 
 import sbt.{SettingKey, _}
 
@@ -141,11 +142,11 @@ upscr := {
     copy( cdasDefaultPropertiesFile.value.toPath, cdasPropertiesFile.value.toPath )
   }
   println("Copying default python run script: " + cdasDefaultPythonRunScript.value.toString )
-  copy( cdasDefaultPythonRunScript.value.toPath, cdasPythonRunScript.value.toPath )
+  copy( cdasDefaultPythonRunScript.value.toPath, cdasPythonRunScript.value.toPath, StandardCopyOption.REPLACE_EXISTING )
   println("Copying default python shutdown script: " + cdasDefaultPythonShutdownScript.value.toString )
-  copy( cdasDefaultPythonShutdownScript.value.toPath, cdasPythonShutdownScript.value.toPath )
+  copy( cdasDefaultPythonShutdownScript.value.toPath, cdasPythonShutdownScript.value.toPath, StandardCopyOption.REPLACE_EXISTING )
   println("Copying default cdas spark-cluster startup script: " + cdasDefaultStandaloneRunScript.value.toString )
-  copy( cdasDefaultStandaloneRunScript.value.toPath, cdasStandaloneRunScript.value.toPath )
+  copy( cdasDefaultStandaloneRunScript.value.toPath, cdasStandaloneRunScript.value.toPath, StandardCopyOption.REPLACE_EXISTING )
   if( !cdasSetupScript.value.exists() ) {
     println("Copying default setup script: " + cdasDefaultSetupScript.value.toString )
     copy( cdasDefaultSetupScript.value.toPath, cdasSetupScript.value.toPath )
