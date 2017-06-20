@@ -132,12 +132,12 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def mapReduceBatch( node: WorkflowNode, kernelContext: KernelContext, requestCx: RequestContext, batchIndex: Int ): Option[ ( RecordKey, RDDRecord ) ] = {
-    runtime.printMemoryUsage
     prepareInputs(node, kernelContext, requestCx, batchIndex) map (inputs => {
-      logger.info(s"Executing mapReduce Batch ${batchIndex.toString} for node ${node.getNodeId}")
+      logger.info(s"Executing Map Op, Batch ${batchIndex.toString} for node ${node.getNodeId}")
       val mapresult = node.map(inputs, kernelContext)
+      logger.info(s"Executing Reduce Op, Batch ${batchIndex.toString} for node ${node.getNodeId}")
       val result: (RecordKey, RDDRecord) = node.reduce(mapresult, kernelContext, batchIndex)
-      logger.info(s"Completed reduce op, result metadata: ${result._2.metadata.mkString(", ")}")
+      logger.info(s"Completed Reduce op, result metadata: ${result._2.metadata.mkString(", ")}")
       mapReduceBatch(node, kernelContext, requestCx, batchIndex + 1) match {
         case Some(next_result) =>
           val reduceOp = node.kernel.getReduceOp(kernelContext)
