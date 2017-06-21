@@ -635,6 +635,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   def weightedValueSumRDDCombiner( context: KernelContext)(a0: RDDRecord, a1: RDDRecord ): RDDRecord = {
     val axes = context.getAxes
     if (axes.includes(0)) {
+      val t0 = System.nanoTime
       val rid = context.operation.rid
       val vTot: CDFloatArray = fltArray(a0, rid) + fltArray(a1, rid)
       val vOrigin: Array[Int] = originArray( a0, rid )
@@ -642,7 +643,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
       val array_mdata = MetadataOps.mergeMetadata( context.operation.name )( arrayMdata(a0, rid), arrayMdata(a1, rid) )
       val element = rid -> HeapFltArray( vTot, vOrigin, array_mdata, wTotOpt )
       val part_mdata = MetadataOps.mergeMetadata( context.operation.name )( a0.metadata, a1.metadata )
-      logger.info("weightedValueSumCombiner, values shape = %s, result spec = %s".format(vTot.getShape.mkString(","), a0.metadata.toString))
+      logger.info("weightedValueSumCombiner, values shape = %s, time = %.2f s, result spec = %s".format(vTot.getShape.mkString(","), (System.nanoTime-t0)/1.0e9, a0.metadata.toString))
       context.addTimestamp( "weightedValueSumCombiner complete" )
       new RDDRecord( Map(element), part_mdata )
     }

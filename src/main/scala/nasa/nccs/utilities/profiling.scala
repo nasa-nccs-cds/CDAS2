@@ -21,7 +21,7 @@ object TimeStamp {
 class TimeStamp( val elapasedJobTime: Float, val label: String ) extends Serializable with Ordered [TimeStamp] with Loggable {
   import TimeStamp._
   val tid = s"TimeStamp[${getWorkerSignature}]"
-  val sval = s"TimeStamp[${tid}] { ${elapasedJobTime.toString} => $label"
+  val sval = s"TIME[${getWorkerSignature}] { ${elapasedJobTime.toString} => $label }"
   override def toString(): String = { sval }
   def compare (that: TimeStamp) = { elapasedJobTime.compareTo( that.elapasedJobTime ) }
 }
