@@ -57,7 +57,9 @@ class CacheChunk(val offset: Int,
 
 object BatchSpec extends Loggable {
   lazy val serverContext = cds2ServiceProvider.cds2ExecutionManager.serverContext
-  lazy val nParts = appParameters( "parts.per.node", "1" ).toInt
+  lazy val nCores = appParameters( "parts.per.node", "1" ).toInt
+  lazy val nNodes = appParameters( "num.cluster.nodes", "1" ).toInt
+  lazy val nParts = nCores * nNodes
   def apply( index: Int ): BatchSpec = { new BatchSpec( index*nParts, nParts ) }
 }
 
