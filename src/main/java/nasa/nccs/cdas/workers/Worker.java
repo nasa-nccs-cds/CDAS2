@@ -149,6 +149,7 @@ public abstract class Worker {
     }
 
     public void quit() {
+        logger.debug("Sending Quit request" );
         request_socket.send( "util|quit".getBytes(), 0 );
         try { resultThread.term();  }  catch ( Exception ex ) { ; }
         try { request_socket.close(); }  catch ( Exception ex ) { ; }

@@ -61,7 +61,10 @@ object BatchSpec extends Loggable {
   lazy val nProcessors = math.min( getSparkMaxCores, maxProc )
   lazy val localNProcessors = Math.min( maxProc, Runtime.getRuntime.availableProcessors )
   lazy val nParts = nProcessors - 1
-  def apply( index: Int ): BatchSpec = new BatchSpec( index*nParts, nParts )
+  def apply( index: Int ): BatchSpec = {
+    logger.info( s"Creating Batch Spec: maxProc = ${maxProc}, nProcessors = ${nProcessors}, nParts = ${nParts} ")
+    new BatchSpec( index*nParts, nParts )
+  }
 
   def getSparkMaxCores = { serverContext.spark.totalClusterCores.toString.toInt }
 }
