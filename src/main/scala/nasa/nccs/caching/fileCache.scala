@@ -57,16 +57,8 @@ class CacheChunk(val offset: Int,
 
 object BatchSpec extends Loggable {
   lazy val serverContext = cds2ServiceProvider.cds2ExecutionManager.serverContext
-  lazy val maxProc = appParameters( "procs.maxnum", Int.MaxValue.toString ).toInt
-  lazy val nProcessors = math.min( getSparkMaxCores, maxProc )
-  lazy val localNProcessors = Math.min( maxProc, Runtime.getRuntime.availableProcessors )
-  lazy val nParts = nProcessors - 1
-  def apply( index: Int ): BatchSpec = {
-    logger.info( s"Creating Batch Spec: maxProc = ${maxProc}, nProcessors = ${nProcessors}, nParts = ${nParts} ")
-    new BatchSpec( index*nParts, nParts )
-  }
-
-  def getSparkMaxCores = { serverContext.spark.totalClusterCores.toString.toInt }
+  lazy val nParts = appParameters( "parts.per.node", "1" ).toInt
+  def apply( index: Int ): BatchSpec = { new BatchSpec( index*nParts, nParts ) }
 }
 
 case class BatchSpec( iStartPart: Int, nParts: Int ) {
