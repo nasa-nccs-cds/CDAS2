@@ -10,7 +10,7 @@ import nasa.nccs.cdas.portal.CDASApplication.logger
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 import nasa.nccs.cdas.portal.CDASPortal.ConnectionMode._
 import nasa.nccs.cdas.utilities.appParameters
-import nasa.nccs.utilities.Loggable
+import nasa.nccs.utilities.{CDASLogManager, Loggable}
 import org.apache.spark.SparkEnv
 
 import scala.xml
@@ -108,6 +108,7 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
 object CDASApplication extends Loggable {
   def main(args: Array[String]) {
     import CDASapp._
+    CDASLogManager.isMaster
     logger.info(s"Executing CDAS with args: ${args.mkString(",")}, nprocs: ${Runtime.getRuntime.availableProcessors()}")
     val connect_mode = elem(args, 0, "bind")
     val request_port = elem(args, 1, "0").toInt
@@ -124,6 +125,7 @@ object CDASApplication extends Loggable {
 
 object TestApplication extends Loggable {
   def main(args: Array[String]) {
+    CDASLogManager.isMaster
     val sc = CDSparkContext()
     val indices = sc.sparkContext.parallelize( Array.range(0,500), 100 )
     val base_time = System.currentTimeMillis()

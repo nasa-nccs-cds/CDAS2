@@ -46,6 +46,7 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
     if( !kernel.parallelizable || (nparts==1) ) { mapresult.collect()(0) }
     else {
       val nParts: Int = if( context.commutativeReduction ) { mapresult.partitions.length } else { 1 }
+      logger.debug( "NPARTS: " + nParts )
       val result = mapresult.sortByKey(true,nParts) reduce kernel.getReduceOp(context)
       logger.debug("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
       context.addTimestamp( "FINISHED reduce Operation" )
@@ -167,7 +168,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
       }})
 
   def streamReduceNode(mapresult: RDD[(RecordKey,RDDRecord)], node: WorkflowNode, context: KernelContext, batchIndex: Int ): RDD[(RecordKey,RDDRecord)] = {
-    logger.debug( "\n\n ----------------------- BEGIN reduce[%d] Operation: %s (%s): thread(%s) ----------------------- \n".format( batchIndex, context.operation.identifier, context.operation.rid, Thread.currentThread().getId ) )
+    logger.debug( "\n\n ----------------------- BEGIN stream reduce[%d] Operation: %s (%s): thread(%s) ----------------------- \n".format( batchIndex, context.operation.identifier, context.operation.rid, Thread.currentThread().getId ) )
     val t0 = System.nanoTime()
     if( context.doesTimeReduction ) {
       val nparts = mapresult.getNumPartitions
@@ -177,6 +178,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
       else {
         val inputNParts = mapresult.partitions.length
         val intermediateNParts: Int = if (context.commutativeReduction) { inputNParts } else { 1 }
+        logger.debug( "NPARTS: " + inputNParts + ", " + intermediateNParts )
         val pre_result_pair = mapresult.sortByKey( true, intermediateNParts ) reduce node.kernel.getReduceOp(context)
         val result = pre_result_pair._1 -> node.kernel.postRDDOp( pre_result_pair._2, context  )
         logger.debug("\n\n ----------------------- FINISHED stream reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))

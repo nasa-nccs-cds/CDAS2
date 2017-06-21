@@ -35,9 +35,10 @@ import scala.collection.mutable
 //  Logger.getRootLogger().addAppender(fa);
 //}
 
-class Logger( val name: String, val test: Boolean ) extends Serializable {
-  val logid = if( test ) name + "-test" else name + "-"
-  val logFilePath: Path = Paths.get( System.getProperty("user.home"), ".cdas", "logs", logid + UID().uid + ".log" )
+class Logger( val name: String, val test: Boolean, val master: Boolean ) extends Serializable {
+  val LNAME = if( test ) name + "-test" else name + "-"
+  val LID = if( master ) "master" else UID().uid
+  val logFilePath: Path = Paths.get( System.getProperty("user.home"), ".cdas", "logs", LNAME + LID + ".log" )
   val writer = if(Files.exists(logFilePath)) {
     new PrintWriter(logFilePath.toString)
   } else {
@@ -45,7 +46,7 @@ class Logger( val name: String, val test: Boolean ) extends Serializable {
     new PrintWriter( new File( logFilePath.toString ) )
   }
   def log( level: String, msg: String  ) = {
-    val output = logid + "-" + level + ": " + msg
+    val output = level + ": " + msg
     writer.println( output )
     writer.flush()
     if(!test) { println( output ) }
@@ -59,8 +60,10 @@ class Logger( val name: String, val test: Boolean ) extends Serializable {
 
 object CDASLogManager extends Serializable {
   private var _test = false
-  lazy private val _logger: Logger = new Logger("cdas",_test)
+  private var _master = false
+  lazy private val _logger: Logger = new Logger("cdas",_test,_master)
   def testing = { _test = true }
+  def isMaster = { _master = true }
   def getCurrentLogger() = { _logger }
 
 //  def getLogger( name: String ) = {

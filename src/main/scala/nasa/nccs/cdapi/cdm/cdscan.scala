@@ -9,8 +9,7 @@ import java.util.Formatter
 import nasa.nccs.cdapi.tensors.CDDoubleArray
 import nasa.nccs.cdas.loaders.Collections
 import nasa.nccs.cdas.utilities.{appParameters, runtime}
-import nasa.nccs.utilities.Loggable
-import nasa.nccs.utilities.cdsutils
+import nasa.nccs.utilities.{CDASLogManager, Loggable, cdsutils}
 import ucar.nc2.{FileWriter => _, _}
 import ucar.{ma2, nc2}
 import ucar.nc2.constants.AxisType
@@ -436,6 +435,7 @@ class FileMetadata(ncDataset: NetcdfDataset) {
 object CDScan extends Loggable {
     def main(args: Array[String]) {
       if( args.length < 2 ) { println( "Usage: dsagg <collectionID> <datPath>"); return }
+      CDASLogManager.isMaster
       val collectionId = args(0)
       val pathFile = new File(args(1))
       val ncmlFile = NCMLWriter.getCachePath("NCML").resolve(collectionId + ".ncml" ).toFile
