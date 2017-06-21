@@ -388,13 +388,13 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
       val timeSteps: List[CalendarDate] = timeAxis.section(sectionRange).getCalendarDates.toList
       for( (timeStep, timeIndex) <- timeSteps.zipWithIndex; seasonFilter <- seasonFilters ) { seasonFilter.processTimestep( timeIndex, timeStep  ) }
       val all_records = for( seasonFilter <- seasonFilters; record <- seasonFilter.getRecords ) yield { record }
-      val partitions: IndexedSeq[Partition] = if( all_records.length < BatchSpec.nProcessors ) {
+      val partitions: IndexedSeq[Partition] = if( all_records.length <= BatchSpec.nParts ) {
         for( ( record, partIndex ) <- all_records.zipWithIndex ) yield {
           new FilteredPartition(partIndex, 0, record.first, record.length, sliceMemorySize, _section.getOrigin, baseShape, Array(record))
         }
       } else {
         val nRecs = seasonFilters(0).getNRecords
-        val seasonRecsPerPartition = Math.ceil( nRecs / ( BatchSpec.nProcessors - 1f ) ).toInt
+        val seasonRecsPerPartition = Math.ceil( nRecs / ( BatchSpec.nParts ) ).toInt
         val nParts = Math.ceil( nRecs / seasonRecsPerPartition.toFloat ).toInt
         val partSize = Math.ceil( baseShape(0)/nParts.toFloat ).toInt
         ( 0 until nParts ) map ( partIndex => {
@@ -403,7 +403,7 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
           new FilteredPartition(partIndex, 0, records.head.first, partSize, sliceMemorySize, _section.getOrigin, baseShape, records )
         } )
       }
-      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions for ${BatchSpec.nProcessors} procs: \n ${partitions.map( _.toString ).mkString( "\n\t" )}  \n---------------------------------------------\n")
+      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating partitions for ${BatchSpec.nParts} procs: \n ${partitions.map( _.toString ).mkString( "\n\t" )}  \n---------------------------------------------\n")
       new CDASPartitionSpec( partitions )
     }
   }
