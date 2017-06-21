@@ -41,6 +41,7 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
 
   def reduce(mapresult: RDD[(RecordKey,RDDRecord)], context: KernelContext, batchIndex: Int ): (RecordKey,RDDRecord) = {
     logger.debug( "\n\n ----------------------- BEGIN reduce[%d] Operation: %s (%s): thread(%s) ----------------------- \n".format( batchIndex, context.operation.identifier, context.operation.rid, Thread.currentThread().getId ) )
+    runtime.printMemoryUsage
     val t0 = System.nanoTime()
     val nparts = mapresult.getNumPartitions
     if( !kernel.parallelizable || (nparts==1) ) { mapresult.collect()(0) }
@@ -169,6 +170,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def streamReduceNode(mapresult: RDD[(RecordKey,RDDRecord)], node: WorkflowNode, context: KernelContext, batchIndex: Int ): RDD[(RecordKey,RDDRecord)] = {
     logger.debug( "\n\n ----------------------- BEGIN stream reduce[%d] Operation: %s (%s): thread(%s) ----------------------- \n".format( batchIndex, context.operation.identifier, context.operation.rid, Thread.currentThread().getId ) )
+    runtime.printMemoryUsage
     val t0 = System.nanoTime()
     if( context.doesTimeReduction ) {
       val nparts = mapresult.getNumPartitions
