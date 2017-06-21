@@ -84,6 +84,7 @@ object CDSparkContext extends Loggable {
       .set("spark.local.dir", cdas_cache_dir )
       .set("spark.file.transferTo", "false" )
       .set("spark.kryoserializer.buffer.max", "1000m" )
+      .set("spark.network.timeout", "1800s" )
       .registerKryoClasses( Array(classOf[DirectRDDRecordSpec], classOf[RecordKey], classOf[RDDRecord], classOf[DirectRDDVariableSpec], classOf[CDSection], classOf[HeapFltArray], classOf[Partition], classOf[CDCoordMap] ) )
 
     if( enableMetrics ) sc.set("spark.metrics.conf", getClass.getResource("/spark.metrics.properties").getPath )
