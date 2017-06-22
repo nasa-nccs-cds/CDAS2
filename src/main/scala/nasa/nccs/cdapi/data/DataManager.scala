@@ -74,7 +74,7 @@ object ma2Array {
   def apply( shape: Array[Int], data:  Array[Float], missing: Float ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, shape, data ), missing )
 }
 
-class ma2Array( array: ma2.Array, missing: Float ) {
+class ma2Array( val array: ma2.Array, val missing: Float ) {
 
   def +( other: ma2Array ): ma2Array = {
     assert ( other.shape == shape, s"Error, attampt to add arrays with different shapes: {${other.shape.mkString(",")}} -- {${shape.mkString(",")}}")
