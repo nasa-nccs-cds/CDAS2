@@ -46,9 +46,7 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
     val nparts = mapresult.getNumPartitions
     if( !kernel.parallelizable || (nparts==1) ) { mapresult.collect()(0) }
     else {
-      val nParts: Int = if( context.commutativeReduction ) { mapresult.partitions.length } else { 1 }
-      logger.debug( "NPARTS: " + nParts )
-      val result = mapresult.sortByKey(true,nParts) reduce kernel.getReduceOp(context)
+      val result = mapresult reduce kernel.getReduceOp(context)
       logger.debug("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
       context.addTimestamp( "FINISHED reduce Operation" )
       result
