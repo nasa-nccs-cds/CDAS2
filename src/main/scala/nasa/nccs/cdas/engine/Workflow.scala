@@ -46,7 +46,7 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
     val nparts = mapresult.getNumPartitions
     if( !kernel.parallelizable || (nparts==1) ) { mapresult.collect()(0) }
     else {
-      val result = mapresult reduce kernel.getReduceOp(context)
+      val result = mapresult treeReduce kernel.getReduceOp(context)
       logger.debug("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
       context.addTimestamp( "FINISHED reduce Operation" )
       result
@@ -179,7 +179,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
         val inputNParts = mapresult.partitions.length
         val intermediateNParts: Int = if (context.commutativeReduction) { inputNParts } else { 1 }
         logger.debug( "NPARTS: " + inputNParts + ", " + intermediateNParts )
-        val pre_result_pair = mapresult.sortByKey( true, intermediateNParts ) reduce node.kernel.getReduceOp(context)
+        val pre_result_pair = mapresult treeReduce node.kernel.getReduceOp(context)
         val result = pre_result_pair._1 -> node.kernel.postRDDOp( pre_result_pair._2, context  )
         logger.debug("\n\n ----------------------- FINISHED stream reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
         val results = List.fill(inputNParts)( result )
