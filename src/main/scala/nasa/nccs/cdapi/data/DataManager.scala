@@ -77,7 +77,7 @@ object ma2Array {
 class ma2Array( val array: ma2.Array, val missing: Float ) {
 
   def +( other: ma2Array ): ma2Array = {
-    assert ( other.shape == shape, s"Error, attampt to add arrays with different shapes: {${other.shape.mkString(",")}} -- {${shape.mkString(",")}}")
+    assert ( other.shape.sameElements(shape), s"Error, attempt to add arrays with different shapes: {${other.shape.mkString(",")}} -- {${shape.mkString(",")}}")
     val vTot = new ma2.ArrayFloat( array.getShape )
     (0 until array.getSize.toInt ) foreach ( index => {
       val uv0: Float = array.getFloat(index)
