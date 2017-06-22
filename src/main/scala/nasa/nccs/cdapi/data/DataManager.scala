@@ -100,6 +100,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
     new HeapFltArray( reinterpArray.getShape, origin_mapper(origin), reinterpArray.getArrayData(), Some(reinterpArray.getInvalid), gridSpec, metadata )
   }
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, getMissing(), indexMaps )
+  def toUcarArray: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, shape, data )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), getMissing() )
   def toCDLongArray: CDLongArray = CDLongArray( shape, data.map(_.toLong) )
   def verifyGrids( other: HeapFltArray ) = if( !sameGrid(other) ) throw new Exception( s"Error, attempt to combine arrays with different grids: $gridSpec vs ${other.gridSpec}")

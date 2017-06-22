@@ -614,10 +614,15 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   //      result
   //  }
 
-  def fltArray(a0: RDDRecord, elem: String): CDFloatArray = a0.element(elem) match {
-    case Some(data) => data.toCDFloatArray;
+  def fltArray(a0: RDDRecord, elem: String): ( CDFloatArray, Float ) = a0.element(elem) match {
+    case Some(data) => ( data.toCDFloatArray, data.getMissing() );
     case None => throw new Exception("Error missing array element: " + elem)
   }
+  def ucarArray(a0: RDDRecord, elem: String): ( ma2.Array, Float ) = a0.element(elem) match {
+    case Some(data) => ( data.toUcarArray, data.getMissing() );
+    case None => throw new Exception("Error missing array element: " + elem)
+  }
+
   def optFltArray(a0: RDDRecord, elem: String): Option[CDFloatArray] = a0.element(elem).map(_.toCDFloatArray)
 
   def wtArray(a0: RDDRecord, elem: String): Option[CDFloatArray] = a0.element(elem).flatMap( _.toCDWeightsArray )
@@ -637,13 +642,21 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     if (axes.includes(0)) {
       val t0 = System.nanoTime
       val rid = context.operation.rid
-      val vTot: CDFloatArray = fltArray(a0, rid) + fltArray(a1, rid)
+      val ( ua0, missing0 ) = ucarArray(a0, rid)
+      val ( ua1, missing1 ) = ucarArray(a1, rid)
+      val vTot = new ma2.ArrayFloat( ua0.getShape )
+      (0 until ua0.getSize.toInt ) foreach ( index => {
+        val uv0: Float = ua0.getFloat(index)
+        val uv1: Float = ua0.getFloat(index)
+        if( (uv0==missing0) || uv0.isNaN || (uv1==missing1) || uv1.isNaN ) { missing0 }
+        else {  vTot.setFloat(index, uv0 + uv1)  }
+      } )
       val t1 = System.nanoTime
       val vOrigin: Array[Int] = originArray( a0, rid )
       val wTotOpt: Option[Array[Float]] = wtArray(a0, rid ).map(w => w + wtArray(a1,rid).get ).map(_.getArrayData())
       val t2 = System.nanoTime
       val array_mdata = MetadataOps.mergeMetadata( context.operation.name )( arrayMdata(a0, rid), arrayMdata(a1, rid) )
-      val element = rid -> HeapFltArray( vTot, vOrigin, array_mdata, wTotOpt )
+      val element = rid -> HeapFltArray( CDFloatArray.factory(vTot,missing0), vOrigin, array_mdata, wTotOpt )
       val part_mdata = MetadataOps.mergeMetadata( context.operation.name )( a0.metadata, a1.metadata )
       val t3 = System.nanoTime
       logger.info("weightedValueSumCombiner, values shape = %s, time = { %.2f -- %.2f -- %.2f s }, result spec = %s".format(vTot.getShape.mkString(","), (t1-t0)/1.0e9, (t2-t1)/1.0e9, (t3-t2)/1.0e9, a0.metadata.toString))
@@ -659,7 +672,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     val rid = context.operation.rid
     wtArray( result, rid ) match {
       case Some(weights_sum) =>
-        val values = fltArray(result, rid)
+        val ( values, undef ) = fltArray(result, rid)
         val vOrigin: Array[Int] = originArray(result, rid)
         logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(values.getShape.mkString(","), weights_sum.getShape.mkString(","), result.metadata.toString))
         context.addTimestamp( "weightedValueSumPostOp complete" )
