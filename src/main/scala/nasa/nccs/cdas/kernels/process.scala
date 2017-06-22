@@ -647,7 +647,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
       val vTot = new ma2.ArrayFloat( ua0.getShape )
       (0 until ua0.getSize.toInt ) foreach ( index => {
         val uv0: Float = ua0.getFloat(index)
-        val uv1: Float = ua0.getFloat(index)
+        val uv1: Float = ua1.getFloat(index)
         if( (uv0==missing0) || uv0.isNaN || (uv1==missing1) || uv1.isNaN ) { missing0 }
         else {  vTot.setFloat(index, uv0 + uv1)  }
       } )
