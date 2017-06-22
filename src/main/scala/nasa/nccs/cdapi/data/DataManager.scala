@@ -69,15 +69,41 @@ trait RDDataManager {
 
 }
 
+object ma2Array {
+  def apply( array: ma2.Array, missing: Float ): ma2Array = new ma2Array( array, missing )
+  def apply( shape: Array[Int], data:  Array[Float], missing: Float ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, shape, data ), missing )
+}
+
+class ma2Array( array: ma2.Array, missing: Float ) {
+
+  def +( other: ma2Array ): ma2Array = {
+    assert ( other.shape == shape, s"Error, attampt to add arrays with different shapes: {${other.shape.mkString(",")}} -- {${shape.mkString(",")}}")
+    val vTot = new ma2.ArrayFloat( array.getShape )
+    (0 until array.getSize.toInt ) foreach ( index => {
+      val uv0: Float = array.getFloat(index)
+      val uv1: Float = other.array.getFloat(index)
+      if( (uv0==missing) || uv0.isNaN || (uv1==other.missing) || uv1.isNaN ) { missing }
+      else {  vTot.setFloat(index, uv0 + uv1)  }
+    } )
+    ma2Array( vTot, missing )
+  }
+
+  def shape = array.getShape
+  def toCDFloatArray = CDFloatArray.factory(array,missing)
+  def toFloatArray = CDFloatArray.factory(array,missing).getArrayData()
+}
+
 abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray, val origin: Array[Int]=Array.emptyIntArray, val missing: Option[T]=None, metadata: Map[String,String]=Map.empty, val indexMaps: List[CDCoordMap] = List.empty ) extends MetadataCarrier(metadata) with Serializable {
 
   def data:  Array[T]
   def toCDFloatArray: CDFloatArray
   def toCDDoubleArray: CDDoubleArray
   def toCDLongArray: CDLongArray
+  def toMa2Array: ma2Array
   def toUcarFloatArray: ucar.ma2.Array = toCDFloatArray
   def toUcarDoubleArray: ucar.ma2.Array = toCDDoubleArray
   def toCDWeightsArray: Option[CDFloatArray] = None
+  def toMa2WeightsArray: Option[ma2Array] = None
   def getMetadataStr = metadata map { case ( key, value ) => key + ":" + value } mkString (";")
   def getSampleData( size: Int, start: Int): Array[Float] = toCDFloatArray.getSampleData( size, start )
   def getSampleDataStr( size: Int, start: Int): String = toCDFloatArray.getSampleData( size, start ).mkString( "[ ",", "," ]")
@@ -91,6 +117,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   val bb = java.nio.ByteBuffer.allocate(4)
   def weights: Option[Array[Float]] = _optWeights
   override def toCDWeightsArray: Option[CDFloatArray] = _optWeights.map( CDFloatArray( shape, _, getMissing() ) )
+  override def toMa2WeightsArray: Option[ma2Array] = _optWeights.map( ma2Array( shape, _, getMissing() ) )
   def getMissing( default: Float = Float.MaxValue ): Float = _missing.getOrElse(default)
   def sameGrid( other: HeapFltArray) = gridSpec.equals( other.gridSpec )
   def hasData = (data.length > 0)
@@ -102,6 +129,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, getMissing(), indexMaps )
   def toUcarArray: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, shape, data )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), getMissing() )
+  def toMa2Array: ma2Array = ma2Array( shape, data, getMissing() )
   def toCDLongArray: CDLongArray = CDLongArray( shape, data.map(_.toLong) )
   def verifyGrids( other: HeapFltArray ) = if( !sameGrid(other) ) throw new Exception( s"Error, attempt to combine arrays with different grids: $gridSpec vs ${other.gridSpec}")
   def append( other: HeapFltArray ): HeapFltArray = {
@@ -185,6 +213,7 @@ class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def data: Array[Double] = _data_
   def getMissing( default: Double = Double.MaxValue ): Double = _missing.getOrElse(default)
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), getMissing().toFloat )
+  def toMa2Array: ma2Array = ma2Array( shape, data.map(_.toFloat), getMissing().toFloat )
   def toCDLongArray: CDLongArray = CDLongArray( shape, data.map(_.toLong) )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data, getMissing() )
 
@@ -210,6 +239,7 @@ class HeapLongArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=A
   def data: Array[Long] = _data_
   def getMissing( default: Long = Long.MaxValue ): Long = _missing.getOrElse(default)
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), Float.MaxValue )
+  def toMa2Array: ma2Array = ma2Array( shape, data.map(_.toFloat), Float.MaxValue )
   def toCDLongArray: CDLongArray = CDLongArray( shape, data )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), Double.MaxValue )
 
