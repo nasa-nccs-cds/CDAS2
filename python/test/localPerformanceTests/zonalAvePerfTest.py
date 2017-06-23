@@ -36,7 +36,7 @@ try:
 
     response_manager = portal.createResponseManager()
     t0 = time.time()
-    datainputs = '[domain=[{"name":"d0"}],variable=[{"uri":"' + cldraMERRAdset + '","name":"'+merraVar+':v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","axes":"t"}]]'
+    datainputs = '[domain=[{"name":"d0"}],variable=[{"uri":"' + cldraMERRAdset + '","name":"'+merraVar+':v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","axes":"t"}]]'
 #    ,"lev":{"start":0,"end":12,"system":"indices"}
 #    datainputs = '[domain=[{"name":"d0"}],variable=[{"uri":"' + cldraMERRAdset + '","name":"'+merraVar+':v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","axes":"t"}]]'
 #    ,"time":{"start":0,"end":100,"system":"indices"}

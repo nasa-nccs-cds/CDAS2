@@ -161,7 +161,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     val data_file: URI = Paths.get( test_data_dir.toString, "MERRA2_200.inst6_3d_ana_Np_T.20000101.nc4" ).toUri
     val nco_result: CDFloatArray = CDFloatArray( Array(   262.6826, 261.1128, 259.5385, 257.9672, 256.5204, 254.8353, 253.2784, 251.6964, 247.9638, 243.8583, 239.538, 235.9563, 232.1338, 227.2614, 221.6774, 216.0401 ).map(_.toFloat), Float.MaxValue )
     val datainputs = s"""[domain=[{"name":"d0","lat":{"start":10,"end":10,"system":"indices"},"lon":{"start":20,"end":20,"system":"indices"}}],variable=[{"uri":"%s","name":"T:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","domain":"d0","axes":"t"}]]""".format( data_file.toString )
-    val result_node = executeTest( datainputs, Map("numParts"->"3") )
+    val result_node = executeTest( datainputs, Map("numParts"->"2") )
     val result_data = CDFloatArray( getResultData( result_node ) )
     println( " ** CDMS Result:       " + result_data.mkBoundedDataString(", ",16) )
     println( " ** NCO Result:       " + nco_result.mkDataString(", ") )
