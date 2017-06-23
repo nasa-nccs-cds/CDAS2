@@ -674,13 +674,13 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
 
   def weightedValueSumRDDPostOp(result: RDDRecord, context: KernelContext): RDDRecord = {
     val rid = context.operation.rid
-    wtArray( result, rid ) match {
-      case Some(weights_sum) =>
-        val ( values, undef ) = fltArray(result, rid)
+    wtMa2Array( result, rid ) match {
+      case Some(w0) =>
+        val v0 = ma2Array(result, rid)
         val vOrigin: Array[Int] = originArray(result, rid)
-        logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(values.getShape.mkString(","), weights_sum.getShape.mkString(","), result.metadata.toString))
+        logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(v0.array.getShape.mkString(","), w0.array.getShape.mkString(","), result.metadata.toString))
         context.addTimestamp( "weightedValueSumPostOp complete" )
-        new RDDRecord( Map(rid -> HeapFltArray( values / weights_sum, vOrigin, arrayMdata(result, "value"), Some( weights_sum.getArrayData() ) ) ), result.metadata )
+        new RDDRecord( Map(rid -> HeapFltArray( (v0 / w0).toCDFloatArray, vOrigin, arrayMdata(result, "value"), Some( w0.toCDFloatArray.getArrayData() ) ) ), result.metadata )
       case None =>
         result
     }

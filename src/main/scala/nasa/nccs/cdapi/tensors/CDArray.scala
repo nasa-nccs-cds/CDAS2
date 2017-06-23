@@ -557,14 +557,14 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     else if( axes.length == 1 ) {
       val target_shape: Array[Int] = getShape.clone
       target_shape( axes(0) ) = 1
-      val target_array = ma2Array( target_shape, ua.missing )
-      val weights_array = ma2Array( target_shape, ua.missing )
+      val target_array = ma2Array( target_shape, 0.0f, ua.missing )
+      val weights_array = ma2Array( target_shape, 0.0f, ua.missing )
       val targ_index: Index =	target_array.array.getIndex()
       while ( { iter.hasNext } ) {
         val fval = iter.getFloatNext
         if( ( fval != ua.missing ) && !fval.isNaN ) {
-          val coords: Array[Int] = iter.getCurrentCounter
-          coords( axes(0) ) = 1
+          var coords: Array[Int] = iter.getCurrentCounter
+          coords( axes(0) ) = 0
           targ_index.set( coords )
           val current_index = targ_index.currentElement()
           wtsIterOpt match {

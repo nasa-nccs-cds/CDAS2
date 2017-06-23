@@ -72,7 +72,7 @@ trait RDDataManager {
 object ma2Array {
   def apply( array: ma2.Array, missing: Float ): ma2Array = new ma2Array( array, missing )
   def apply( shape: Array[Int], data:  Array[Float], missing: Float ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, shape, data ), missing )
-  def apply( shape: Array[Int], missing: Float ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, shape ), missing )
+  def apply( shape: Array[Int], init_value: Float, missing: Float ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, shape, Array.fill[Float](shape.product)(init_value) ), missing )
   def apply( fltArray: CDFloatArray ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, fltArray.getShape, fltArray.getArrayData() ), fltArray.getInvalid )
 }
 
@@ -86,6 +86,18 @@ class ma2Array( val array: ma2.Array, val missing: Float ) {
       val uv1: Float = other.array.getFloat(index)
       if( (uv0==missing) || uv0.isNaN || (uv1==other.missing) || uv1.isNaN ) { missing }
       else {  vTot.setFloat(index, uv0 + uv1)  }
+    } )
+    ma2Array( vTot, missing )
+  }
+
+  def /( other: ma2Array ): ma2Array = {
+    assert ( other.shape.sameElements(shape), s"Error, attempt to add arrays with different shapes: {${other.shape.mkString(",")}} -- {${shape.mkString(",")}}")
+    val vTot = new ma2.ArrayFloat( array.getShape )
+    (0 until array.getSize.toInt ) foreach ( index => {
+      val uv0: Float = array.getFloat(index)
+      val uv1: Float = other.array.getFloat(index)
+      if( (uv0==missing) || uv0.isNaN || (uv1==other.missing) || (uv1==0f) || uv1.isNaN ) { vTot.setFloat(index, missing ) }
+      else {  vTot.setFloat(index, uv0 / uv1)  }
     } )
     ma2Array( vTot, missing )
   }
