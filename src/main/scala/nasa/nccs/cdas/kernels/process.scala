@@ -220,6 +220,17 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   def cleanUp() = {}
 
 
+  def addWeights( context: KernelContext ): Boolean = {
+    weightsOpt match {
+      case Some( weights ) =>
+        val axes = context.operation.getConfiguration("axes")
+        if( weights == "cosine" ) { axes.indexOf( "y" ) > -1 }
+        else throw new Exception( "Unrecognized weights type: " + weights )
+      case None => false
+
+    }
+  }
+
   def getReduceOp(context: KernelContext): (RDDKeyValPair,RDDKeyValPair)=>RDDKeyValPair =
     if (context.doesTimeReduction) {
       reduceCombineOp match {
@@ -910,17 +921,6 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
   val description = _description
 
   override def cleanUp(): Unit = PythonWorkerPortal.getInstance.shutdown()
-
-  def addWeights( context: KernelContext ): Boolean = {
-    weightsOpt match {
-      case Some( weights ) =>
-        val axes = context.operation.getConfiguration("axes")
-        if( weights == "cosine" ) { axes.indexOf( "y" ) > -1 }
-        else throw new Exception( "Unrecognized weights type: " + weights )
-      case None => false
-
-    }
-  }
 
   override def map ( context: KernelContext ) ( inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime

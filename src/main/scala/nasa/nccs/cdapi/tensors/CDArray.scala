@@ -4,9 +4,11 @@ package nasa.nccs.cdapi.tensors
 import java.nio._
 
 import nasa.nccs.cdapi.cdm.RemapElem
+import nasa.nccs.cdapi.data.ma2Array
 import nasa.nccs.cdapi.tensors.CDArray.{FlatIndex, StorageIndex}
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.ma2
+import ucar.ma2.{ArrayFloat, Index, IndexIterator}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -522,16 +524,76 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     ( value_accumulator.getReducedArray, weights_accumulator.getReducedArray )
   }
 
-  def mean( accumulation_index: CDIndexMap, weightsOpt: Option[CDFloatArray] = None): CDFloatArray = {
-    weightedReduce( addOp, 0f, accumulation_index, weightsOpt ) match {
-      case ( values_sum, weights_sum ) =>
-        values_sum / weights_sum
+  def average( axes: Array[Int], weightsOpt: Option[CDFloatArray] ): ( CDFloatArray, CDFloatArray ) = {
+    val ua = ma2Array(this)
+    val wtsOpt = weightsOpt.map( ma2Array(_) )
+    val wtsIterOpt = wtsOpt.map( _.array.getIndexIterator )
+    wtsOpt match {
+      case Some( wts ) => if( !wts.array.getShape.sameElements(getShape) ) { throw new Exception( s"Weights shape [${wts.array.getShape().mkString(",")}] does not match data shape [${getShape.mkString(",")}]") }
+      case None => Unit
+    }
+    val rank = ua.array.getRank
+    val iter: IndexIterator =	ua.array.getIndexIterator()
+    if( axes.length == rank ) {
+      var result = 0f
+      var count = 0f
+      var result_shape = Array.fill[Int](rank)(1)
+      while ( { iter.hasNext }) {
+        val fval = iter.getFloatNext
+        if( ( fval != ua.missing ) && !fval.isNaN ) {
+          wtsIterOpt match {
+            case Some( wtsIter ) =>
+              val wtval = wtsIter.getFloatNext
+              result = result + fval * wtval
+              count = count + wtval
+            case None =>
+              result = result + fval
+              count = count + 1f
+          }
+        }
+      }
+      ( CDFloatArray(result_shape,Array(result),ua.missing), CDFloatArray(result_shape,Array(count),ua.missing) )
+    }
+    else if( axes.length == 1 ) {
+      val target_shape: Array[Int] = getShape.clone
+      target_shape( axes(0) ) = 1
+      val target_array = ma2Array( target_shape, ua.missing )
+      val weights_array = ma2Array( target_shape, ua.missing )
+      val targ_index: Index =	target_array.array.getIndex()
+      while ( { iter.hasNext } ) {
+        val fval = iter.getFloatNext
+        if( ( fval != ua.missing ) && !fval.isNaN ) {
+          val coords: Array[Int] = iter.getCurrentCounter
+          coords( axes(0) ) = 1
+          targ_index.set( coords )
+          val current_index = targ_index.currentElement()
+          wtsIterOpt match {
+            case Some(wtsIter) =>
+              val wtval = wtsIter.getFloatNext
+              target_array.array.setFloat(current_index, target_array.array.getFloat(current_index) + fval*wtval )
+              weights_array.array.setFloat(current_index, weights_array.array.getFloat(current_index) + wtval )
+            case None =>
+              target_array.array.setFloat(current_index, target_array.array.getFloat(current_index) + fval)
+              weights_array.array.setFloat(current_index, weights_array.array.getFloat(current_index) + 1.0f)
+          }
+        }
+      }
+      ( target_array.toCDFloatArray, weights_array.toCDFloatArray )
+    } else {
+      throw new Exception( "Undefined operation")
     }
   }
 
-  def anomaly( accumulation_index: CDIndexMap, weightsOpt: Option[CDFloatArray] = None ): CDFloatArray = {
-    this - mean( accumulation_index, weightsOpt )
-  }
+//  def mean( accumulation_index: CDIndexMap, weightsOpt: Option[CDFloatArray] = None): CDFloatArray = {
+//    weightedReduce( addOp, 0f, accumulation_index, weightsOpt ) match {
+//      case ( values_sum, weights_sum ) =>
+//        values_sum / weights_sum
+//    }
+//  }
+//
+//  def anomaly( accumulation_index: CDIndexMap, weightsOpt: Option[CDFloatArray] = None ): CDFloatArray = {
+//    this - mean( accumulation_index, weightsOpt )
+//  }
 
   def flat_array_square_profile(): CDFloatArray = {
     val cdResult = for (index <- getIterator; value = getStorageValue(index) ) yield value * value

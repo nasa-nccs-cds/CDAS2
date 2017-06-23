@@ -172,6 +172,29 @@ class average extends SingularRDDKernel(Map.empty) {
   override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime
     val axes = context.config("axes","")
+    val axisIndices: Array[Int] = context.grid.getAxisIndices( axes ).getAxes.toArray
+    val elems = context.operation.inputs.map( inputId => inputs.element(inputId) match {
+      case Some( input_data ) =>
+        val input_array = input_data.toCDFloatArray
+        val (weighted_value_sum_masked, weights_sum_masked) =  if( addWeights(context) ) {
+          val weights: CDFloatArray = KernelUtilities.getWeights(inputId, context)
+          input_array.average(axisIndices,Some(weights))
+        } else {
+          input_array.average(axisIndices,None)
+        }
+        context.operation.rid -> HeapFltArray(weighted_value_sum_masked, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked.getArrayData()))
+      case None => throw new Exception("Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(","))
+    })
+    logger.info("Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9))
+    context.addTimestamp( "Map Op complete" )
+    val rv = RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid, "axes" -> axes.toUpperCase ) )
+    logger.info("Returning result value")
+    rv
+  }
+
+  def map1 ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
+    val t0 = System.nanoTime
+    val axes = context.config("axes","")
     val axisIndices: AxisIndices = context.grid.getAxisIndices( axes )
     val async = context.config("async", "false").toBoolean
     val elems = context.operation.inputs.map( inputId => inputs.element(inputId) match {

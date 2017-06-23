@@ -2,7 +2,7 @@ package nasa.nccs.cdapi.data
 
 import nasa.nccs.caching.{CachePartition, Partition}
 import nasa.nccs.cdapi.cdm.{NetcdfDatasetMgr, RemapElem, TimeConversionSpec}
-import nasa.nccs.cdapi.tensors._
+import nasa.nccs.cdapi.tensors.{CDFloatArray, _}
 import nasa.nccs.cdas.engine.spark.{RangePartitioner, RecordKey}
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.esgf.process.{CDSection, TargetGrid}
@@ -72,6 +72,8 @@ trait RDDataManager {
 object ma2Array {
   def apply( array: ma2.Array, missing: Float ): ma2Array = new ma2Array( array, missing )
   def apply( shape: Array[Int], data:  Array[Float], missing: Float ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, shape, data ), missing )
+  def apply( shape: Array[Int], missing: Float ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, shape ), missing )
+  def apply( fltArray: CDFloatArray ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, fltArray.getShape, fltArray.getArrayData() ), fltArray.getInvalid )
 }
 
 class ma2Array( val array: ma2.Array, val missing: Float ) {
