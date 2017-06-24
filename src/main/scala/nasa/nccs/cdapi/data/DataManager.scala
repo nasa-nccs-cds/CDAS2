@@ -13,6 +13,7 @@ import ucar.ma2
 import java.nio
 
 import nasa.nccs.cdas.kernels.KernelContext
+import ucar.ma2.{Index, IndexIterator}
 
 import scala.xml
 import scala.collection.JavaConversions._
@@ -79,7 +80,7 @@ object ma2Array {
   def apply( fltArray: CDFloatArray ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, fltArray.getShape, fltArray.getArrayData() ), fltArray.getInvalid )
 }
 
-class ma2Array( val array: ma2.Array, val missing: Float ) {
+class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
 
   def merge( other: ma2Array, op: ma2Array.ReduceOp ): ma2Array = {
     assert ( other.shape.sameElements(shape), s"Error, attempt to merge arrays with different shapes: {${other.shape.mkString(",")}} -- {${shape.mkString(",")}}")
@@ -122,6 +123,86 @@ class ma2Array( val array: ma2.Array, val missing: Float ) {
   def shape = array.getShape
   def toCDFloatArray = CDFloatArray.factory(array,missing)
   def toFloatArray = CDFloatArray.factory(array,missing).getArrayData()
+
+  def weightedSum( axes: Array[Int], wtsOpt: Option[ma2Array] ): ( ma2Array, ma2Array ) = {
+    val wtsIterOpt = wtsOpt.map( _.array.getIndexIterator )
+    wtsOpt match {
+      case Some( wts ) => if( !wts.array.getShape.sameElements(array.getShape) ) { throw new Exception( s"Weights shape [${wts.array.getShape().mkString(",")}] does not match data shape [${array.getShape.mkString(",")}]") }
+      case None => Unit
+    }
+    val rank = array.getRank
+    val iter: IndexIterator = array.getIndexIterator()
+    if( axes.length == rank ) {
+      var result = 0f
+      var count = 0f
+      var result_shape = Array.fill[Int](rank)(1)
+      while ( iter.hasNext ) {
+        val fval = iter.getFloatNext
+        if( ( fval != missing ) && !fval.isNaN ) {
+          wtsIterOpt match {
+            case Some( wtsIter ) =>
+              val wtval = wtsIter.getFloatNext
+              result = result + fval * wtval
+              count = count + wtval
+            case None =>
+              result = result + fval
+              count = count + 1f
+          }
+        }
+      }
+      ( ma2Array(result_shape,Array(result),missing), ma2Array(result_shape,Array(count),missing) )
+    } else {
+      val target_shape: Array[Int] = getReducedShape( axes )
+      val target_array = ma2Array( target_shape, 0.0f, missing )
+      val weights_array = ma2Array( target_shape, 0.0f, missing )
+      val targ_index: Index =	target_array.array.getIndex()
+      while ( iter.hasNext ) {
+        val fval = iter.getFloatNext
+        if( ( fval != missing ) && !fval.isNaN ) {
+          val current_index = getReducedFlatIndex( targ_index, axes, iter )
+          wtsIterOpt match {
+            case Some(wtsIter) =>
+              val wtval = wtsIter.getFloatNext
+              target_array.array.setFloat(current_index, target_array.array.getFloat(current_index) + fval*wtval )
+              weights_array.array.setFloat(current_index, weights_array.array.getFloat(current_index) + wtval )
+            case None =>
+              target_array.array.setFloat( current_index, target_array.array.getFloat(current_index) + fval )
+              weights_array.array.setFloat( current_index, weights_array.array.getFloat(current_index) + 1.0f )
+          }
+        }
+      }
+      ( target_array, weights_array )
+    }
+  }
+
+  def getReducedFlatIndex( reduced_index: Index, reduction_axes: Array[Int], iter: IndexIterator ): Int = {
+    var coords: Array[Int] = iter.getCurrentCounter
+    reduction_axes.length match {
+      case 1 => coords( reduction_axes(0) ) = 0
+      case 2 => coords( reduction_axes(0) ) = 0; coords( reduction_axes(1) ) = 0
+      case 3 => coords( reduction_axes(0) ) = 0; coords( reduction_axes(1) ) = 0; coords( reduction_axes(2) ) = 0
+      case 4 => coords( reduction_axes(0) ) = 0; coords( reduction_axes(1) ) = 0; coords( reduction_axes(2) ) = 0; coords( reduction_axes(3) ) = 0
+      case 5 => coords( reduction_axes(0) ) = 0; coords( reduction_axes(1) ) = 0; coords( reduction_axes(2) ) = 0; coords( reduction_axes(3) ) = 0; coords( reduction_axes(4) ) = 0
+      case x: Int  => throw new Exception( s"Unsupported number of axes in reduction: ${reduction_axes.length}")
+    }
+    reduced_index.set( coords )
+    reduced_index.currentElement()
+  }
+
+  def getReducedShape( reduction_axes: Array[Int] ): Array[Int] = {
+    val reduced_shape: Array[Int] = array.getShape.clone
+    reduction_axes.length match {
+      case 1 => reduced_shape( reduction_axes(0) ) = 1
+      case 2 => reduced_shape( reduction_axes(0) ) = 1; reduced_shape( reduction_axes(1) ) = 1
+      case 3 => reduced_shape( reduction_axes(0) ) = 1; reduced_shape( reduction_axes(1) ) = 1; reduced_shape( reduction_axes(2) ) = 1
+      case 4 => reduced_shape( reduction_axes(0) ) = 1; reduced_shape( reduction_axes(1) ) = 1; reduced_shape( reduction_axes(2) ) = 1; reduced_shape( reduction_axes(3) ) = 1
+      case 5 => reduced_shape( reduction_axes(0) ) = 1; reduced_shape( reduction_axes(1) ) = 1; reduced_shape( reduction_axes(2) ) = 1; reduced_shape( reduction_axes(3) ) = 1; reduced_shape( reduction_axes(4) ) = 1
+      case x: Int  => throw new Exception( s"Unsupported number of axes in reduction: ${reduction_axes.length}")
+    }
+    reduced_shape
+  }
+
+
 }
 
 abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray, val origin: Array[Int]=Array.emptyIntArray, val missing: Option[T]=None, metadata: Map[String,String]=Map.empty, val indexMaps: List[CDCoordMap] = List.empty ) extends MetadataCarrier(metadata) with Serializable {

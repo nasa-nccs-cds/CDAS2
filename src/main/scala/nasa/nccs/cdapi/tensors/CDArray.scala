@@ -524,66 +524,66 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     ( value_accumulator.getReducedArray, weights_accumulator.getReducedArray )
   }
 
-  def weightedSum( axes: Array[Int], weightsOpt: Option[CDFloatArray] ): ( CDFloatArray, CDFloatArray ) = {
-    val ua = ma2Array(this)
-    val wtsOpt = weightsOpt.map( ma2Array(_) )
-    val wtsIterOpt = wtsOpt.map( _.array.getIndexIterator )
-//    val op: ma2Array.ReduceOp = (x,y)=>x+y
-    wtsOpt match {
-      case Some( wts ) => if( !wts.array.getShape.sameElements(getShape) ) { throw new Exception( s"Weights shape [${wts.array.getShape().mkString(",")}] does not match data shape [${getShape.mkString(",")}]") }
-      case None => Unit
-    }
-    val rank = ua.array.getRank
-    val iter: IndexIterator =	ua.array.getIndexIterator()
-    if( axes.length == rank ) {
-      var result = 0f
-      var count = 0f
-      var result_shape = Array.fill[Int](rank)(1)
-      while ( { iter.hasNext }) {
-        val fval = iter.getFloatNext
-        if( ( fval != ua.missing ) && !fval.isNaN ) {
-          wtsIterOpt match {
-            case Some( wtsIter ) =>
-              val wtval = wtsIter.getFloatNext
-              result = result + fval * wtval
-              count = count + wtval
-            case None =>
-              result = result + fval
-              count = count + 1f
-          }
-        }
-      }
-      ( CDFloatArray(result_shape,Array(result),ua.missing), CDFloatArray(result_shape,Array(count),ua.missing) )
-    }
-    else if( axes.length == 1 ) {
-      val target_shape: Array[Int] = getShape.clone
-      target_shape( axes(0) ) = 1
-      val target_array = ma2Array( target_shape, 0.0f, ua.missing )
-      val weights_array = ma2Array( target_shape, 0.0f, ua.missing )
-      val targ_index: Index =	target_array.array.getIndex()
-      while ( { iter.hasNext } ) {
-        val fval = iter.getFloatNext
-        if( ( fval != ua.missing ) && !fval.isNaN ) {
-          var coords: Array[Int] = iter.getCurrentCounter
-          coords( axes(0) ) = 0
-          targ_index.set( coords )
-          val current_index = targ_index.currentElement()
-          wtsIterOpt match {
-            case Some(wtsIter) =>
-              val wtval = wtsIter.getFloatNext
-              target_array.array.setFloat(current_index, target_array.array.getFloat(current_index) + fval*wtval )
-              weights_array.array.setFloat(current_index, weights_array.array.getFloat(current_index) + wtval )
-            case None =>
-              target_array.array.setFloat( current_index, target_array.array.getFloat(current_index) + fval )
-              weights_array.array.setFloat( current_index, weights_array.array.getFloat(current_index) + 1.0f )
-          }
-        }
-      }
-      ( target_array.toCDFloatArray, weights_array.toCDFloatArray )
-    } else {
-      throw new Exception( "Undefined operation")
-    }
-  }
+//  def weightedSum( axes: Array[Int], weightsOpt: Option[CDFloatArray] ): ( CDFloatArray, CDFloatArray ) = {
+//    val ua = ma2Array(this)
+//    val wtsOpt = weightsOpt.map( ma2Array(_) )
+//    val wtsIterOpt = wtsOpt.map( _.array.getIndexIterator )
+////    val op: ma2Array.ReduceOp = (x,y)=>x+y
+//    wtsOpt match {
+//      case Some( wts ) => if( !wts.array.getShape.sameElements(getShape) ) { throw new Exception( s"Weights shape [${wts.array.getShape().mkString(",")}] does not match data shape [${getShape.mkString(",")}]") }
+//      case None => Unit
+//    }
+//    val rank = ua.array.getRank
+//    val iter: IndexIterator =	ua.array.getIndexIterator()
+//    if( axes.length == rank ) {
+//      var result = 0f
+//      var count = 0f
+//      var result_shape = Array.fill[Int](rank)(1)
+//      while ( { iter.hasNext }) {
+//        val fval = iter.getFloatNext
+//        if( ( fval != ua.missing ) && !fval.isNaN ) {
+//          wtsIterOpt match {
+//            case Some( wtsIter ) =>
+//              val wtval = wtsIter.getFloatNext
+//              result = result + fval * wtval
+//              count = count + wtval
+//            case None =>
+//              result = result + fval
+//              count = count + 1f
+//          }
+//        }
+//      }
+//      ( CDFloatArray(result_shape,Array(result),ua.missing), CDFloatArray(result_shape,Array(count),ua.missing) )
+//    }
+//    else if( axes.length == 1 ) {
+//      val target_shape: Array[Int] = getShape.clone
+//      target_shape( axes(0) ) = 1
+//      val target_array = ma2Array( target_shape, 0.0f, ua.missing )
+//      val weights_array = ma2Array( target_shape, 0.0f, ua.missing )
+//      val targ_index: Index =	target_array.array.getIndex()
+//      while ( { iter.hasNext } ) {
+//        val fval = iter.getFloatNext
+//        if( ( fval != ua.missing ) && !fval.isNaN ) {
+//          var coords: Array[Int] = iter.getCurrentCounter
+//          coords( axes(0) ) = 0
+//          targ_index.set( coords )
+//          val current_index = targ_index.currentElement()
+//          wtsIterOpt match {
+//            case Some(wtsIter) =>
+//              val wtval = wtsIter.getFloatNext
+//              target_array.array.setFloat(current_index, target_array.array.getFloat(current_index) + fval*wtval )
+//              weights_array.array.setFloat(current_index, weights_array.array.getFloat(current_index) + wtval )
+//            case None =>
+//              target_array.array.setFloat( current_index, target_array.array.getFloat(current_index) + fval )
+//              weights_array.array.setFloat( current_index, weights_array.array.getFloat(current_index) + 1.0f )
+//          }
+//        }
+//      }
+//      ( target_array.toCDFloatArray, weights_array.toCDFloatArray )
+//    } else {
+//      throw new Exception( "Undefined operation")
+//    }
+//  }
 
 //  def mean( accumulation_index: CDIndexMap, weightsOpt: Option[CDFloatArray] = None): CDFloatArray = {
 //    weightedReduce( addOp, 0f, accumulation_index, weightsOpt ) match {

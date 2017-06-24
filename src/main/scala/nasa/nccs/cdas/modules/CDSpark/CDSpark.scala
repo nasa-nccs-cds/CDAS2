@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.modules.CDSpark
 
-import nasa.nccs.cdapi.data.{HeapFltArray, RDDRecord}
+import nasa.nccs.cdapi.data.{HeapFltArray, RDDRecord, ma2Array}
 import ucar.ma2
 import nasa.nccs.cdapi.tensors.{CDFloatArray, CDIndexMap}
 import nasa.nccs.cdas.kernels._
@@ -175,14 +175,14 @@ class average extends SingularRDDKernel(Map.empty) {
     val axisIndices: Array[Int] = context.grid.getAxisIndices( axes ).getAxes.toArray
     val elems = context.operation.inputs.map( inputId => inputs.element(inputId) match {
       case Some( input_data ) =>
-        val input_array = input_data.toCDFloatArray
+        val input_array = input_data.toMa2Array
         val (weighted_value_sum_masked, weights_sum_masked) =  if( addWeights(context) ) {
-          val weights: CDFloatArray = KernelUtilities.getWeights(inputId, context)
+          val weights: ma2Array = ma2Array(KernelUtilities.getWeights(inputId, context))
           input_array.weightedSum(axisIndices,Some(weights))
         } else {
           input_array.weightedSum(axisIndices,None)
         }
-        context.operation.rid -> HeapFltArray(weighted_value_sum_masked, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked.getArrayData()))
+        context.operation.rid -> HeapFltArray(weighted_value_sum_masked.toCDFloatArray, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked.toCDFloatArray.getArrayData()))
       case None => throw new Exception("Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(","))
     })
     logger.info("Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9))

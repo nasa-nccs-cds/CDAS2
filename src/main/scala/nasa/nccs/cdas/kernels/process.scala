@@ -629,7 +629,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     case Some(data) => ( data.toCDFloatArray, data.getMissing() );
     case None => throw new Exception("Error missing array element: " + elem)
   }
-  def ma2Array(a0: RDDRecord, elem: String): ma2Array = a0.element(elem) match {
+  def toMa2Array(a0: RDDRecord, elem: String): ma2Array = a0.element(elem) match {
     case Some(data) => data.toMa2Array
     case None => throw new Exception("Error missing array element: " + elem)
   }
@@ -654,7 +654,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     if (axes.includes(0)) {
       val t0 = System.nanoTime
       val rid = context.operation.rid
-      val vTot: ma2Array = ma2Array(a0, rid) + ma2Array(a1, rid)
+      val vTot: ma2Array = toMa2Array(a0, rid) + toMa2Array(a1, rid)
       val t1 = System.nanoTime
       val vOrigin: Array[Int] = originArray( a0, rid )
       val wTotOpt: Option[Array[Float]] = wtMa2Array(a0, rid ).map(w => w + wtMa2Array(a1,rid).get ).map(_.toFloatArray )
@@ -676,7 +676,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     val rid = context.operation.rid
     wtMa2Array( result, rid ) match {
       case Some(w0) =>
-        val v0 = ma2Array(result, rid)
+        val v0 = toMa2Array(result, rid)
         val vOrigin: Array[Int] = originArray(result, rid)
         logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(v0.array.getShape.mkString(","), w0.array.getShape.mkString(","), result.metadata.toString))
         context.addTimestamp( "weightedValueSumPostOp complete" )
