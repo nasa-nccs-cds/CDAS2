@@ -528,7 +528,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     val ua = ma2Array(this)
     val wtsOpt = weightsOpt.map( ma2Array(_) )
     val wtsIterOpt = wtsOpt.map( _.array.getIndexIterator )
-    val op: ma2Array.ReduceOp = (x,y)=>x+y
+//    val op: ma2Array.ReduceOp = (x,y)=>x+y
     wtsOpt match {
       case Some( wts ) => if( !wts.array.getShape.sameElements(getShape) ) { throw new Exception( s"Weights shape [${wts.array.getShape().mkString(",")}] does not match data shape [${getShape.mkString(",")}]") }
       case None => Unit
@@ -574,8 +574,8 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
               target_array.array.setFloat(current_index, target_array.array.getFloat(current_index) + fval*wtval )
               weights_array.array.setFloat(current_index, weights_array.array.getFloat(current_index) + wtval )
             case None =>
-              target_array.array.setFloat(current_index, op( target_array.array.getFloat(current_index), fval ))
-              weights_array.array.setFloat(current_index, op( weights_array.array.getFloat(current_index), 1.0f) )
+              target_array.array.setFloat( current_index, target_array.array.getFloat(current_index) + fval )
+              weights_array.array.setFloat( current_index, weights_array.array.getFloat(current_index) + 1.0f )
           }
         }
       }
