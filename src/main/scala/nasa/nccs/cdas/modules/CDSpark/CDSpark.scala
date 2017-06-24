@@ -178,9 +178,9 @@ class average extends SingularRDDKernel(Map.empty) {
         val input_array = input_data.toCDFloatArray
         val (weighted_value_sum_masked, weights_sum_masked) =  if( addWeights(context) ) {
           val weights: CDFloatArray = KernelUtilities.getWeights(inputId, context)
-          input_array.average(axisIndices,Some(weights))
+          input_array.weightedSum(axisIndices,Some(weights))
         } else {
-          input_array.average(axisIndices,None)
+          input_array.weightedSum(axisIndices,None)
         }
         context.operation.rid -> HeapFltArray(weighted_value_sum_masked, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked.getArrayData()))
       case None => throw new Exception("Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(","))
