@@ -812,9 +812,9 @@ abstract class SingularRDDKernel( options: Map[String,String] = Map.empty ) exte
       case Some( input_array ) =>
         mapCombineOp match {
           case Some(combineOp) =>
-            val cdinput = input_array.toCDFloatArray
-            val result = CDFloatArray(cdinput.reduce(combineOp, axes.args, initValue))
-            logger.info( "Input data sample = [ %s ]".format(cdinput.getArrayData(30).map( _.toString ).mkString(", ") ) )
+            val cdinput = input_array.toMa2Array
+            val result = cdinput.reduce(combineOp, axes.args, initValue).toCDFloatArray
+//            logger.info( "Input data sample = [ %s ]".format(cdinput.toCDFloatArray.getArrayData(30).map( _.toString ).mkString(", ") ) )
             logger.info(" ##### KERNEL [%s]: Map Op: combine, axes = %s, result shape = %s, result value[0] = %.4f".format( name, axes, result.getShape.mkString(","), result.getArrayData(1)(0) ) )
             context.operation.rid -> HeapFltArray( result, input_array.origin, input_array.metadata, None )
           case None =>
@@ -836,7 +836,8 @@ abstract class DualRDDKernel( options: Map[String,String] ) extends Kernel(optio
       val t0 = System.nanoTime
       val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.map(id => inputs.findElements(id)).foldLeft(List[ArrayBase[Float]]())(_ ++ _)
       assert(input_arrays.size > 1, "Missing input(s) to dual input operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
-      val result_array: CDFloatArray =  CDFloatArray.combine( mapCombineOp.get, input_arrays(0).toCDFloatArray, input_arrays(1).toCDFloatArray )
+      val ma2_input_arrays = input_arrays.map( _.toMa2Array )
+      val result_array: CDFloatArray =   ma2_input_arrays(0).merge( ma2_input_arrays(1), mapCombineOp.get ).toCDFloatArray
       val result_metadata = input_arrays.head.metadata ++ inputs.metadata ++ List("uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile(inputs.elements))
       logger.info("Executed Kernel %s map op, time = %.4f s".format(name, (System.nanoTime - t0) / 1.0E9))
       context.addTimestamp("Map Op complete")
@@ -845,27 +846,27 @@ abstract class DualRDDKernel( options: Map[String,String] ) extends Kernel(optio
   }
 }
 
-abstract class MultiRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
-
-  override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
-    val t0 = System.nanoTime
-    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
-    val async = context.config("async", "false").toBoolean
-    val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[ArrayBase[Float]]())( _ ++ _ )
-    assert( input_arrays.size > 1, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
-    val cdFloatArrays = input_arrays.map( _.toCDFloatArray ).toArray
-    val final_result: CDFloatArray = if( mapCombineNOp.isDefined ) {
-      CDFloatArray.combine( mapCombineNOp.get, cdFloatArrays )
-    } else if( mapCombineWNOp.isDefined ) {
-      val (result_array, countArray) = CDFloatArray.combine( mapCombineWNOp.get, cdFloatArrays )
-      result_array / countArray
-    } else { throw new Exception("Undefined operation in MultiRDDKernel") }
-    logger.info("&MAP: Finished Kernel %s, time = %.4f s".format(name, (System.nanoTime - t0) / 1.0E9))
-    context.addTimestamp( "Map Op complete" )
-    val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
-    RDDRecord( Map( context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
-  }
-}
+//abstract class MultiRDDKernel( options: Map[String,String] ) extends Kernel(options)  {
+//
+//  override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
+//    val t0 = System.nanoTime
+//    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
+//    val async = context.config("async", "false").toBoolean
+//    val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[ArrayBase[Float]]())( _ ++ _ )
+//    assert( input_arrays.size > 1, "Missing input(s) to operation " + id + ": required inputs=(%s), available inputs=(%s)".format( context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",") ) )
+//    val cdFloatArrays = input_arrays.map( _.toCDFloatArray ).toArray
+//    val final_result: CDFloatArray = if( mapCombineNOp.isDefined ) {
+//      CDFloatArray.combine( mapCombineNOp.get, cdFloatArrays )
+//    } else if( mapCombineWNOp.isDefined ) {
+//      val (result_array, countArray) = CDFloatArray.combine( mapCombineWNOp.get, cdFloatArrays )
+//      result_array / countArray
+//    } else { throw new Exception("Undefined operation in MultiRDDKernel") }
+//    logger.info("&MAP: Finished Kernel %s, time = %.4f s".format(name, (System.nanoTime - t0) / 1.0E9))
+//    context.addTimestamp( "Map Op complete" )
+//    val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
+//    RDDRecord( Map( context.operation.rid -> HeapFltArray(final_result, input_arrays(0).origin, result_metadata, None) ), inputs.metadata )
+//  }
+//}
 
 class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "Regridder", "Regrids the inputs using UVCDAT", Map( "parallelize" -> "True" ) ) {
 

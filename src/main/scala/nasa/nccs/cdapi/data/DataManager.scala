@@ -18,6 +18,7 @@ import ucar.ma2.{Index, IndexIterator}
 import scala.xml
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.reflect.ClassTag
 
 // Developer API for integrating various data management and IO frameworks such as SIA-IO and CDAS-Cache.
 // It is intended to be deployed on the master node of the analytics server (this is not a client API).
@@ -94,19 +95,17 @@ class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
     ma2Array( vTot, missing )
   }
 
-  def +( other: ma2Array ): ma2Array = merge( other, (x,y)=>x+y )
-
-//  def +( other: ma2Array ): ma2Array = {
-//    assert ( other.shape.sameElements(shape), s"Error, attempt to add arrays with different shapes: {${other.shape.mkString(",")}} -- {${shape.mkString(",")}}")
-//    val vTot = new ma2.ArrayFloat( array.getShape )
-//    (0 until array.getSize.toInt ) foreach ( index => {
-//      val uv0: Float = array.getFloat(index)
-//      val uv1: Float = other.array.getFloat(index)
-//      if( (uv0==missing) || uv0.isNaN || (uv1==other.missing) || uv1.isNaN ) { missing }
-//      else {  vTot.setFloat(index, uv0 + uv1)  }
-//    } )
-//    ma2Array( vTot, missing )
-//  }
+  def +( other: ma2Array ): ma2Array = {
+    assert ( other.shape.sameElements(shape), s"Error, attempt to add arrays with different shapes: {${other.shape.mkString(",")}} -- {${shape.mkString(",")}}")
+    val vTot = new ma2.ArrayFloat( array.getShape )
+    (0 until array.getSize.toInt ) foreach ( index => {
+      val uv0: Float = array.getFloat(index)
+      val uv1: Float = other.array.getFloat(index)
+      if( (uv0==missing) || uv0.isNaN || (uv1==other.missing) || uv1.isNaN ) { missing }
+      else {  vTot.setFloat(index, uv0 + uv1)  }
+    } )
+    ma2Array( vTot, missing )
+  }
 
   def /( other: ma2Array ): ma2Array = {
     assert ( other.shape.sameElements(shape), s"Error, attempt to add arrays with different shapes: {${other.shape.mkString(",")}} -- {${shape.mkString(",")}}")
@@ -172,6 +171,34 @@ class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
         }
       }
       ( target_array, weights_array )
+    }
+  }
+
+  def reduce( op: ma2Array.ReduceOp, axes: Array[Int], initVal: Float = 0f ): ma2Array = {
+    val rank = array.getRank
+    val iter: IndexIterator = array.getIndexIterator()
+    if( axes.length == rank ) {
+      var result = initVal
+      var result_shape = Array.fill[Int](rank)(1)
+      while ( iter.hasNext ) {
+        val fval = iter.getFloatNext
+        if( ( fval != missing ) && !fval.isNaN  ) {
+          result = op( result, fval )
+        }
+      }
+      ma2Array(result_shape,Array(result),missing)
+    } else {
+      val target_shape: Array[Int] = getReducedShape( axes )
+      val target_array = ma2Array( target_shape, initVal, missing )
+      val targ_index: Index =	target_array.array.getIndex()
+      while ( iter.hasNext ) {
+        val fval = iter.getFloatNext
+        if( ( fval != missing ) && !fval.isNaN  ) {
+          val current_index = getReducedFlatIndex( targ_index, axes, iter )
+          target_array.array.setFloat( current_index, op( target_array.array.getFloat(current_index), fval ) )
+        }
+      }
+      target_array
     }
   }
 
