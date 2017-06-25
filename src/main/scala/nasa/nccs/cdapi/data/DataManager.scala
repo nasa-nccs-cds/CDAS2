@@ -83,16 +83,42 @@ object ma2Array {
 
 class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
 
+  def commensurateShapes( s0: Array[Int], s1: Array[Int] ): Boolean = {
+    for ( (v0,v1) <- s0 zip s1 ) { if( ( v0 != v1 ) &&  ( v1 != 1 ) ) return false }
+    true
+  }
+
+  def compareShapes( other_shape: Array[Int] ): Int = {
+    val p0 = array.getShape.product
+    val p1 = other_shape.product
+    if( p0 == p1 ) { 0 }
+    else if( p0 > p1 )  {
+      if( commensurateShapes( array.getShape, other_shape ) ) { 1 }
+      else { throw new Exception( s"Incommensurate shapes in dual array operation: [${array.getShape.mkString(",")}] --  [${other_shape.mkString(",")}] ") }
+    } else {
+      if( commensurateShapes( other_shape, array.getShape ) ) { -1 }
+      else { throw new Exception( s"Incommensurate shapes in dual array operation: [${array.getShape.mkString(",")}] --  [${other_shape.mkString(",")}] ") }
+    }
+  }
+
   def merge( other: ma2Array, op: ma2Array.ReduceOp ): ma2Array = {
-    assert ( other.shape.sameElements(shape), s"Error, attempt to merge arrays with different shapes: {${other.shape.mkString(",")}} -- {${shape.mkString(",")}}")
-    val vTot = new ma2.ArrayFloat( array.getShape )
-    (0 until array.getSize.toInt ) foreach ( index => {
-      val uv0: Float = array.getFloat(index)
-      val uv1: Float = other.array.getFloat(index)
-      if( (uv0==missing) || uv0.isNaN || (uv1==other.missing) || uv1.isNaN ) { missing }
-      else {  vTot.setFloat(index, op( uv0, uv1 ) )  }
-    } )
-    ma2Array( vTot, missing )
+    val shape_comparison = compareShapes( other.array.getShape )
+    if( shape_comparison == 0 ) {
+      val vTot = new ma2.ArrayFloat(array.getShape)
+      (0 until array.getSize.toInt) foreach (index => {
+        val uv0: Float = array.getFloat(index)
+        val uv1: Float = other.array.getFloat(index)
+        if ((uv0 == missing) || uv0.isNaN || (uv1 == other.missing) || uv1.isNaN) {
+          missing
+        }
+        else {
+          vTot.setFloat(index, op(uv0, uv1))
+        }
+      })
+      ma2Array(vTot, missing)
+    } else {
+
+    }
   }
 
   def +( other: ma2Array ): ma2Array = {
