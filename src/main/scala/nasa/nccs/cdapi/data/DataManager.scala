@@ -18,6 +18,7 @@ import ucar.ma2.{Index, IndexIterator}
 import scala.xml
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
 
 // Developer API for integrating various data management and IO frameworks such as SIA-IO and CDAS-Cache.
@@ -83,26 +84,30 @@ object ma2Array {
 
 class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
 
-  def commensurateShapes( s0: Array[Int], s1: Array[Int] ): Boolean = {
-    for ( (v0,v1) <- s0 zip s1 ) { if( ( v0 != v1 ) &&  ( v1 != 1 ) ) return false }
-    true
+  def getReductionAxes( s0: Array[Int], s1: Array[Int] ): Array[Int] = {
+    var axes = ListBuffer.empty[Int]
+    for ( index <- s0.indices; v0 = s0(index); v1 = s1(index); if (v0 != v1) ) {
+      if( v1 == 1 ) axes += index
+      else { throw new Exception( s"Incommensurate shapes in dual array operation: [${s0.mkString(",")}] --  [${s1.mkString(",")}] ") }
+    }
+    axes.toArray
   }
 
-  def compareShapes( other_shape: Array[Int] ): Int = {
+  def compareShapes( other_shape: Array[Int] ): ( Int, Array[Int] ) = {
     val p0 = array.getShape.product
     val p1 = other_shape.product
-    if( p0 == p1 ) { 0 }
+    if( p0 == p1 ) ( 0, Array.emptyIntArray )
     else if( p0 > p1 )  {
-      if( commensurateShapes( array.getShape, other_shape ) ) { 1 }
-      else { throw new Exception( s"Incommensurate shapes in dual array operation: [${array.getShape.mkString(",")}] --  [${other_shape.mkString(",")}] ") }
+      val axes = getReductionAxes( array.getShape, other_shape )
+      ( 1, axes )
     } else {
-      if( commensurateShapes( other_shape, array.getShape ) ) { -1 }
-      else { throw new Exception( s"Incommensurate shapes in dual array operation: [${array.getShape.mkString(",")}] --  [${other_shape.mkString(",")}] ") }
+      val axes = getReductionAxes( other_shape, array.getShape )
+      ( -1, axes )
     }
   }
 
   def merge( other: ma2Array, op: ma2Array.ReduceOp ): ma2Array = {
-    val shape_comparison = compareShapes( other.array.getShape )
+    val ( shape_comparison, axes ) = compareShapes( other.array.getShape )
     if( shape_comparison == 0 ) {
       val vTot = new ma2.ArrayFloat(array.getShape)
       (0 until array.getSize.toInt) foreach (index => {
@@ -117,7 +122,22 @@ class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
       })
       ma2Array(vTot, missing)
     } else {
-
+      val base_array = if( shape_comparison > 0 ) { array } else { other.array }
+      val reduced_array = if( shape_comparison > 0 ) { other.array } else { array }
+      val target_array = ma2Array( base_array.getShape, 0.0f, missing )
+      val iter: IndexIterator = base_array.getIndexIterator
+      val reduced_index: Index =	reduced_array.getIndex
+      while ( iter.hasNext ) {
+        val v0 = iter.getFloatNext
+        if( ( v0 != missing ) && !v0.isNaN ) {
+          val reduced_index = getReducedFlatIndex( reduced_index, axes, iter )
+          val v1: Float = reduced_array.getFloat(reduced_index)
+          if( ( v1 != missing ) && !v1.isNaN ) {
+            target_array.array.setFloat(current_index, op(v0, v1))
+          }
+        }
+      }
+      target_array
     }
   }
 
