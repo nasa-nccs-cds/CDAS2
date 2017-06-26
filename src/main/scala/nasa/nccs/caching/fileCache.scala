@@ -382,7 +382,7 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
         val partSize = Math.min(_nSlicesPerPart, baseShape(0) - startIndex)
         RegularPartition(partIndex, 0, startIndex, partSize, _nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape)
       })
-      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating batched partitions: preferredNParts: ${_preferredNParts}, sectionMemorySize: $sectionMemorySize, sliceMemorySize: $sliceMemorySize, nSlicesPerRecord: ${_nSlicesPerRecord}, recordMemorySize: ${_recordMemorySize}, nRecordsPerPart: ${_nRecordsPerPart}, partMemorySize: ${_partMemorySize}, nPartitions: ${partitions.length} \n---------------------------------------------\n")
+      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating batched partitions: preferredNParts: ${_preferredNParts}, sectionMemorySize: ${sectionMemorySize/M} M, sliceMemorySize: ${sliceMemorySize/M} M, nSlicesPerRecord: ${_nSlicesPerRecord}, recordMemorySize: ${_recordMemorySize/M} M, nRecordsPerPart: ${_nRecordsPerPart}, partMemorySize: ${_partMemorySize/M} M, nPartitions: ${partitions.length} \n---------------------------------------------\n")
       new CDASPartitionSpec( partitions )
     } else {
       val seasonFilters = filters.flatMap( SeasonFilter.get )
