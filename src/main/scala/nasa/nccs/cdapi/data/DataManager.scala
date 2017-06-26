@@ -74,15 +74,15 @@ trait RDDataManager {
 
 
 
-object ma2Array {
+object FastMaskedArray {
   type ReduceOp = (Float,Float)=>Float
-  def apply( array: ma2.Array, missing: Float ): ma2Array = new ma2Array( array, missing )
-  def apply( shape: Array[Int], data:  Array[Float], missing: Float ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, shape, data ), missing )
-  def apply( shape: Array[Int], init_value: Float, missing: Float ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, shape, Array.fill[Float](shape.product)(init_value) ), missing )
-  def apply( fltArray: CDFloatArray ): ma2Array = new ma2Array( ma2.Array.factory( ma2.DataType.FLOAT, fltArray.getShape, fltArray.getArrayData() ), fltArray.getInvalid )
+  def apply( array: ma2.Array, missing: Float ): FastMaskedArray = new FastMaskedArray( array, missing )
+  def apply( shape: Array[Int], data:  Array[Float], missing: Float ): FastMaskedArray = new FastMaskedArray( ma2.Array.factory( ma2.DataType.FLOAT, shape, data ), missing )
+  def apply( shape: Array[Int], init_value: Float, missing: Float ): FastMaskedArray = new FastMaskedArray( ma2.Array.factory( ma2.DataType.FLOAT, shape, Array.fill[Float](shape.product)(init_value) ), missing )
+  def apply( fltArray: CDFloatArray ): FastMaskedArray = new FastMaskedArray( ma2.Array.factory( ma2.DataType.FLOAT, fltArray.getShape, fltArray.getArrayData() ), fltArray.getInvalid )
 }
 
-class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
+class FastMaskedArray(val array: ma2.Array, val missing: Float ) extends Loggable {
 
   def getReductionAxes( s0: Array[Int], s1: Array[Int] ): Array[Int] = {
     var axes = ListBuffer.empty[Int]
@@ -106,7 +106,7 @@ class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
     }
   }
 
-  def merge( other: ma2Array, op: ma2Array.ReduceOp ): ma2Array = {
+  def merge(other: FastMaskedArray, op: FastMaskedArray.ReduceOp ): FastMaskedArray = {
     val ( shape_comparison, axes ) = compareShapes( other.array.getShape )
     if( shape_comparison == 0 ) {
       val vTot = new ma2.ArrayFloat(array.getShape)
@@ -120,28 +120,33 @@ class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
           vTot.setFloat(index, op(uv0, uv1))
         }
       })
-      ma2Array(vTot, missing)
+      FastMaskedArray(vTot, missing)
     } else {
       val base_array = if( shape_comparison > 0 ) { array } else { other.array }
       val reduced_array = if( shape_comparison > 0 ) { other.array } else { array }
-      val target_array = ma2Array( base_array.getShape, 0.0f, missing )
-      val iter: IndexIterator = base_array.getIndexIterator
+      val target_array = FastMaskedArray( base_array.getShape, 0.0f, missing )
+      val base_iter: IndexIterator = base_array.getIndexIterator
+      val result_iter: IndexIterator = target_array.array.getIndexIterator
       val reduced_index: Index =	reduced_array.getIndex
-      while ( iter.hasNext ) {
-        val v0 = iter.getFloatNext
+      while ( base_iter.hasNext ) {
+        val v0: Float = base_iter.getFloatNext
         if( ( v0 != missing ) && !v0.isNaN ) {
-          val reduced_index = getReducedFlatIndex( reduced_index, axes, iter )
-          val v1: Float = reduced_array.getFloat(reduced_index)
+          val reduced_flat_index: Int = getReducedFlatIndex( reduced_index, axes, base_iter )
+          val v1: Float = reduced_array.getFloat( reduced_flat_index )
           if( ( v1 != missing ) && !v1.isNaN ) {
-            target_array.array.setFloat(current_index, op(v0, v1))
+            result_iter.setFloatNext( op(v0, v1) )
+          } else {
+            result_iter.setFloatNext( missing )
           }
+        } else {
+          result_iter.setFloatNext( missing )
         }
       }
       target_array
     }
   }
 
-  def +( other: ma2Array ): ma2Array = {
+  def +( other: FastMaskedArray ): FastMaskedArray = {
     assert ( other.shape.sameElements(shape), s"Error, attempt to add arrays with different shapes: {${other.shape.mkString(",")}} -- {${shape.mkString(",")}}")
     val vTot = new ma2.ArrayFloat( array.getShape )
     (0 until array.getSize.toInt ) foreach ( index => {
@@ -150,10 +155,10 @@ class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
       if( (uv0==missing) || uv0.isNaN || (uv1==other.missing) || uv1.isNaN ) { missing }
       else {  vTot.setFloat(index, uv0 + uv1)  }
     } )
-    ma2Array( vTot, missing )
+    FastMaskedArray( vTot, missing )
   }
 
-  def /( other: ma2Array ): ma2Array = {
+  def /( other: FastMaskedArray ): FastMaskedArray = {
     assert ( other.shape.sameElements(shape), s"Error, attempt to add arrays with different shapes: {${other.shape.mkString(",")}} -- {${shape.mkString(",")}}")
     val vTot = new ma2.ArrayFloat( array.getShape )
     (0 until array.getSize.toInt ) foreach ( index => {
@@ -162,14 +167,14 @@ class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
       if( (uv0==missing) || uv0.isNaN || (uv1==other.missing) || (uv1==0f) || uv1.isNaN ) { vTot.setFloat(index, missing ) }
       else {  vTot.setFloat(index, uv0 / uv1)  }
     } )
-    ma2Array( vTot, missing )
+    FastMaskedArray( vTot, missing )
   }
 
   def shape = array.getShape
   def toCDFloatArray = CDFloatArray.factory(array,missing)
   def toFloatArray = CDFloatArray.factory(array,missing).getArrayData()
 
-  def weightedSum( axes: Array[Int], wtsOpt: Option[ma2Array] ): ( ma2Array, ma2Array ) = {
+  def weightedSum( axes: Array[Int], wtsOpt: Option[FastMaskedArray] ): ( FastMaskedArray, FastMaskedArray ) = {
     val wtsIterOpt = wtsOpt.map( _.array.getIndexIterator )
     wtsOpt match {
       case Some( wts ) => if( !wts.array.getShape.sameElements(array.getShape) ) { throw new Exception( s"Weights shape [${wts.array.getShape().mkString(",")}] does not match data shape [${array.getShape.mkString(",")}]") }
@@ -195,11 +200,11 @@ class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
           }
         }
       }
-      ( ma2Array(result_shape,Array(result),missing), ma2Array(result_shape,Array(count),missing) )
+      ( FastMaskedArray(result_shape,Array(result),missing), FastMaskedArray(result_shape,Array(count),missing) )
     } else {
       val target_shape: Array[Int] = getReducedShape( axes )
-      val target_array = ma2Array( target_shape, 0.0f, missing )
-      val weights_array = ma2Array( target_shape, 0.0f, missing )
+      val target_array = FastMaskedArray( target_shape, 0.0f, missing )
+      val weights_array = FastMaskedArray( target_shape, 0.0f, missing )
       val targ_index: Index =	target_array.array.getIndex()
       while ( iter.hasNext ) {
         val fval = iter.getFloatNext
@@ -220,7 +225,7 @@ class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
     }
   }
 
-  def reduce( op: ma2Array.ReduceOp, axes: Array[Int], initVal: Float = 0f ): ma2Array = {
+  def reduce(op: FastMaskedArray.ReduceOp, axes: Array[Int], initVal: Float = 0f ): FastMaskedArray = {
     val rank = array.getRank
     val iter: IndexIterator = array.getIndexIterator()
     if( axes.length == rank ) {
@@ -232,10 +237,10 @@ class ma2Array( val array: ma2.Array, val missing: Float ) extends Loggable {
           result = op( result, fval )
         }
       }
-      ma2Array(result_shape,Array(result),missing)
+      FastMaskedArray(result_shape,Array(result),missing)
     } else {
       val target_shape: Array[Int] = getReducedShape( axes )
-      val target_array = ma2Array( target_shape, initVal, missing )
+      val target_array = FastMaskedArray( target_shape, initVal, missing )
       val targ_index: Index =	target_array.array.getIndex()
       while ( iter.hasNext ) {
         val fval = iter.getFloatNext
@@ -284,11 +289,11 @@ abstract class ArrayBase[T <: AnyVal]( val shape: Array[Int]=Array.emptyIntArray
   def toCDFloatArray: CDFloatArray
   def toCDDoubleArray: CDDoubleArray
   def toCDLongArray: CDLongArray
-  def toMa2Array: ma2Array
+  def toFastMaskedArray: FastMaskedArray
   def toUcarFloatArray: ucar.ma2.Array = toCDFloatArray
   def toUcarDoubleArray: ucar.ma2.Array = toCDDoubleArray
   def toCDWeightsArray: Option[CDFloatArray] = None
-  def toMa2WeightsArray: Option[ma2Array] = None
+  def toMa2WeightsArray: Option[FastMaskedArray] = None
   def getMetadataStr = metadata map { case ( key, value ) => key + ":" + value } mkString (";")
   def getSampleData( size: Int, start: Int): Array[Float] = toCDFloatArray.getSampleData( size, start )
   def getSampleDataStr( size: Int, start: Int): String = toCDFloatArray.getSampleData( size, start ).mkString( "[ ",", "," ]")
@@ -302,7 +307,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   val bb = java.nio.ByteBuffer.allocate(4)
   def weights: Option[Array[Float]] = _optWeights
   override def toCDWeightsArray: Option[CDFloatArray] = _optWeights.map( CDFloatArray( shape, _, getMissing() ) )
-  override def toMa2WeightsArray: Option[ma2Array] = _optWeights.map( ma2Array( shape, _, getMissing() ) )
+  override def toMa2WeightsArray: Option[FastMaskedArray] = _optWeights.map( FastMaskedArray( shape, _, getMissing() ) )
   def getMissing( default: Float = Float.MaxValue ): Float = _missing.getOrElse(default)
   def sameGrid( other: HeapFltArray) = gridSpec.equals( other.gridSpec )
   def hasData = (data.length > 0)
@@ -314,7 +319,7 @@ class HeapFltArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data, getMissing(), indexMaps )
   def toUcarArray: ma2.Array = ma2.Array.factory( ma2.DataType.FLOAT, shape, data )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), getMissing() )
-  def toMa2Array: ma2Array = ma2Array( shape, data, getMissing() )
+  def toFastMaskedArray: FastMaskedArray = FastMaskedArray( shape, data, getMissing() )
   def toCDLongArray: CDLongArray = CDLongArray( shape, data.map(_.toLong) )
   def verifyGrids( other: HeapFltArray ) = if( !sameGrid(other) ) throw new Exception( s"Error, attempt to combine arrays with different grids: $gridSpec vs ${other.gridSpec}")
   def append( other: HeapFltArray ): HeapFltArray = {
@@ -398,7 +403,7 @@ class HeapDblArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=Ar
   def data: Array[Double] = _data_
   def getMissing( default: Double = Double.MaxValue ): Double = _missing.getOrElse(default)
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), getMissing().toFloat )
-  def toMa2Array: ma2Array = ma2Array( shape, data.map(_.toFloat), getMissing().toFloat )
+  def toFastMaskedArray: FastMaskedArray = FastMaskedArray( shape, data.map(_.toFloat), getMissing().toFloat )
   def toCDLongArray: CDLongArray = CDLongArray( shape, data.map(_.toLong) )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data, getMissing() )
 
@@ -424,7 +429,7 @@ class HeapLongArray( shape: Array[Int]=Array.emptyIntArray, origin: Array[Int]=A
   def data: Array[Long] = _data_
   def getMissing( default: Long = Long.MaxValue ): Long = _missing.getOrElse(default)
   def toCDFloatArray: CDFloatArray = CDFloatArray( shape, data.map(_.toFloat), Float.MaxValue )
-  def toMa2Array: ma2Array = ma2Array( shape, data.map(_.toFloat), Float.MaxValue )
+  def toFastMaskedArray: FastMaskedArray = FastMaskedArray( shape, data.map(_.toFloat), Float.MaxValue )
   def toCDLongArray: CDLongArray = CDLongArray( shape, data )
   def toCDDoubleArray: CDDoubleArray = CDDoubleArray( shape, data.map(_.toDouble), Double.MaxValue )
 

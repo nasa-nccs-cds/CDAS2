@@ -629,15 +629,15 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     case Some(data) => ( data.toCDFloatArray, data.getMissing() );
     case None => throw new Exception("Error missing array element: " + elem)
   }
-  def toMa2Array(a0: RDDRecord, elem: String): ma2Array = a0.element(elem) match {
-    case Some(data) => data.toMa2Array
+  def toFastMaskedArray(a0: RDDRecord, elem: String): FastMaskedArray = a0.element(elem) match {
+    case Some(data) => data.toFastMaskedArray
     case None => throw new Exception("Error missing array element: " + elem)
   }
 
   def optFltArray(a0: RDDRecord, elem: String): Option[CDFloatArray] = a0.element(elem).map(_.toCDFloatArray)
 
   def wtArray(a0: RDDRecord, elem: String): Option[CDFloatArray] = a0.element(elem).flatMap( _.toCDWeightsArray )
-  def wtMa2Array(a0: RDDRecord, elem: String): Option[ma2Array] = a0.element(elem).flatMap( _.toMa2WeightsArray )
+  def wtFastMaskedArray(a0: RDDRecord, elem: String): Option[FastMaskedArray] = a0.element(elem).flatMap( _.toMa2WeightsArray )
 
   def originArray(a0: RDDRecord, elem: String): Array[Int]  = a0.element(elem) match {
     case Some(data) => data.origin;
@@ -654,10 +654,10 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     if (axes.includes(0)) {
       val t0 = System.nanoTime
       val rid = context.operation.rid
-      val vTot: ma2Array = toMa2Array(a0, rid) + toMa2Array(a1, rid)
+      val vTot: FastMaskedArray = toFastMaskedArray(a0, rid) + toFastMaskedArray(a1, rid)
       val t1 = System.nanoTime
       val vOrigin: Array[Int] = originArray( a0, rid )
-      val wTotOpt: Option[Array[Float]] = wtMa2Array(a0, rid ).map(w => w + wtMa2Array(a1,rid).get ).map(_.toFloatArray )
+      val wTotOpt: Option[Array[Float]] = wtFastMaskedArray(a0, rid ).map(w => w + wtFastMaskedArray(a1,rid).get ).map(_.toFloatArray )
       val t2 = System.nanoTime
       val array_mdata = MetadataOps.mergeMetadata( context.operation.name )( arrayMdata(a0, rid), arrayMdata(a1, rid) )
       val element = rid -> HeapFltArray( vTot.toCDFloatArray, vOrigin, array_mdata, wTotOpt )
@@ -674,9 +674,9 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
 
   def weightedValueSumRDDPostOp(result: RDDRecord, context: KernelContext): RDDRecord = {
     val rid = context.operation.rid
-    wtMa2Array( result, rid ) match {
+    wtFastMaskedArray( result, rid ) match {
       case Some(w0) =>
-        val v0 = toMa2Array(result, rid)
+        val v0 = toFastMaskedArray(result, rid)
         val vOrigin: Array[Int] = originArray(result, rid)
         logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(v0.array.getShape.mkString(","), w0.array.getShape.mkString(","), result.metadata.toString))
         context.addTimestamp( "weightedValueSumPostOp complete" )
@@ -812,7 +812,7 @@ abstract class SingularRDDKernel( options: Map[String,String] = Map.empty ) exte
       case Some( input_array ) =>
         mapCombineOp match {
           case Some(combineOp) =>
-            val cdinput = input_array.toMa2Array
+            val cdinput = input_array.toFastMaskedArray
             val result = cdinput.reduce(combineOp, axes.args, initValue).toCDFloatArray
 //            logger.info( "Input data sample = [ %s ]".format(cdinput.toCDFloatArray.getArrayData(30).map( _.toString ).mkString(", ") ) )
             logger.info(" ##### KERNEL [%s]: Map Op: combine, axes = %s, result shape = %s, result value[0] = %.4f".format( name, axes, result.getShape.mkString(","), result.getArrayData(1)(0) ) )
@@ -836,7 +836,7 @@ abstract class DualRDDKernel( options: Map[String,String] ) extends Kernel(optio
       val t0 = System.nanoTime
       val input_arrays: List[ArrayBase[Float]] = context.operation.inputs.map(id => inputs.findElements(id)).foldLeft(List[ArrayBase[Float]]())(_ ++ _)
       assert(input_arrays.size > 1, "Missing input(s) to dual input operation " + id + ": required inputs=(%s), available inputs=(%s)".format(context.operation.inputs.mkString(","), inputs.elements.keySet.mkString(",")))
-      val ma2_input_arrays = input_arrays.map( _.toMa2Array )
+      val ma2_input_arrays = input_arrays.map( _.toFastMaskedArray )
       val result_array: CDFloatArray =   ma2_input_arrays(0).merge( ma2_input_arrays(1), mapCombineOp.get ).toCDFloatArray
       val result_metadata = input_arrays.head.metadata ++ inputs.metadata ++ List("uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile(inputs.elements))
       logger.info("Executed Kernel %s map op, time = %.4f s".format(name, (System.nanoTime - t0) / 1.0E9))

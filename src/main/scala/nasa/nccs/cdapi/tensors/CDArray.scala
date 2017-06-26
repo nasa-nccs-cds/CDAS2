@@ -4,7 +4,7 @@ package nasa.nccs.cdapi.tensors
 import java.nio._
 
 import nasa.nccs.cdapi.cdm.RemapElem
-import nasa.nccs.cdapi.data.ma2Array
+import nasa.nccs.cdapi.data.FastMaskedArray
 import nasa.nccs.cdapi.tensors.CDArray.{FlatIndex, StorageIndex}
 import nasa.nccs.utilities.{Loggable, cdsutils}
 import ucar.ma2

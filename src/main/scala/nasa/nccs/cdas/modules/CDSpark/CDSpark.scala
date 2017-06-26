@@ -1,6 +1,6 @@
 package nasa.nccs.cdas.modules.CDSpark
 
-import nasa.nccs.cdapi.data.{HeapFltArray, RDDRecord, ma2Array}
+import nasa.nccs.cdapi.data.{HeapFltArray, RDDRecord, FastMaskedArray}
 import ucar.ma2
 import nasa.nccs.cdapi.tensors.{CDFloatArray, CDIndexMap}
 import nasa.nccs.cdas.kernels._
@@ -175,9 +175,9 @@ class average extends SingularRDDKernel(Map.empty) {
     val axisIndices: Array[Int] = context.grid.getAxisIndices( axes ).getAxes.toArray
     val elems = context.operation.inputs.map( inputId => inputs.element(inputId) match {
       case Some( input_data ) =>
-        val input_array = input_data.toMa2Array
+        val input_array: FastMaskedArray = input_data.toFastMaskedArray
         val (weighted_value_sum_masked, weights_sum_masked) =  if( addWeights(context) ) {
-          val weights: ma2Array = ma2Array(KernelUtilities.getWeights(inputId, context))
+          val weights: FastMaskedArray = FastMaskedArray(KernelUtilities.getWeights(inputId, context))
           input_array.weightedSum(axisIndices,Some(weights))
         } else {
           input_array.weightedSum(axisIndices,None)
@@ -192,26 +192,26 @@ class average extends SingularRDDKernel(Map.empty) {
     rv
   }
 
-  def map1 ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
-    val t0 = System.nanoTime
-    val axes = context.config("axes","")
-    val axisIndices: AxisIndices = context.grid.getAxisIndices( axes )
-    val async = context.config("async", "false").toBoolean
-    val elems = context.operation.inputs.map( inputId => inputs.element(inputId) match {
-      case Some( input_data ) =>
-        val input_array = input_data.toCDFloatArray
-        val accumulation_index = input_array.getAccumulationIndex( axisIndices.args )
-        val weights: CDFloatArray = KernelUtilities.getWeights(inputId, context)
-        val (weighted_value_sum_masked, weights_sum_masked) = input_array.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index, Some(weights) )
-        context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked.getArrayData()) )
-      case None => throw new Exception( "Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
-    })
-    logger.info("Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9))
-    context.addTimestamp( "Map Op complete" )
-    val rv = RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid, "axes" -> axes.toUpperCase ) )
-    logger.info("Returning result value")
-    rv
-  }
+//  def map1 ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
+//    val t0 = System.nanoTime
+//    val axes = context.config("axes","")
+//    val axisIndices: AxisIndices = context.grid.getAxisIndices( axes )
+//    val async = context.config("async", "false").toBoolean
+//    val elems = context.operation.inputs.map( inputId => inputs.element(inputId) match {
+//      case Some( input_data ) =>
+//        val input_array = input_data.toCDFloatArray
+//        val accumulation_index = input_array.getAccumulationIndex( axisIndices.args )
+//        val weights: CDFloatArray = KernelUtilities.getWeights(inputId, context)
+//        val (weighted_value_sum_masked, weights_sum_masked) = input_array.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index, Some(weights) )
+//        context.operation.rid -> HeapFltArray( weighted_value_sum_masked, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked.getArrayData()) )
+//      case None => throw new Exception( "Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(",") )
+//    })
+//    logger.info("Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9))
+//    context.addTimestamp( "Map Op complete" )
+//    val rv = RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid, "axes" -> axes.toUpperCase ) )
+//    logger.info("Returning result value")
+//    rv
+//  }
   override def combineRDD(context: KernelContext)(a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)(a0, a1)
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
 }
