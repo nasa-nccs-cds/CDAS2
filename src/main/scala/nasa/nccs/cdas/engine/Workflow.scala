@@ -114,6 +114,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
     val t0 = System.nanoTime()
     val opInputs = getNodeInputs( requestCx, node )
     val kernelContext = node.generateKernelContext( requestCx, requestCx.profiler )
+    kernelContext.addTimestamp( s"Executing Kernel for node ${node.getNodeId}" )
     var pre_result: RDDRecord = mapReduce( node, opInputs, kernelContext, requestCx )
     val t1 = System.nanoTime()
     val result = node.kernel.postRDDOp( pre_result, kernelContext  )
@@ -134,7 +135,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def mapReduceBatch( node: WorkflowNode, opInputs: Map[String, OperationInput], kernelContext: KernelContext, requestCx: RequestContext, batchIndex: Int ): Option[ ( RecordKey, RDDRecord ) ] = {
     prepareInputs(node, opInputs, kernelContext, requestCx, batchIndex) map (inputs => {
-      logger.info(s"Executing Map Op, Batch ${batchIndex.toString} for node ${node.getNodeId}")
+      kernelContext.addTimestamp( s"Executing Map Op, Batch ${batchIndex.toString} for node ${node.getNodeId}", true )
       val mapresult = node.map(inputs, kernelContext)
       logger.info(s"Executing Reduce Op, Batch ${batchIndex.toString} for node ${node.getNodeId}")
       val result: (RecordKey, RDDRecord) = node.reduce(mapresult, kernelContext, batchIndex)
@@ -306,7 +307,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def domainRDDPartition( opInputs: Map[String, OperationInput], kernelContext: KernelContext, requestCx: RequestContext, node: WorkflowNode, batchIndex: Int ): Option[RDD[(RecordKey,RDDRecord)]] = {
     val enableRegridding = false
-    logger.info( "Generating RDD for inputs: " + opInputs.keys.mkString(", ") )
+    kernelContext.addTimestamp( "Generating RDD for inputs: " + opInputs.keys.mkString(", "), true )
     val rawRddMap: Map[String,RDD[(RecordKey,RDDRecord)]] = opInputs flatMap { case ( uid, opinput ) => opinput match {
         case ( dataInput: PartitionedFragment) =>
           val opSection: Option[ma2.Section] = getOpSectionIntersection( dataInput.getGrid, node )

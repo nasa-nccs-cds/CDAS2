@@ -182,6 +182,18 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     assert( result_data.sample(21).maxScaledDiff( nco_result )  < eps, s" UVCDAT result (with generated weights) does not match NCO result (with cosine weighting)")
   }
 
+  test("NCML-timeAveTestLocal") {
+    val data_file = "file:///Users/tpmaxwel/.cdas/cache/collections/NCML/MERRA2-6hr-ana_Np.200001.ncml"
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":10,"end":10,"system":"indices"},"lon":{"start":20,"end":20,"system":"indices"}}],variable=[{"uri":"%s","name":"T:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"t"}]]""".format( data_file )
+    val result_node = executeTest( datainputs, Map("numParts"->"2") )
+    val result_data = CDFloatArray( getResultData( result_node ) )
+    println( " ** CDMS Result:       " + result_data.mkBoundedDataString(", ",16) )
+  }
+
+
+
+
+
   //  test("pyMaxTestLocal") {
 //    val datainputs = s"""[domain=[{"name":"d0"}],variable=[{"uri":"file:///Users/tpmaxwel/.cdas/cache/collections/NCML/MERRA_DAILY.ncml","name":"t:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.max","input":"v1","domain":"d0","axes":"tzyx"}]]"""
 //    val result_node = executeTest(datainputs)
