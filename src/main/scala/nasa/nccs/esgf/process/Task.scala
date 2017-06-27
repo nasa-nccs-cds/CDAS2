@@ -915,7 +915,8 @@ object DataContainer extends ContainerBase {
         case None =>
           val var_names: Array[String] = fullname.toString.split(',')
           val dataPath = metadata.getOrElse("uri", metadata.getOrElse("url", uid)).toString
-          val collection = Collection(uid.toString, dataPath)
+          val cid = dataPath.split('/').last
+          val collection = Collection( cid, dataPath )
           for ((name, index) <- var_names.zipWithIndex) yield {
             val name_items = name.split(Array(':', '|'))
             val dsource = new DataSource( stripQuotes(name_items.head), collection, normalize(domain), autocache )
