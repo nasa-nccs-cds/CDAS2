@@ -3,8 +3,8 @@ import time, sys
 
 startServer = False
 portal = None
-request_port = 4356
-response_port = 4357
+request_port = 5670
+response_port = 5671
 
 try:
 

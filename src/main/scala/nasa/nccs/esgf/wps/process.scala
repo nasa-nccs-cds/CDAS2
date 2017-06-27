@@ -78,7 +78,7 @@ class ProcessManager( serverConfiguration: Map[String,String] ) extends GenericP
 }
 
 class zmqProcessManager( serverConfiguration: Map[String,String] )  extends GenericProcessManager with Loggable {
-  val portal = new CDASPortalClient( ConnectionMode.BIND, "localhost", 4356, 4357 )
+  val portal = new CDASPortalClient( ConnectionMode.BIND, "localhost", 5670, 5671 )
   val response_manager = portal.createResponseManager()
 
   def unacceptable(msg: String) = {

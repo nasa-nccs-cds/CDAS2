@@ -3,8 +3,8 @@ import time
 
 # assumes the java/scala side of the CDASPortal has been started using the startupCDASPortal.py script.
 
-request_port = 4356
-response_port = 4357
+request_port = 5670
+response_port = 5671
 
 try:
     portal = CDASPortal( ConnectionMode.CONNECT, "localhost", request_port, response_port )

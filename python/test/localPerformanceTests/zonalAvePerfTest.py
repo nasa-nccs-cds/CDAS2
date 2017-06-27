@@ -3,8 +3,8 @@ import time, sys, os
 
 startServer = False
 portal = None
-request_port = 4356
-response_port = 4357
+request_port = 5670
+response_port = 5671
 host = "cldra"
 server = "localhost"
 cdas_cache_dir = os.environ['CDAS_CACHE_DIR']

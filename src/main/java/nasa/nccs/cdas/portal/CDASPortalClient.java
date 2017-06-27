@@ -128,7 +128,7 @@ class ResponseManager extends Thread {
 
 public class CDASPortalClient {
     protected int MB = 1024 * 1024;
-    protected static int DefaultPort = 4356;
+    protected static int DefaultPort = 5670;
     protected Logger logger = CDASLogManager.getCurrentLogger();
     protected ZMQ.Context zmqContext = null;
     protected ZMQ.Socket request_socket = null;
