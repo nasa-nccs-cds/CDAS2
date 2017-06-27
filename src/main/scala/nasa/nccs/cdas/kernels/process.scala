@@ -39,7 +39,7 @@ class Port( val name: String, val cardinality: String, val description: String, 
   }
 }
 
-class KernelContext( val operation: OperationContext, val grids: Map[String,Option[GridContext]], val sectionMap: Map[String,Option[CDSection]],  val domains: Map[String,DomainContainer],  _configuration: Map[String,String], val profiler: ProfilingTool ) extends Loggable with Serializable with ScopeContext {
+class KernelContext( val operation: OperationContext, val grids: Map[String,Option[GridContext]], val sectionMap: Map[String,Option[CDSection]], val domains: Map[String,DomainContainer],  _configuration: Map[String,String], val profiler: ProfilingTool ) extends Loggable with Serializable with ScopeContext {
   val crsOpt = getCRS
   val trsOpt = getTRS
   val timings: SortedSet[(Float,String)] = SortedSet.empty
