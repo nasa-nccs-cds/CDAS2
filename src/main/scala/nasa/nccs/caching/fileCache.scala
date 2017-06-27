@@ -333,7 +333,7 @@ class CDASPartitionSpec( val _partitions: IndexedSeq[Partition] ) {
   def getNPartitions: Int = _partitions.length
 }
 
-class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[String,String], val workflowNodeOpt: Option[WorkflowNode], timeAxisOpt: Option[CoordinateAxis1DTime], dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment") extends Loggable {
+class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[String,String], val workflowNodeOpt: Option[WorkflowNode], timeAxisOpt: Option[CoordinateAxis1DTime], val numDataFiles: Int, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment") extends Loggable {
   import CDASPartitioner._
 
   val elemSize = dataType.getSize
@@ -382,7 +382,7 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
         val partSize = Math.min(_nSlicesPerPart, baseShape(0) - startIndex)
         RegularPartition(partIndex, 0, startIndex, partSize, _nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape)
       })
-      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating batched partitions: preferredNParts: ${_preferredNParts}, sectionMemorySize: ${sectionMemorySize/M} M, sliceMemorySize: ${sliceMemorySize/M} M, nSlicesPerRecord: ${_nSlicesPerRecord}, recordMemorySize: ${_recordMemorySize/M} M, nRecordsPerPart: ${_nRecordsPerPart}, partMemorySize: ${_partMemorySize/M} M, nPartitions: ${partitions.length} \n---------------------------------------------\n")
+      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating batched partitions: preferredNParts: ${_preferredNParts}, numDataFiles: ${numDataFiles}, sectionMemorySize: ${sectionMemorySize/M} M, sliceMemorySize: ${sliceMemorySize/M} M, nSlicesPerRecord: ${_nSlicesPerRecord}, recordMemorySize: ${_recordMemorySize/M} M, nRecordsPerPart: ${_nRecordsPerPart}, partMemorySize: ${_partMemorySize/M} M, nPartitions: ${partitions.length} \n---------------------------------------------\n")
       new CDASPartitionSpec( partitions )
     } else {
       val seasonFilters = filters.flatMap( SeasonFilter.get )

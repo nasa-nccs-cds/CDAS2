@@ -613,7 +613,7 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
     val optDomainSect: Option[ma2.Section] = domain_container_opt.flatMap( domain_container => targetGrid.grid.getSubSection(domain_container.axes) )
     val fragSpec: Option[DataFragmentSpec] = optSection map { section =>
       new DataFragmentSpec( dataContainer.uid, variable.name, variable.collection, data_source.fragIdOpt, Some(targetGrid), variable.dims.mkString(","),
-        variable.units, variable.getAttributeValue("long_name", variable.fullname), section, optDomainSect, domain_mdata, variable.missing, maskOpt, data_source.autoCache )
+        variable.units, variable.getAttributeValue("long_name", variable.fullname), section, optDomainSect, domain_mdata, variable.missing, variable.getAttributeValue("numDataFiles", "1").toInt, maskOpt, data_source.autoCache )
     }
     val t2 = System.nanoTime
     val rv = dataContainer.uid -> fragSpec
@@ -651,7 +651,7 @@ class ServerContext( val dataLoader: DataLoader, val spark: CDSparkContext )  ex
     if( optSection == None ) logger.warn( "Attempt to cache empty segment-> No caching will occur: " + dataContainer.toString )
     optSection map { section =>
       val fragSpec = new DataFragmentSpec( dataContainer.uid, variable.name, variable.collection, data_source.fragIdOpt, Some(targetGrid), variable.dims.mkString(","),
-      variable.units, variable.getAttributeValue("long_name", variable.fullname), section, optDomainSect, domain_mdata, variable.missing, maskOpt, data_source.autoCache )
+      variable.units, variable.getAttributeValue("long_name", variable.fullname), section, optDomainSect, domain_mdata, variable.missing, variable.getAttributeValue("numDataFiles", "1").toInt, maskOpt, data_source.autoCache )
       logger.info( "cache fragSpec: " + fragSpec.getKey.toString )
       dataLoader.getExistingFragment(fragSpec, partsConfig, workflowNodeOpt) match {
         case Some(partFut) =>

@@ -464,6 +464,7 @@ class DataFragmentSpec(val uid: String = "",
                        private val _domSectOpt: Option[ma2.Section],
                        private val _metadata: Map[String,String],
                        val missing_value: Float,
+                       val numDataFiles: Int,
                        val mask: Option[String] = None,
                        val autoCache: Boolean = false
                       ) extends Loggable with Serializable {
@@ -521,7 +522,7 @@ class DataFragmentSpec(val uid: String = "",
     val combined_varname = varname + ":" + other.varname
     val combined_longname = longname + ":" + other.longname
     val (combined_section, mergeStatus) = if (sectionMerge) combineRoi(other.roi) else (roi, SectionMerge.Overlap)
-    new DataFragmentSpec(uid, combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, _metadata, missing_value, mask, autoCache ) -> mergeStatus
+    new DataFragmentSpec(uid, combined_varname, collection, None, targetGridOpt, dimensions, units, combined_longname, combined_section, _domSectOpt, _metadata, missing_value, numDataFiles, mask, autoCache ) -> mergeStatus
   }
   def roi = targetGridOpt match {
     case None =>
@@ -548,6 +549,7 @@ class DataFragmentSpec(val uid: String = "",
                          domainSectOpt,
                          _metadata,
                          missing_value,
+                         numDataFiles,
                          mask, autoCache )
 
   def getBounds(section: Option[ma2.Section] = None): Array[Double] = {
@@ -612,7 +614,7 @@ class DataFragmentSpec(val uid: String = "",
                            roi.intersect(cutSection),
                            domainSectOpt,
                            _metadata,
-                           missing_value,
+                           missing_value, numDataFiles,
                            mask, autoCache )
   }
 
@@ -668,7 +670,7 @@ class DataFragmentSpec(val uid: String = "",
                              intersection,
                              domainSectOpt,
                              _metadata,
-                             missing_value,
+                             missing_value, numDataFiles,
                              mask, autoCache ))
     } else None
   }
@@ -755,7 +757,7 @@ class DataFragmentSpec(val uid: String = "",
                          new ma2.Section(newRanges),
                          domainSectOpt,
                           _metadata,
-                         missing_value,
+                         missing_value, numDataFiles,
                          mask, autoCache )
   }
   def reSection(fkey: DataFragmentKey): DataFragmentSpec =

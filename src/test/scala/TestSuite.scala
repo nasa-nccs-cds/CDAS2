@@ -184,7 +184,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
 
   test("NCML-timeAveTestLocal") {
     val data_file = "file:///Users/tpmaxwel/.cdas/cache/collections/NCML/MERRA2-6hr-ana_Np.200001.ncml"
-    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":10,"end":10,"system":"indices"},"lon":{"start":20,"end":20,"system":"indices"}}],variable=[{"uri":"%s","name":"T:v1","domain":"d0","cache":"true"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"t"}]]""".format( data_file )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":10,"end":10,"system":"indices"},"lon":{"start":20,"end":20,"system":"indices"}}],variable=[{"uri":"%s","name":"T:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"t"}]]""".format( data_file )
     val result_node = executeTest( datainputs, Map("numParts"->"2") )
     val result_data = CDFloatArray( getResultData( result_node ) )
     println( " ** CDMS Result:       " + result_data.mkBoundedDataString(", ",16) )

@@ -118,6 +118,10 @@ object CDGrid extends Loggable {
     method.invoke( spi, null )
   }
 
+  def getNumFiles( ncDataset: NetcdfDataset ): Int = try {
+    ncDataset.getAggregation.getDatasets.size()
+  } catch { case ex: Exception => 1 }
+
   def createGridFile(gridFilePath: String, datfilePath: String) = {
     logger.info( s"Creating #grid# file $gridFilePath from datfilePath: $datfilePath" )
     testNc4()
@@ -125,6 +129,8 @@ object CDGrid extends Loggable {
     val gridWriter = NetcdfFileWriter.createNew(NetcdfFileWriter.Version.netcdf4, gridFilePath, null)
     val dimMap = Map(ncDataset.getDimensions.map(d => NCMLWriter.getName(d) -> gridWriter.addDimension(null, NCMLWriter.getName(d), d.getLength)): _*)
     val groupMap = mutable.HashMap.empty[String,nc2.Group]
+    var nDataFiles = getNumFiles( ncDataset )
+
     val varTups = for (cvar <- ncDataset.getVariables) yield {
       val dataType = cvar match {
         case coordAxis: CoordinateAxis =>
@@ -151,6 +157,7 @@ object CDGrid extends Loggable {
     }
     val globalAttrs = Map(ncDataset.getGlobalAttributes.map(attr => attr.getShortName -> attr): _*)
     globalAttrs.mapValues(attr => gridWriter.addGroupAttribute(null, attr))
+    gridWriter.addGroupAttribute( null, new Attribute("NumDataFiles",nDataFiles) )
     gridWriter.create()
     for ((cvar, newVar) <- varMap.values; if cvar.isCoordinateVariable && (cvar.getRank == 1) ) cvar match  {
       case coordAxis: CoordinateAxis =>
@@ -276,11 +283,12 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
     }
   }
 
-  def getVariable( varShortName: String ): nc2.Variable= {
+  def getVariable( varShortName: String ): ( Int, nc2.Variable ) = {
     val ncDataset: NetcdfDataset = NetcdfDatasetMgr.open( gridFilePath )
+    val numDataFiles: Int = ncDataset.findGlobalAttribute("NumDataFiles").getNumericValue.intValue()
     val variables = ncDataset.getVariables.toList
     variables.find ( v => (v.getShortName equals varShortName) ) match {
-      case Some( variable ) => variable
+      case Some( variable ) => ( numDataFiles, variable )
       case None => throw new Exception("Can't find variable %s in collection %s (%s), variable names = [ %s ] ".format(varShortName,name,gridFilePath, variables.map(_.getShortName).mkString(", ") ) )
     }
   }
@@ -291,7 +299,7 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
   }
 
   def getVariableMetadata( varShortName: String ): List[nc2.Attribute] = {
-    val ncVariable = getVariable( varShortName )
+    val ( numDataFiles, ncVariable ) = getVariable( varShortName )
     val attributes = ncVariable.getAttributes.toList
     val keyValuePairs = List(
       "description" -> ncVariable.getDescription,
@@ -299,7 +307,8 @@ class CDGrid( val name: String,  val gridFilePath: String, val coordAxes: List[C
       "dtype" -> ncVariable.getDataType.toString,
       "dims" -> ncVariable.getDimensionsString,
       "shape" -> ncVariable.getShape.mkString(","),
-      "fullname" -> ncVariable.getFullName
+      "fullname" -> ncVariable.getFullName,
+      "numDataFiles" -> numDataFiles.toString
     ) map { case (key,value) => getAttribute(key, Option(value)) }
     attributes ++ keyValuePairs.flatten
   }
