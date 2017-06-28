@@ -280,7 +280,7 @@ object CDASPartitioner {
   val nCoresPerPart = 1
 }
 
-class CDASCachePartitioner(val cache_id: String, _section: ma2.Section, partsConfig: Map[String,String], workflowNodeOpt: Option[WorkflowNode], timeAxisOpt: Option[CoordinateAxis1DTime], dataType: ma2.DataType = ma2.DataType.FLOAT, cacheType: String = "fragment") extends CDASPartitioner(_section,partsConfig,workflowNodeOpt,timeAxisOpt,dataType,cacheType) {
+class CDASCachePartitioner(val cache_id: String, _section: ma2.Section, partsConfig: Map[String,String], workflowNodeOpt: Option[WorkflowNode], timeAxisOpt: Option[CoordinateAxis1DTime], numDataFiles: Int, dataType: ma2.DataType = ma2.DataType.FLOAT, cacheType: String = "fragment") extends CDASPartitioner(_section,partsConfig,workflowNodeOpt,timeAxisOpt,numDataFiles,dataType,cacheType) {
 
   def getCacheFilePath(partIndex: Int): String = {
     val cache_file = cache_id + "-" + partIndex.toString
@@ -535,7 +535,7 @@ class FileToCacheStream(val fragmentSpec: DataFragmentSpec, partsConfig: Map[Str
   val sType = getAttributeValue("dtype", "FLOAT")
   val dType = ma2.DataType.getType( sType )
   def roi: ma2.Section = new ma2.Section(_section.getRanges)
-  val partitioner = new CDASCachePartitioner(cacheId, roi, partsConfig, workflowNodeOpt, fragmentSpec.getTimeCoordinateAxis, dType)
+  val partitioner = new CDASCachePartitioner(cacheId, roi, partsConfig, workflowNodeOpt, fragmentSpec.getTimeCoordinateAxis, fragmentSpec.numDataFiles, dType)
   def getAttributeValue(key: String, default_value: String) =
     attributes.get(key) match {
       case Some(attr_val) => attr_val.toString.split('=').last.replace('"',' ').trim
@@ -672,7 +672,7 @@ object FragmentPersistence extends DiskCachable with FragSpecKeySet {
               case Some(cache_id_fut) =>
                 Some(cache_id_fut.map((cache_id: String) => {
                   val roi = DataFragmentKey(foundFragKey).getRoi
-                  val partitioner = new CDASCachePartitioner( cache_id, roi, partsConfig, workflowNodeOpt, fragSpec.getTimeCoordinateAxis )
+                  val partitioner = new CDASCachePartitioner( cache_id, roi, partsConfig, workflowNodeOpt, fragSpec.getTimeCoordinateAxis, fragSpec.numDataFiles )
                   fragSpec.cutIntersection(roi) match {
                     case Some(section) =>
                       new PartitionedFragment( new CachePartitions( cache_id, roi, partitioner.getCachePartitions ), None, section)
