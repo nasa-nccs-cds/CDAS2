@@ -192,8 +192,10 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def mapReduce( node: WorkflowNode, opInputs: Map[String, OperationInput], kernelContext: KernelContext, requestCx: RequestContext ): RDDRecord = {
     mapReduceBatch( node, opInputs, kernelContext, requestCx, 0 ) match {
-      case Some( ( key, rddPart ) ) => rddPart.configure("gid", kernelContext.grid.uid)
-      case None => throw new Exception( s"No partitions in mapReduce for node ${node.getNodeId}" )
+      case Some( ( key, rddPart ) ) =>
+        rddPart.configure("gid", kernelContext.grid.uid)
+      case None =>
+        throw new Exception( s"No partitions in mapReduce for node ${node.getNodeId}" )
     }
   }
 
@@ -206,8 +208,10 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def prepareInputs( node: WorkflowNode, opInputs: Map[String, OperationInput], kernelContext: KernelContext, requestCx: RequestContext, batchIndex: Int ): Option[RDD[(RecordKey,RDDRecord)]] = {
     domainRDDPartition( opInputs, kernelContext, requestCx, node, batchIndex ) match {
-      case Some(rdd) => logger.info( s"Prepared inputs with ${rdd.partitions.length} parts for node ${node.getNodeId()}"); Some(rdd)
-      case None => logger.info( s"No inputs for node ${node.getNodeId()}"); None
+      case Some(rdd) =>
+        logger.info( s"Prepared inputs with ${rdd.partitions.length} parts for node ${node.getNodeId()}"); Some(rdd)
+      case None =>
+        logger.info( s"No inputs for node ${node.getNodeId()}"); None
     }
   }
 

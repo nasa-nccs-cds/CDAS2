@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit
 import java.util.{Calendar, Comparator}
 
 import com.googlecode.concurrentlinkedhashmap.{ConcurrentLinkedHashMap, EntryWeigher, EvictionListener}
+import nasa.nccs.caching.CDASPartitioner.{partitionSize, recordSize}
 import nasa.nccs.cdas.utilities.{GeoTools, appParameters, runtime}
 import nasa.nccs.cdapi.cdm.{PartitionedFragment, _}
 import nasa.nccs.cdapi.data.RDDRecord
@@ -333,6 +334,11 @@ class CDASPartitionSpec( val _partitions: IndexedSeq[Partition] ) {
   def getNPartitions: Int = _partitions.length
 }
 
+case class PartitionSpecs( nPartitions: Int, partMemorySize: Long, nSlicesPerRecord: Int, recordMemorySize: Long, nRecordsPerPart: Int, nSlicesPerPart: Int ) {
+
+}
+
+
 class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[String,String], val workflowNodeOpt: Option[WorkflowNode], timeAxisOpt: Option[CoordinateAxis1DTime], val numDataFiles: Int, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment") extends Loggable {
   import CDASPartitioner._
 
@@ -344,6 +350,7 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
   val filters = kernelConfig.getOrElse("filter","").split(",").filter( !_.isEmpty )
   val sectionRange: ma2.Range = _section.getRange(0)
   lazy val spec = computeRecordSizes()
+  lazy val partitions = new Partitions( _section, getPartitions )
 
   def timeAxis: CoordinateAxis1DTime = {
     val fullAxis = timeAxisOpt getOrElse( throw new Exception( "Missing time axis in Partitioner") )
@@ -364,25 +371,42 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
   val slicesPerDay: Float = daysPerSection / baseShape(0)
   val yearsPerSection: Float = secondsPerSection / secPeryear
 
+  def getPartitionSpecs( numParts: Int = 0 ): PartitionSpecs = {
+    val currentPartitionSize: Float = if( numParts == 0 ) { partitionSize.toFloat } else { sectionMemorySize / numParts.toFloat }
+    val currentRecordSize: Float = math.min( recordSize, currentPartitionSize )
+    val _minNumSmallParts = partsConfig.getOrElse("minNumSmallParts","10").toInt
+    val _minNParts = math.min( _minNumSmallParts, numDataFiles )
+    val _nSlicesPerRecord: Int = math.max( currentRecordSize / sliceMemorySize, 1.0).round.toInt
+    val _recordMemorySize: Long = getMemorySize(_nSlicesPerRecord)
+    val _nRecordsPerPart: Int = math.max( currentPartitionSize / _recordMemorySize, 1.0).round.toInt
+    val _partMemorySize: Long = _nRecordsPerPart * _recordMemorySize
+    var _nSlicesPerPart: Int = _nRecordsPerPart * _nSlicesPerRecord
+    val _nPartitions: Int = math.ceil(sectionMemorySize / _partMemorySize.toFloat).toInt
+    PartitionSpecs( _nPartitions, _partMemorySize, _nSlicesPerRecord, _recordMemorySize, _nRecordsPerPart, _nSlicesPerPart )
+  }
+
+  def getBoundedPartitionSpecs( numParts: Int = 0 ): PartitionSpecs = {
+    val initialSpecs = getPartitionSpecs( numParts )
+    if( numParts > 0 ) { initialSpecs }
+    else {
+      val minNumSmallParts = partsConfig.getOrElse("minNumSmallParts","10").toInt
+      val minNParts = math.min( minNumSmallParts, numDataFiles )
+      if( initialSpecs.nPartitions < minNParts ) { getPartitionSpecs( minNParts ) }
+      else { initialSpecs }
+    }
+  }
+
   def computeRecordSizes( ): CDASPartitionSpec = {
     val sparkConfig = BatchSpec.serverContext.spark.sparkContext.getConf.getAll map { case (key, value ) =>  key + " -> " + value } mkString( "\n\t")
-    val _preferredNParts = math.ceil( sectionMemorySize / partitionSize.toFloat ).toInt
-    val _forceNParts = partsConfig.getOrElse("numParts","0").toInt
-    val currentPartitionSize: Float = if( _forceNParts == 0 ) { partitionSize.toFloat } else { sectionMemorySize / _forceNParts.toFloat }
-    val currentRecordSize: Float = math.min( recordSize, currentPartitionSize )
     if( filters.isEmpty ) {
-      val _nSlicesPerRecord: Int = math.max( currentRecordSize / sliceMemorySize, 1.0).round.toInt
-      val _recordMemorySize: Long = getMemorySize(_nSlicesPerRecord)
-      val _nRecordsPerPart: Int = math.max( currentPartitionSize / _recordMemorySize, 1.0).round.toInt
-      val _partMemorySize: Long = _nRecordsPerPart * _recordMemorySize
-      val _nSlicesPerPart: Int = _nRecordsPerPart * _nSlicesPerRecord
-      val _nPartitions: Int = math.ceil(sectionMemorySize / _partMemorySize.toFloat).toInt
-      val partitions = (0 until _nPartitions) map ( partIndex => {
-        val startIndex = partIndex * _nSlicesPerPart
-        val partSize = Math.min(_nSlicesPerPart, baseShape(0) - startIndex)
-        RegularPartition(partIndex, 0, startIndex, partSize, _nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape)
+      val forceNParts = partsConfig.getOrElse("numParts","0").toInt
+      val pSpecs = getBoundedPartitionSpecs( forceNParts )
+      val partitions = (0 until pSpecs.nPartitions) map ( partIndex => {
+        val startIndex = partIndex * pSpecs.nSlicesPerPart
+        val partSize = Math.min(pSpecs.nSlicesPerPart, baseShape(0) - startIndex)
+        RegularPartition(partIndex, 0, startIndex, partSize, pSpecs.nSlicesPerRecord, sliceMemorySize, _section.getOrigin, baseShape)
       })
-      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating batched partitions: preferredNParts: ${_preferredNParts}, numDataFiles: ${numDataFiles}, sectionMemorySize: ${sectionMemorySize/M} M, sliceMemorySize: ${sliceMemorySize/M} M, nSlicesPerRecord: ${_nSlicesPerRecord}, recordMemorySize: ${_recordMemorySize/M} M, nRecordsPerPart: ${_nRecordsPerPart}, partMemorySize: ${_partMemorySize/M} M, nPartitions: ${partitions.length} \n---------------------------------------------\n")
+      logger.info(  s"\n---------------------------------------------\n ~~~~ Generating batched partitions: numDataFiles: ${numDataFiles}, sectionMemorySize: ${sectionMemorySize/M} M, sliceMemorySize: ${sliceMemorySize/M} M, nSlicesPerRecord: ${pSpecs.nSlicesPerRecord}, recordMemorySize: ${pSpecs.recordMemorySize/M} M, nRecordsPerPart: ${pSpecs.nRecordsPerPart}, partMemorySize: ${pSpecs.partMemorySize/M} M, nPartitions: ${partitions.length} \n---------------------------------------------\n")
       new CDASPartitionSpec( partitions )
     } else {
       val seasonFilters = filters.flatMap( SeasonFilter.get )
@@ -475,8 +499,6 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
 
   def getPartition(partIndex: Int): Partition = spec.getParition( partIndex )
   def getPartitions: Array[Partition] = ( 0 until spec.getNPartitions ).map( getPartition ).toArray
-
-  def partitions = new Partitions( _section, getPartitions )
 
   def getMemorySize(nSlices: Int = -1): Long = {
     var full_shape = baseShape.clone()
