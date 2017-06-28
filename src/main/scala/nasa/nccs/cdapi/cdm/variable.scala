@@ -257,8 +257,10 @@ class PartitionedFragment( val partitions: CachePartitions, val maskOpt: Option[
 
   def getRDDVariableSpec(uid: String, partition: RegularPartition, optSection: Option[ma2.Section] ): RDDVariableSpec =
     domainSection(partition,optSection) match {
-      case Some( ( domFragSpec, section ) ) => new RDDVariableSpec( uid, domFragSpec.getMetadata( Some(section) ), domFragSpec.missing_value, CDSection(section) )
-      case _ => new RDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
+      case Some( ( domFragSpec, section ) ) =>
+        new RDDVariableSpec( uid, domFragSpec.getMetadata( Some(section) ), domFragSpec.missing_value, CDSection(section) )
+      case _ =>
+        new RDDVariableSpec( uid, fragSpec.getMetadata(), fragSpec.missing_value, CDSection.empty(fragSpec.getRank) )
     }
 
 
