@@ -374,8 +374,6 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
   def getPartitionSpecs( numParts: Int = 0 ): PartitionSpecs = {
     val currentPartitionSize: Float = if( numParts == 0 ) { partitionSize.toFloat } else { sectionMemorySize / numParts.toFloat }
     val currentRecordSize: Float = math.min( recordSize, currentPartitionSize )
-    val _minNumSmallParts = partsConfig.getOrElse("minNumSmallParts","10").toInt
-    val _minNParts = math.min( _minNumSmallParts, numDataFiles )
     val _nSlicesPerRecord: Int = math.max( currentRecordSize / sliceMemorySize, 1.0).round.toInt
     val _recordMemorySize: Long = getMemorySize(_nSlicesPerRecord)
     val _nRecordsPerPart: Int = math.max( currentPartitionSize / _recordMemorySize, 1.0).round.toInt
@@ -396,11 +394,22 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
     }
   }
 
+  def getForceNParts(): Int = {
+    val forceNParts = partsConfig.getOrElse("numParts","0").toInt
+    if( forceNParts > 0 ) { forceNParts }
+    else {
+      forceNParts
+//      val minNumSmallParts = partsConfig.getOrElse("minNumSmallParts","10").toInt
+//      val minNParts = math.min( minNumSmallParts, numDataFiles )
+//      if( minNParts * partitionSize > sectionMemorySize ) { minNParts }     // TODO: debug this enhancement.
+//      else { 0 }
+    }
+  }
+
   def computeRecordSizes( ): CDASPartitionSpec = {
     val sparkConfig = BatchSpec.serverContext.spark.sparkContext.getConf.getAll map { case (key, value ) =>  key + " -> " + value } mkString( "\n\t")
     if( filters.isEmpty ) {
-      val forceNParts = partsConfig.getOrElse("numParts","0").toInt
-      val pSpecs = getPartitionSpecs( forceNParts ) // getBoundedPartitionSpecs( forceNParts )
+      val pSpecs = getPartitionSpecs( getForceNParts )
       val partitions = (0 until pSpecs.nPartitions) map ( partIndex => {
         val startIndex = partIndex * pSpecs.nSlicesPerPart
         val partSize = Math.min(pSpecs.nSlicesPerPart, baseShape(0) - startIndex)

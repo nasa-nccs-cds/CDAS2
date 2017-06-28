@@ -14,6 +14,7 @@ import java.nio
 
 import nasa.nccs.cdas.kernels.KernelContext
 import ucar.ma2.{Index, IndexIterator}
+import ucar.nc2.dataset.NetcdfDataset
 
 import scala.xml
 import scala.collection.JavaConversions._
@@ -72,6 +73,25 @@ trait RDDataManager {
 
 }
 
+trait BinSorter {
+  def getReducedShape( shape: Array[Int] ): Array[Int]
+  def getNumBins( shape: Array[Int] ): Int
+  def getBinIndex( coords: Array[Int] ): Int
+  def getItemIndex( coords: Array[Int], target_index: Index ): Int
+}
+
+class TimeBinSorter(val input_data: HeapFltArray, val context: KernelContext) extends BinSorter {
+  val cycle = context.config("cycle", "hour" )
+  val mod = context.config("mod", "day" )
+  val bin = context.config("bin", "month" )
+  val grid: NetcdfDataset = NetcdfDatasetMgr.open( input_data.gridSpec )
+  val binMod = context.config("binMod", "" )
+
+  def getReducedShape( shape: Array[Int] ): Array[Int] = Array.emptyIntArray
+  def getNumBins( shape: Array[Int] ): Int = 0
+  def getBinIndex( coords: Array[Int] ): Int = 0
+  def getItemIndex( coords: Array[Int], target_index: Index ): Int = 0
+}
 
 
 object FastMaskedArray {
@@ -91,6 +111,34 @@ class FastMaskedArray(val array: ma2.Array, val missing: Float ) extends Loggabl
       else { throw new Exception( s"Incommensurate shapes in dual array operation: [${s0.mkString(",")}] --  [${s1.mkString(",")}] ") }
     }
     axes.toArray
+  }
+
+  def reduce(op: FastMaskedArray.ReduceOp, axes: Array[Int], initVal: Float = 0f ): FastMaskedArray = {
+    val rank = array.getRank
+    val iter: IndexIterator = array.getIndexIterator()
+    if( axes.length == rank ) {
+      var result = initVal
+      var result_shape = Array.fill[Int](rank)(1)
+      while ( iter.hasNext ) {
+        val fval = iter.getFloatNext
+        if( ( fval != missing ) && !fval.isNaN  ) {
+          result = op( result, fval )
+        }
+      }
+      FastMaskedArray(result_shape,Array(result),missing)
+    } else {
+      val target_shape: Array[Int] = getReducedShape( axes )
+      val target_array = FastMaskedArray( target_shape, initVal, missing )
+      val targ_index: Index =	target_array.array.getIndex()
+      while ( iter.hasNext ) {
+        val fval = iter.getFloatNext
+        if( ( fval != missing ) && !fval.isNaN  ) {
+          val current_index = getReducedFlatIndex( targ_index, axes, iter )
+          target_array.array.setFloat( current_index, op( target_array.array.getFloat(current_index), fval ) )
+        }
+      }
+      target_array
+    }
   }
 
   def compareShapes( other_shape: Array[Int] ): ( Int, Array[Int] ) = {
@@ -225,32 +273,23 @@ class FastMaskedArray(val array: ma2.Array, val missing: Float ) extends Loggabl
     }
   }
 
-  def reduce(op: FastMaskedArray.ReduceOp, axes: Array[Int], initVal: Float = 0f ): FastMaskedArray = {
+  def bin( sorter: BinSorter, op: FastMaskedArray.ReduceOp,  initVal: Float = 0f ): IndexedSeq[FastMaskedArray] = {
     val rank = array.getRank
-    val iter: IndexIterator = array.getIndexIterator()
-    if( axes.length == rank ) {
-      var result = initVal
-      var result_shape = Array.fill[Int](rank)(1)
-      while ( iter.hasNext ) {
-        val fval = iter.getFloatNext
-        if( ( fval != missing ) && !fval.isNaN  ) {
-          result = op( result, fval )
-        }
+    val iter: IndexIterator = array.getIndexIterator
+    val target_shape: Array[Int] = sorter.getReducedShape( array.getShape )
+    val nBins: Int = sorter.getNumBins( array.getShape )
+    val target_arrays = ( 0 until nBins ) map ( index => FastMaskedArray( target_shape, initVal, missing ) )
+    while ( iter.hasNext ) {
+      val fval = iter.getFloatNext
+      if( ( fval != missing ) && !fval.isNaN  ) {
+        var coords: Array[Int] = iter.getCurrentCounter
+        val binIndex: Int = sorter.getBinIndex( coords )
+        val target_array = target_arrays( binIndex )
+        val itemIndex: Int = sorter.getItemIndex( coords, target_array.array.getIndex )
+        target_array.array.setFloat( itemIndex, op( target_array.array.getFloat(itemIndex), fval ) )
       }
-      FastMaskedArray(result_shape,Array(result),missing)
-    } else {
-      val target_shape: Array[Int] = getReducedShape( axes )
-      val target_array = FastMaskedArray( target_shape, initVal, missing )
-      val targ_index: Index =	target_array.array.getIndex()
-      while ( iter.hasNext ) {
-        val fval = iter.getFloatNext
-        if( ( fval != missing ) && !fval.isNaN  ) {
-          val current_index = getReducedFlatIndex( targ_index, axes, iter )
-          target_array.array.setFloat( current_index, op( target_array.array.getFloat(current_index), fval ) )
-        }
-      }
-      target_array
     }
+    target_arrays
   }
 
   def getReducedFlatIndex( reduced_index: Index, reduction_axes: Array[Int], iter: IndexIterator ): Int = {
@@ -277,6 +316,12 @@ class FastMaskedArray(val array: ma2.Array, val missing: Float ) extends Loggabl
       case 5 => reduced_shape( reduction_axes(0) ) = 1; reduced_shape( reduction_axes(1) ) = 1; reduced_shape( reduction_axes(2) ) = 1; reduced_shape( reduction_axes(3) ) = 1; reduced_shape( reduction_axes(4) ) = 1
       case x: Int  => throw new Exception( s"Unsupported number of axes in reduction: ${reduction_axes.length}")
     }
+    reduced_shape
+  }
+
+  def getReducedShape( reduction_axis: Int, reduced_value: Int ): Array[Int] = {
+    val reduced_shape: Array[Int] = array.getShape.clone
+    reduced_shape( reduction_axis ) = reduced_value
     reduced_shape
   }
 

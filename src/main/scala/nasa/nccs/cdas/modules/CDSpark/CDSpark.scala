@@ -1,6 +1,7 @@
 package nasa.nccs.cdas.modules.CDSpark
 
-import nasa.nccs.cdapi.data.{HeapFltArray, RDDRecord, FastMaskedArray}
+import nasa.nccs.cdapi.data._
+import nasa.nccs.cdapi.tensors.CDFloatArray.ReduceOpFlt
 import ucar.ma2
 import nasa.nccs.cdapi.tensors.{CDFloatArray, CDIndexMap}
 import nasa.nccs.cdas.kernels._
@@ -163,6 +164,43 @@ class multiAverage extends Kernel(Map.empty) {
   }
 }
 
+class bin extends Kernel(Map.empty) {
+  val inputs = List( WPSDataInput("input variable", 1, 1 ) )
+  val outputs = List( WPSProcessOutput( "operation result" ) )
+  val title = "Binning"
+  override val description = "Aggregates data into bins using specified reduce function and binning specifications"
+
+  override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
+    val t0 = System.nanoTime
+
+    val elems = context.operation.inputs.flatMap( inputId => inputs.element(inputId) match {
+      case Some( input_data ) =>
+        val input_array: FastMaskedArray = input_data.toFastMaskedArray
+        val sorter = getSorter( input_data, context )
+        val result_arrays: IndexedSeq[FastMaskedArray] = input_array.bin( sorter, getOp(context), initValue )
+        result_arrays.indices.map( index => context.operation.rid + "." + index ->
+          HeapFltArray( result_arrays(index).toCDFloatArray, input_data.origin, arrayMdata(inputs, "value"), None )
+        )
+      case None => throw new Exception("Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(","))
+    })
+    context.addTimestamp( "Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9), true )
+    RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+  }
+  override def combineRDD(context: KernelContext)( a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)( a0, a1 )
+  override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
+
+  def getSorter( input_data: HeapFltArray, context: KernelContext  ): BinSorter = {
+    new TimeBinSorter( input_data, context )
+  }
+
+  def getOp(context: KernelContext): ReduceOpFlt = {
+    if ( mapCombineOp.isDefined ) { mapCombineOp.get }
+    else {
+      context.config("mapOp").fold (context.config("mapreduceOp")) (Some(_)) map ( CDFloatArray.getOp(_) ) getOrElse( throw new Exception( "Undefined Op in bin kernel" ))
+    }
+  }
+}
+
 class average extends SingularRDDKernel(Map.empty) {
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
@@ -221,43 +259,6 @@ class subset extends Kernel(Map.empty) {
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Space/Time Subset"
   val description = "Extracts a subset of element values from input variable data over the specified axes and roi"
-}
-
-class timeCycle extends Kernel(Map.empty) {
-  val inputs = List( WPSDataInput("input variable", 1, 1 ) )
-  val outputs = List( WPSProcessOutput( "operation result" ) )
-  val title = "Time Binning"
-  override val description = "Aggregates data into bins over time using specified reduce function and binning specifications"
-
-  override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
-    val t0 = System.nanoTime
-    val axes = context.config("axes","")
-    val axisIndices: Array[Int] = context.grid.getAxisIndices( axes ).getAxes.toArray
-
-    val cycle = context.config("cycle", "hour" ).toInt
-    val mod = context.config("mod", "day" ).toInt
-    val bin = context.config("bin", "month" ).toInt
-    val binMod = context.config("binMod", "" ).toInt
-
-    val elems = context.operation.inputs.map( inputId => inputs.element(inputId) match {
-      case Some( input_data ) =>
-        val input_array: FastMaskedArray = input_data.toFastMaskedArray
-        val (weighted_value_sum_masked, weights_sum_masked) =  if( addWeights(context) ) {
-          val weights: FastMaskedArray = FastMaskedArray(KernelUtilities.getWeights(inputId, context))
-          input_array.weightedSum(axisIndices,Some(weights))
-        } else {
-          input_array.weightedSum(axisIndices,None)
-        }
-        context.operation.rid -> HeapFltArray(weighted_value_sum_masked.toCDFloatArray, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked.toCDFloatArray.getArrayData()))
-      case None => throw new Exception("Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(","))
-    })
-    logger.info("Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9))
-    context.addTimestamp( "Map Op complete" )
-    val rv = RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid, "axes" -> axes.toUpperCase ) )
-    logger.info("Returning result value")
-    rv  }
-  override def combineRDD(context: KernelContext)( a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)( a0, a1 )
-  override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
 }
 
 
