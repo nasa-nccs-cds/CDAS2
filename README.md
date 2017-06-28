@@ -4,7 +4,7 @@ _Climate Data Analytic Service provider built on scala, Spark, Akka, Haddop, and
 
 ####  Prerequisite: Install the Java/Scala develpment tools:
 
-    1) Java SE Platform (JDK) 1.8:   http://www.oracle.com/technetwork/indexes/downloads/index.html
+    1) Java SE Platform (JDK) 1.7:   http://www.oracle.com/technetwork/indexes/downloads/index.html
     2) Scala:                        http://www.scala-lang.org/download/install.html
     3) Scala Build Tool (sbt):       http://www.scala-sbt.org/0.13/docs/Setup.html
 
