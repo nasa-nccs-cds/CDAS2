@@ -20,11 +20,11 @@ else:
     var = "tas"
 
 cldraGISSdset = "file://%s/collections/NCML/GISS_E2H_r1i1p1.ncml" % ( cdas_cache_dir )
-cldraMERRAdset = "file://%s/collections/NCML/CIP_MERRA_mon_ua.ncml" % ( cdas_cache_dir )
+cldraMERRAdset = "file://%s/collections/NCML/CIP_MERRA2_1hr_T2M.ncml" % ( cdas_cache_dir )
 localGISSdset = "file://%s/collections/NCML/giss_r1i1p1.xml" % ( cdas_cache_dir )
 
 gissVar="tas"
-merraVar="ua"
+merraVar="T2M"
 try:
 
     if startServer:
@@ -36,7 +36,7 @@ try:
 
     response_manager = portal.createResponseManager()
     t0 = time.time()
-    datainputs = '[domain=[{"name":"d0"}],variable=[{"uri":"' + cldraMERRAdset + '","name":"'+merraVar+':v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","axes":"t"}]]'
+    datainputs = '[domain=[{"name":"d0","lat":{"start":20,"end":20,"system":"values"},"lon":{"start":78,"end":78,"system":"values"}}],variable=[{"uri":"' + cldraMERRAdset + '","name":"'+merraVar+':v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","axes":"t"}]]'
 #    ,"lev":{"start":0,"end":12,"system":"indices"}
 #    datainputs = '[domain=[{"name":"d0"}],variable=[{"uri":"' + cldraMERRAdset + '","name":"'+merraVar+':v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","axes":"t"}]]'
 #    ,"time":{"start":0,"end":100,"system":"indices"}
