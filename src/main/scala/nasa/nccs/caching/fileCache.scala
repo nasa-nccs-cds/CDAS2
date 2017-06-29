@@ -338,6 +338,9 @@ case class PartitionSpecs( nPartitions: Int, partMemorySize: Long, nSlicesPerRec
 
 }
 
+case class PartitionConstraints( numParts: Int = 0, nSlicesPerRecord: Int = 0 ) {
+
+}
 
 class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[String,String], val workflowNodeOpt: Option[WorkflowNode], timeAxisOpt: Option[CoordinateAxis1DTime], val numDataFiles: Int, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment") extends Loggable {
   import CDASPartitioner._
@@ -371,9 +374,9 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
   val slicesPerDay: Float = daysPerSection / baseShape(0)
   val yearsPerSection: Float = secondsPerSection / secPeryear
 
-  def getPartitionSpecs( numParts: Int = 0 ): PartitionSpecs = {
-    val currentPartitionSize: Float = if( numParts == 0 ) { partitionSize.toFloat } else { sectionMemorySize / numParts.toFloat }
-    val currentRecordSize: Float = math.min( recordSize, currentPartitionSize )
+  def getPartitionSpecs( constraints: PartitionConstraints ): PartitionSpecs = {
+    val currentPartitionSize: Float = if( constraints.numParts == 0 ) { math.max( partitionSize, sliceMemorySize ) } else { sectionMemorySize / constraints.numParts.toFloat }
+    val currentRecordSize: Float = if( constraints.nSlicesPerRecord == 0 ) { math.min( recordSize, currentPartitionSize ) } else { constraints.nSlicesPerRecord * sliceMemorySize }
     val _nSlicesPerRecord: Int = math.max( currentRecordSize / sliceMemorySize, 1.0).round.toInt
     val _recordMemorySize: Long = getMemorySize(_nSlicesPerRecord)
     val _nRecordsPerPart: Int = math.max( currentPartitionSize / _recordMemorySize, 1.0).round.toInt
@@ -381,17 +384,6 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
     var _nSlicesPerPart: Int = _nRecordsPerPart * _nSlicesPerRecord
     val _nPartitions: Int = math.ceil(sectionMemorySize / _partMemorySize.toFloat).toInt
     PartitionSpecs( _nPartitions, _partMemorySize, _nSlicesPerRecord, _recordMemorySize, _nRecordsPerPart, _nSlicesPerPart )
-  }
-
-  def getBoundedPartitionSpecs( numParts: Int = 0 ): PartitionSpecs = {
-    val initialSpecs = getPartitionSpecs( numParts )
-    if( numParts > 0 ) { initialSpecs }
-    else {
-      val minNumSmallParts = partsConfig.getOrElse("minNumSmallParts","10").toInt
-      val minNParts = math.min( minNumSmallParts, numDataFiles )
-      if( initialSpecs.nPartitions < minNParts ) { getPartitionSpecs( minNParts ) }
-      else { initialSpecs }
-    }
   }
 
   def getForceNParts(): Int = {
@@ -409,7 +401,7 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
   def computeRecordSizes( ): CDASPartitionSpec = {
     val sparkConfig = BatchSpec.serverContext.spark.sparkContext.getConf.getAll map { case (key, value ) =>  key + " -> " + value } mkString( "\n\t")
     if( filters.isEmpty ) {
-      val pSpecs = getPartitionSpecs( getForceNParts )
+      val pSpecs = getPartitionSpecs( PartitionConstraints() )
       val partitions = (0 until pSpecs.nPartitions) map ( partIndex => {
         val startIndex = partIndex * pSpecs.nSlicesPerPart
         val partSize = Math.min(pSpecs.nSlicesPerPart, baseShape(0) - startIndex)

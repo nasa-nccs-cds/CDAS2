@@ -28,6 +28,7 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
   import WorkflowNode._
   def getResultId: String = operation.rid
   def getNodeId(): String = operation.identifier
+  protected val _mapByKey = false
 
   def fatal( msg: String ) = throw new Exception( s"Workflow Node '${operation.identifier}' Error: " + msg )
 
@@ -89,7 +90,11 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
 
   def map(input: RDD[(RecordKey,RDDRecord)], context: KernelContext ): RDD[(RecordKey,RDDRecord)] = {
     logger.info( "Executing map OP for Kernel " + kernel.id + ", OP = " + context.operation.identifier )
-    input.mapValues( kernel.map( context ) )
+    if( _mapByKey ) {
+      input.reduceByKey( kernel.aggregate(context) )
+    } else {
+      input.mapValues( kernel.map(context) )
+    }
   }
 }
 
