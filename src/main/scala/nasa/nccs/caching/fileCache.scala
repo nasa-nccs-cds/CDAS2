@@ -401,7 +401,7 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
   def computeRecordSizes( ): CDASPartitionSpec = {
     val sparkConfig = BatchSpec.serverContext.spark.sparkContext.getConf.getAll map { case (key, value ) =>  key + " -> " + value } mkString( "\n\t")
     if( filters.isEmpty ) {
-      val pSpecs = getPartitionSpecs( PartitionConstraints() )
+      val pSpecs = getPartitionSpecs( PartitionConstraints(19,1) )
       val partitions = (0 until pSpecs.nPartitions) map ( partIndex => {
         val startIndex = partIndex * pSpecs.nSlicesPerPart
         val partSize = Math.min(pSpecs.nSlicesPerPart, baseShape(0) - startIndex)
