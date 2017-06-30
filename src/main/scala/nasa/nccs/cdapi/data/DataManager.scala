@@ -10,11 +10,13 @@ import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.spark.rdd.RDD
 import ucar.nc2.constants.AxisType
 import ucar.ma2
-import java.nio
+import java.{nio, util}
+import java.util.{Formatter, List}
 
 import nasa.nccs.cdas.kernels.KernelContext
 import ucar.ma2.{Index, IndexIterator}
-import ucar.nc2.dataset.NetcdfDataset
+import ucar.nc2.dataset.{CoordinateAxis1DTime, NetcdfDataset}
+import ucar.nc2.time.{CalendarDate, CalendarPeriod}
 
 import scala.xml
 import scala.collection.JavaConversions._
@@ -74,23 +76,66 @@ trait RDDataManager {
 }
 
 trait BinSorter {
+  def setCurrentCoords( coords: Array[Int] ): Unit
   def getReducedShape( shape: Array[Int] ): Array[Int]
-  def getNumBins( shape: Array[Int] ): Int
-  def getBinIndex( coords: Array[Int] ): Int
-  def getItemIndex( coords: Array[Int], target_index: Index ): Int
+  def getNumBins: Int
+  def getBinIndex: Int
+  def getItemIndex( target_index: Index ): Int
 }
 
-class TimeBinSorter(val input_data: HeapFltArray, val context: KernelContext) extends BinSorter {
-  val cycle = context.config("cycle", "hour" )
-  val mod = context.config("mod", "day" )
-  val bin = context.config("bin", "month" )
-  val grid: NetcdfDataset = NetcdfDatasetMgr.open( input_data.gridSpec )
-  val binMod = context.config("binMod", "" )
+object TimeCycleSorter {
+  val Undef = -1
+  val Diurnal = 0
+  val Monthly = 1
+  val Seasonal = 2
 
+  val Month = 1
+  val Year = 3
+}
+
+class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) extends BinSorter {
+  import TimeCycleSorter._
+  val cycle = context.config("cycle", "hour" ) match {
+    case x if (x == "diurnal") || x.startsWith("hour")  => Diurnal
+    case x if x.startsWith("month") => Monthly
+    case x if x.startsWith("season") => Seasonal
+  }
+  val bin = context.config("bin", "month" ) match {
+    case x if x.startsWith("month") => Month
+    case x if x.startsWith("year") => Year
+  }
+  val gridDS: NetcdfDataset = NetcdfDatasetMgr.open( input_data.gridSpec )
+  val timeAxis = CoordinateAxis1DTime.factory( gridDS, gridDS.findCoordinateAxis( AxisType.Time ), new Formatter() )
+  val dateList: Array[CalendarDate] = timeAxis.section( new ma2.Range( input_data.origin(0), input_data.origin(0) + input_data.shape(0)-1 ) ).getCalendarDates.toArray[CalendarDate]
+  val binMod = context.config("binMod", "" )
+  private var _startBinIndex = -1
+  private var _currentDate: CalendarDate = CalendarDate.of(0L)
+  private var _startDate: CalendarDate = CalendarDate.of(0L)
   def getReducedShape( shape: Array[Int] ): Array[Int] = Array.emptyIntArray
-  def getNumBins( shape: Array[Int] ): Int = 0
-  def getBinIndex( coords: Array[Int] ): Int = 0
-  def getItemIndex( coords: Array[Int], target_index: Index ): Int = 0
+  def getNumBins: Int = nBins
+  def getSeason( monthIndex: Int ): Int = ( monthIndex - 2 ) / 3
+
+  val nBins: Int = cycle match {
+    case Diurnal => 24
+    case Monthly => 12
+    case Seasonal => 4
+  }
+
+  def setCurrentCoords( coords: Array[Int] ): Unit = {
+    _currentDate = dateList( coords(0) )
+    if( _startDate.getMillis == 0 ) { _startDate = _currentDate.clone.asInstanceOf[CalendarDate] }
+  }
+
+  def getBinIndex: Int = cycle match {
+    case Diurnal => _currentDate.getHourOfDay - 1
+    case Monthly => _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - 1
+    case Seasonal => getSeason( _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - 1 )
+  }
+
+  def getItemIndex( target_index: Index ): Int = bin match {
+    case Month => _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startDate.getFieldValue( CalendarPeriod.Field.Month ) + ( _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startDate.getFieldValue( CalendarPeriod.Field.Year ) ) * 12
+    case Year => _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startDate.getFieldValue( CalendarPeriod.Field.Year )
+  }
 }
 
 
@@ -283,9 +328,10 @@ class FastMaskedArray(val array: ma2.Array, val missing: Float ) extends Loggabl
       val fval = iter.getFloatNext
       if( ( fval != missing ) && !fval.isNaN  ) {
         var coords: Array[Int] = iter.getCurrentCounter
-        val binIndex: Int = sorter.getBinIndex( coords )
+        sorter.setCurrentCoords( coords )
+        val binIndex: Int = sorter.getBinIndex
         val target_array = target_arrays( binIndex )
-        val itemIndex: Int = sorter.getItemIndex( coords, target_array.array.getIndex )
+        val itemIndex: Int = sorter.getItemIndex( target_array.array.getIndex )
         target_array.array.setFloat( itemIndex, op( target_array.array.getFloat(itemIndex), fval ) )
       }
     }

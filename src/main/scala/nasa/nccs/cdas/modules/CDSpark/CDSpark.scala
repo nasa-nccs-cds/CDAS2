@@ -190,7 +190,7 @@ class bin extends Kernel(Map.empty) {
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
 
   def getSorter( input_data: HeapFltArray, context: KernelContext  ): BinSorter = {
-    new TimeBinSorter( input_data, context )
+    new TimeCycleSorter( input_data, context )
   }
 
   def getOp(context: KernelContext): ReduceOpFlt = {
