@@ -259,7 +259,6 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     result
   }
 
-
   def combine(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices): DataFragment = reduceCombineOp match {
     case Some(combineOp) =>
       if (axes.includes(0)) DataFragment(a0.spec, CDFloatArray.combine(combineOp, a0.data, a1.data))
