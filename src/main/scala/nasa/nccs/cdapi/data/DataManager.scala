@@ -104,9 +104,7 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) 
     case x if x.startsWith("month") => Month
     case x if x.startsWith("year") => Year
   }
-  val gridDS: NetcdfDataset = NetcdfDatasetMgr.open( input_data.gridSpec )
-  val timeAxis = CoordinateAxis1DTime.factory( gridDS, gridDS.findCoordinateAxis( AxisType.Time ), new Formatter() )
-  val dateList: Array[CalendarDate] = timeAxis.section( new ma2.Range( input_data.origin(0), input_data.origin(0) + input_data.shape(0)-1 ) ).getCalendarDates.toArray[CalendarDate]
+  val dateList: Array[CalendarDate] = getDateList
   val binMod = context.config("binMod", "" )
   private var _startBinIndex = -1
   private var _currentDate: CalendarDate = CalendarDate.of(0L)
@@ -114,6 +112,14 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) 
   def getReducedShape( shape: Array[Int] ): Array[Int] = Array.emptyIntArray
   def getNumBins: Int = nBins
   def getSeason( monthIndex: Int ): Int = ( monthIndex - 2 ) / 3
+
+  def getDateList: Array[CalendarDate] = {
+    val gridDS: NetcdfDataset = NetcdfDatasetMgr.open( input_data.gridSpec )
+    val timeAxis = CoordinateAxis1DTime.factory( gridDS, gridDS.findCoordinateAxis( AxisType.Time ), new Formatter() )
+    val result = timeAxis.section( new ma2.Range( input_data.origin(0), input_data.origin(0) + input_data.shape(0)-1 ) ).getCalendarDates.toArray[CalendarDate]
+    gridDS.close()
+    result
+  }
 
   val nBins: Int = cycle match {
     case Diurnal => 24
