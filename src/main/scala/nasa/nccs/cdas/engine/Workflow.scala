@@ -88,7 +88,7 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
     CDSparkContext.coalesce( input, context ).map { case ( pkey, rdd_part ) => ( new_partitioner.range, rdd_part.reinterp( conversionMap ) ) } repartitionAndSortWithinPartitions new_partitioner
   }
 
-  def map(input: RDD[(RecordKey,RDDRecord)], context: KernelContext ): RDD[(RecordKey,RDDRecord)] = {
+  def map1(input: RDD[(RecordKey,RDDRecord)], context: KernelContext ): RDD[(RecordKey,RDDRecord)] = {
     logger.info( "Executing map OP for Kernel " + kernel.id + ", OP = " + context.operation.identifier )
     if( _mapByKey ) {
       input.reduceByKey( kernel.aggregate(context) )
@@ -96,7 +96,14 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
       input.mapValues( kernel.map(context) )
     }
   }
+  def map(input: RDD[(RecordKey,RDDRecord)], context: KernelContext ): RDD[(RecordKey,RDDRecord)] = {
+    logger.info( "Executing map OP for Kernel " + kernel.id + ", OP = " + context.operation.identifier )
+    val keyedInput: RDD[(RecordKey,RDDRecord)] = input.mapPartitionsWithIndex( kernel.keyMapper )
+    keyedInput.mapValues( kernel.map(context) )
+  }
 }
+
+
 
 object Workflow {
   def apply( request: TaskRequest, executionMgr: CDS2ExecutionManager ): Workflow = {

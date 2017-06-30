@@ -70,6 +70,12 @@ class RecordKey(start: Long, end: Long, val elemStart: Int, val numElems: Int ) 
     case lr: LongRange => ( lr.start == start ) && ( lr.end == end )
     case _ => false
   }
+  def singleElementKey( relIndex: Int ) = {
+    val range = end-start;
+    val start1 = start + math.round( range * relIndex / (numElems).toFloat )
+    val end1 = start + math.round( range * (relIndex+1) / (numElems).toFloat )
+    RecordKey( start1, end1, elemStart + relIndex, 1 )
+  }
   override def hashCode() = ( (start + end + elemStart + numElems) % Int.MaxValue ).toInt
   def elemEnd = elemStart + numElems
   def sameRange( lr: LongRange ): Boolean = ( lr.start == start ) && ( lr.end == end )

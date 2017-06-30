@@ -16,6 +16,7 @@ import nasa.nccs.cdas.utilities.{appParameters, runtime}
 import nasa.nccs.esgf.process._
 import nasa.nccs.utilities.{Loggable, ProfilingTool}
 import nasa.nccs.wps.{WPSProcess, WPSProcessOutput}
+import org.apache.spark.rdd.RDD
 import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
@@ -188,7 +189,7 @@ object KernelUtilities extends Loggable {
             val axis_data = CDFloatArray.factory( yAxisData, Float.MaxValue )
             assert( axis_length == shape(axisIndex), "Y Axis data mismatch, %d vs %d".format(axis_length,shape(axisIndex) ) )
             val cosineWeights: CDFloatArray = axis_data.map( x => Math.cos( Math.toRadians(x) ).toFloat )
-            val base_shape: Array[Int] = Array( (0 until shape.length).map(i => if(i==axisIndex) shape(axisIndex) else 1 ): _* )
+            val base_shape: Array[Int] = Array( shape.indices.map(i => if(i==axisIndex) shape(axisIndex) else 1 ): _* )
             val weightsArray: CDArray[Float] =  CDArray( base_shape, cosineWeights.getStorage, invalid )
             if(broadcast) { weightsArray.broadcast( shape ) }
             weightsArray
@@ -215,10 +216,10 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   val nOutputsPerInput: Int = options.getOrElse("nOutputsPerInput","1").toInt
   val weightsOpt: Option[String] = options.get("weights")
 
-  val mapCombineOp: Option[ReduceOpFlt] = options.get("mapOp").fold (options.get("mapreduceOp")) (Some(_)) map ( CDFloatArray.getOp(_) )
+  val mapCombineOp: Option[ReduceOpFlt] = options.get("mapOp").fold (options.get("mapreduceOp")) (Some(_)) map CDFloatArray.getOp
   val mapCombineNOp: Option[ReduceNOpFlt] = None
   val mapCombineWNOp: Option[ReduceWNOpFlt] = None
-  val reduceCombineOp: Option[ReduceOpFlt] = options.get("reduceOp").fold (options.get("mapreduceOp")) (Some(_)) map ( CDFloatArray.getOp(_) )
+  val reduceCombineOp: Option[ReduceOpFlt] = options.get("reduceOp").fold (options.get("mapreduceOp")) (Some(_)) map CDFloatArray.getOp
   val initValue: Float = 0f
   def cleanUp() = {}
 
@@ -251,6 +252,12 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   def map(partIndex: Int, inputs: List[Option[DataFragment]], context: KernelContext): Option[DataFragment] = inputs.head
   def map(context: KernelContext )( rdd: RDDRecord ): RDDRecord = { rdd }
   def aggregate(context: KernelContext )( rdd0: RDDRecord, rdd1: RDDRecord ): RDDRecord = { rdd0 }
+
+  def keyMapper( partIndex: Int, agg_inputs: Iterator[(RecordKey,RDDRecord)] ): Iterator[(RecordKey,RDDRecord)] = {
+    val result = agg_inputs.flatMap { case ( agg_key, agg_record ) => ( 0 until agg_record.getShape(0) ) map ( tindex => ( agg_key.singleElementKey(tindex), agg_record.slice(tindex,1) ) ) }
+    logger.info( s"KeyMapper for part ${partIndex}, size = " + result.length )
+    result
+  }
 
 
   def combine(context: KernelContext)(a0: DataFragment, a1: DataFragment, axes: AxisIndices): DataFragment = reduceCombineOp match {
