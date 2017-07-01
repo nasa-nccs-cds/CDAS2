@@ -359,8 +359,7 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
     val fullAxis = timeAxisOpt getOrElse( throw new Exception( "Missing time axis in Partitioner") )
     fullAxis
   }
-  def getCalDateBounds( time_index: Int ): Array[CalendarDate] =
-    timeAxis.getCoordBoundsDate(time_index)
+  def getCalDateBounds( time_index: Int ): Array[CalendarDate] = timeAxis.getCoordBoundsDate(time_index)
   def getCalDate( time_index: Int ): CalendarDate = timeAxis.getCalendarDate( time_index )
   def getBoundsStartDate( time_index: Int ): CalendarDate =  getCalDateBounds( time_index )(0)
   def getBoundsEndDate( time_index: Int ): CalendarDate =  getCalDateBounds( time_index )(1)

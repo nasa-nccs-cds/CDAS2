@@ -10,9 +10,10 @@ import nasa.nccs.utilities.{Loggable, cdsutils}
 import org.apache.spark.rdd.RDD
 import ucar.nc2.constants.AxisType
 import ucar.ma2
-import java.{nio, util}
-import java.util.{Formatter, List}
-
+import java.nio
+import java.util.Formatter
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import nasa.nccs.cdas.kernels.KernelContext
 import ucar.ma2.{Index, IndexIterator}
 import ucar.nc2.dataset.{CoordinateAxis1DTime, NetcdfDataset}
@@ -80,7 +81,7 @@ trait BinSorter {
   def getReducedShape( shape: Array[Int] ): Array[Int]
   def getNumBins: Int
   def getBinIndex: Int
-  def getItemIndex( target_index: Index ): Int
+  def getItemIndex: Int
 }
 
 object TimeCycleSorter {
@@ -90,6 +91,7 @@ object TimeCycleSorter {
   val Seasonal = 2
 
   val Month = 1
+  val MonthOfYear = 2
   val Year = 3
 }
 
@@ -102,21 +104,26 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) 
   }
   val bin = context.config("bin", "month" ) match {
     case x if x.startsWith("month") => Month
+    case x if x.startsWith("monthof") => MonthOfYear
     case x if x.startsWith("year") => Year
+    case x => Undef
   }
-  val dateList: Array[CalendarDate] = getDateList
+  val dateList: IndexedSeq[CalendarDate] = getDateList
   val binMod = context.config("binMod", "" )
   private var _startBinIndex = -1
   private var _currentDate: CalendarDate = CalendarDate.of(0L)
-  private var _startDate: CalendarDate = CalendarDate.of(0L)
-  def getReducedShape( shape: Array[Int] ): Array[Int] = Array.emptyIntArray
+  private var _startMonth: Int = -1
+  private var _startYear: Int = -1
+  lazy val yearRange = dateList.last.getFieldValue( CalendarPeriod.Field.Year ) - dateList.head.getFieldValue( CalendarPeriod.Field.Year )
+  lazy val monthRange = dateList.last.getFieldValue( CalendarPeriod.Field.Month ) - dateList.head.getFieldValue( CalendarPeriod.Field.Month )
+
   def getNumBins: Int = nBins
   def getSeason( monthIndex: Int ): Int = ( monthIndex - 2 ) / 3
 
-  def getDateList: Array[CalendarDate] = {
+  def getDateList: IndexedSeq[CalendarDate] = {
     val gridDS: NetcdfDataset = NetcdfDatasetMgr.open( input_data.gridSpec )
     val timeAxis = CoordinateAxis1DTime.factory( gridDS, gridDS.findCoordinateAxis( AxisType.Time ), new Formatter() )
-    val result = timeAxis.section( new ma2.Range( input_data.origin(0), input_data.origin(0) + input_data.shape(0)-1 ) ).getCalendarDates.toArray[CalendarDate]
+    val result: IndexedSeq[CalendarDate] = timeAxis.section( new ma2.Range( input_data.origin(0), input_data.origin(0) + input_data.shape(0)-1 ) ).getCalendarDates.toIndexedSeq
     gridDS.close()
     result
   }
@@ -127,9 +134,25 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) 
     case Seasonal => 4
   }
 
+  val nItems: Int = bin match {
+    case Month => monthRange + 1 + 12*yearRange
+    case MonthOfYear => 12
+    case Year => yearRange + 1
+    case Undef => 1
+  }
+
+  def getReducedShape( shape: Array[Int] ): Array[Int] = {
+    var newshape = shape.clone
+    newshape(0) = nItems
+    newshape
+  }
+
   def setCurrentCoords( coords: Array[Int] ): Unit = {
     _currentDate = dateList( coords(0) )
-    if( _startDate.getMillis == 0 ) { _startDate = _currentDate.clone.asInstanceOf[CalendarDate] }
+    if( _startMonth == -1 ) {
+      _startMonth = _currentDate.getFieldValue( CalendarPeriod.Field.Month )
+      _startYear = _currentDate.getFieldValue( CalendarPeriod.Field.Year )
+    }
   }
 
   def getBinIndex: Int = cycle match {
@@ -138,9 +161,12 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) 
     case Seasonal => getSeason( _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - 1 )
   }
 
-  def getItemIndex( target_index: Index ): Int = bin match {
-    case Month => _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startDate.getFieldValue( CalendarPeriod.Field.Month ) + ( _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startDate.getFieldValue( CalendarPeriod.Field.Year ) ) * 12
-    case Year => _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startDate.getFieldValue( CalendarPeriod.Field.Year )
+  def getItemIndex: Int = bin match {
+    case Month => _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startMonth
+                      + ( _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startYear ) * 12
+    case MonthOfYear => _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startMonth
+    case Year => _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startYear
+    case Undef => 0
   }
 }
 
@@ -328,7 +354,7 @@ class FastMaskedArray(val array: ma2.Array, val missing: Float ) extends Loggabl
     val rank = array.getRank
     val iter: IndexIterator = array.getIndexIterator
     val target_shape: Array[Int] = sorter.getReducedShape( array.getShape )
-    val nBins: Int = sorter.getNumBins( array.getShape )
+    val nBins: Int = sorter.getNumBins
     val target_arrays = ( 0 until nBins ) map ( index => FastMaskedArray( target_shape, initVal, missing ) )
     while ( iter.hasNext ) {
       val fval = iter.getFloatNext
@@ -337,11 +363,47 @@ class FastMaskedArray(val array: ma2.Array, val missing: Float ) extends Loggabl
         sorter.setCurrentCoords( coords )
         val binIndex: Int = sorter.getBinIndex
         val target_array = target_arrays( binIndex )
-        val itemIndex: Int = sorter.getItemIndex( target_array.array.getIndex )
+        val itemIndex: Int = sorter.getItemIndex
         target_array.array.setFloat( itemIndex, op( target_array.array.getFloat(itemIndex), fval ) )
       }
     }
     target_arrays
+  }
+
+  def weightedSumBin( sorter: BinSorter, wtsOpt: Option[FastMaskedArray] ): ( IndexedSeq[FastMaskedArray], IndexedSeq[FastMaskedArray] ) = {
+    val rank = array.getRank
+    val wtsIterOpt = wtsOpt.map( _.array.getIndexIterator )
+    wtsOpt match {
+      case Some( wts ) => if( !wts.array.getShape.sameElements(array.getShape) ) { throw new Exception( s"Weights shape [${wts.array.getShape().mkString(",")}] does not match data shape [${array.getShape.mkString(",")}]") }
+      case None => Unit
+    }
+    val iter: IndexIterator = array.getIndexIterator
+    val target_shape: Array[Int] = sorter.getReducedShape( array.getShape )
+    val nBins: Int = sorter.getNumBins
+    val target_arrays = ( 0 until nBins ) map ( index => FastMaskedArray( target_shape, 0f, missing ) )
+    val weight_arrays = ( 0 until nBins ) map ( index => FastMaskedArray( target_shape, 0f, missing ) )
+    while ( iter.hasNext ) {
+      val fval = iter.getFloatNext
+      if( ( fval != missing ) && !fval.isNaN  ) {
+        var coords: Array[Int] = iter.getCurrentCounter
+        sorter.setCurrentCoords( coords )
+        val binIndex: Int = sorter.getBinIndex
+        val target_array = target_arrays( binIndex )
+        val weight_array = weight_arrays( binIndex )
+        val itemIndex: Int = sorter.getItemIndex
+        val wtVal = wtsIterOpt match {
+          case Some(wtsIter) =>
+            val wt = wtsIter.getFloatNext
+            target_array.array.setFloat( itemIndex, target_array.array.getFloat(itemIndex) + fval*wt )
+            wt
+          case None =>
+            target_array.array.setFloat( itemIndex, target_array.array.getFloat(itemIndex) + fval )
+            1f
+        }
+        weight_array.array.setFloat( itemIndex, weight_array.array.getFloat(itemIndex) + wtVal )
+      }
+    }
+    ( target_arrays, weight_arrays )
   }
 
   def getReducedFlatIndex( reduced_index: Index, reduction_axes: Array[Int], iter: IndexIterator ): Int = {
