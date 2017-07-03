@@ -156,7 +156,7 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) 
   }
 
   def getBinIndex: Int = cycle match {
-    case Diurnal => _currentDate.getHourOfDay - 1
+    case Diurnal => _currentDate.getHourOfDay
     case Monthly => _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - 1
     case Seasonal => getSeason( _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - 1 )
   }

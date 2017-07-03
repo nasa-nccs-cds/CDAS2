@@ -47,7 +47,12 @@ class WorkflowNode( val operation: OperationContext, val kernel: Kernel  ) exten
     val nparts = mapresult.getNumPartitions
     if( !kernel.parallelizable || (nparts==1) ) { mapresult.collect()(0) }
     else {
-      val result = mapresult treeReduce kernel.getReduceOp(context)
+      val result = if( kernel.keyedReduce ) {
+        val merged_mapresult = mapresult.reduceByKey( kernel.combineRDD(context) ).collect()
+        merged_mapresult.sortWith( _._1 < _._1 ).fold( ( RecordKey.empty, RDDRecord.empty) )( (accum,kvp) => ( accum._1 + kvp._1, accum._2 ++ kvp._2 ) )
+      } else {
+        mapresult treeReduce kernel.getReduceOp(context)
+      }
       logger.debug("\n\n ----------------------- FINISHED reduce Operation: %s (%s), time = %.3f sec ----------------------- ".format(context.operation.identifier, context.operation.rid, (System.nanoTime() - t0) / 1.0E9))
       context.addTimestamp( "FINISHED reduce Operation" )
       result

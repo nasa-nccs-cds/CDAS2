@@ -60,6 +60,7 @@ object RecordKey {
     new RecordKey( startMS, endMS, ranges.head.elemStart, nElems )
   }
   implicit val strRep: LongRange.StrRep = _.toString
+  val empty = RecordKey(0L,0L,0,0)
 
 }
 
@@ -83,11 +84,11 @@ class RecordKey(start: Long, end: Long, val elemStart: Int, val numElems: Int ) 
   def compare( that: RecordKey ): Int = start.compare( that.start )
   def elemRange: (Int,Int) = ( elemStart, elemStart + numElems )
 
-  def +( that: RecordKey ): RecordKey = {
+  def +( that: RecordKey ): RecordKey = if( empty ) {that} else if( that.empty ) { this } else {
     RecordKey( Math.min(start,that.start), Math.max(end,that.end), Math.min(elemStart,that.elemStart), numElems + that.numElems )
   }
 
-  def +!( that: RecordKey ): RecordKey = {
+  def +!( that: RecordKey ): RecordKey = if( empty ) {that} else if( that.empty ) { this } else {
     if( (end != that.start) || (elemEnd != that.elemStart) ) { throw new Exception( s"Attempt to concat non-contiguous partition keys: first = ${toString} <-> second = ${that.toString}" )}
     RecordKey( start, that.end, elemStart, numElems + that.numElems )
   }
@@ -107,6 +108,7 @@ class RecordKey(start: Long, end: Long, val elemStart: Int, val numElems: Int ) 
   }
   override def print( implicit strRep: StrRep ) = s"{ ${strRep(start)}<->${strRep(end)}, ${elemStart}<->${elemEnd} }"
   override def toString() = s"Key[ ${strRep(start)}<->${strRep(end)}, ${elemStart}<->${elemEnd} ]"
+  def empty = ( numElems == 0 )
 }
 
 object RangePartitioner {
