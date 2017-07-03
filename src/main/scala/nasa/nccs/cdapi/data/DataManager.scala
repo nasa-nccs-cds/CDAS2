@@ -391,15 +391,20 @@ class FastMaskedArray(val array: ma2.Array, val missing: Float ) extends Loggabl
         val target_array = target_arrays( binIndex )
         val weight_array = weight_arrays( binIndex )
         val itemIndex: Int = sorter.getItemIndex
+        val currVal = target_array.array.getFloat(itemIndex)
+        val currWt = weight_array.array.getFloat(itemIndex)
         val wtVal = wtsIterOpt match {
           case Some(wtsIter) =>
             val wt = wtsIter.getFloatNext
-            target_array.array.setFloat( itemIndex, target_array.array.getFloat(itemIndex) + fval*wt )
+            logger.info( s"&&wSumBin.sval: [binIndex: $binIndex, itemIndex: $itemIndex], fval: $fval, wt: $wt, currVal: $currVal")
+            target_array.array.setFloat( itemIndex, currVal + fval*wt )
             wt
           case None =>
-            target_array.array.setFloat( itemIndex, target_array.array.getFloat(itemIndex) + fval )
+            logger.info( s"&&wSumBin.sval: [binIndex: $binIndex, itemIndex: $itemIndex], fval: $fval, currVal: $currVal")
+            target_array.array.setFloat( itemIndex, currVal + fval )
             1f
         }
+        logger.info( s"&&wSumBin.wval: [binIndex: $binIndex, itemIndex: $itemIndex], wtVal: $wtVal, currWt: $currWt")
         weight_array.array.setFloat( itemIndex, weight_array.array.getFloat(itemIndex) + wtVal )
       }
     }
