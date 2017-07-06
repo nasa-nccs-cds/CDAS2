@@ -338,8 +338,9 @@ case class PartitionSpecs( nPartitions: Int, partMemorySize: Long, nSlicesPerRec
 
 }
 
-case class PartitionConstraints( numParts: Int = 0, nSlicesPerRecord: Int = 0 ) {
-
+case class PartitionConstraints( numDataFiles: Int = 0, nSlicesPerRecord: Int = 0 ) {
+  val filesPerPart: Double = math.ceil( numDataFiles / BatchSpec.nParts.toFloat )
+  val numParts: Int = if(filesPerPart == 0.0 ) 0 else math.ceil( numDataFiles / filesPerPart ).toInt
 }
 
 class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[String,String], val workflowNodeOpt: Option[WorkflowNode], timeAxisOpt: Option[CoordinateAxis1DTime], val numDataFiles: Int, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment") extends Loggable {
@@ -421,7 +422,7 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
         }
       } else {
         val nRecs = seasonFilters(0).getNRecords
-        val seasonRecsPerPartition = Math.ceil( nRecs / ( BatchSpec.nParts ) ).toInt
+        val seasonRecsPerPartition = Math.ceil( nRecs / BatchSpec.nParts ).toInt
         val nParts = Math.ceil( nRecs / seasonRecsPerPartition.toFloat ).toInt
         val partSize = Math.ceil( baseShape(0)/nParts.toFloat ).toInt
         ( 0 until nParts ) map ( partIndex => {
