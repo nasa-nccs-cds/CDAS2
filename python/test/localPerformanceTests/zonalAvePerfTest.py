@@ -36,7 +36,7 @@ try:
 
     response_manager = portal.createResponseManager()
     t0 = time.time()
-    datainputs = '[domain=[{"name":"d0","lat":{"start":20,"end":20,"system":"values"},"lon":{"start":78,"end":78,"system":"values"}}],variable=[{"uri":"' + cldraMERRAdset + '","name":"'+merraVar+':v1","domain":"d0","cache":"false"}],operation=[{"name":"CDSpark.average","input":"v1","axes":"t"}]]'
+    datainputs = '[domain=[{"name":"d0","lat":{"start":20,"end":20,"system":"values"},"lon":{"start":78,"end":78,"system":"values"}}],variable=[{"uri":"' + cldraMERRAdset + '","name":"'+merraVar+':v1","domain":"d0","cache":"false"}],operation=[{"name":"CDSpark.binAve","input":"v1","domain":"d0","cycle":"diurnal","bin":"month"}]]'
 #    ,"lev":{"start":0,"end":12,"system":"indices"}
 #    datainputs = '[domain=[{"name":"d0"}],variable=[{"uri":"' + cldraMERRAdset + '","name":"'+merraVar+':v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","axes":"t"}]]'
 #    ,"time":{"start":0,"end":100,"system":"indices"}
@@ -48,6 +48,8 @@ try:
     responses = response_manager.getResponses(rId)
     print "!! Completed OP in time {0}".format( time.time()-t0 ); sys.stdout.flush()
     print "Responses = " + str(responses)
+    vars =  response_manager.getResponseVariables( rId, True )
+    print "Responses var = " + str( vars.head )
 
 except Exception, err:
     traceback.print_exc()
