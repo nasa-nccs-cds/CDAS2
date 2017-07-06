@@ -95,7 +95,7 @@ object TimeCycleSorter {
   val Year = 3
 }
 
-class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) extends BinSorter {
+class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) extends BinSorter with Loggable {
   import TimeCycleSorter._
   val cycle = context.config("cycle", "hour" ) match {
     case x if (x == "diurnal") || x.startsWith("hour")  => Diurnal
@@ -153,6 +153,7 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) 
       _startMonth = _currentDate.getFieldValue( CalendarPeriod.Field.Month )
       _startYear = _currentDate.getFieldValue( CalendarPeriod.Field.Year )
     }
+    logger.info( s" setCurrentCoords: currentDate: ${_currentDate.toString}, coords: [${coords.mkString(",")}], _startMonth: ${_startMonth}" )
   }
 
   def getBinIndex: Int = cycle match {
@@ -162,8 +163,10 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) 
   }
 
   def getItemIndex: Int = bin match {
-    case Month => _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startMonth
-                      + ( _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startYear ) * 12
+    case Month =>
+      val itemIndex = _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startMonth + ( _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startYear ) * 12
+      logger.info( s" getItemIndex: currentDate: ${_currentDate.toString}, itemIndex: ${itemIndex}, _startMonth: ${_startMonth}" )
+      itemIndex
     case MonthOfYear => _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startMonth
     case Year => _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startYear
     case Undef => 0
