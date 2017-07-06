@@ -49,7 +49,7 @@ try:
     print "!! Completed OP in time {0}".format( time.time()-t0 ); sys.stdout.flush()
     print "Responses = " + str(responses)
     vars =  response_manager.getResponseVariables( rId, True )
-    print "Responses var = " + str( vars.head )
+    print "Responses var = " + str( vars[0] )
 
 except Exception, err:
     traceback.print_exc()
