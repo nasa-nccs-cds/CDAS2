@@ -44,7 +44,7 @@ try:
 #    datainputs = '[domain=[{"name":"d0","lat":{"start":30,"end":40,"system":"indices"},"lon":{"start":30,"end":40,"system":"indices"},"lev":{"start":10,"end":10,"system":"indices"},"time":{"start":0,"end":100,"system":"indices"}}],variable=[{"uri":"file:///home/tpmaxwel/.cdas/cache/collections/NCML/GISS_E2H_r1i1p1.ncml","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.max","input":"v1","axes":"xy"}]]'
 #    datainputs = '[domain=[{"name":"d0"}],variable=[{"uri":"' + dataset + '","name":"ua:v1","domain":"d0"}],operation=[{"name":"python.numpyModule.ave","input":"v1","axes":"xt","filter":"DJF"}]]'
     print "Sending request on port {0}, server {1}: {2}".format( portal.request_port, server, datainputs ); sys.stdout.flush()
-    rId = portal.sendMessage( "execute", [ "CDSpark.workflow", datainputs, '{ "response":"object" }'] )
+    rId = portal.sendMessage( "execute", [ "CDSpark.workflow", datainputs, '{ "response":"xml" }'] )  // '{ "response":"object" }'
     responses = response_manager.getResponses(rId)
     print "!! Completed OP in time {0}".format( time.time()-t0 ); sys.stdout.flush()
     print "Responses = " + str(responses)
