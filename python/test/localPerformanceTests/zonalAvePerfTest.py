@@ -1,5 +1,6 @@
 from pycdas.portal.cdas import *
 import time, sys, os
+import xml.dom.minidom
 
 startServer = False
 portal = None
@@ -47,9 +48,8 @@ try:
     rId = portal.sendMessage( "execute", [ "CDSpark.workflow", datainputs, '{ "response":"xml" }'] )  #  '{ "response":"object" }'
     responses = response_manager.getResponses(rId)
     print "!! Completed OP in time {0}".format( time.time()-t0 ); sys.stdout.flush()
-    print "Responses = " + str(responses)
-    vars =  response_manager.getResponseVariables( rId, True )
-    print "Responses var = " + str( vars[0] )
+    for response in reponses:
+        print " --> Response: <<------------------------------------------------------------->>\n" + xml.dom.minidom.parseString(response).toprettyxml()
 
 except Exception, err:
     traceback.print_exc()
