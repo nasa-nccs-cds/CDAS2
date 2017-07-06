@@ -48,7 +48,7 @@ try:
     rId = portal.sendMessage( "execute", [ "CDSpark.workflow", datainputs, '{ "response":"xml" }'] )  #  '{ "response":"object" }'
     responses = response_manager.getResponses(rId)
     print "!! Completed OP in time {0}".format( time.time()-t0 ); sys.stdout.flush()
-    for response in reponses:
+    for response in responses:
         print " --> Response: <<------------------------------------------------------------->>\n" + xml.dom.minidom.parseString(response).toprettyxml()
 
 except Exception, err:
