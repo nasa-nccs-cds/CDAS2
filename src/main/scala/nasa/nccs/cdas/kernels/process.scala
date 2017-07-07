@@ -211,6 +211,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   def name = identifiers.takeRight(2).mkString(".")
   val extInputs: Boolean = options.getOrElse("handlesInput","false").toBoolean
   val parallelizable: Boolean = options.getOrElse( "parallelize", (!extInputs).toString ).toBoolean
+  val keyedReduce: Boolean = false
   val identifier = name
   def matchesSpecs( specs: Array[String] ): Boolean = { (specs.size >= 2) && specs(0).equals(module) && specs(1).equals(operation) }
   val nOutputsPerInput: Int = options.getOrElse("nOutputsPerInput","1").toInt
@@ -334,7 +335,6 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     context.addTimestamp( "combineRDD complete" )
     RDDRecord( Map(new_elements:_*), rdd0.mergeMetadata(context.operation.name, rdd1) )
   }
-
 
   def combineElements( key: String, elements0: Map[String,HeapFltArray], elements1: Map[String,HeapFltArray] ): IndexedSeq[(String,HeapFltArray)] = {
     options.get("reduceOp") match {
@@ -683,18 +683,32 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     }
   }
 
+//  def weightedValueSumRDDPostOpLegacy(result: RDDRecord, context: KernelContext): RDDRecord = {
+//    val rid = context.operation.rid
+//    wtFastMaskedArray( result, rid ) match {
+//      case Some(w0) =>
+//        val v0 = toFastMaskedArray(result, rid)
+//        val vOrigin: Array[Int] = originArray(result, rid)
+//        logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s, values sample = [ %s ], weights sample = [ %s ]".format(v0.array.getShape.mkString(","), w0.array.getShape.mkString(","), result.metadata.toString, v0.toCDFloatArray.mkBoundedDataString(", ",16), w0.toCDFloatArray.mkBoundedDataString(", ",16)))
+//        context.addTimestamp( "weightedValueSumPostOp complete" )
+//        new RDDRecord( Map(rid -> HeapFltArray( (v0 / w0).toCDFloatArray, vOrigin, arrayMdata(result, "value"), Some( w0.toCDFloatArray.getArrayData() ) ) ), result.metadata )
+//      case None =>
+//        logger.info("weightedValueSumPostOp: NO WEIGHTS!, Elems:")
+//        result.elements.foreach { case (key, heapFltArray) => logger.info(" ** key: %s, values sample = [ %s ]".format( key, heapFltArray.toCDFloatArray.mkBoundedDataString(", ",16)) ) }
+//        result
+//    }
+//  }
+
   def weightedValueSumRDDPostOp(result: RDDRecord, context: KernelContext): RDDRecord = {
-    val rid = context.operation.rid
-    wtFastMaskedArray( result, rid ) match {
-      case Some(w0) =>
-        val v0 = toFastMaskedArray(result, rid)
-        val vOrigin: Array[Int] = originArray(result, rid)
-        logger.info("weightedValueSumPostOp, values shape = %s, weights shape = %s, result spec = %s".format(v0.array.getShape.mkString(","), w0.array.getShape.mkString(","), result.metadata.toString))
-        context.addTimestamp( "weightedValueSumPostOp complete" )
-        new RDDRecord( Map(rid -> HeapFltArray( (v0 / w0).toCDFloatArray, vOrigin, arrayMdata(result, "value"), Some( w0.toCDFloatArray.getArrayData() ) ) ), result.metadata )
-      case None =>
-        result
+    val new_elements = result.elements map { case (key, fltArray ) =>
+      fltArray.toMa2WeightsArray match {
+        case Some( wtsArray ) => (key, HeapFltArray( ( fltArray.toFastMaskedArray / wtsArray ).toCDFloatArray, fltArray.origin, fltArray.metadata, None ) )
+        case None => (key, fltArray )
+      }
     }
+//    logger.info( "weightedValueSumPostOp:, Elems:" )
+//    new_elements.foreach { case (key, heapFltArray) => logger.info(" ** key: %s, values sample = [ %s ]".format( key, heapFltArray.toCDFloatArray.mkBoundedDataString(", ",16)) ) }
+    new RDDRecord( new_elements, result.metadata )
   }
 
   def getMontlyBinMap(id: String, context: KernelContext): CDCoordMap = {

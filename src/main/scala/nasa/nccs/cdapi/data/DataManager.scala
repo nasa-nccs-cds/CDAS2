@@ -95,7 +95,7 @@ object TimeCycleSorter {
   val Year = 3
 }
 
-class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) extends BinSorter {
+class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) extends BinSorter with Loggable {
   import TimeCycleSorter._
   val cycle = context.config("cycle", "hour" ) match {
     case x if (x == "diurnal") || x.startsWith("hour")  => Diurnal
@@ -153,17 +153,20 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext) 
       _startMonth = _currentDate.getFieldValue( CalendarPeriod.Field.Month )
       _startYear = _currentDate.getFieldValue( CalendarPeriod.Field.Year )
     }
+    logger.info( s" setCurrentCoords: currentDate: ${_currentDate.toString}, coords: [${coords.mkString(",")}], _startMonth: ${_startMonth}" )
   }
 
   def getBinIndex: Int = cycle match {
-    case Diurnal => _currentDate.getHourOfDay - 1
+    case Diurnal => _currentDate.getHourOfDay
     case Monthly => _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - 1
     case Seasonal => getSeason( _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - 1 )
   }
 
   def getItemIndex: Int = bin match {
-    case Month => _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startMonth
-                      + ( _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startYear ) * 12
+    case Month =>
+      val itemIndex = _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startMonth + ( _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startYear ) * 12
+      logger.info( s" getItemIndex: currentDate: ${_currentDate.toString}, itemIndex: ${itemIndex}, _startMonth: ${_startMonth}" )
+      itemIndex
     case MonthOfYear => _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startMonth
     case Year => _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startYear
     case Undef => 0
@@ -391,15 +394,20 @@ class FastMaskedArray(val array: ma2.Array, val missing: Float ) extends Loggabl
         val target_array = target_arrays( binIndex )
         val weight_array = weight_arrays( binIndex )
         val itemIndex: Int = sorter.getItemIndex
+        val currVal = target_array.array.getFloat(itemIndex)
+        val currWt = weight_array.array.getFloat(itemIndex)
         val wtVal = wtsIterOpt match {
           case Some(wtsIter) =>
             val wt = wtsIter.getFloatNext
-            target_array.array.setFloat( itemIndex, target_array.array.getFloat(itemIndex) + fval*wt )
+            logger.info( s"&&wSumBin.sval: [binIndex: $binIndex, itemIndex: $itemIndex], fval: $fval, wt: $wt, currVal: $currVal")
+            target_array.array.setFloat( itemIndex, currVal + fval*wt )
             wt
           case None =>
-            target_array.array.setFloat( itemIndex, target_array.array.getFloat(itemIndex) + fval )
+            logger.info( s"&&wSumBin.sval: [binIndex: $binIndex, itemIndex: $itemIndex], fval: $fval, currVal: $currVal")
+            target_array.array.setFloat( itemIndex, currVal + fval )
             1f
         }
+        logger.info( s"&&wSumBin.wval: [binIndex: $binIndex, itemIndex: $itemIndex], wtVal: $wtVal, currWt: $currWt")
         weight_array.array.setFloat( itemIndex, weight_array.array.getFloat(itemIndex) + wtVal )
       }
     }
