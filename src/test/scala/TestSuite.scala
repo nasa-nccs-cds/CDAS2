@@ -191,11 +191,11 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   }
 
   test("NCML-timeBinAveTestLocal") {
-    val data_file = "file:///Users/tpmaxwel/.cdas/cache/collections/NCML/MERRA2-6hr-ana_Np.200001.ncml"
-    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":10,"end":10,"system":"indices"},"lon":{"start":20,"end":20,"system":"indices"}}],variable=[{"uri":"%s","name":"T:v1","domain":"d0"}],operation=[{"name":"CDSpark.binAve","input":"v1","domain":"d0","cycle":"diurnal","bin":"month"}]]""".format( data_file )
-    val result_node = executeTest( datainputs )
-    val result_data = CDFloatArray( getResultData( result_node ) )
-    println( " ** CDMS Result:       " + result_data.mkBoundedDataString(", ",16) )
+    val data_file = "http://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/reanalysis/CFSR/6hr/atmos/ta_2000s.ncml"
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":180,"end":180,"system":"indices"},"lon":{"start":20,"end":20,"system":"indices"},"level":{"start":20,"end":20,"system":"indices"}}],variable=[{"uri":"%s","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.binAve","input":"v1","domain":"d0","cycle":"diurnal","bin":"month","axes":"t"}]]""".format( data_file )
+    val result_node = executeTest( datainputs, Map( "numParts" -> "4" ) )
+    val result_data = getResultDataArraySeq( result_node )
+    println( " ** CDMS Results:       \n\t" + result_data.map( _.mkBoundedDataString(", ",16) ).mkString("\n\t") )
   }
 
   //  test("pyMaxTestLocal") {
@@ -594,6 +594,11 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
   def getResultData( result_node: xml.Elem, print_result: Boolean = false ): CDFloatArray = {
     val data_nodes: xml.NodeSeq = getDataNodes( result_node, print_result )
     try{  CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue ) } catch { case err: Exception => CDFloatArray.empty }
+  }
+
+  def getResultDataArraySeq( result_node: xml.Elem, print_result: Boolean = false ): Seq[CDFloatArray] = {
+    val data_nodes: xml.NodeSeq = getDataNodes( result_node, print_result )
+    data_nodes.map ( node => CDFloatArray( node.text.split(',').map(_.toFloat), Float.MaxValue ) )
   }
 
   def getResultValue( result_node: xml.Elem ): Float = {

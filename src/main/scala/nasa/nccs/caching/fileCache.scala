@@ -338,9 +338,14 @@ case class PartitionSpecs( nPartitions: Int, partMemorySize: Long, nSlicesPerRec
 
 }
 
-case class PartitionConstraints( numDataFiles: Int = 0, nSlicesPerRecord: Int = 0 ) {
-  val filesPerPart: Double = math.ceil( numDataFiles / BatchSpec.nParts.toFloat )
-  val numParts: Int = if(filesPerPart == 0.0 ) 0 else math.ceil( numDataFiles / filesPerPart ).toInt
+case class PartitionConstraints( partsConfig: Map[String,String] ) {
+  private val _numDataFiles: Int = partsConfig.getOrElse("numDataFiles","0").toInt
+  private val _numParts: Int = partsConfig.getOrElse("numParts","0").toInt
+  val nSlicesPerRecord: Int = partsConfig.getOrElse("numSlicesPerRecord","0").toInt
+  val numParts: Int = if( _numParts > 0 ) { _numParts } else {
+    val _numfilesPerPart: Double = math.ceil( _numDataFiles / BatchSpec.nParts.toFloat )
+    if ( _numfilesPerPart == 0.0 ) 0 else math.ceil( _numDataFiles / _numfilesPerPart ).toInt
+  }
 }
 
 class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[String,String], val workflowNodeOpt: Option[WorkflowNode], timeAxisOpt: Option[CoordinateAxis1DTime], val numDataFiles: Int, dataType: ma2.DataType = ma2.DataType.FLOAT, val cacheType: String = "fragment") extends Loggable {
@@ -402,7 +407,7 @@ class CDASPartitioner( private val _section: ma2.Section, val partsConfig: Map[S
   def computeRecordSizes( ): CDASPartitionSpec = {
     val sparkConfig = BatchSpec.serverContext.spark.sparkContext.getConf.getAll map { case (key, value ) =>  key + " -> " + value } mkString( "\n\t")
     if( filters.isEmpty ) {
-      val pSpecs = getPartitionSpecs( PartitionConstraints(numDataFiles) )
+      val pSpecs = getPartitionSpecs( PartitionConstraints( partsConfig ++ Map( "numDataFiles" -> numDataFiles.toString ) ) )
       val partitions = (0 until pSpecs.nPartitions) map ( partIndex => {
         val startIndex = partIndex * pSpecs.nSlicesPerPart
         val partSize = Math.min(pSpecs.nSlicesPerPart, baseShape(0) - startIndex)

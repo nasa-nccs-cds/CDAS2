@@ -21,6 +21,7 @@ import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
 import scala.collection.JavaConversions._
+import scala.collection.immutable.TreeMap
 import scala.collection.mutable.SortedSet
 
 object Port {
@@ -311,7 +312,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     }
 //    logger.debug("&COMBINE: %s, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
     context.addTimestamp( "combineRDD complete" )
-    RDDRecord( Map(new_elements:_*), rdd0.mergeMetadata(context.operation.name, rdd1) )
+    RDDRecord( TreeMap(new_elements:_*), rdd0.mergeMetadata(context.operation.name, rdd1) )
   }
 
   def combineRDD(context: KernelContext)(rdd0: RDDRecord, rdd1: RDDRecord ): RDDRecord = {
@@ -333,7 +334,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     }
     //    logger.debug("&COMBINE: %s, time = %.4f s".format( context.operation.name, (System.nanoTime - t0) / 1.0E9 ) )
     context.addTimestamp( "combineRDD complete" )
-    RDDRecord( Map(new_elements:_*), rdd0.mergeMetadata(context.operation.name, rdd1) )
+    RDDRecord( TreeMap(new_elements:_*), rdd0.mergeMetadata(context.operation.name, rdd1) )
   }
 
   def combineElements( key: String, elements0: Map[String,HeapFltArray], elements1: Map[String,HeapFltArray] ): IndexedSeq[(String,HeapFltArray)] = {
@@ -496,7 +497,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
           }
           val valuesArray =  HeapFltArray( CDFloatArray( values.shape,  averageValues.array,  values.missing.getOrElse(Float.MaxValue) ),  values.origin,  values.metadata,  values.weights  )
           context.addTimestamp( "postRDDOp complete" )
-          new RDDRecord( Map( values_key -> valuesArray ), pre_result.metadata )
+          new RDDRecord( TreeMap( values_key -> valuesArray ), pre_result.metadata )
         } else if( (postOp == "sqrt") || (postOp == "rms") ) {
           val new_elements = pre_result.elements map { case (values_key, values) =>
             val averageValues = FloatBuffer.allocate(values.data.length)
@@ -676,7 +677,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
       val t3 = System.nanoTime
       logger.info("weightedValueSumCombiner, values shape = %s, time = { %.2f -- %.2f -- %.2f s }, result spec = %s".format(vTot.shape.mkString(","), (t1-t0)/1.0e9, (t2-t1)/1.0e9, (t3-t2)/1.0e9, a0.metadata.toString))
       context.addTimestamp( "weightedValueSumCombiner complete" )
-      new RDDRecord( Map(element), part_mdata )
+      new RDDRecord( TreeMap(element), part_mdata )
     }
     else {
       a0 ++ a1
@@ -851,7 +852,7 @@ abstract class SingularRDDKernel( options: Map[String,String] = Map.empty ) exte
     val dt = (System.nanoTime - t0) / 1.0E9
     logger.info("Executed Kernel %s map op, time = %.4f s".format(name, dt ))
     context.addTimestamp( "Map Op complete, time = %.4f s, shape = (%s), record mdata = %s".format( dt, shape.mkString(","), inputs.metadata.mkString(";") ) )
-    RDDRecord( Map( elem ), inputs.metadata )
+    RDDRecord( TreeMap( elem ), inputs.metadata )
   }
 }
 
@@ -866,7 +867,7 @@ abstract class DualRDDKernel( options: Map[String,String] ) extends Kernel(optio
       val result_metadata = input_arrays.head.metadata ++ inputs.metadata ++ List("uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile(inputs.elements))
       logger.info("Executed Kernel %s map op, time = %.4f s".format(name, (System.nanoTime - t0) / 1.0E9))
       context.addTimestamp("Map Op complete")
-      RDDRecord(Map(context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None)), inputs.metadata)
+      RDDRecord( TreeMap(context.operation.rid -> HeapFltArray(result_array, input_arrays(0).origin, result_metadata, None)), inputs.metadata)
     } else { inputs }
   }
 }
@@ -928,7 +929,7 @@ class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "
         val array_metadata_crs = context.crsOpt.map( crs => array_metadata + ( "crs" -> crs ) ).getOrElse( array_metadata )
         logger.info("&MAP: Finished Kernel %s, time = %.4f s, metadata = %s".format(name, (System.nanoTime - t0) / 1.0E9, array_metadata_crs.mkString(";")))
         context.addTimestamp( "Map Op complete" )
-        RDDRecord(Map(resultItems: _*) ++ acceptable_array_map, array_metadata_crs)
+        RDDRecord(TreeMap(resultItems: _*) ++ acceptable_array_map, array_metadata_crs)
       }
     } finally {
       workerManager.releaseWorker( worker )
@@ -982,7 +983,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
       val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
       logger.info("&MAP: Finished zmqPythonKernel %s, time = %.4f s, metadata = %s".format(name, (System.nanoTime - t0) / 1.0E9, result_metadata.mkString(";") ) )
       context.addTimestamp( "Map Op complete" )
-      RDDRecord( Map(resultItems:_*), result_metadata )
+      RDDRecord( TreeMap(resultItems:_*), result_metadata )
     } finally {
       workerManager.releaseWorker( worker )
     }

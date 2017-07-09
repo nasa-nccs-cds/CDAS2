@@ -16,6 +16,7 @@ import ucar.nc2.constants.AxisType
 import scala.xml
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.collection.immutable.TreeMap
 import scala.util.matching.Regex
 
 object BoundsRole extends Enumeration { val Start, End = Value }
@@ -201,7 +202,7 @@ class PartitionedFragment( val partitions: CachePartitions, val maskOpt: Option[
     val partition = partitions.getPart(partIndex)
     val data: CDFloatArray = partition.data( fragmentSpec.missing_value )
     val spec: DataFragmentSpec = partFragSpec(partIndex)
-    RDDRecord( Map( spec.uid -> HeapFltArray(data, fragSpec.getOrigin, spec.getMetadata(), None) ), Map.empty )
+    RDDRecord( TreeMap( spec.uid -> HeapFltArray(data, fragSpec.getOrigin, spec.getMetadata(), None) ), Map.empty )
   }
 
 //  def domainRDDPartition(partIndex: Int, optSection: Option[ma2.Section] ): Option[RDDPartition] = domainCDDataSection( partIndex, optSection ) match {

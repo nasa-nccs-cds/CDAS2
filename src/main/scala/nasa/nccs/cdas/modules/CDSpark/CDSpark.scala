@@ -8,6 +8,7 @@ import nasa.nccs.cdas.kernels._
 import nasa.nccs.wps.{WPSDataInput, WPSProcessOutput}
 import ucar.ma2.DataType
 
+import scala.collection.immutable.TreeMap
 import scala.reflect.runtime.{universe => u}
 
 //package object CDSpark {
@@ -160,7 +161,13 @@ class multiAverage extends Kernel(Map.empty) {
     logger.info("&MAP: Finished Kernel %s, inputs = %s, output = %s, time = %.4f s".format(name, context.operation.inputs.mkString(","), context.operation.rid, (System.nanoTime - t0)/1.0E9) )
     context.addTimestamp( "Map Op complete" )
     val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
-    RDDRecord( Map( context.operation.rid -> HeapFltArray( resultArray, input_arrays(0).origin, input_arrays.head.gridSpec, result_metadata, missing) ), inputs.metadata )
+    RDDRecord( TreeMap( context.operation.rid -> HeapFltArray( resultArray, input_arrays(0).origin, input_arrays.head.gridSpec, result_metadata, missing) ), inputs.metadata )
+  }
+}
+
+object BinKeyUtils {
+  implicit object BinKeyOrdering extends Ordering[String] {
+    def compare( k1: String, k2: String ) = k1.split('.').last.toInt - k2.split('.').last.toInt
   }
 }
 
@@ -172,12 +179,13 @@ class bin extends Kernel(Map.empty) {
   override val description = "Aggregates data into bins using specified reduce function and binning specifications"
 
   override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
+    import BinKeyUtils.BinKeyOrdering
     val t0 = System.nanoTime
-
+    val startIndex = inputs.metadata.getOrElse("startIndex","0").toInt
     val elems = context.operation.inputs.flatMap( inputId => inputs.element(inputId) match {
       case Some( input_data ) =>
         val input_array: FastMaskedArray = input_data.toFastMaskedArray
-        val sorter = getSorter( input_data, context )
+        val sorter = getSorter( input_data, context, startIndex )
         val result_arrays: IndexedSeq[FastMaskedArray] = input_array.bin( sorter, getOp(context), initValue )
         result_arrays.indices.map( index => context.operation.rid + "." + index ->
           HeapFltArray( result_arrays(index).toCDFloatArray, input_data.origin, arrayMdata(inputs, "value"), None )
@@ -185,13 +193,13 @@ class bin extends Kernel(Map.empty) {
       case None => throw new Exception("Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(","))
     })
     context.addTimestamp( "Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9), true )
-    RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+    RDDRecord( TreeMap( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
   override def combineRDD(context: KernelContext)( a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)( a0, a1 )
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
 
-  def getSorter( input_data: HeapFltArray, context: KernelContext  ): BinSorter = {
-    new TimeCycleSorter( input_data, context )
+  def getSorter( input_data: HeapFltArray, context: KernelContext, startIndex: Int  ): BinSorter = {
+    new TimeCycleSorter( input_data, context, startIndex )
   }
 
   def getOp(context: KernelContext): ReduceOpFlt = {
@@ -210,12 +218,13 @@ class binAve extends Kernel(Map.empty) {
   override val description = "Aggregates data into bins using specified reduce function and binning specifications"
 
   override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
+    import BinKeyUtils.BinKeyOrdering
     val t0 = System.nanoTime
-
+    val startIndex = inputs.metadata.getOrElse("startIndex","0").toInt
     val elems = context.operation.inputs.flatMap( inputId => inputs.element(inputId) match {
       case Some( input_data ) =>
         val input_array: FastMaskedArray = input_data.toFastMaskedArray
-        val sorter = getSorter( input_data, context )
+        val sorter = getSorter( input_data, context, startIndex )
         val result_arrays: (IndexedSeq[FastMaskedArray], IndexedSeq[FastMaskedArray]) = if( addWeights(context) ) {
           val weights: FastMaskedArray = FastMaskedArray(KernelUtilities.getWeights(inputId, context))
           input_array.weightedSumBin(sorter, Some(weights) )
@@ -228,13 +237,13 @@ class binAve extends Kernel(Map.empty) {
       case None => throw new Exception("Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(","))
     })
     context.addTimestamp( "Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9), true )
-    RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+    RDDRecord( TreeMap(elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
   override def combineRDD(context: KernelContext)( a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)( a0, a1 )
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
 
-  def getSorter( input_data: HeapFltArray, context: KernelContext  ): BinSorter = {
-    new TimeCycleSorter( input_data, context )
+  def getSorter( input_data: HeapFltArray, context: KernelContext, startIndex: Int  ): BinSorter = {
+    new TimeCycleSorter( input_data, context, startIndex )
   }
 
   def getOp(context: KernelContext): ReduceOpFlt = {
@@ -301,7 +310,7 @@ class average extends SingularRDDKernel(Map.empty) {
     })
     logger.info("Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9))
     context.addTimestamp( "Map Op complete" )
-    val rv = RDDRecord( Map( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid, "axes" -> axes.toUpperCase ) )
+    val rv = RDDRecord( TreeMap( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid, "axes" -> axes.toUpperCase ) )
     logger.info("Returning result value")
     rv
   }
@@ -337,7 +346,7 @@ class timeBin extends Kernel(Map.empty) {
     val result_array = HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), Some( weights_sum_masked.getArrayData() ) )
     logger.info("Executed Kernel %s map op, input = %s, index=%s, time = %.4f s".format(name, id, result_array.toCDFloatArray.getIndex.toString , (System.nanoTime - t0) / 1.0E9))
     context.addTimestamp( "Map Op complete" )
-    RDDRecord( Map( context.operation.rid -> result_array ), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+    RDDRecord( TreeMap( context.operation.rid -> result_array ), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
   }
   override def combineRDD(context: KernelContext)( a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)( a0, a1 )
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
