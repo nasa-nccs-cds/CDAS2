@@ -106,16 +106,16 @@ class ResponseManager(Thread):
     def getResponses( self, rId, wait=True ):
         import subprocess, sys
         print "Waiting for a response from the server"
-        count = 0
+#        count = 0
         while( True ):
             results = self.getResults(rId)
             if( (len(results) > 0) or not wait): return results
             else:
                 print ".",
                 time.sleep(0.25)
-                if( count % 4 == 0 ):
-                    subprocess.call( [ 'free', '-h' ], stdout=sys.stdout )
-                count = count + 1
+#                if( count % 4 == 0 ):
+#                    subprocess.call( [ 'free', '-h' ], stdout=sys.stdout )
+#                count = count + 1
 
     def getResponseVariables(self, rId, wait=True):
         responses = self.getResponses( rId, wait )
@@ -125,6 +125,7 @@ class ResponseManager(Thread):
             for data_node in e.iter('data'):
                 resultUri = data_node.get("href","")
                 if resultUri:
+                    self.logger.info("Processing response: " + resultUri )
                     resultId = resultUri.split("/")[-1]
                     result_arrays = self.cached_arrays.get( resultId, [] )
                     if result_arrays:

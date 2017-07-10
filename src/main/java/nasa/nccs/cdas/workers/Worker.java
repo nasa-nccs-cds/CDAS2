@@ -144,7 +144,9 @@ public abstract class Worker {
     public void finalize() { quit(); }
 
     public void sendDataPacket( String header, byte[] data ) {
+        logger.debug("Sending header: " + header);
         request_socket.send(header.getBytes(), 0 );
+        logger.debug( String.format( "Sending data, nbytes = %d", data.length ) );
         request_socket.send(data, 0 );
     }
 
@@ -188,7 +190,6 @@ public abstract class Worker {
         logger.debug( String.format("Kernel: Sending data to worker for input %s, nbytes=%d", id, data.length ));
         List<String> slist = Arrays.asList( "array", id, ia2s(origin), ia2s(shape), m2s(metadata), withData );
         String header = StringUtils.join(slist,"|");
-        logger.debug("Sending header: " + header);
         sendDataPacket( header, data );
     }
 

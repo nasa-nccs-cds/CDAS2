@@ -1,4 +1,5 @@
 from pycdas.portal.cdas import *
+import time, sys, cdms2, os, EzTemplate
 import matplotlib.pyplot as plt
 import datetime, matplotlib
 
@@ -7,12 +8,12 @@ import datetime, matplotlib
 
 request_port = 5670
 response_port = 5671
-cdas_server = "10.71.9.11"
+cdas_server = "localhost"
 
 try:
     portal = CDASPortal( ConnectionMode.CONNECT, cdas_server, request_port, response_port )
     response_manager = portal.createResponseManager()
-    datainputs = """[domain=[{"name":"d0","lat":{"start":70,"end":90,"system":"values"},"lon":{"start":5,"end":45,"system":"values"}}],variable=[{"uri":"file:///dass/nobackup/tpmaxwel/cdas/cache/collections/NCML/CIP_MERRA2_6hr_tas.ncml","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"xy"}]]"""
+    datainputs = """[domain=[{"name":"d0","lat":{"start":70,"end":90,"system":"values"},"lon":{"start":5,"end":45,"system":"values"},"level":{"start":0,"end":0,"system":"indices"}}],variable=[{"uri":"file:///Users/tpmaxwel/.cdas/cache/collections/NCML/MERRA_DAILY.ncml","name":"t:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"xy"}]]"""
 
     rId1 = portal.sendMessage("execute", [ "WPS", datainputs, '{ "response":"file" }'] )
     fileResponses = response_manager.getResponseVariables(rId1)
