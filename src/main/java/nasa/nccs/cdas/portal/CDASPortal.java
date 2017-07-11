@@ -1,9 +1,13 @@
 package nasa.nccs.cdas.portal;
+import com.google.common.io.Files;
 import nasa.nccs.cdas.workers.python.PythonWorkerPortal;
 import nasa.nccs.utilities.Logger;
 import org.apache.commons.lang.StringUtils;
 import org.zeromq.ZMQ;
 import nasa.nccs.utilities.CDASLogManager;
+
+import java.io.File;
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,6 +72,24 @@ public abstract class CDASPortal {
         logger.debug("Sending header: " + header);
         sendDataPacket( header, data );
     }
+
+    public String sendFile( String rId, String name, String filePath ) {
+        logger.debug( String.format("Portal: Sending file data to client for %s, filePath=%s", name, filePath ));
+        File file = new File(filePath);
+        String[] file_header_fields = { "array", rId, name, file.getName() };
+        String file_header = StringUtils.join( file_header_fields, "|" );
+        List<String> header_fields = Arrays.asList( rId,"file", file_header );
+        String header = StringUtils.join(header_fields,"!");
+        try {
+            byte[] data = Files.toByteArray(file);
+            sendDataPacket(header, data);
+            logger.debug("Done sending file data packet: " + header);
+        } catch ( IOException ex ) {
+            logger.info( "Error sending file : " + filePath + ": " + ex.toString() );
+        }
+        return file_header_fields[3];
+    }
+
     public void sendDataPacket( String header, byte[] data ) {
         response_socket.send(header.getBytes(), 0 );
         response_socket.send(data, 0 );

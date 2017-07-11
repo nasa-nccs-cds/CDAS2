@@ -1,7 +1,7 @@
 import zmq, traceback, time, logging, xml, cdms2
 from threading import Thread
 from pycdas.cdasArray import npArray
-import random, string
+import random, string, os
 MB = 1024 * 1024
 
 class ConnectionMode():
@@ -38,6 +38,7 @@ class ResponseManager(Thread):
         self.cached_results = {}
         self.cached_arrays = {}
         self.setDaemon(True)
+        self.cacheDir = os.environ.get( 'CDAS_CACHE_DIR','/tmp/' )
 
     def cacheResult(self, id, result ):
         self.logger.info( "Caching result array: " + id )
@@ -93,7 +94,11 @@ class ResponseManager(Thread):
                 array = npArray.createInput(header,data)
                 self.logger.info("Received array: {0}".format(rId))
                 self.cacheArray( rId, array )
-
+            elif type == "file":
+                header = toks[2]
+                data = self.socket.recv()
+                self.saveFile( header, data )
+                self.logger.info("Received file '{0}' for rid {1}".format(header,rId))
             elif type == "response":
                 self.cacheResult( rId, toks[2] )
                 self.logger.info("Received result: {0}".format(toks[2]))
@@ -102,6 +107,24 @@ class ResponseManager(Thread):
 
         except Exception as err:
             self.logger.error( "CDAS error: {0}\n{1}\n".format(err, traceback.format_exc() ) )
+
+    def getFileCacheDir(self,role):
+        filePath = os.path.join( self.cacheDir, "transfer", role )
+        if not os.path.exists(filePath): os.makedirs(filePath)
+        return filePath
+
+    def saveFile(self, header, data):
+        logger = logging.getLogger("portal")
+        header_toks = header.split('|')
+        id = header_toks[1]
+        role = header_toks[2]
+        fileName = header_toks[3]
+        filePath = os.path.join( self.getFileCacheDir(role), fileName )
+        with open( filePath, mode='wb') as file:
+            file.write( bytearray(data) )
+            logger.info(" ***->> Saving File, path = {0}".format(filePath) )
+        return filePath
+
 
     def getResponses( self, rId, wait=True ):
         import subprocess, sys
@@ -119,6 +142,7 @@ class ResponseManager(Thread):
 
     def getResponseVariables(self, rId, wait=True):
         responses = self.getResponses( rId, wait )
+        gridFileDir = self.getFileCacheDir("gridfile")
         vars = []
         for response in responses:
             e = xml.etree.ElementTree.fromstring( response )
@@ -130,7 +154,8 @@ class ResponseManager(Thread):
                     result_arrays = self.cached_arrays.get( resultId, [] )
                     if result_arrays:
                         for result_array in result_arrays:
-                            vars.append( result_array.getVariable() )
+                            gridFilePath = os.path.join(gridFileDir, result_array.gridFile )
+                            vars.append( result_array.getVariable( gridFilePath ) )
                     else:
                         resultFileUri = data_node.get("file", "")
                         if resultFileUri:

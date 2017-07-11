@@ -85,7 +85,9 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
         processManager.getResultVariable("cdas",rid) match {
           case Some( resultVar ) =>
             val data: HeapFltArray = resultVar.result.elements.head._2
-            sendArrayData( rid, data.origin, data.shape, data.toByteArray, data.metadata )
+            val gridfilepath = data.metadata( "gridfile" )
+            val gridfilename = sendFile( rid, "gridfile", gridfilepath )
+            sendArrayData( rid, data.origin, data.shape, data.toByteArray, data.metadata + ("gridfile" -> gridfilename) )
           case None => logger.error( "Can't find result variable " + rid)
         }
 

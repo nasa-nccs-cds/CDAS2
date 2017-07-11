@@ -44,7 +44,7 @@ class CDArray:
     def createInput(cls, header, data): raise Exception( "Executing abstract method createInput in CDArray")
 
     @abstractmethod
-    def getVariable(self): pass
+    def getVariable( self, gridFile = None ): pass
 
     @abstractmethod
     def array(self): pass
@@ -106,10 +106,10 @@ class npArray(CDArray):
 
     def __init__(self, _id, _origin, _shape, _metadata, _ndarray, _undef ):
         super(npArray, self).__init__(_id,_origin,_shape,_metadata)
-        self.gridFilePath = self.metadata["gridfile"]
-        self.name = self.metadata["name"]
-        self.collection = self.metadata["collection"]
-        self.dimensions = self.metadata["dimensions"].split(",")
+        self.gridFile = self.metadata["gridfile"]
+        self.name = self.metadata.get("name","")
+        self.collection = self.metadata.get("collection","")
+        self.dimensions = self.metadata.get("dimensions","").split(",")
         self.array = _ndarray
         self.undef = _undef
         self.variable = None
@@ -130,7 +130,7 @@ class npArray(CDArray):
 
     def getGrid1(self):
         import cdms2
-        gridfile = cdms2.open(self.gridFilePath)
+        gridfile = cdms2.open(self.gridFile)
         baseGrid = gridfile.grids.values()[0]
         gridBnds = self.getGridBounds()
         if ( gridBnds is None ):  return baseGrid
@@ -142,26 +142,26 @@ class npArray(CDArray):
 
     def getGrid(self):
         import cdms2
-        gridfile = cdms2.open(self.gridFilePath)
+        gridfile = cdms2.open(self.gridFile)
         baseGrid = gridfile.grids.values()[0]
         (latInterval, lonInterval) = ( self.getAxisSection('y'), self.getAxisSection('x') )
         if ( (latInterval == None) or (lonInterval == None)  ):  return baseGrid
         else: return baseGrid.subGrid( latInterval, lonInterval )
 
-    def getVariable(self):
+    def getVariable( self, gridFilePath = None ):
         import cdms2
         if( self.variable is None ):
             t0 = time.time()
-            gridfile = cdms2.open(self.gridFilePath)
+            gridfile = cdms2.open( self.gridFile if (gridFilePath==None) else gridFilePath )
             var = gridfile[self.name]
             grid = gridfile.grids.values()[0]
             partition_axes = self.subsetAxes(self.dimensions, gridfile, self.origin, self.shape)
             self.variable = cdms2.createVariable(self.array, typecode=None, copy=0, savespace=0, mask=None, fill_value=var.getMissing(),
                                             grid=grid, axes=partition_axes, attributes=self.metadata, id=self.collection + "-" + self.name)
-            self.variable.createattribute("gridfile", self.gridFilePath)
+            self.variable.createattribute("gridfile", self.gridFile)
             self.variable.createattribute("origin", mParse.ia2s(self.origin))
             t1 = time.time()
-            self.logger.info(" >> Created CDMS Variable: {0} ({1}) in time {2}, gridFile = {3}".format(self.variable.id, self.name, (t1 - t0), self.gridFilePath ))
+            self.logger.info(" >> Created CDMS Variable: {0} ({1}) in time {2}, gridFile = {3}".format(self.variable.id, self.name, (t1 - t0), self.gridFile))
         return self.variable
 
     def subsetAxes( self, dimensions, gridfile, origin, shape ):
@@ -214,7 +214,7 @@ class cdmsArray(CDArray):
         self.dimensions = self.metadata["dimensions"].split(",")
         self.variable = cdVariable
 
-    def getVariable(self): return self.variable
+    def getVariable( self, gridFile= None ): return self.variable
 
     def getGrid(self):
         baseGrid = self.variable.getGrid()

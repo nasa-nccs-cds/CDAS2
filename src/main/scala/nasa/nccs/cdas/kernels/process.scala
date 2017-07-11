@@ -842,7 +842,8 @@ abstract class SingularRDDKernel( options: Map[String,String] = Map.empty ) exte
             val result = cdinput.reduce(combineOp, axes.args, initValue).toCDFloatArray
 //            logger.info( "Input data sample = [ %s ]".format(cdinput.toCDFloatArray.getArrayData(30).map( _.toString ).mkString(", ") ) )
             logger.info(" ##### KERNEL [%s]: Map Op: combine, axes = %s, result shape = %s, result value[0] = %.4f".format( name, axes, result.getShape.mkString(","), result.getArrayData(1)(0) ) )
-            context.operation.rid -> HeapFltArray( result, input_array.origin, input_array.metadata, None )
+            val result_metadata = inputs.metadata ++ input_array.metadata ++ List("uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile(inputs.elements))
+            context.operation.rid -> HeapFltArray( result, input_array.origin, result_metadata, None )
           case None =>
             logger.info(" ##### KERNEL [%s]: Map Op: NONE".format( name ) )
             context.operation.rid -> HeapFltArray( input_array.toCDFloatArray, input_array.origin, input_array.metadata, None )
@@ -925,7 +926,7 @@ class CDMSRegridKernel extends zmqPythonKernel( "python.cdmsmodule", "regrid", "
           val result = HeapFltArray( tvar, Some(targetGridSpec) )
           context.operation.rid + ":" + input_array.uid -> result
         }
-        val array_metadata = input_arrays.head.metadata ++ List("uid" -> context.operation.rid, "gridSpec" -> targetGridSpec )
+        val array_metadata = inputs.metadata ++ input_arrays.head.metadata ++ List("uid" -> context.operation.rid, "gridSpec" -> targetGridSpec )
         val array_metadata_crs = context.crsOpt.map( crs => array_metadata + ( "crs" -> crs ) ).getOrElse( array_metadata )
         logger.info("&MAP: Finished Kernel %s, time = %.4f s, metadata = %s".format(name, (System.nanoTime - t0) / 1.0E9, array_metadata_crs.mkString(";")))
         context.addTimestamp( "Map Op complete" )
@@ -980,7 +981,7 @@ class zmqPythonKernel( _module: String, _operation: String, _title: String, _des
       }
       logger.info( "Gateway: Executing operation %s in time %.4f s".format( context.operation.identifier, (System.nanoTime - t1) / 1.0E9 ) )
 
-      val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
+      val result_metadata = inputs.metadata ++ input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
       logger.info("&MAP: Finished zmqPythonKernel %s, time = %.4f s, metadata = %s".format(name, (System.nanoTime - t0) / 1.0E9, result_metadata.mkString(";") ) )
       context.addTimestamp( "Map Op complete" )
       RDDRecord( TreeMap(resultItems:_*), result_metadata )

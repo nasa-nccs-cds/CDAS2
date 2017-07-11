@@ -137,6 +137,7 @@ class multiAverage extends Kernel(Map.empty) {
 
   override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime
+    val axes = context.config("axes","")
     val async = context.config("async", "false").toBoolean
     val input_arrays: List[HeapFltArray] = context.operation.inputs.map( id => inputs.findElements(id) ).foldLeft(List[HeapFltArray]())( _ ++ _ )
     val input_ucarrays: Array[ma2.Array] = input_arrays.map(_.toUcarFloatArray).toArray
@@ -160,7 +161,7 @@ class multiAverage extends Kernel(Map.empty) {
     }
     logger.info("&MAP: Finished Kernel %s, inputs = %s, output = %s, time = %.4f s".format(name, context.operation.inputs.mkString(","), context.operation.rid, (System.nanoTime - t0)/1.0E9) )
     context.addTimestamp( "Map Op complete" )
-    val result_metadata = input_arrays.head.metadata ++ List( "uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile( inputs.elements )  )
+    val result_metadata = inputs.metadata ++ arrayMdata(inputs, "value") ++ input_arrays.head.metadata ++ List("uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile(inputs.elements), "axes" -> axes.toUpperCase )
     RDDRecord( TreeMap( context.operation.rid -> HeapFltArray( resultArray, input_arrays(0).origin, input_arrays.head.gridSpec, result_metadata, missing) ), inputs.metadata )
   }
 }
@@ -181,14 +182,16 @@ class bin extends Kernel(Map.empty) {
   override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
     import BinKeyUtils.BinKeyOrdering
     val t0 = System.nanoTime
+    val axes = context.config("axes","")
     val startIndex = inputs.metadata.getOrElse("startIndex","0").toInt
     val elems = context.operation.inputs.flatMap( inputId => inputs.element(inputId) match {
       case Some( input_data ) =>
         val input_array: FastMaskedArray = input_data.toFastMaskedArray
         val sorter = getSorter( input_data, context, startIndex )
         val result_arrays: IndexedSeq[FastMaskedArray] = input_array.bin( sorter, getOp(context), initValue )
+        val result_metadata = inputs.metadata ++ arrayMdata(inputs, "value") ++ input_data.metadata ++ List("uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile(inputs.elements), "axes" -> axes.toUpperCase )
         result_arrays.indices.map( index => context.operation.rid + "." + index ->
-          HeapFltArray( result_arrays(index).toCDFloatArray, input_data.origin, arrayMdata(inputs, "value"), None )
+          HeapFltArray( result_arrays(index).toCDFloatArray, input_data.origin, result_metadata, None )
         )
       case None => throw new Exception("Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(","))
     })
@@ -220,6 +223,7 @@ class binAve extends Kernel(Map.empty) {
   override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
     import BinKeyUtils.BinKeyOrdering
     val t0 = System.nanoTime
+    val axes = context.config("axes","")
     val startIndex = inputs.metadata.getOrElse("startIndex","0").toInt
     val elems = context.operation.inputs.flatMap( inputId => inputs.element(inputId) match {
       case Some( input_data ) =>
@@ -231,13 +235,14 @@ class binAve extends Kernel(Map.empty) {
         } else {
           input_array.weightedSumBin(sorter, None)
         }
+        val result_metadata = inputs.metadata ++ arrayMdata(inputs, "value") ++ input_data.metadata ++ List("uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile(inputs.elements), "axes" -> axes.toUpperCase )
         result_arrays._1.indices.map( index => context.operation.rid + "." + index ->
-          HeapFltArray( result_arrays._1(index).toCDFloatArray, input_data.origin, arrayMdata(inputs, "value"), Some(result_arrays._2(index).toFloatArray) )
+          HeapFltArray( result_arrays._1(index).toCDFloatArray, input_data.origin, result_metadata, Some(result_arrays._2(index).toFloatArray) )
         )
       case None => throw new Exception("Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(","))
     })
     context.addTimestamp( "Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9), true )
-    RDDRecord( TreeMap(elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+    RDDRecord( TreeMap(elems:_*), inputs.metadata )
   }
   override def combineRDD(context: KernelContext)( a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)( a0, a1 )
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )
@@ -305,12 +310,13 @@ class average extends SingularRDDKernel(Map.empty) {
         } else {
           input_array.weightedSum(axisIndices,None)
         }
-        context.operation.rid -> HeapFltArray(weighted_value_sum_masked.toCDFloatArray, input_data.origin, arrayMdata(inputs, "value"), Some(weights_sum_masked.toCDFloatArray.getArrayData()))
+        val result_metadata = inputs.metadata ++ arrayMdata(inputs, "value") ++ input_data.metadata ++ List("uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile(inputs.elements), "axes" -> axes.toUpperCase )
+        context.operation.rid -> HeapFltArray(weighted_value_sum_masked.toCDFloatArray, input_data.origin, result_metadata, Some(weights_sum_masked.toCDFloatArray.getArrayData()))
       case None => throw new Exception("Missing input to 'average' kernel: " + inputId + ", available inputs = " + inputs.elements.keySet.mkString(","))
     })
     logger.info("Executed Kernel %s map op, input = %s, time = %.4f s".format(name,  id, (System.nanoTime - t0) / 1.0E9))
     context.addTimestamp( "Map Op complete" )
-    val rv = RDDRecord( TreeMap( elems:_*), inputs.metadata ++ List( "rid" -> context.operation.rid, "axes" -> axes.toUpperCase ) )
+    val rv = RDDRecord( TreeMap( elems:_*), inputs.metadata )
     logger.info("Returning result value")
     rv
   }
@@ -334,7 +340,8 @@ class timeBin extends Kernel(Map.empty) {
 
   override def map ( context: KernelContext ) (inputs: RDDRecord  ): RDDRecord = {
     val t0 = System.nanoTime
-    val axes: AxisIndices = context.grid.getAxisIndices( context.config("axes","") )
+    val axesStr = context.config("axes","")
+    val axes: AxisIndices = context.grid.getAxisIndices( axesStr )
     val period = context.config("period", "1" ).toInt
     val mod = context.config("mod", "12" ).toInt
     val unit = context.config("unit", "month" )
@@ -343,10 +350,11 @@ class timeBin extends Kernel(Map.empty) {
     val ( id, input_array ) = inputs.head
     val accumulation_index: CDIndexMap = input_array.toCDFloatArray.getIndex.getAccumulator( axes.args, List( getMontlyBinMap( id, context ) )  )  // TODO: Check range of getMontlyBinMap- subset by part?
     val (weighted_value_sum_masked, weights_sum_masked) = input_array.toCDFloatArray.weightedReduce( CDFloatArray.getOp("add"), 0f, accumulation_index )
-    val result_array = HeapFltArray( weighted_value_sum_masked, input_array.origin, arrayMdata(inputs,"value"), Some( weights_sum_masked.getArrayData() ) )
+    val result_metadata = inputs.metadata ++ arrayMdata(inputs, "value") ++ input_array.metadata ++ List("uid" -> context.operation.rid, "gridfile" -> getCombinedGridfile(inputs.elements), "axes" -> axesStr.toUpperCase )
+    val result_array = HeapFltArray( weighted_value_sum_masked, input_array.origin, result_metadata, Some( weights_sum_masked.getArrayData() ) )
     logger.info("Executed Kernel %s map op, input = %s, index=%s, time = %.4f s".format(name, id, result_array.toCDFloatArray.getIndex.toString , (System.nanoTime - t0) / 1.0E9))
     context.addTimestamp( "Map Op complete" )
-    RDDRecord( TreeMap( context.operation.rid -> result_array ), inputs.metadata ++ List( "rid" -> context.operation.rid ) )
+    RDDRecord( TreeMap( context.operation.rid -> result_array ), inputs.metadata )
   }
   override def combineRDD(context: KernelContext)( a0: RDDRecord, a1: RDDRecord ): RDDRecord =  weightedValueSumRDDCombiner(context)( a0, a1 )
   override def postRDDOp(pre_result: RDDRecord, context: KernelContext ):  RDDRecord = weightedValueSumRDDPostOp( pre_result, context )

@@ -300,7 +300,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
 
   def cacheResult(result: RDDRecord, context: RequestContext, node: WorkflowNode ): String = {
     collectionDataCache.putResult( node.operation.rid, new RDDTransientVariable( result, node.operation, context ) )
- //   logger.info( " ^^^^## Cached result, results = " + collectionDataCache.getResultIdList.mkString(",") + ", shape = " + result.head._2.shape.mkString(",") + ", rid = " + node.operation.rid )
+    logger.info( " ^^^^## Cached result, rid = " + node.operation.rid + ", head elem metadata = " + result.elements.head._2.metadata )
     node.operation.rid
   }
 
