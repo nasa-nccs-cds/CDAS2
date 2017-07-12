@@ -11,7 +11,7 @@ try:
     rId1 = portal.sendMessage("execute", [ "WPS", datainputs, '{ "response":"object" }'] )
     responses = response_manager.getResponseVariables(rId1)
 
-    print " Received %d responses ".format( len(responses) )
+    print " Received " + str( len(responses) ) + " responses "
 
 finally:
     portal.shutdown()
