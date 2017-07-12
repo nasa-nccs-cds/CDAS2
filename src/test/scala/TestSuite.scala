@@ -195,7 +195,7 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     val datainputs = s"""[domain=[{"name":"d0","lat":{"start":180,"end":180,"system":"indices"},"lon":{"start":20,"end":20,"system":"indices"},"level":{"start":20,"end":20,"system":"indices"}}],variable=[{"uri":"%s","name":"ta:v1","domain":"d0"}],operation=[{"name":"CDSpark.binAve","input":"v1","domain":"d0","cycle":"diurnal","bin":"month","axes":"t"}]]""".format( data_file )
     val result_node = executeTest( datainputs, Map( "numParts" -> "4" ) )
     val result_data = getResultDataArraySeq( result_node )
-    println( " ** CDMS Results:       \n\t" + result_data.map( _.mkBoundedDataString(", ",16) ).mkString("\n\t") )
+    println( " ** CDMS Results:       \n\t" + result_data.map( tup => tup._1.toString + " ---> " + tup._2.mkBoundedDataString(", ",16) ).mkString("\n\t") )
   }
 
   //  test("pyMaxTestLocal") {
@@ -596,9 +596,14 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
     try{  CDFloatArray( data_nodes.head.text.split(',').map(_.toFloat), Float.MaxValue ) } catch { case err: Exception => CDFloatArray.empty }
   }
 
-  def getResultDataArraySeq( result_node: xml.Elem, print_result: Boolean = false ): Seq[CDFloatArray] = {
+  def getResultDataArraySeq( result_node: xml.Elem, print_result: Boolean = false ): Seq[(Int,CDFloatArray)] = {
     val data_nodes: xml.NodeSeq = getDataNodes( result_node, print_result )
-    data_nodes.map ( node => CDFloatArray( node.text.split(',').map(_.toFloat), Float.MaxValue ) )
+    data_nodes.map ( node => getNodeIndex(node) -> CDFloatArray( node.text.split(',').map(_.toFloat), Float.MaxValue ) ).sortBy( _._1 )
+  }
+
+  def getNodeIndex( node: xml.Node ): Int = node.attribute("id") match {
+    case Some( idnode ) => idnode.text.split('.').last.toInt
+    case None => -1
   }
 
   def getResultValue( result_node: xml.Elem ): Float = {
