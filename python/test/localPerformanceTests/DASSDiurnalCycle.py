@@ -12,9 +12,8 @@ try:
     responses = response_manager.getResponseVariables(rId1)
 
     for rvar in responses:
-        responseVar = rvar(squeeze=1)
-        elemId = responseVar.attributes.get("elem","")
-        print "Got response elem, shape = " + str( responseVar.shape ) + ", id = " + elemId
+        elemId = rvar.attributes.get("elem","")
+        print "Got response elem, shape = " + str( rvar.shape ) + ", id = " + elemId
 
 
 finally:
