@@ -779,14 +779,10 @@ class OperationSpecs(id: String, val optargs: Map[String, String]) {
     optargs.getOrElse(id, default)
 }
 
-class DataContainer(val uid: String,
-                    private val source: Option[DataSource] = None,
-                    private val operation: Option[OperationContext] = None)
-    extends ContainerBase {
-  assert(source.isDefined || operation.isDefined,
-         s"Empty DataContainer: variable uid = $uid")
-  assert(source.isEmpty || operation.isEmpty,
-         s"Conflicted DataContainer: variable uid = $uid")
+class DataContainer(val uid: String, private val source: Option[DataSource] = None, private val operation: Option[OperationContext] = None)  extends ContainerBase {
+  assert(source.isDefined || operation.isDefined, s"Empty DataContainer: variable uid = $uid")
+  assert(source.isEmpty || operation.isEmpty, s"Conflicted DataContainer: variable uid = $uid")
+  if( source.isEmpty ) { logger.info( "Empty source DataContainer at: \n\t" + Thread.currentThread.getStackTrace.map(_.toString).mkString("\n\t") )}
   private val optSpecs = mutable.ListBuffer[OperationSpecs]()
   private lazy val variable = {
     val source = getSource; source.collection.getVariable(source.name)
@@ -810,21 +806,16 @@ class DataContainer(val uid: String,
   def isOperation = operation.isDefined
 
   def getSource = {
-    assert(
-      isSource,
-      s"Attempt to access an operation based DataContainer($uid) as a data source")
+    assert( isSource, s"Attempt to access an operation based DataContainer($uid) as a data source" )
     source.get
   }
   def getOperation = {
-    assert(
-      isOperation,
-      s"Attempt to access a source based DataContainer($uid) as an operation")
+    assert( isOperation, s"Attempt to access a source based DataContainer($uid) as an operation")
     operation.get
   }
 
   def addOpSpec(operation: OperationContext): Unit = { // used to inform data container what types of ops will be performed on it.
-    def mergeOpSpec(oSpecList: mutable.ListBuffer[OperationSpecs],
-                    oSpec: OperationSpecs): Unit = oSpecList.headOption match {
+    def mergeOpSpec(oSpecList: mutable.ListBuffer[OperationSpecs], oSpec: OperationSpecs): Unit = oSpecList.headOption match {
       case None => oSpecList += oSpec
       case Some(head) =>
         if (head == oSpec) head merge oSpec
