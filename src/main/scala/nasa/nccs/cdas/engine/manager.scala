@@ -155,6 +155,7 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
     val t1 = System.nanoTime
     val sources = for (data_container: DataContainer <- request.variableMap.values; if data_container.isSource; domainOpt = request.getDomain(data_container.getSource) )
       yield serverContext.createInputSpec( data_container, domainOpt, request )
+    logger.info( s"Created ${sources.size} input sources from ${request.variableMap.size} data containers")
     val t2 = System.nanoTime
     val sourceMap: Map[String,Option[DataFragmentSpec]] = Map(sources.toSeq:_*)
     val rv = new RequestContext (request.domainMap, sourceMap, request, profiler, run_args )
