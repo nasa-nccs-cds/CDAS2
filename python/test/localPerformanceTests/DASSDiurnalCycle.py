@@ -11,11 +11,11 @@ try:
     rId1 = portal.sendMessage("execute", [ "WPS", datainputs, '{ "response":"object" }'] )
     responses = response_manager.getResponseVariables(rId1)
 
-    print "Got " + str(len(responses)) + " responses "
+    for rvar in responses:
+        responseVar = rvar(squeeze=1)
+        elemId = responseVar.attributes.get("elem","")
+        print "Got response elem, shape = " + str( responseVar.shape ) + ", id = " + elemId
 
-    responseVar = responses[0](squeeze=1)
-
-    print "Got response var, shape = " + str( responseVar.shape )
 
 finally:
     portal.shutdown()
