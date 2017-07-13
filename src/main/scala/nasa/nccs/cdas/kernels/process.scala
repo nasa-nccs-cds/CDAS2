@@ -665,19 +665,23 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     if (axes.includes(0)) {
       val t0 = System.nanoTime
       val rid = context.operation.rid
-      logger.info( "weightedValueSumCombiner, elems = " + a0.elements.keys.mkString(", ") )
-      val vTot: FastMaskedArray = toFastMaskedArray(a0, rid) + toFastMaskedArray(a1, rid)
-      val t1 = System.nanoTime
-      val vOrigin: Array[Int] = originArray( a0, rid )
-      val wTotOpt: Option[Array[Float]] = wtFastMaskedArray(a0, rid ).map(w => w + wtFastMaskedArray(a1,rid).get ).map(_.toFloatArray )
-      val t2 = System.nanoTime
-      val array_mdata = MetadataOps.mergeMetadata( context.operation.name )( arrayMdata(a0, rid), arrayMdata(a1, rid) )
-      val element = rid -> HeapFltArray( vTot.toCDFloatArray, vOrigin, array_mdata, wTotOpt )
+      val elems = a0.elements flatMap { case (key, data0) =>
+        a1.elements.get( key ) match {
+          case Some( data1 ) =>
+            val vTot: FastMaskedArray = data0.toFastMaskedArray + data1.toFastMaskedArray
+            val t1 = System.nanoTime
+            val vOrigin: Array[Int] = originArray (a0, rid)
+            val wTotOpt: Option[Array[Float]] = data0.toMa2WeightsArray flatMap { wtsArray0 => data1.toMa2WeightsArray map { wtsArray1 => (wtsArray0 + wtsArray1).toFloatArray } }
+            val t2 = System.nanoTime
+            val array_mdata = MetadataOps.mergeMetadata (context.operation.name) (data0.metadata, data1.metadata )
+            Some( key -> HeapFltArray (vTot.toCDFloatArray, vOrigin, array_mdata, wTotOpt) )
+          case None => logger.warn("Missing elemint in Record combine: " + key); None
+        }
+      }
       val part_mdata = MetadataOps.mergeMetadata( context.operation.name )( a0.metadata, a1.metadata )
       val t3 = System.nanoTime
-      logger.info("weightedValueSumCombiner, values shape = %s, time = { %.2f -- %.2f -- %.2f s }, result spec = %s".format(vTot.shape.mkString(","), (t1-t0)/1.0e9, (t2-t1)/1.0e9, (t3-t2)/1.0e9, a0.metadata.toString))
       context.addTimestamp( "weightedValueSumCombiner complete" )
-      new RDDRecord( TreeMap(element), part_mdata )
+      new RDDRecord( elems, part_mdata )
     }
     else {
       a0 ++ a1
