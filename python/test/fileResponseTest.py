@@ -23,13 +23,8 @@ try:
     rId = portal.sendMessage( "execute", [ "CDSpark.workflow", datainputs, '{ "response":"file" }'] )
     responses = response_manager.getResponseVariables(rId)
     timeSeries = responses[0](squeeze=1)
-
     timeSeries -= 273.15
-    datetimes = pd.to_datetime(timeSeries.getTime().asdatetime())
 
-    plt.plot_date( datetimes, timeSeries.data, linestyle='-', tz=None, xdate=True, ydate=False, ms=0 )
-    plt.gcf().autofmt_xdate()
-    plt.show()
 
 except Exception, err:
     traceback.print_exc()

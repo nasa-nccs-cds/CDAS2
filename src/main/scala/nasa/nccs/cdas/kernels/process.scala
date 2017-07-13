@@ -666,6 +666,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     if (axes.includes(0)) {
       val t0 = System.nanoTime
       val rid = context.operation.rid
+      logger.info( "weightedValueSumCombiner, elems = " + a0.elements.keys.mkString(", ") )
       val vTot: FastMaskedArray = toFastMaskedArray(a0, rid) + toFastMaskedArray(a1, rid)
       val t1 = System.nanoTime
       val vOrigin: Array[Int] = originArray( a0, rid )
