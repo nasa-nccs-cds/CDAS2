@@ -97,7 +97,7 @@ object TimeCycleSorter {
   val Year = 3
 }
 
-class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext, startIndex: Int ) extends BinSorter with Loggable {
+class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext, val startIndex: Int ) extends BinSorter with Loggable {
   import TimeCycleSorter._
   val cycle = context.config("cycle", "hour" ) match {
     case x if (x == "diurnal") || x.startsWith("hour")  => Diurnal
@@ -110,26 +110,30 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext, 
     case x if x.startsWith("year") => Year
     case x => Undef
   }
-  val dateList: IndexedSeq[CalendarDate] = getDateList( startIndex )
+  val dateList: IndexedSeq[CalendarDate] = timeAxis.section( new ma2.Range( startIndex, startIndex + input_data.shape(0)-1 ) ).getCalendarDates.toIndexedSeq
+  val timeAxis: CoordinateAxis1DTime = getTimeAxis
+  val dateRange: ( CalendarDate, CalendarDate ) = getFullDataRange
   val binMod = context.config("binMod", "" )
   private var _startBinIndex = -1
   private var _currentDate: CalendarDate = CalendarDate.of(0L)
-  private var _startMonth: Int = -1
-  private var _startYear: Int = -1
+  val _startMonth = dateRange._1.getFieldValue( CalendarPeriod.Field.Month )
+  val _startYear = dateRange._1.getFieldValue( CalendarPeriod.Field.Year )
   lazy val yearRange = dateList.last.getFieldValue( CalendarPeriod.Field.Year ) - dateList.head.getFieldValue( CalendarPeriod.Field.Year )
   lazy val monthRange = dateList.last.getFieldValue( CalendarPeriod.Field.Month ) - dateList.head.getFieldValue( CalendarPeriod.Field.Month )
+  lazy val fullYearRange = dateRange._2.getFieldValue( CalendarPeriod.Field.Year ) - dateRange._1.getFieldValue( CalendarPeriod.Field.Year )
+  lazy val fullMonthRange = dateRange._2.getFieldValue( CalendarPeriod.Field.Month ) - dateRange._1.getFieldValue( CalendarPeriod.Field.Month )
 
   def getNumBins: Int = nBins
   def getSeason( monthIndex: Int ): Int = ( monthIndex - 2 ) / 3
 
-  def getDateList( startIndex: Int ): IndexedSeq[CalendarDate] = {
-    val gridDS: NetcdfDataset = NetcdfDatasetMgr.open( input_data.gridSpec )
-    val timeAxis = CoordinateAxis1DTime.factory( gridDS, gridDS.findCoordinateAxis( AxisType.Time ), new Formatter() )
-    val result: IndexedSeq[CalendarDate] = timeAxis.section( new ma2.Range( startIndex, startIndex + input_data.shape(0)-1 ) ).getCalendarDates.toIndexedSeq
+  def getTimeAxis: CoordinateAxis1DTime = {
+    val gridDS: NetcdfDataset = NetcdfDatasetMgr.open(input_data.gridSpec)
+    val rv = CoordinateAxis1DTime.factory(gridDS, gridDS.findCoordinateAxis(AxisType.Time), new Formatter())
     gridDS.close()
-    result
+    rv
   }
-
+  def getFullDataRange: ( CalendarDate, CalendarDate ) = ( timeAxis.getCalendarDate(0), timeAxis.getCalendarDate( timeAxis.getSize.toInt-1 ) )
+  
   val nBins: Int = cycle match {
     case Diurnal => 24
     case Monthly => 12
@@ -143,18 +147,21 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext, 
     case Undef => 1
   }
 
+  val nTotalItems: Int = bin match {
+    case Month => fullMonthRange + 1 + 12*fullYearRange
+    case MonthOfYear => 12
+    case Year => fullYearRange + 1
+    case Undef => 1
+  }
+
   def getReducedShape( shape: Array[Int]  ): Array[Int] = {
     var newshape = Array.fill[Int](shape.length)(1)
-    newshape(0) = nItems
+    newshape(0) = nTotalItems
     newshape
   }
 
   def setCurrentCoords( coords: Array[Int] ): Unit = {
     _currentDate = dateList( coords(0) )
-    if( _startMonth == -1 ) {
-      _startMonth = _currentDate.getFieldValue( CalendarPeriod.Field.Month )
-      _startYear = _currentDate.getFieldValue( CalendarPeriod.Field.Year )
-    }
     logger.info( s" setCurrentCoords: currentDate: ${_currentDate.toString}, coords: [${coords.mkString(",")}], _startMonth: ${_startMonth}" )
   }
 
