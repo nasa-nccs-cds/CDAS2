@@ -84,10 +84,14 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
         logger.info( "\n\n     **** Found result Id: " + rid + " ****** \n\n")
         processManager.getResultVariable("cdas",rid) match {
           case Some( resultVar ) =>
-            val data: HeapFltArray = resultVar.result.elements.head._2
-            val gridfilepath = data.metadata( "gridfile" )
-            val gridfilename = sendFile( rid, "gridfile", gridfilepath )
-            sendArrayData( rid, data.origin, data.shape, data.toByteArray, data.metadata + ("gridfile" -> gridfilename) )
+            var gridfilename = ""
+            resultVar.result.elements.foreach { case (key, data) =>
+              if( gridfilename.isEmpty ) {
+                val gridfilepath = data.metadata("gridfile")
+                gridfilename = sendFile( rid, "gridfile", gridfilepath )
+              }
+              sendArrayData(rid, data.origin, data.shape, data.toByteArray, data.metadata + ("gridfile" -> gridfilename) + ( "elem" -> key ) )
+            }
           case None => logger.error( "Can't find result variable " + rid)
         }
 

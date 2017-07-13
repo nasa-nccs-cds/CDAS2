@@ -10,6 +10,9 @@ try:
     datainputs = """[domain=[{"name":"d0","time":{"start":0,"end":3000,"system":"indices"},"lat":{"start":70,"end":90,"system":"values"},"lon":{"start":25,"end":45,"system":"values"}}],variable=[{"uri":"file:///dass/nobackup/tpmaxwel/cdas/cache/collections/NCML/MERRA-TAS1hr.ncml","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.binAve","input":"v1","domain":"d0","cycle":"diurnal","bin":"month","axes":"t"}]]"""
     rId1 = portal.sendMessage("execute", [ "WPS", datainputs, '{ "response":"object" }'] )
     responses = response_manager.getResponseVariables(rId1)
+
+    print "Got " + len(responses) + " responses "
+
     responseVar = responses[0](squeeze=1)
 
     print "Got response var, shape = " + str( responseVar.shape )
