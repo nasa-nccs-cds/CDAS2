@@ -212,7 +212,6 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   def name = identifiers.takeRight(2).mkString(".")
   val extInputs: Boolean = options.getOrElse("handlesInput","false").toBoolean
   val parallelizable: Boolean = options.getOrElse( "parallelize", (!extInputs).toString ).toBoolean
-  val keyedReduce: Boolean = false
   val identifier = name
   def matchesSpecs( specs: Array[String] ): Boolean = { (specs.size >= 2) && specs(0).equals(module) && specs(1).equals(operation) }
   val nOutputsPerInput: Int = options.getOrElse("nOutputsPerInput","1").toInt

@@ -173,7 +173,6 @@ object BinKeyUtils {
 }
 
 class bin extends Kernel(Map.empty) {
-  override val keyedReduce = true
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Binning"
@@ -214,7 +213,6 @@ class bin extends Kernel(Map.empty) {
 }
 
 class binAve extends Kernel(Map.empty) {
-  override val keyedReduce = true
   val inputs = List( WPSDataInput("input variable", 1, 1 ) )
   val outputs = List( WPSProcessOutput( "operation result" ) )
   val title = "Binning"
