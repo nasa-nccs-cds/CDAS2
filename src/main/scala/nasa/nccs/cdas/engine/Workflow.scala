@@ -242,7 +242,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
           nodes.find(_.getResultId.equals(uid)) match {
             case Some(inode) => workflowNode.addChild(inode)
             case None =>
-              val errorMsg = " * Unidentified input in workflow node %s: '%s', inputs ids = %s, input source keys = %s, input source values = %s, result ids = %s".format(
+              val errorMsg = " * Unidentified input in workflow node %s: '%s': This is typically due to an empty domain intersection with the dataset! \n ----> inputs ids = %s, input source keys = %s, input source values = %s, result ids = %s".format(
                 workflowNode.getNodeId, uid, requestCx.inputs.keySet.map(k=>s"'$k'").mkString(", "), requestCx.inputs.keys.mkString(", "), requestCx.inputs.values.mkString(", "),
                 nodes.map(_.getNodeId()).map(k=>s"'$k'").mkString(", "))
               logger.error(errorMsg)
