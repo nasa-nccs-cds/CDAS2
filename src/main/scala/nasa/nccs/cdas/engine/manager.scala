@@ -157,9 +157,9 @@ class CDS2ExecutionManager extends WPSServer with Loggable {
       yield serverContext.createInputSpec( data_container, domainOpt, request )
     logger.info( s"Created ${sources.size} input sources from ${request.variableMap.size} data containers" )
     logger.info( s"Sources: ${sources.map(_.toString()).mkString(",")}" )
-    logger.info( s"Containers: ${request.variableMap.values.map(_.toString()).mkString(",")}" )
     val t2 = System.nanoTime
     val sourceMap: Map[String,Option[DataFragmentSpec]] = Map(sources.toSeq:_*)
+    logger.info( s"SourceMap keys: ${sourceMap.keys.mkString(",")}" )
     val rv = new RequestContext (request.domainMap, sourceMap, request, profiler, run_args )
     val t3 = System.nanoTime
     profiler.timestamp( " LoadInputDataT: %.4f %.4f %.4f, MAXINT: %.2f G".format( (t1-t0)/1.0E9, (t2-t1)/1.0E9, (t3-t2)/1.0E9, Int.MaxValue/1.0E9 ), true )
