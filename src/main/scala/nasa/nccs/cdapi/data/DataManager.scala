@@ -110,8 +110,8 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext, 
     case x if x.startsWith("year") => Year
     case x => Undef
   }
-  val dateList: IndexedSeq[CalendarDate] = timeAxis.section( new ma2.Range( startIndex, startIndex + input_data.shape(0)-1 ) ).getCalendarDates.toIndexedSeq
   val timeAxis: CoordinateAxis1DTime = getTimeAxis
+  val dateList: IndexedSeq[CalendarDate] = timeAxis.section( new ma2.Range( startIndex, startIndex + input_data.shape(0)-1 ) ).getCalendarDates.toIndexedSeq
   val dateRange: ( CalendarDate, CalendarDate ) = getFullDataRange
   val binMod = context.config("binMod", "" )
   private var _startBinIndex = -1
@@ -133,7 +133,7 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext, 
     rv
   }
   def getFullDataRange: ( CalendarDate, CalendarDate ) = ( timeAxis.getCalendarDate(0), timeAxis.getCalendarDate( timeAxis.getSize.toInt-1 ) )
-  
+
   val nBins: Int = cycle match {
     case Diurnal => 24
     case Monthly => 12
