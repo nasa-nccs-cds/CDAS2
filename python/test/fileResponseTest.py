@@ -9,7 +9,7 @@ portal = None
 request_port = 5670
 response_port = 5671
 host = "cldra"
-server = "10.71.9.11"
+server = "localhost"
 
 try:
 

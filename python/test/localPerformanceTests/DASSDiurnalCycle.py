@@ -11,7 +11,7 @@ try:
     rId1 = portal.sendMessage("execute", [ "WPS", datainputs, '{ "response":"object" }'] )
     responses = response_manager.getResponseVariables(rId1)
 
-    print "Got " + len(responses) + " responses "
+    print "Got " + str(len(responses)) + " responses "
 
     responseVar = responses[0](squeeze=1)
 

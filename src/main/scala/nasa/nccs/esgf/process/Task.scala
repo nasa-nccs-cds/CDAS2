@@ -782,7 +782,6 @@ class OperationSpecs(id: String, val optargs: Map[String, String]) {
 class DataContainer(val uid: String, private val source: Option[DataSource] = None, private val operation: Option[OperationContext] = None)  extends ContainerBase {
   assert(source.isDefined || operation.isDefined, s"Empty DataContainer: variable uid = $uid")
   assert(source.isEmpty || operation.isEmpty, s"Conflicted DataContainer: variable uid = $uid")
-  if( source.isEmpty ) { logger.info( "Empty source DataContainer at: \n\t" + Thread.currentThread.getStackTrace.map(_.toString).mkString("\n\t") )}
   private val optSpecs = mutable.ListBuffer[OperationSpecs]()
   private lazy val variable = {
     val source = getSource; source.collection.getVariable(source.name)
