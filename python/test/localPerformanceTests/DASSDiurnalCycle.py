@@ -14,6 +14,7 @@ try:
     for rvar in responses:
         elemId = rvar.attributes.get("elem","")
         print "Got response elem, shape = " + str( rvar.shape ) + ", id = " + elemId
+        print "Values: " + str( rvar.data.flatten[0:10] )
 
 
 finally:
