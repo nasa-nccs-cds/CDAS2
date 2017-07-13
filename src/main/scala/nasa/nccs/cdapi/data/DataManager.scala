@@ -143,8 +143,8 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext, 
     case Undef => 1
   }
 
-  def getReducedShape( shape: Array[Int] ): Array[Int] = {
-    var newshape = shape.clone
+  def getReducedShape( shape: Array[Int]  ): Array[Int] = {
+    var newshape = Array.fill[Int](shape.length)(1)
     newshape(0) = nItems
     newshape
   }
