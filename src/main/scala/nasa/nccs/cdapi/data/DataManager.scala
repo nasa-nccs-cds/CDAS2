@@ -376,7 +376,9 @@ class FastMaskedArray(val array: ma2.Array, val missing: Float ) extends Loggabl
         val binIndex: Int = sorter.getBinIndex
         val target_array = target_arrays( binIndex )
         val itemIndex: Int = sorter.getItemIndex
-        target_array.array.setFloat( itemIndex, op( target_array.array.getFloat(itemIndex), fval ) )
+        val tval = target_array.array.getFloat(itemIndex)
+        logger.info( s"BIN: binIndex: ${binIndex}, itemIndex: ${itemIndex}, fval: ${fval}, tval: ${tval}")
+        target_array.array.setFloat( itemIndex, op( tval, fval ) )
       }
     }
     target_arrays
