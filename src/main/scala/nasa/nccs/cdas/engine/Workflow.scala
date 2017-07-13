@@ -234,6 +234,7 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
   }
 
   def linkNodes(requestCx: RequestContext): Unit = {
+    logger.info( s"linkNodes; inputs = ${requestCx.inputs.keys.mkString(",")}")
     for (workflowNode <- nodes; uid <- workflowNode.operation.inputs)  {
       requestCx.getInputSpec(uid) match {
         case Some(inputSpec) => Unit
@@ -241,8 +242,8 @@ class Workflow( val request: TaskRequest, val executionMgr: CDS2ExecutionManager
           nodes.find(_.getResultId.equals(uid)) match {
             case Some(inode) => workflowNode.addChild(inode)
             case None =>
-              val errorMsg = " * Unidentified input in workflow node %s: '%s', inputs ids = %s, input values = %s, result ids = %s".format(
-                workflowNode.getNodeId, uid, requestCx.inputs.keySet.map(k=>s"'$k'").mkString(", "), requestCx.inputs.values.mkString(", "),
+              val errorMsg = " * Unidentified input in workflow node %s: '%s', inputs ids = %s, input source keys = %s, input source values = %s, result ids = %s".format(
+                workflowNode.getNodeId, uid, requestCx.inputs.keySet.map(k=>s"'$k'").mkString(", "), requestCx.inputs.keys.mkString(", "), requestCx.inputs.values.mkString(", "),
                 nodes.map(_.getNodeId()).map(k=>s"'$k'").mkString(", "))
               logger.error(errorMsg)
               throw new Exception(errorMsg)
