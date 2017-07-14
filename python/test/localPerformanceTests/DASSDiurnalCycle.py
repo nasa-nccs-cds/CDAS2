@@ -22,7 +22,7 @@ try:
         print "Got response elem, shape = " + str( rvar.shape ) + ", index = " + str( elemIndex )
         cycle_data[elemIndex] = rvar.data.flatten()[monthIndex]
 
-
+    print str( cycle_data )
     plt.plot_date(hours,cycle_data)
     plt.show()
 
