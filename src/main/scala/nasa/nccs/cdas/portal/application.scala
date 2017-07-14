@@ -90,7 +90,7 @@ class CDASapp( mode: CDASPortal.ConnectionMode, request_port: Int, response_port
                 val gridfilepath = data.metadata("gridfile")
                 gridfilename = sendFile( rid, "gridfile", gridfilepath )
               }
-              sendArrayData(rid, data.origin, data.shape, data.toByteArray, data.metadata + ("gridfile" -> gridfilename) + ( "elem" -> key ) )
+              sendArrayData(rid, data.origin, data.shape, data.toByteArray, data.metadata + ("gridfile" -> gridfilename) + ( "elem" -> key.split('.').last ) )
             }
           case None => logger.error( "Can't find result variable " + rid)
         }
