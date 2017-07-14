@@ -23,8 +23,10 @@ try:
     rId = portal.sendMessage( "execute", [ "CDSpark.workflow", datainputs, '{ "response":"object" }'] )
     objectResponses = response_manager.getResponseVariables(rId)
     timeSeries  = objectResponses[0](squeeze=1)
-
     timeSeries -= 273.15
+
+    print "Plotting data"
+
     datetimes = pd.to_datetime(timeSeries.getTime().asdatetime())
     data = [go.Scatter(x=datetimes, y=timeSeries)]
     py.iplot(data)
