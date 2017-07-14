@@ -1,4 +1,6 @@
 from pycdas.portal.cdas import *
+import numpy as np
+import matplotlib.pyplot as plt
 
 request_port = 5670
 response_port = 5671
@@ -11,11 +13,18 @@ try:
     rId1 = portal.sendMessage("execute", [ "WPS", datainputs, '{ "response":"object" }'] )
     responses = response_manager.getResponseVariables(rId1)
 
+    cycle_data = np.zeros((24))
+    hours = np.arange(24)
+    monthIndex = 5
     for rvar in responses:
         elemId = rvar.attributes.get("elem","")
-        print "Got response elem, shape = " + str( rvar.shape ) + ", id = " + elemId
-        print "Values: " + str( rvar.data.flatten()[0:10] )
+        elemIndex = int( elemId.split(".")[-1] )
+        print "Got response elem, shape = " + str( rvar.shape ) + ", index = " + str( elemIndex )
+        cycle_data[elemIndex] = rvar.data.flatten()[monthIndex]
 
+
+    plt.plot_date(hours,cycle_data)
+    plt.show()
 
 finally:
     portal.shutdown()
