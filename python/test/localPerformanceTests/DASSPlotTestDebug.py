@@ -22,7 +22,8 @@ try:
     data = fileVar.data
     print "Received response data, size =  " + str(data.shape)
 
-    print "Response sample: " + data[0:100]
+    fid = open( "/tmp/cdas_test_data-" + str(time.time()) + ".txt","w")
+    data.tofile( fid, " ", "%.2f" )
 
 finally:
     portal.shutdown()
