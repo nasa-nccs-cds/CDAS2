@@ -10,6 +10,7 @@ import nasa.nccs.cdapi.data.{HeapFltArray, _}
 import nasa.nccs.cdapi.tensors.CDFloatArray.{ReduceNOpFlt, ReduceOpFlt, ReduceWNOpFlt}
 import nasa.nccs.cdapi.tensors.{CDArray, CDCoordMap, CDFloatArray, CDTimeCoordMap}
 import nasa.nccs.cdas.engine.spark.RecordKey
+import nasa.nccs.cdas.modules.CDSpark.BinKeyUtils
 import nasa.nccs.cdas.workers.TransVar
 import nasa.nccs.cdas.workers.python.{PythonWorker, PythonWorkerPortal}
 import nasa.nccs.cdas.utilities.{appParameters, runtime}
@@ -21,7 +22,8 @@ import ucar.nc2.Attribute
 import ucar.{ma2, nc2}
 
 import scala.collection.JavaConversions._
-import scala.collection.immutable.TreeMap
+import scala.collection.immutable.{SortedMap, TreeMap}
+import scala.collection.mutable
 import scala.collection.mutable.SortedSet
 
 object Port {
@@ -143,6 +145,17 @@ object Kernel extends Loggable {
     new_key -> RDDRecord( new_elements, rdd0.mergeMetadata("merge", rdd1) )
   }
 
+  def orderedMergeRDD(context: KernelContext)(a0: RDDKeyValPair, a1: RDDKeyValPair ): RDDKeyValPair = {
+    val ( rdd0, rdd1 ) = ( a0._2, a1._2 )
+    val ( k0, k1 ) = ( a0._1, a1._1 )
+    val t0 = System.nanoTime
+    val new_key = k0 + k1
+    val new_elements = rdd0.elements.map { case (key, array) => (key+"%"+k0.elemStart, array) } ++ rdd1.elements.map { case (key, array) => (key+"%"+k1.elemStart, array) }
+    val dt = (System.nanoTime - t0) / 1.0E9
+    context.addTimestamp("&MERGE: complete, time = %.4f s, key = ".format( dt, new_key.toString ) )
+    new_key -> RDDRecord( new_elements, rdd0.mergeMetadata("merge", rdd1) )
+  }
+
   def apply(module: String, kernelSpec: String, api: String): Kernel = {
     val specToks = kernelSpec.split("[;]")
     customKernels.find(_.matchesSpecs(specToks)) match {
@@ -203,6 +216,12 @@ object KernelUtilities extends Loggable {
 
 class KIType { val Op = 0; val MData = 1 }
 
+object PartSortUtils {
+  implicit object PartSortOrdering extends Ordering[String] {
+    def compare( k1: String, k2: String ) = k1.split('%')(1).toInt - k2.split('%')(1).toInt
+  }
+}
+
 abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Loggable with Serializable with WPSProcess {
   import Kernel._
   val identifiers = this.getClass.getName.split('$').flatMap(_.split('.'))
@@ -246,7 +265,7 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
         case None => reduceRDDOp(context)
       }
     } else {
-      mergeRDD(context)
+      orderedMergeRDD(context)
     }
 
   def getOpName(context: KernelContext): String = "%s(%s)".format(name, context.operation.inputs.mkString(","))
@@ -471,6 +490,21 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
   }
 
   def postOp(result: DataFragment, context: KernelContext): DataFragment = result
+
+  def orderElements( op_result: RDDRecord, context: KernelContext ): RDDRecord = if ( context.doesTimeReduction ) { op_result } else {
+    val sorted_keys = op_result.elements.keys.toIndexedSeq.sortBy( key => key.split('%')(1).toInt )
+    val resultMap = mutable.HashMap.empty[String,HeapFltArray]
+    sorted_keys.foreach( key => op_result.elements.get(key) match {
+      case Some( array ) =>
+        val base_key = key.split('%').head
+        resultMap.get( base_key ) match {
+          case Some( existing_array ) => resultMap.put( base_key, existing_array.append(array) )
+          case None => resultMap.put( base_key, array )
+        }
+      case None => Unit
+    })
+    new RDDRecord( TreeMap( resultMap.toIndexedSeq:_* ), op_result.metadata )
+  }
 
   def postRDDOp( pre_result: RDDRecord, context: KernelContext ): RDDRecord = {
     options.get("postOp") match {

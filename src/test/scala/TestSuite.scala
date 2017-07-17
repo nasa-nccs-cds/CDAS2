@@ -394,6 +394,16 @@ class CurrentTestSuite extends FunSuite with Loggable with BeforeAndAfter {
       assert( result_data.maxScaledDiff( nco_verified_result )  < eps, s" Incorrect value computed for Max")
     }
 
+  test("SpaceAve-dap") {
+    val nco_verified_result: CDFloatArray = CDFloatArray( Array( 270.07922, 269.5924, 267.8264, 265.12802, 262.94022, 261.35474, 260.80325, 260.67126, 261.85434, 263.46478, 265.88184, 269.2312, 270.60336, 270.05328, 267.67136, 265.6528, 263.22043, 262.25778, 261.28976, 261.22495, 260.86606, 263.05197, 265.86447, 269.4156, 270.377, 269.69855, 267.54056, 264.81995, 263.0417, 261.2425, 260.65546, 260.83783, 261.6036, 263.3008, 265.84967 ).map(_.toFloat), Float.MaxValue )
+    val datainputs = s"""[domain=[{"name":"d0","lat":{"start":5,"end":25,"system":"indices"},"lon":{"start":5,"end":25,"system":"indices"}}],variable=[{"uri":"file:///Users/tpmaxwel/.cdas/cache/collections/NCML/giss_e2_r_r3i1p1.xml","name":"tas:v1","domain":"d0"}],operation=[{"name":"CDSpark.average","input":"v1","domain":"d0","axes":"xy"}]]"""
+    val result_node = executeTest( datainputs, Map("numParts"->"4") )
+    val result_data = getResultData( result_node ).sample(35)
+    println( "Op Result:       " + result_data.mkBoundedDataString(", ", 35) )
+    println( "Verified Result: " + nco_verified_result.mkBoundedDataString(", ", 35)  )
+    assert( result_data.maxScaledDiff( nco_verified_result  )  < eps, s" Incorrect value computed for Max")
+  }
+
   test("StdDev-dap") {
     // # NCO Verification script:
     //  datafile="http://esgf.nccs.nasa.gov/thredds/dodsC/CMIP5/NASA/GISS/historical/E2-H_historical_r1i1p1/tas_Amon_GISS-E2-H_historical_r1i1p1_185001-190012.nc"
