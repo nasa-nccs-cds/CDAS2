@@ -162,7 +162,6 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext, 
 
   def setCurrentCoords( coords: Array[Int] ): Unit = {
     _currentDate = dateList( coords(0) )
-    logger.info( s" setCurrentCoords: currentDate: ${_currentDate.toString}, coords: [${coords.mkString(",")}], _startMonth: ${_startMonth}" )
   }
 
   def getBinIndex: Int = cycle match {
@@ -172,12 +171,9 @@ class TimeCycleSorter(val input_data: HeapFltArray, val context: KernelContext, 
   }
 
   def getItemIndex: Int = bin match {
-    case Month =>
-      val itemIndex = _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startMonth + ( _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startYear ) * 12
-      logger.info( s" getItemIndex: currentDate: ${_currentDate.toString}, itemIndex: ${itemIndex}, _startMonth: ${_startMonth}" )
-      itemIndex
-    case MonthOfYear => _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startMonth
-    case Year => _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startYear
+    case Month =>         _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startMonth + ( _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startYear ) * 12
+    case MonthOfYear =>   _currentDate.getFieldValue( CalendarPeriod.Field.Month ) - _startMonth
+    case Year =>          _currentDate.getFieldValue( CalendarPeriod.Field.Year ) - _startYear
     case Undef => 0
   }
 }
@@ -410,15 +406,12 @@ class FastMaskedArray(val array: ma2.Array, val missing: Float ) extends Loggabl
         val wtVal = wtsIterOpt match {
           case Some(wtsIter) =>
             val wt = wtsIter.getFloatNext
-            logger.info( s"&&wSumBin.sval: [binIndex: $binIndex, itemIndex: $itemIndex], fval: $fval, wt: $wt, currVal: $currVal")
             target_array.array.setFloat( itemIndex, currVal + fval*wt )
             wt
           case None =>
-            logger.info( s"&&wSumBin.sval: [binIndex: $binIndex, itemIndex: $itemIndex], fval: $fval, currVal: $currVal")
             target_array.array.setFloat( itemIndex, currVal + fval )
             1f
         }
-        logger.info( s"&&wSumBin.wval: [binIndex: $binIndex, itemIndex: $itemIndex], wtVal: $wtVal, currWt: $currWt")
         weight_array.array.setFloat( itemIndex, weight_array.array.getFloat(itemIndex) + wtVal )
       }
     }

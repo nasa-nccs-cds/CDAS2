@@ -664,17 +664,15 @@ abstract class Kernel( val options: Map[String,String] = Map.empty ) extends Log
     val axes = context.getAxes
     if (axes.includes(0)) {
       val t0 = System.nanoTime
-      val rid = context.operation.rid
       val elems = a0.elements flatMap { case (key, data0) =>
         a1.elements.get( key ) match {
           case Some( data1 ) =>
             val vTot: FastMaskedArray = data0.toFastMaskedArray + data1.toFastMaskedArray
             val t1 = System.nanoTime
-            val vOrigin: Array[Int] = originArray (a0, rid)
             val wTotOpt: Option[Array[Float]] = data0.toMa2WeightsArray flatMap { wtsArray0 => data1.toMa2WeightsArray map { wtsArray1 => (wtsArray0 + wtsArray1).toFloatArray } }
             val t2 = System.nanoTime
             val array_mdata = MetadataOps.mergeMetadata (context.operation.name) (data0.metadata, data1.metadata )
-            Some( key -> HeapFltArray (vTot.toCDFloatArray, vOrigin, array_mdata, wTotOpt) )
+            Some( key -> HeapFltArray (vTot.toCDFloatArray, data0.origin, array_mdata, wTotOpt) )
           case None => logger.warn("Missing elemint in Record combine: " + key); None
         }
       }
