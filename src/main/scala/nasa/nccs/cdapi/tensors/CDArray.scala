@@ -429,7 +429,7 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
     if( maxSize < data.length ) { data.slice(0,maxSize) } else { data }
   }
   override def dup(): CDFloatArray = new CDFloatArray( cdIndexMap.getShape, this.getSectionData(), invalid )
-  def valid( value: Float ) = { !invalid.isNaN && (value != invalid) }
+  def valid( value: Float ) = { !value.isNaN && (value != invalid) }
   def toCDFloatArray( target: CDArray[Float] ) = new CDFloatArray( target.getIndex, target.getStorage.asInstanceOf[FloatBuffer], invalid )
   def spawn( shape: Array[Int], fillval: Float ): CDArray[Float] = CDArray( shape, FloatBuffer.wrap(Array.fill[Float]( shape.product )(fillval)), invalid  )
   def spawn( index: CDIndexMap, fillval: Float ): CDArray[Float] = {
@@ -462,7 +462,12 @@ class CDFloatArray( cdIndexMap: CDIndexMap, val floatStorage: FloatBuffer, prote
   def minMag(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray = reduce( minMagOp, reduceDims, Float.MaxValue )
   def sum(reduceDims: Array[Int]=Array.emptyIntArray): CDFloatArray = reduce( addOp, reduceDims, 0f )
   def mean = sum()/this.getSize
-  def maxScaledDiff( other: CDFloatArray ): Float = ( ( this - other ) / this.mean ).maxMag().getArrayData()(0)
+  def maxScaledDiff( other: CDFloatArray ): Float = {
+    val mean = this.mean
+    val diff = ( this - other )
+    val weighted_diff = diff / mean
+    weighted_diff.maxMag().getArrayData()(0)
+  }
 
   def augmentFlat( flat_index: FlatIndex, value: Float, opName: String = "add"  ): Unit = {
     val storageIndex: StorageIndex = getIterator.flatToStorage( flat_index )
