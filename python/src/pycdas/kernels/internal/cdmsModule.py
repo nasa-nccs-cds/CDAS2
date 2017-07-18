@@ -57,8 +57,7 @@ class RegridKernel(CDMSKernel):
                     self.logger.info( " >> Input Data Sample: [ {0} ]".format( ', '.join(  [ str( variable.data.flat[i] ) for i in range(20,90) ] ) ) )
                     self.logger.info( " >> Input Variable Shape: {0}, Grid Shape: {1} ".format( str(variable.shape), str([len(ingrid.getLatitude()),len(ingrid.getLongitude())] )))
 
-                regridFunction = Horizontal(ingrid, toGrid)
-                result_var = regridFunction( variable )
+                result_var = variable.regrid( toGrid, regridTool="esmf", regridMethod="linear" )
                 self.logger.info( " >> Gridded Data Sample: [ {0} ]".format( ', '.join(  [ str( result_var.data.flat[i] ) for i in range(20,90) ] ) ) )
                 results.append( self.createResult( result_var, _input, task ) )
         t1 = time.time()

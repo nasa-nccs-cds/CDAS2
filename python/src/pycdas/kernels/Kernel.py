@@ -66,7 +66,9 @@ class Kernel:
             outdir = os.path.dirname( variable.gridfile )
             outpath = os.path.join(outdir, resultId + ".nc" )
             newDataset = cdms2.createDataset( outpath )
-            for axis in axes: newDataset.copyAxis(axis,axis.id,0,None,axis.getBounds)
+            for axis in axes:
+                if axis.isTime:     pass
+                else:               newDataset.copyAxis(axis)
             newDataset.copyGrid(grid)
             newDataset.close()
             self.logger.info( "Saved grid file: {0}".format( outpath ) )
